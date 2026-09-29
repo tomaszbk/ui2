@@ -20,6 +20,14 @@ macOS and Windows use native widgets by default. Pass the compile-time define
 v -d ui2_custom_rendering run examples/users/main.v
 ```
 
+The custom renderer defaults to continuous rendering. Opt into on-demand work
+with `ui2.set_render_policy(.on_demand)` before `run`/`run_window`, or
+`render_policy: .on_demand` in a VML runner configuration. Model changes outside
+VML handlers require `refresh()`; workers can post changes through a captured
+`ui2.ui_dispatcher()`. Idle drawing currently stops on macOS Metal. GL/EGL/D3D
+reuse the declared tree but still repaint because Sokol presents every callback.
+See [scheduling and diagnostics](docs/custom-rendering-scheduler.md).
+
 ## Requirements
 
 `ui2` needs V 0.5.2 or newer. The module is split across `ui/`, `appkit/`,
@@ -52,8 +60,8 @@ method composition. Use `set_text` for an explicit imperative replacement.
 
 Animations target a mounted element by `id` and are applied after each
 declarative build, so they work with both V-built and VML-built trees. The
-native backends schedule redraws for the duration; the custom renderer already
-builds every frame.
+native backends schedule redraws for the duration; the custom renderer requests
+frames while visible animations run, including in opt-in on-demand mode.
 
 ```v
 move := ui2.animation(
