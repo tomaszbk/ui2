@@ -91,7 +91,14 @@ xcrun clang -std=c11 -Wall -Wextra -Werror -fobjc-arc \
   tests/embedder_macos/host_contract.m -framework Cocoa -framework Metal \
   -framework QuartzCore -o /tmp/ui2-embedder-host-test
 /tmp/ui2-embedder-host-test
+/tmp/ui2-embedder-host-test --idle-ms 30000
 ```
+
+The native harness defaults to a 200 ms idle interval; `--idle-ms N` selects
+a longer sample. Failed harness checks report the condition, request window
+cleanup on the main thread and exit with status 1. Worker failures wait up to
+500 ms for cleanup. Runtime assertions and exceptions retain their normal
+crash reports.
 
 GPU/native execution requires a normal macOS GUI session. Keep the default GC.
 The two-window acceptance checks native host pump counters separately from
