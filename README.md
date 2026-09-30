@@ -469,10 +469,18 @@ declaration can be checked in a test without a window.
 
 ## Layout and text offsets
 
-The VML layer provides fixed frames plus `Row` and `Column` layout. Child frames
-are parent-local. It does not implement intrinsic sizing, flex/grid, wrapping,
-or min/max constraints; applications can compute frames before constructing an
-element tree.
+VML provides `FlexLayout` for content-sized, growing/shrinking and wrapping
+children, and `GridLayout` for rows/columns, responsive automatic columns and
+cell spans. Both assign parent-local child frames. `BoxLayout` also supports
+weighted sizing and min/max bounds; `StackLayout` wraps fixed-size children.
+Existing fixed frames and `Row`/`Column` documents retain their sizing rules.
+
+Responsive layouts can combine these containers with expressions such as
+`root.width < 600`, or use the existing adaptive screen variants. Flex/Grid
+layout is shared by native backends and the custom renderer, including
+`render_policy: .on_demand`. This is a V layout API, not a CSS implementation.
+See [modern layout](docs/modern-layout.md) for properties, intrinsic measurement,
+limits and the executable `examples/responsive_layout` example.
 
 A label, button, checkbox, or dropdown whose text is wider than its frame ends
 in an ellipsis rather than running over whatever is beside it: the native
