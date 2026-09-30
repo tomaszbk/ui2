@@ -28,6 +28,12 @@ VML handlers require `refresh()`; workers can post changes through a captured
 reuse the declared tree but still repaint because Sokol presents every callback.
 See [scheduling and diagnostics](docs/custom-rendering-scheduler.md).
 
+On macOS, the experimental owned embedder adds native windows, Metal surfaces,
+IME composition and a blocking event loop. Enable it with both
+`-d ui2_custom_rendering -d ui2_embedder`, and select `.on_demand` for idle
+sleep. `open_window`/`run_windows` support independent windows with scoped
+updates and dispatchers. See [the embedder contract and acceptance tests](docs/custom-embedder.md).
+
 ## Requirements
 
 `ui2` needs V 0.5.2 or newer. The module is split across `ui/`, `appkit/`,
@@ -810,6 +816,8 @@ GitHub Actions runs `make examples` on Linux, macOS, and Windows, plus
 `make check-windows` type-check each renderer; cross-target checks require their
 normal platform SDK/toolchain. `make check-custom` additionally type-checks the
 opt-in custom macOS and Windows builds.
+`make check-embedder-macos` checks the owned Metal embedder;
+`make test-embedder` runs its focused suites on a macOS host with GPU access.
 
 `make screenshot EXAMPLE=<name>` renders one example and writes a single frame
 to a PNG, so a layout can be checked without a person watching the window:

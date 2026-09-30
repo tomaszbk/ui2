@@ -74,6 +74,57 @@ mut:
 	suspended             bool
 	closed                bool
 	tasks                 []fn ()
+	// A lifetime-independent platform signal: it may be invoked by a worker
+	// after close races with unlock. It must stay safe after the window closes
+	// and must never dereference renderer state or execute application callbacks.
+	wakeup                fn () = unsafe { nil }
+}
+
+fn (mut coordinator FrameCoordinator) set_wakeup(wakeup fn ()) {
+	coordinator.mutex.lock()
+	if !coordinator.closed {
+		coordinator.wakeup = wakeup
+	}
+	coordinator.mutex.unlock()
+}
+
+// Release the lock before signaling the embedder. This also lets tests use a
+// signal that observes the coordinator without deadlocking.
+fn (mut coordinator FrameCoordinator) unlock_and_wake(changed bool) {
+	wakeup := coordinator.wakeup
+	closed := coordinator.closed
+	coordinator.mutex.unlock()
+	if changed && !closed && voidptr(wakeup) != unsafe { nil } {
+		wakeup()
+	}
+}
+
+// Return the next absolute monotonic deadline, or -1 for an indefinite wait.
+// Business tasks still wake a suspended window; visual invalidations wait for
+// restore. last_frame and interval come from the embedder's presentation clock.
+fn (mut coordinator FrameCoordinator) next_wake(now i64, last_frame i64, interval i64) i64 {
+	coordinator.mutex.lock()
+	defer { coordinator.mutex.unlock() }
+	if coordinator.closed || coordinator.active_serial != 0 {
+		return -1
+	}
+	if coordinator.tasks.len > 0 {
+		return now
+	}
+	if coordinator.suspended {
+		return -1
+	}
+	if coordinator.pending_reasons.len > 0 {
+		return now
+	}
+	mut deadline := coordinator.next_deadline
+	if coordinator.policy == .continuous || coordinator.animation_active {
+		frame_at := if last_frame < 0 { now } else { last_frame + if interval > 0 { interval } else { 16 } }
+		if deadline < 0 || frame_at < deadline {
+			deadline = frame_at
+		}
+	}
+	return deadline
 }
 
 fn new_frame_coordinator(policy RenderPolicy) &FrameCoordinator {
@@ -86,12 +137,14 @@ fn new_frame_coordinator(policy RenderPolicy) &FrameCoordinator {
 
 fn (mut coordinator FrameCoordinator) set_policy(policy RenderPolicy) {
 	coordinator.mutex.lock()
-	defer { coordinator.mutex.unlock() }
+	mut changed := false
+	defer { coordinator.unlock_and_wake(changed) }
 	if coordinator.closed || coordinator.policy == policy {
 		return
 	}
 	coordinator.policy = policy
 	coordinator.invalidate_locked(.build)
+	changed = true
 }
 
 // Some platform loops present their swapchain after every callback, even when
@@ -107,8 +160,9 @@ fn (mut coordinator FrameCoordinator) set_presentation_required(required bool) {
 
 fn (mut coordinator FrameCoordinator) invalidate(reason RenderReason) {
 	coordinator.mutex.lock()
-	defer { coordinator.mutex.unlock() }
+	was_pending := coordinator.pending_reasons.len > 0
 	coordinator.invalidate_locked(reason)
+	coordinator.unlock_and_wake(!was_pending)
 }
 
 fn (mut coordinator FrameCoordinator) invalidate_locked(reason RenderReason) {
@@ -200,17 +254,21 @@ fn (mut coordinator FrameCoordinator) record_draw() {
 // its tooltip, cursor and other visual timers into the earliest deadline.
 fn (mut coordinator FrameCoordinator) set_deadline(at i64) {
 	coordinator.mutex.lock()
-	defer { coordinator.mutex.unlock() }
+	mut changed := false
+	defer { coordinator.unlock_and_wake(changed) }
 	if coordinator.closed || coordinator.suspended {
 		return
 	}
+	changed = coordinator.next_deadline != at
 	coordinator.next_deadline = at
 }
 
 fn (mut coordinator FrameCoordinator) set_animation_active(active bool) {
 	coordinator.mutex.lock()
-	defer { coordinator.mutex.unlock() }
+	mut changed := false
+	defer { coordinator.unlock_and_wake(changed) }
 	if !coordinator.closed {
+		changed = coordinator.animation_active != active
 		coordinator.animation_active = active
 	}
 }
@@ -226,12 +284,14 @@ fn (mut coordinator FrameCoordinator) suspend() {
 
 fn (mut coordinator FrameCoordinator) resume() {
 	coordinator.mutex.lock()
-	defer { coordinator.mutex.unlock() }
+	mut changed := false
+	defer { coordinator.unlock_and_wake(changed) }
 	if coordinator.closed || !coordinator.suspended {
 		return
 	}
 	coordinator.suspended = false
 	coordinator.invalidate_locked(.surface)
+	changed = true
 }
 
 fn (mut coordinator FrameCoordinator) close() {
@@ -244,6 +304,7 @@ fn (mut coordinator FrameCoordinator) close() {
 	coordinator.active_serial = 0
 	coordinator.pending_reasons = []RenderReason{}
 	coordinator.tasks = []fn (){}
+	coordinator.wakeup = unsafe { nil }
 }
 
 fn (mut coordinator FrameCoordinator) is_closed() bool {
@@ -254,10 +315,12 @@ fn (mut coordinator FrameCoordinator) is_closed() bool {
 
 fn (mut coordinator FrameCoordinator) post(task fn ()) bool {
 	coordinator.mutex.lock()
-	defer { coordinator.mutex.unlock() }
+	mut wake := false
+	defer { coordinator.unlock_and_wake(wake) }
 	if coordinator.closed {
 		return false
 	}
+	wake = coordinator.tasks.len == 0
 	coordinator.tasks << task
 	coordinator.invalidate_locked(.worker)
 	return true

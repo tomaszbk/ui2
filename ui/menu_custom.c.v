@@ -101,7 +101,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 
 	// menu_text_width measures a string the way draw_text will render it, so a
 	// title's box is exactly as wide as its text needs.
-	fn menu_text_width(ctx &gg.Context, t string, style TextStyle) f64 {
+	fn menu_text_width(ctx &DrawContext, t string, style TextStyle) f64 {
 		if t.len == 0 {
 			return 0.0
 		}
@@ -122,7 +122,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	// draw_menu_bar draws the bar and every open panel, and rebuilds the hit
 	// list the pointer handlers read. It runs after the element tree so the
 	// panels float above the window's own controls.
-	fn draw_menu_bar(ctx &gg.Context) {
+	fn draw_menu_bar(ctx &DrawContext) {
 		menus := menu_bar()
 		g_menu_hits = []MenuBarHit{}
 		g_menu_panels = []Rect{}
@@ -169,7 +169,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 
 	// draw_menu_panel draws one list and, when the open path goes deeper,
 	// recurses into the submenu it names.
-	fn draw_menu_panel(ctx &gg.Context, items []MenuItem, path []int, anchor_x f64, anchor_y f64, window Rect) {
+	fn draw_menu_panel(ctx &DrawContext, items []MenuItem, path []int, anchor_x f64, anchor_y f64, window Rect) {
 		if items.len == 0 {
 			return
 		}
@@ -241,13 +241,13 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		}
 	}
 
-	fn draw_submenu_arrow(ctx &gg.Context, center_x f64, center_y f64, color_hex u32) {
+	fn draw_submenu_arrow(ctx &DrawContext, center_x f64, center_y f64, color_hex u32) {
 		c := hex_color(color_hex)
 		ctx.draw_triangle_filled(f32(center_x - 2), f32(center_y - 4), f32(center_x + 3),
 			f32(center_y), f32(center_x - 2), f32(center_y + 4), c)
 	}
 
-	fn menu_panel_width(ctx &gg.Context, items []MenuItem) f64 {
+	fn menu_panel_width(ctx &DrawContext, items []MenuItem) f64 {
 		mut width := menubar_panel_min_width
 		for item in items {
 			if item.separator {

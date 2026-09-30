@@ -412,7 +412,12 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		return first, last
 	}
 
-	fn draw_text_area_content(ctx &gg.Context, el Element, value string, x f64, y f64, clip Rect, scroll_parent_id string) {
+	fn draw_text_area_content(ctx &DrawContext, el Element, value string, x f64, y f64, clip Rect, scroll_parent_id string) {
+		mut editor := g_text_editors[el.id] or { text_editor(value.clone()) }
+		$if macos && ui2_embedder ? {
+			editor = custom_composition_editor(el.id, editor)
+		}
+		shown := editor.text
 		frame := rect(x, y, el.frame.width, el.frame.height)
 		content := text_area_content_rect(frame, el.padding_left, !el.disable_scroll)
 		style := el.text_style
@@ -428,11 +433,10 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			vertical_align: .middle
 		}
 		ctx.set_text_cfg(cfg)
-		lines := text_area_lines(el.id, value, content.width, style, cfg.size, fn [ctx] (line string) f64 {
+		lines := text_area_lines(el.id, shown, content.width, style, cfg.size, fn [ctx] (line string) f64 {
 			return f64(ctx.text_width_f(line))
 		})
-		line_ranges := text_area_line_rune_ranges(value, lines)
-		editor := g_text_editors[el.id] or { text_editor(value.clone()) }
+		line_ranges := text_area_line_rune_ranges(shown, lines)
 		selection_start, selection_end := editor.selection.ordered()
 		show_selection := g_focused_field == el.id && selection_start != selection_end
 		line_height := math.max(1.0, font_line_height(style.size))
@@ -469,6 +473,32 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 					}
 				}
 				ctx.draw_text(int(text_x), int(text_y), lines[index], cfg)
+				if g_focused_field == el.id && index < line_ranges.len {
+					line_range := line_ranges[index]
+					line_origin := text_field_aligned_text_origin(content.x, content.width,
+						f64(ctx.text_width_f(lines[index])), style.align)
+					if editor.selection.caret >= line_range.start && editor.selection.caret <= line_range.end {
+						prefix := lines[index].runes()[..editor.selection.caret - line_range.start].string()
+						caret_x := line_origin + f64(ctx.text_width_f(prefix))
+						g_gg_app.text_caret = rect(caret_x, text_y - line_height / 2, 2, line_height)
+						$if macos && ui2_embedder ? {
+							draw_rect(ctx, caret_x, text_y - line_height / 2, 2, line_height, style.color, 0)
+						}
+					}
+					$if macos && ui2_embedder ? {
+						composition := g_gg_app.composition
+						if composition.field_id == el.id {
+							from := clamp_int(composition.start + composition.mark_start, line_range.start, line_range.end)
+							to := clamp_int(composition.start + composition.mark_start + composition.mark_length, from, line_range.end)
+							if to > from {
+								line_runes := lines[index].runes()
+								left := line_origin + f64(ctx.text_width_f(line_runes[..from - line_range.start].string()))
+								right := line_origin + f64(ctx.text_width_f(line_runes[..to - line_range.start].string()))
+								draw_rect(ctx, left, text_y + line_height / 2 - 1, right - left, 1, style.color, 0)
+							}
+						}
+					}
+				}
 			}
 		}
 		pane_clip := intersect_rect(frame, clip)

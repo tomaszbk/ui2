@@ -1,6 +1,6 @@
 V ?= v
 
-.PHONY: test ide check-ide examples examples-custom screenshot check-macos check-ios check-android check-linux check-windows check-custom-macos check-custom-windows check-custom check-backends
+.PHONY: test ide check-ide examples examples-custom screenshot check-macos check-ios check-android check-linux check-windows check-custom-macos check-custom-windows check-custom check-embedder-macos test-embedder check-backends
 
 test:
 	$(V) test .
@@ -49,4 +49,18 @@ check-custom-windows:
 
 check-custom: check-custom-macos check-custom-windows
 
-check-backends: check-macos check-ios check-android check-linux check-windows check-custom
+# The owned embedder currently supports macOS/Metal. Its resource test opens
+# the device, so run it on an actual macOS host rather than as a cross-check.
+check-embedder-macos:
+	$(V) -d ui2_custom_rendering -d ui2_embedder -shared -os macos -check .
+	$(V) -d ui2_custom_rendering -d ui2_embedder -os macos -check ui/draw_context_embedder_test.v
+	$(V) -d ui2_custom_rendering -d ui2_embedder -os macos -check ui/ui_custom_test.v
+
+test-embedder:
+	$(V) -d ui2_custom_rendering -d ui2_embedder test ui/draw_context_embedder_test.v \
+		ui/frame_embedder_test.v ui/text_composition_test.v \
+		ui/ui_window_state_immediate_test.v ui/ui_scheduler_immediate_test.v \
+		ui/ui_pointer_capture_immediate_test.v ui/ui_scroll_immediate_test.v \
+		ui/ui_tooltip_immediate_test.v
+
+check-backends: check-macos check-ios check-android check-linux check-windows check-custom check-embedder-macos

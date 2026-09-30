@@ -66,9 +66,10 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		scrollbar_grab_y   f64
 	}
 
+	@[heap]
 	struct GgApp {
 	mut:
-		ctx &gg.Context = unsafe { nil }
+		ctx &DrawContext = unsafe { nil }
 		scheduler &FrameCoordinator = new_frame_coordinator(.continuous)
 		declared_root Element
 		has_root bool
@@ -76,6 +77,15 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		suspended bool
 		dpi_scale f32
 		draining_tasks bool
+		window_state &CustomWindowState = unsafe { nil }
+		native_window voidptr
+		last_frame i64 = -1
+		surface_retry_at i64 = -1
+		callback_depth int
+		cleanup_pending bool
+		composition TextComposition
+		text_caret Rect
+		editable_fields map[string]bool
 	}
 
 	// DropdownPopup caches the geometry of the open dropdown list. The list is
@@ -298,6 +308,13 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	}
 
 	fn run_window_with_min_size(title string, width int, height int, min_width int, min_height int, build_fn BuildFn, event_fn EventFn) {
+		$if macos && ui2_embedder ? {
+			open_embedder_window(title, width, height, min_width, min_height, build_fn, event_fn) or {
+				panic('ui2: ${err}')
+			}
+			C.ui2_embedder_run()
+			return
+		}
 		// A dispatcher retained by an old worker stays attached to its closed window.
 		if g_gg_app.scheduler.is_closed() {
 			g_gg_app = &GgApp{}
@@ -313,7 +330,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		if font_regular.len > 0 {
 			g_font_metrics = font_file_metrics(font_regular) or { FontMetrics{} }
 		}
-		g_gg_app.ctx = gg.new_context(
+		g_gg_app.ctx = gg_draw_context(gg.new_context(
 			bg_color: hex_color(0xf4f6f8)
 			font_path: font_regular
 			custom_bold_font_path: font_bold
@@ -336,8 +353,8 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			enable_dragndrop: true
 			max_dropped_files: 32
 			max_dropped_file_path_length: 4096
-		)
-		g_gg_app.ctx.run()
+		))
+		g_gg_app.ctx.inner.run()
 	}
 
 	// set_render_policy selects custom-renderer scheduling. Continuous remains
@@ -412,6 +429,9 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		mut editor := g_text_editors[id] or { text_editor(t.clone()) }
 		editor.set_text(t.clone())
 		replace_text_editor(id, editor)
+		if g_gg_app.composition.field_id == id {
+			g_gg_app.composition = TextComposition{}
+		}
 		invalidate_custom_paint()
 	}
 
@@ -540,8 +560,12 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			return
 		}
 		g_gg_app.scheduler.close()
+		$if macos && ui2_embedder ? {
+			C.ui2_embedder_close(g_gg_app.native_window)
+			return
+		}
 		if g_gg_app.ctx != unsafe { nil } {
-			g_gg_app.ctx.quit()
+			g_gg_app.ctx.inner.quit()
 		}
 	}
 
@@ -667,6 +691,8 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	// ── Frame & event loop ─────────────────────────────────────────────
 
 	fn on_init(app &GgApp) {
+		mut ctx := app.ctx
+		ctx.sync_gg()
 		// Sokol's GL/EGL/D3D loops swap even when frame_fn returns early. Their
 		// discarded backbuffers need a full paint; only the Metal path can skip
 		// submission safely until UI2 owns presentation in the platform embedder.
@@ -686,6 +712,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		state.ctx = unsafe { nil }
 		state.declared_root = Element{}
 		state.has_root = false
+		state.editable_fields.clear()
 		configure_animation_driver(unsafe { nil }, false)
 		reset_widget_animations()
 		g_tooltip = TooltipState{}
@@ -712,7 +739,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		return deadline
 	}
 
-	fn on_frame(mut app GgApp) {
+	fn drain_custom_tasks(mut app GgApp) {
 		if app.scheduler.is_closed() || app.ctx == unsafe { nil } || app.draining_tasks {
 			return
 		}
@@ -726,20 +753,31 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			task()
 		}
 		app.draining_tasks = false
+	}
+
+	fn on_frame(mut app GgApp) {
+		if app.scheduler.is_closed() || app.ctx == unsafe { nil } || app.draining_tasks { return }
+		drain_custom_tasks(mut app)
+		if app.scheduler.is_closed() { return }
 		mut ctx := app.ctx
-		live_size := ctx.window_size()
-		if live_size.width > 0 && live_size.height > 0
-			&& (ctx.width != live_size.width || ctx.height != live_size.height) {
-			ctx.width = live_size.width
-			ctx.height = live_size.height
-			ctx.window.width = live_size.width
-			ctx.window.height = live_size.height
-			app.scheduler.invalidate(.surface)
-		}
-		dpi := sapp.dpi_scale()
-		if dpi != app.dpi_scale {
-			app.dpi_scale = dpi
-			app.scheduler.invalidate(.surface)
+		if !ctx.owns_surface {
+			ctx.sync_gg()
+			live_size := ctx.inner.window_size()
+			if live_size.width > 0 && live_size.height > 0
+				&& (ctx.width != live_size.width || ctx.height != live_size.height) {
+				ctx.width = live_size.width
+				ctx.height = live_size.height
+				ctx.inner.width = live_size.width
+				ctx.inner.height = live_size.height
+				ctx.inner.window.width = live_size.width
+				ctx.inner.window.height = live_size.height
+				app.scheduler.invalidate(.surface)
+			}
+			dpi := sapp.dpi_scale()
+			if dpi != app.dpi_scale {
+				app.dpi_scale = dpi
+				app.scheduler.invalidate(.surface)
+			}
 		}
 		now := renderer_now_ms()
 		work := app.scheduler.begin_frame(now) or { return }
@@ -767,11 +805,19 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			eprintln('ui2: ${err}')
 			return
 		}
+		$if macos && ui2_embedder ? {
+			if ctx.owns_surface {
+				if !acquire_embedder_surface(mut app) { return }
+				defer { C.ui2_embedder_frame_done(app.native_window) }
+			}
+		}
 		g_hit_targets = []HitTarget{}
 		g_tooltip_targets.clear()
 		g_tooltip_owners = 0
+		app.text_caret = Rect{}
 		reset_scroll_frame()
 		g_active_fields = map[string]bool{}
+		app.editable_fields.clear()
 		g_active_sliders = map[string]bool{}
 		g_active_switches = map[string]bool{}
 		g_active_checkboxes = map[string]bool{}
@@ -796,6 +842,9 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			update_tooltip(now)
 			draw_tooltip(ctx)
 			prune_unmounted_state()
+			if app.composition.field_id.len > 0 && app.composition.field_id != g_focused_field {
+				app.composition = TextComposition{}
+			}
 		}
 		check_long_press()
 		// gg.begin flushes the PREVIOUS atlas. New glyphs (including tooltip
@@ -1733,7 +1782,7 @@ fn page_focused_text_area(direction int) {
 		}
 	}
 
-	fn draw_dropdown_popup(ctx &gg.Context) {
+	fn draw_dropdown_popup(ctx &DrawContext) {
 		dropdown_state := g_dropdown_popup
 		if dropdown_state.options.len == 0 || dropdown_state.width <= 0
 			|| dropdown_state.height <= 0 {
@@ -1920,7 +1969,7 @@ fn page_focused_text_area(direction int) {
 
 	// element_area is where an element is drawn in the window. The screen
 	// fills the window below its offset, whatever its frame says.
-	fn element_area(ctx &gg.Context, el Element, off_x f64, off_y f64) Rect {
+	fn element_area(ctx &DrawContext, el Element, off_x f64, off_y f64) Rect {
 		if el.kind == .screen {
 			return rect(off_x, off_y, f64(ctx.width) - off_x, f64(ctx.height) - off_y)
 		}
@@ -1976,7 +2025,7 @@ fn page_focused_text_area(direction int) {
 		return rect(x, y, width, height)
 	}
 
-	fn draw_tooltip(ctx &gg.Context) {
+	fn draw_tooltip(ctx &DrawContext) {
 		if !g_tooltip.visible || g_tooltip.text.len == 0 {
 			return
 		}
@@ -2103,7 +2152,7 @@ fn page_focused_text_area(direction int) {
 
 	// ── Rendering ──────────────────────────────────────────────────────
 
-	fn render_element(ctx &gg.Context, el Element, off_x f64, off_y f64, clip Rect, scroll_parent_id string) {
+	fn render_element(ctx &DrawContext, el Element, off_x f64, off_y f64, clip Rect, scroll_parent_id string) {
 		if el.hidden {
 			return
 		}
@@ -2410,6 +2459,10 @@ fn page_focused_text_area(direction int) {
 				}
 			}
 			.text_field {
+				g_gg_app.editable_fields[el.id] = el.enabled && !el.readonly
+				if !el.enabled || el.readonly {
+					if g_gg_app.composition.field_id == el.id { g_gg_app.composition = TextComposition{} }
+				}
 				x := el.frame.x + off_x
 				y := el.frame.y + off_y
 				padding_left := if el.padding_left > 0 { el.padding_left } else { f64(0) }
@@ -2421,6 +2474,7 @@ fn page_focused_text_area(direction int) {
 				previous_prop := g_text_props[el.id] or { el.text }
 				kind_changed := el.id in g_text_kinds && (g_text_kinds[el.id] or { el.kind }) != el.kind
 				if kind_changed || el.id !in g_text_values || (el.text != previous_prop && (g_text_values[el.id] or { '' }) != el.text) {
+					if g_gg_app.composition.field_id == el.id { g_gg_app.composition = TextComposition{} }
 					replace_text_value(el.id, el.text)
 					replace_text_editor(el.id, text_editor(el.text.clone()))
 				}
@@ -2435,7 +2489,10 @@ fn page_focused_text_area(direction int) {
 					editor.set_text(current_text.clone())
 					replace_text_editor(el.id, editor)
 				}
-				display_text := text_field_display_text(current_text, el.secure)
+				$if macos && ui2_embedder ? {
+					editor = custom_composition_editor(el.id, editor)
+				}
+				display_text := text_field_display_text(editor.text, el.secure)
 				is_focused := g_focused_field == el.id
 				draw_control_surface(ctx, x, y, el.frame.width, el.frame.height, el.box,
 					is_focused, el.enabled)
@@ -2449,7 +2506,7 @@ fn page_focused_text_area(direction int) {
 						draw_text_field_selection(ctx, display_text, editor.selection, x + padding_left,
 							y, content_width, el.frame.height, el.text_style)
 					}
-					if current_text.len > 0 {
+					if editor.text.len > 0 {
 						draw_editable_text(ctx, display_text, x + padding_left, y, content_width, el.frame.height, el.text_style)
 					} else if el.placeholder.len > 0 {
 						placeholder_style := TextStyle{
@@ -2468,6 +2525,17 @@ fn page_focused_text_area(direction int) {
 						cursor_y := y + el.frame.height * 0.2
 						cursor_h := el.frame.height * 0.6
 						draw_rect(ctx, cursor_x, cursor_y, 2, cursor_h, el.text_style.color, 0)
+						g_gg_app.text_caret = rect(cursor_x, cursor_y, 2, cursor_h)
+						$if macos && ui2_embedder ? {
+							composition := g_gg_app.composition
+							if composition.field_id == el.id {
+								marked_start := text_field_display_text(editor.text.runes()[..composition.start + composition.mark_start].string(), el.secure)
+								marked_end := text_field_display_text(editor.text.runes()[..composition.start + composition.mark_start + composition.mark_length].string(), el.secure)
+								left := text_origin + f64(ctx.text_width(marked_start))
+								right := text_origin + f64(ctx.text_width(marked_end))
+								draw_rect(ctx, left, cursor_y + cursor_h, right - left, 1, el.text_style.color, 0)
+							}
+						}
 					}
 					apply_clip(ctx, clip)
 				}
@@ -2486,11 +2554,16 @@ fn page_focused_text_area(direction int) {
 				}
 			}
 			.text_area {
+				g_gg_app.editable_fields[el.id] = el.enabled && !el.readonly
+				if !el.enabled || el.readonly {
+					if g_gg_app.composition.field_id == el.id { g_gg_app.composition = TextComposition{} }
+				}
 				x := el.frame.x + off_x
 				y := el.frame.y + off_y
 				previous_prop := g_text_props[el.id] or { el.text }
 				kind_changed := el.id in g_text_kinds && (g_text_kinds[el.id] or { el.kind }) != el.kind
 				if kind_changed || el.id !in g_text_values || (el.text != previous_prop && (g_text_values[el.id] or { '' }) != el.text) {
+					if g_gg_app.composition.field_id == el.id { g_gg_app.composition = TextComposition{} }
 					replace_text_value(el.id, el.text)
 					replace_text_editor(el.id, text_editor(el.text.clone()))
 				}
@@ -2651,7 +2724,7 @@ fn page_focused_text_area(direction int) {
 		}
 	}
 
-	fn apply_clip(ctx &gg.Context, clip Rect) {
+	fn apply_clip(ctx &DrawContext, clip Rect) {
 		ctx.scissor_rect(int(clip.x), int(clip.y), int(clip.width), int(clip.height))
 	}
 
@@ -2674,7 +2747,7 @@ fn page_focused_text_area(direction int) {
 		}
 	}
 
-	fn draw_cached_image(ctx &gg.Context, path string, x f64, y f64, width f64, height f64, rotation f64) bool {
+	fn draw_cached_image(ctx &DrawContext, path string, x f64, y f64, width f64, height f64, rotation f64) bool {
 		if !cache_image(path) { return false }
 		image_id := g_image_ids[path] or { return false }
 		mut image_ctx := g_gg_app.ctx
@@ -2746,7 +2819,7 @@ fn page_focused_text_area(direction int) {
 		}
 	}
 
-	fn draw_button_image(ctx &gg.Context, image_path string, x f64, y f64, width f64, height f64, style TextStyle) {
+	fn draw_button_image(ctx &DrawContext, image_path string, x f64, y f64, width f64, height f64, style TextStyle) {
 		if image_path.starts_with('symbol:') {
 			symbol := system_symbol_fallback(image_path['symbol:'.len..])
 			draw_text_centered(ctx, symbol, x, y, width, height, TextStyle{
@@ -2904,7 +2977,7 @@ fn page_focused_text_area(direction int) {
 		}
 	}
 
-	fn draw_rect(ctx &gg.Context, x f64, y f64, w f64, h f64, color_hex u32, radius f64) {
+	fn draw_rect(ctx &DrawContext, x f64, y f64, w f64, h f64, color_hex u32, radius f64) {
 		c := hex_color(color_hex)
 		if radius > 0 {
 			ctx.draw_rounded_rect_filled(f32(x), f32(y), f32(w), f32(h), f32(radius), c)
@@ -2913,7 +2986,7 @@ fn page_focused_text_area(direction int) {
 		}
 	}
 
-	fn draw_outline(ctx &gg.Context, x f64, y f64, w f64, h f64, color_hex u32, radius f64) {
+	fn draw_outline(ctx &DrawContext, x f64, y f64, w f64, h f64, color_hex u32, radius f64) {
 		if w <= 0 || h <= 0 {
 			return
 		}
@@ -2925,7 +2998,7 @@ fn page_focused_text_area(direction int) {
 		}
 	}
 
-	fn draw_box_borders(ctx &gg.Context, x f64, y f64, w f64, h f64, box BoxStyle) {
+	fn draw_box_borders(ctx &DrawContext, x f64, y f64, w f64, h f64, box BoxStyle) {
 		left := box_border_width(box.border_left, w)
 		top := box_border_width(box.border_top, h)
 		right := box_border_width(box.border_right, w)
@@ -2944,7 +3017,7 @@ fn page_focused_text_area(direction int) {
 		}
 	}
 
-	fn draw_control_surface(ctx &gg.Context, x f64, y f64, w f64, h f64, box BoxStyle, focused bool, enabled bool) {
+	fn draw_control_surface(ctx &DrawContext, x f64, y f64, w f64, h f64, box BoxStyle, focused bool, enabled bool) {
 		draw_rect(ctx, x, y, w, h, box.bg, box.radius)
 		border := if focused {
 			u32(0x3478d4)
@@ -2972,7 +3045,7 @@ fn page_focused_text_area(direction int) {
 	// `native` button that was never painted is a bare caption, invisible on a
 	// white card. A button the application did colour keeps that colour, since
 	// the styling it asked the platform for stops where its own begins.
-	fn draw_button_bezel(ctx &gg.Context, x f64, y f64, w f64, h f64, radius f64, enabled bool) {
+	fn draw_button_bezel(ctx &DrawContext, x f64, y f64, w f64, h f64, radius f64, enabled bool) {
 		mut fill := u32(0xeef2f7)
 		mut border := u32(0xb4bfcd)
 		if !enabled {
@@ -3002,7 +3075,7 @@ fn page_focused_text_area(direction int) {
 		return inside_start && inside_now
 	}
 
-	fn draw_check_mark(ctx &gg.Context, x f64, y f64, size f64, color_hex u32) {
+	fn draw_check_mark(ctx &DrawContext, x f64, y f64, size f64, color_hex u32) {
 		pen := gg.PenConfig{
 			color: hex_color(color_hex)
 			thickness: 2
@@ -3013,7 +3086,7 @@ fn page_focused_text_area(direction int) {
 			f32(x + size * 0.79), f32(y + size * 0.29), pen)
 	}
 
-	fn draw_chevron_down(ctx &gg.Context, center_x f64, center_y f64, color_hex u32) {
+	fn draw_chevron_down(ctx &DrawContext, center_x f64, center_y f64, color_hex u32) {
 		pen := gg.PenConfig{
 			color: hex_color(color_hex)
 			thickness: 1.5
@@ -3024,7 +3097,7 @@ fn page_focused_text_area(direction int) {
 			f32(center_y - 2), pen)
 	}
 
-	fn draw_scrollbar(ctx &gg.Context, x f64, y f64, width f64, height f64, content_height f64, offset f64, persistent bool) {
+	fn draw_scrollbar(ctx &DrawContext, x f64, y f64, width f64, height f64, content_height f64, offset f64, persistent bool) {
 		bar := scrollbar_geometry(rect(x, y, width, height), content_height, offset, persistent)
 		if bar.track.width <= 0 || bar.track.height <= 0 {
 			return
@@ -3083,7 +3156,7 @@ fn page_focused_text_area(direction int) {
 	// builds a new one whenever the window is recreated, on an Android resume
 	// among others, so the loaded faces are tracked against the context they
 	// came from rather than behind a flag that a new context would not clear.
-	fn ensure_symbol_fallbacks(ctx &gg.Context) {
+	fn ensure_symbol_fallbacks(ctx &DrawContext) {
 		if !ctx.font_inited || ctx.ft == unsafe { nil } || ctx.ft.fons == unsafe { nil } {
 			return
 		}
@@ -3126,7 +3199,7 @@ fn page_focused_text_area(direction int) {
 	// it, and keeps the id in a map of its own; loading it here first puts the
 	// id in that map before any glyph is rasterized from it, which is the only
 	// moment the fallbacks can still be attached.
-	fn ensure_family_fallbacks(ctx &gg.Context, path string) {
+	fn ensure_family_fallbacks(ctx &DrawContext, path string) {
 		if path.len == 0 || g_font_symbol_ids.len == 0 || !ctx.font_inited {
 			return
 		}
@@ -3178,7 +3251,7 @@ fn page_focused_text_area(direction int) {
 	// Break text into the lines a multi-line label draws: on its own newlines, and on
 	// spaces wherever a line would outgrow the width. A word wider than the line is
 	// left whole and truncated when it is drawn, rather than split mid-word.
-	fn wrap_text_lines(ctx &gg.Context, t string, w f64, limit int, cfg gg.TextCfg) []string {
+	fn wrap_text_lines(ctx &DrawContext, t string, w f64, limit int, cfg gg.TextCfg) []string {
 		if limit <= 1 || w <= 0 {
 			return t.split('\n')
 		}
@@ -3188,7 +3261,7 @@ fn page_focused_text_area(direction int) {
 		})
 	}
 
-	fn fit_text(ctx &gg.Context, t string, w f64, cfg gg.TextCfg) string {
+	fn fit_text(ctx &DrawContext, t string, w f64, cfg gg.TextCfg) string {
 		if w <= 0 {
 			return t
 		}
@@ -3218,7 +3291,7 @@ fn page_focused_text_area(direction int) {
 	// middle of the box whatever the style says, because a label is the only
 	// thing the native backends let place its text, and a style shared with one
 	// must not move a button.
-	fn draw_text(ctx &gg.Context, t string, x f64, y f64, w f64, h f64, style TextStyle) bool {
+	fn draw_text(ctx &DrawContext, t string, x f64, y f64, w f64, h f64, style TextStyle) bool {
 		return draw_text_in_box(ctx, t, x, y, w, h, centered_text_style(style), true, Rect{})
 	}
 
@@ -3226,14 +3299,14 @@ fn page_focused_text_area(direction int) {
 	// text sits in a box with room to spare. It is drawn against the clip it was
 	// rendered under, so a block of lines too tall for the label stops at the
 	// label rather than running on over what comes after it.
-	fn draw_label_text(ctx &gg.Context, t string, x f64, y f64, w f64, h f64, style TextStyle, clip Rect) bool {
+	fn draw_label_text(ctx &DrawContext, t string, x f64, y f64, w f64, h f64, style TextStyle, clip Rect) bool {
 		return draw_text_in_box(ctx, t, x, y, w, h, style, true, clip)
 	}
 
 	// draw_editable_text draws the text of a field the caller can type in.
 	// Those controls place the caret by measuring the whole string, so a
 	// shortened line would leave the caret sitting past the end of it.
-	fn draw_editable_text(ctx &gg.Context, t string, x f64, y f64, w f64, h f64, style TextStyle) {
+	fn draw_editable_text(ctx &DrawContext, t string, x f64, y f64, w f64, h f64, style TextStyle) {
 		draw_text_in_box(ctx, t, x, y, w, h, centered_text_style(style), false, Rect{})
 	}
 
@@ -3250,7 +3323,7 @@ fn page_focused_text_area(direction int) {
 	// draw_text_field_selection paints the selected rune range before its text.
 	// The range is derived from the rendered string so secure fields highlight
 	// their bullet characters instead of leaking the underlying value.
-	fn draw_text_field_selection(ctx &gg.Context, display_text string, selection TextSelection, x f64, y f64, w f64, h f64, style TextStyle) {
+	fn draw_text_field_selection(ctx &DrawContext, display_text string, selection TextSelection, x f64, y f64, w f64, h f64, style TextStyle) {
 		before, selected := text_field_selection_text(display_text, selection)
 		if selected.len == 0 || w <= 0 {
 			return
@@ -3304,7 +3377,7 @@ fn page_focused_text_area(direction int) {
 	// The result reports text the reader cannot see: a line cut short with the
 	// ellipsis, or a line of a bounded block that falls mostly below its box and is
 	// clipped away. A caller offers the full text on hover when there is any.
-	fn draw_text_in_box(ctx &gg.Context, t string, x f64, y f64, w f64, h f64, style TextStyle, fit bool, clip Rect) bool {
+	fn draw_text_in_box(ctx &DrawContext, t string, x f64, y f64, w f64, h f64, style TextStyle, fit bool, clip Rect) bool {
 		if t.len == 0 {
 			return false
 		}
@@ -3367,7 +3440,7 @@ fn page_focused_text_area(direction int) {
 		return shortened
 	}
 
-	fn draw_text_centered(ctx &gg.Context, t string, x f64, y f64, w f64, h f64, style TextStyle) bool {
+	fn draw_text_centered(ctx &DrawContext, t string, x f64, y f64, w f64, h f64, style TextStyle) bool {
 		centered_style := TextStyle{
 			...style
 			align: .center
