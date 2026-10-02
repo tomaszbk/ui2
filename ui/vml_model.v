@@ -616,6 +616,7 @@ struct VmlEvaluation {
 mut:
 	events                map[string]VmlEvent
 	toggle_group_bindings map[string][]VmlBinding
+	measure               VLayoutMeasureCache
 }
 
 fn v_action(expr &VExpression, scope map[string]VValue) !VmlInvocation {
@@ -714,7 +715,7 @@ mut:
 	index  int
 }
 
-fn v_child_layout(node &VNode, actual Rect, metrics []VLayoutChildMetrics) !VChildLayout {
+fn v_child_layout(node &VNode, actual Rect, metrics []VLayoutChildMetrics, mut cache VLayoutMeasureCache) !VChildLayout {
 	kind := match node.tag {
 		'Column' { VChildLayoutKind.column }
 		'Row' { VChildLayoutKind.row }
@@ -784,7 +785,7 @@ fn v_child_layout(node &VNode, actual Rect, metrics []VLayoutChildMetrics) !VChi
 	} else if kind == .flex {
 		config := v_flex_config(node, local, flex_children)!
 		first := flex_layout_frames(config)!
-		children := v_flex_remeasure_metrics(config, metrics, first)!
+		children := v_flex_remeasure_metrics(config, metrics, first, mut cache)!
 		cells = flex_layout_frames(FlexLayoutConfig{ ...config, children: children })!
 	} else if kind == .box {
 		cells = box_layout_frames(v_box_layout_config(node, local, box_children)!)!
@@ -1000,7 +1001,7 @@ fn v_layout_child_metric(node &VNode, scope map[string]VValue, box bool, floatin
 	}
 }
 
-fn v_layout_child_metrics(node &VNode, scope map[string]VValue, actual Rect) ![]VLayoutChildMetrics {
+fn v_layout_child_metrics(node &VNode, scope map[string]VValue, actual Rect, mut cache VLayoutMeasureCache) ![]VLayoutChildMetrics {
 	mut metrics := []VLayoutChildMetrics{}
 	box := node.tag == 'BoxLayout'
 	floating := node.tag in ['FloatLayout', 'RelativeLayout']
@@ -1015,7 +1016,8 @@ fn v_layout_child_metrics(node &VNode, scope map[string]VValue, actual Rect) ![]
 			continue
 		}
 		if child.tag != 'Repeater' {
-			metrics << v_modern_child_metric(node, child, scope, actual, box, floating)!
+			metrics << v_modern_child_metric(node, child, scope, actual, box, floating, mut
+				cache)!
 			continue
 		}
 		model_expr := child.expressions['model'] or {
@@ -1033,7 +1035,8 @@ fn v_layout_child_metrics(node &VNode, scope map[string]VValue, actual Rect) ![]
 				if v_is_layout_metadata(repeated) || repeated.tag == 'Option' {
 					continue
 				}
-				metrics << v_modern_child_metric(node, repeated, item_scope, actual, box, floating)!
+				metrics << v_modern_child_metric(node, repeated, item_scope, actual, box, floating, mut
+					cache)!
 			}
 		}
 	}
@@ -1192,8 +1195,8 @@ fn v_eval_node(node &VNode, incoming_scope map[string]VValue, frame Rect, mut ev
 	if node.tag == 'Screen' && resolved.prop_bool('adaptive') {
 		v_validate_adaptive_screen(resolved)!
 	}
-	child_metrics := v_layout_child_metrics(node, scope, actual)!
-	mut layout := v_child_layout(resolved, actual, child_metrics)!
+	child_metrics := v_layout_child_metrics(node, scope, actual, mut evaluation.measure)!
+	mut layout := v_child_layout(resolved, actual, child_metrics, mut evaluation.measure)!
 	for child in node.children {
 		if child.tag == 'Repeater' {
 			v_expand_repeater(child, scope, mut resolved.children, mut evaluation, mut layout)!

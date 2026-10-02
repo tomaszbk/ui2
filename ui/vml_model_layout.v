@@ -1,6 +1,6 @@
 module ui2
 
-fn v_modern_child_metric(parent &VNode, child &VNode, scope map[string]VValue, actual Rect, box bool, floating bool) !VLayoutChildMetrics {
+fn v_modern_child_metric(parent &VNode, child &VNode, scope map[string]VValue, actual Rect, box bool, floating bool, mut cache VLayoutMeasureCache) !VLayoutChildMetrics {
 	if parent.tag == 'FlexLayout' {
 		// Evaluate sizing and content without registering events. The actual pass
 		// below resolves actions/bindings exactly once, with the allocated frame.
@@ -9,7 +9,7 @@ fn v_modern_child_metric(parent &VNode, child &VNode, scope map[string]VValue, a
 		available := rect(0, 0, box_max(0, actual.width - config.padding.left - config.padding.right),
 			box_max(0, actual.height - config.padding.top - config.padding.bottom))
 		measured := v_measurement_node(child, scope, available, true)!
-		preferred := v_layout_preferred(measured, available)!
+		preferred := v_layout_preferred(measured, available, mut cache)!
 		return VLayoutChildMetrics{
 			frame:  preferred
 			flex:   v_flex_child(measured, preferred)!
@@ -33,7 +33,7 @@ fn v_modern_child_metric(parent &VNode, child &VNode, scope map[string]VValue, a
 // Main-axis distribution can change the width available to wrapping content.
 // Measure auto heights once at that assigned width, keeping horizontal bases
 // intact. Vertical layouts then distribute their updated intrinsic heights.
-fn v_flex_remeasure_metrics(config FlexLayoutConfig, metrics []VLayoutChildMetrics, frames []Rect) ![]FlexLayoutChild {
+fn v_flex_remeasure_metrics(config FlexLayoutConfig, metrics []VLayoutChildMetrics, frames []Rect, mut cache VLayoutMeasureCache) ![]FlexLayoutChild {
 	mut children := config.children.clone()
 	for index, metric in metrics {
 		if metric.source == unsafe { nil } { continue }
@@ -41,7 +41,7 @@ fn v_flex_remeasure_metrics(config FlexLayoutConfig, metrics []VLayoutChildMetri
 		assigned := v_layout_node_width(metric.source, frames[index].width)
 		measured := v_measurement_node(assigned, metric.scope, available, true)!
 		if v_dimension(measured, 'height', -1) >= 0 { continue }
-		preferred := v_layout_preferred(measured, available)!
+		preferred := v_layout_preferred(measured, available, mut cache)!
 		child := children[index]
 		children[index] = FlexLayoutChild{
 			...child
