@@ -59,7 +59,7 @@ pub:
 	children             []Element
 }
 
-struct GridCell {
+struct GridPlacement {
 	column      int
 	row         int
 	column_span int = 1
@@ -130,9 +130,9 @@ fn grid_reverse_rows(orientation GridOrientation) bool {
 		.right_to_left_bottom_to_top, .bottom_to_top_right_to_left]
 }
 
-fn grid_pack_spans(spans []GridSpan, columns int, rows int, orientation GridOrientation) ?[]GridCell {
+fn grid_pack_spans(spans []GridSpan, columns int, rows int, orientation GridOrientation) ?[]GridPlacement {
 	mut occupied := []bool{len: columns * rows}
-	mut cells := []GridCell{cap: spans.len}
+	mut cells := []GridPlacement{cap: spans.len}
 	for span in spans {
 		mut found := false
 		for index in 0 .. occupied.len {
@@ -157,7 +157,7 @@ fn grid_pack_spans(spans []GridSpan, columns int, rows int, orientation GridOrie
 					occupied[y * columns + x] = true
 				}
 			}
-			cells << GridCell{
+			cells << GridPlacement{
 				column:      if grid_reverse_columns(orientation) {
 					columns - column - span.column_span
 				} else {
@@ -181,7 +181,7 @@ fn grid_pack_spans(spans []GridSpan, columns int, rows int, orientation GridOrie
 	return cells
 }
 
-fn grid_spanned_dimensions(config GridLayoutConfig, child_count int, automatic bool) !(int, int, []GridCell) {
+fn grid_spanned_dimensions(config GridLayoutConfig, child_count int, automatic bool) !(int, int, []GridPlacement) {
 	mut columns := if automatic {
 		grid_automatic_columns(config, child_count)
 	} else {
@@ -339,7 +339,7 @@ fn grid_axis_sizes(available f64, count int, default_size f64, force_default boo
 	return sizes
 }
 
-fn grid_resolved_cells(config GridLayoutConfig, child_count int, automatic bool) !(int, int, []GridCell) {
+fn grid_resolved_cells(config GridLayoutConfig, child_count int, automatic bool) !(int, int, []GridPlacement) {
 	if config.child_spans.any(it.column_span > 1 || it.row_span > 1) && child_count > 0 {
 		return grid_spanned_dimensions(config, child_count, automatic)
 	}
@@ -349,10 +349,10 @@ fn grid_resolved_cells(config GridLayoutConfig, child_count int, automatic bool)
 		config.columns
 	}
 	columns, rows := grid_dimensions(configured_columns, config.rows, child_count)!
-	mut cells := []GridCell{cap: child_count}
+	mut cells := []GridPlacement{cap: child_count}
 	for index in 0 .. child_count {
 		column, row := grid_cell_coordinates(index, columns, rows, config.orientation)
-		cells << GridCell{ column: column, row: row }
+		cells << GridPlacement{ column: column, row: row }
 	}
 	return columns, rows, cells
 }
