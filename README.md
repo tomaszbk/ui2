@@ -590,6 +590,67 @@ which is no better.
 UI2_FONT_SYMBOLS=/usr/share/fonts/truetype/ancient-scripts/Symbola.ttf ./treeview
 ```
 
+## Charts
+
+`ui2.chart` creates line, grouped bar, scatter, pie, and doughnut charts. Its
+`type`, `data`, and `options` configuration follows the basic shape of
+[Chart.js](https://www.chartjs.org/docs/latest/). It returns an ordinary
+`Element`, so it can be placed in any V-built layout on native or custom
+backends, without JavaScript or a web view.
+
+```v okfmt
+sales := ui2.chart(
+	id:      'sales'
+	frame:   ui2.rect(16, 16, 480, 300)
+	type:    .bar
+	data:    ui2.ChartData{
+		labels:   ['Jan', 'Feb', 'Mar']
+		datasets: [
+			ui2.ChartDataset{ label: 'Revenue', data: [f64(12), 19, 25] },
+			ui2.ChartDataset{ label: 'Profit', data: [f64(-2), 5, 9] },
+		]
+	}
+	options: ui2.ChartOptions{ title: 'Monthly sales' }
+) or { panic(err) }
+```
+
+Line and bar charts use category labels; missing labels default to the
+one-based data index. Series can have different lengths. Scatter datasets use
+`points: [ui2.ChartPoint{x: 1, y: 3}, ...]` instead of `data`, with numeric
+x coordinates. Pie and doughnut accept one visible dataset, with labels and
+colors per slice. Non-positive slice values are skipped.
+
+Axes scale automatically with rounded tick intervals, including zero by default.
+Set `begin_at_zero: false`
+for a tighter line/scatter y range. Bars always include zero unless explicit
+`y_min` / `y_max` bounds override it. Values outside explicit bounds are clamped
+to the plot edges. NaN and infinite values are skipped, leaving gaps in lines.
+Empty data produces an empty chart; invalid options return an error.
+
+Options include `legend`, `grid`, `tooltips`, `ticks` (a target count from 1 through 20),
+`background`, `text_color`, `grid_color`, and a nonempty `palette` of RGB colors.
+Set a dataset's `color` to override its series color, or `colors` to override
+pie/doughnut slice colors. `hidden: true` excludes a dataset from the chart and
+its scales. `line_width` and `point_radius` accept values from 0 through 20;
+zero disables the corresponding line or markers. Doughnut `cutout` is the
+inner radius fraction, defaults to 0.5, and must be in `[0, 1)`.
+
+Charts expose their title and data through accessibility metadata. Data markers
+and slices use the existing backend tooltip support. Legends wrap, and category
+labels are thinned to fit. The frame must be at least 120 by 100 and have enough
+height for its title and legend. For resizing, derive the frame from
+`ui2.bounds()` in your build function. Update the model and call `ui2.refresh()`
+to rebuild with new data.
+
+This is a basic chart component rather than the complete Chart.js API: it has
+no chart animations, clickable legends, zoom, stacking, time axes, or plugins.
+It composes views and labels, including scan-converted strips for lines and
+slices, and is intended for modest datasets and chart sizes.
+
+Run `v run examples/charts/main.v` to see all five chart types in a layout that
+adapts to the window width. Add `-d ui2_custom_rendering` to try the custom
+renderer on macOS or Windows.
+
 ## Keyboard events
 
 Use `on_key_event` when a shortcut should follow a physical key across keyboard
