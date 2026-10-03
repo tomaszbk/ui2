@@ -54,8 +54,11 @@ fonttools varLib.instancer -q 'NotoEmoji[wght].ttf' wght=400 \
 
 These static instances work on both text paths. The remaining Fontstash
 rasterizer ignores `fvar` and `gvar`, so a variable `Roboto[wdth,wght].ttf`
-would draw its default weight there. UI2's styles currently select bold and
-italic; additional desktop weight/variation controls require a separate API.
+would draw its default weight there. Legacy paths select bold and italic.
+Desktop custom supports numeric weights through vglyph; bundled upright Inter
+400–900 faces and their provenance are described in [Inter-README.md](Inter-README.md).
+See [VML typography](../../docs/vml-typography.md) for the implemented API. Arbitrary
+font variation axes are not exposed by that API.
 
 For Roboto, the `web` build rather than `unhinted` because it is a third of the
 size and carries the same outlines. The Fontstash path never runs hinting

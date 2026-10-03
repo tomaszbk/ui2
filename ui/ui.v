@@ -326,6 +326,9 @@ pub:
 	border_pattern BorderPattern
 	dash_length f64 = 6
 	dash_gap f64 = 4
+	outline_color u32
+	outline_width f64
+	outline_offset f64
 }
 
 // box_draws_fill is shared by native and custom renderers so every element

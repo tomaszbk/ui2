@@ -100,3 +100,17 @@ fn test_vml_border_colors_and_interaction_patches_keep_omitted_values_unset() {
 	assert el.interaction_style.hover.radius == none
 	assert !interaction_box(el, true, true, true).transparent
 }
+
+fn test_focus_outline_is_outside_without_changing_frame_or_hit_bounds() {
+	el := element_from_vml('Button { id: "next" text: "Next" color: #64748b width: 80 height: 40 focus_outline_color: #2563eb focus_outline_width: 3 focus_outline_offset: 3 hover_color: #000000 }', rect(10, 20, 80, 40))!
+	assert interaction_text_style(el, true, false, false).color == 0
+	assert interaction_text_style(el, false, false, false) == el.text_style
+	box := interaction_box(el, false, true, false)
+	outer, outline := box_outline_geometry(el.frame, box)
+	assert outer == rect(4, 14, 92, 52)
+	assert outline.border_top == 3
+	assert outline.border_color == 0x2563eb
+	assert el.frame == rect(10, 20, 80, 40)
+	assert !box_contains_point(el.frame, 8, 20)
+	assert interaction_box(el, false, false, false).outline_width == 0
+}

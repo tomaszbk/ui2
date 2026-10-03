@@ -70,3 +70,37 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
   assert g_scroll_transforms['pane'].scale == 2
  }
 }
+
+$if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
+ fn test_scaled_visual_states_use_inverse_pointer_and_keep_hit_bounds() {
+  previous_tooltip := g_tooltip
+  previous_touch := g_touch
+  previous_focus := g_focused_field
+  defer { g_tooltip = previous_tooltip; g_touch = previous_touch; g_focused_field = previous_focus }
+  transform := ContentTransform{scale:0.5,y:60}
+  frame := rect(100,100,200,40)
+  el := with_interaction_style(button('next','Next',frame,BoxStyle{},TextStyle{units:.logical}),InteractionStyle{
+   hover:BoxStylePatch{bg:u32(0x00ff00)}
+   focus:BoxStylePatch{outline_width:f64(3),outline_offset:f64(3)}
+   pressed:BoxStylePatch{bg:u32(0xff0000)}
+   hover_text:TextStylePatch{color:u32(0)}
+  })
+  g_tooltip = TooltipState{pointer_in:true,pointer_x:100,pointer_y:120}
+  g_touch = TouchState{}
+  g_focused_field = ''
+  hover := resolve_custom_visual_style(el,frame,rect(0,0,1280,720),transform)
+  assert hover.box.bg == 0x00ff00 && hover.text_style.color == 0
+  assert hover.frame == frame && hover.text_style.units == .logical
+  // Letterbox and a parent clip exclude the same inverse pointer.
+  assert resolve_custom_visual_style(el,frame,rect(0,0,80,720),transform).box.bg == el.box.bg
+  g_tooltip.pointer_y = 30
+  assert resolve_custom_visual_style(el,frame,rect(0,0,1280,720),transform).box.bg == el.box.bg
+  // A touch press need not have generated a mouse hover event.
+  g_touch = TouchState{down:true,current_x:100,current_y:120,pressed_id:'next'}
+  g_tooltip.pointer_in = false
+  assert resolve_custom_visual_style(el,frame,rect(0,0,1280,720),transform).box.bg == 0xff0000
+  g_focused_field = 'next'
+  focused := resolve_custom_visual_style(el,frame,rect(0,0,1280,720),transform)
+  assert focused.box.outline_width == 3 && focused.frame == frame
+ }
+}

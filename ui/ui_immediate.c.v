@@ -53,6 +53,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		// A rebuild can move a dragged view away from the initial press.
 		// Keep its event identity until release instead of hit-testing it again.
 		pointer_target     HitTarget
+		pressed_id         string // visual press owner, including ordinary controls
 		down               bool
 		start_x            f64
 		start_y            f64
@@ -1018,6 +1019,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			return
 		}
 		target := hit_test(x, y)
+		g_touch.pressed_id = target.id
 		if target.slider {
 			commit_slider(target, x, y)
 			return
@@ -2236,6 +2238,20 @@ fn page_focused_text_area(direction int) {
 
 	// ── Rendering ──────────────────────────────────────────────────────
 
+	fn resolve_custom_visual_style(declared Element, area Rect, clip Rect, transform ContentTransform) Element {
+		pointer_x, pointer_y := transform.inverse(g_tooltip.pointer_x, g_tooltip.pointer_y)
+		press_x, press_y := transform.inverse(g_touch.current_x, g_touch.current_y)
+		hovered := g_tooltip.pointer_in && box_contains_point(intersect_rect(area, clip), pointer_x, pointer_y)
+		focused := declared.focused || (declared.id.len > 0 && declared.id == g_focused_field)
+		style_pressed := g_touch.down && declared.id.len > 0
+			&& (declared.id == g_touch.pressed_id || declared.id == g_touch.pointer_target.id)
+			&& !g_touch.moved && !g_touch.scrollbar_drag
+			&& box_contains_point(intersect_rect(area, clip), press_x, press_y)
+		return Element{...declared,
+			box: interaction_box(declared, hovered, focused, style_pressed)
+			text_style: interaction_text_style(declared, hovered, focused, style_pressed)}
+	}
+
 	fn render_scaled_content(ctx &DrawContext, el Element, off_x f64, off_y f64, clip Rect, scroll_parent_id string) {
 		if el.hidden { return }
 		viewport := rect(el.frame.x+off_x,el.frame.y+off_y,el.frame.width,el.frame.height)
@@ -2263,14 +2279,12 @@ fn page_focused_text_area(direction int) {
 		}
 		apply_clip(ctx, clip)
 		area := element_area(ctx, declared_el, off_x, off_y)
-		pointer_x, pointer_y := ctx.content_transform.inverse(g_tooltip.pointer_x, g_tooltip.pointer_y)
-		press_x, press_y := ctx.content_transform.inverse(g_touch.current_x, g_touch.current_y)
-		hovered := g_tooltip.pointer_in && box_contains_point(intersect_rect(area, clip), pointer_x, pointer_y)
-		focused := declared_el.focused || (declared_el.id.len > 0 && declared_el.id == g_focused_field)
-		style_pressed := g_touch.down && declared_el.id.len > 0
-			&& declared_el.id == g_touch.pointer_target.id && !g_touch.moved
-			&& box_contains_point(intersect_rect(area, clip), press_x, press_y)
-		el := Element{...declared_el, box: interaction_box(declared_el, hovered, focused, style_pressed)}
+		el := resolve_custom_visual_style(declared_el, area, clip, ctx.content_transform)
+		if el.box.outline_width > 0 {
+			outline_frame, outline_box := box_outline_geometry(area, el.box)
+			draw_box_borders(ctx, outline_frame.x, outline_frame.y, outline_frame.width, outline_frame.height, outline_box)
+		}
+
 		// A declared tooltip covers the element's whole area and is registered
 		// before its children, so a child with hover text of its own wins over
 		// it where they overlap. A surface only has anything to hide once some
@@ -2365,6 +2379,7 @@ fn page_focused_text_area(direction int) {
 			.label {
 				x := el.frame.x + off_x
 				y := el.frame.y + off_y
+				draw_box_borders(ctx, x, y, el.frame.width, el.frame.height, el.box)
 				shortened := draw_rich_label_text(ctx, el, x, y, clip)
 				add_full_text_tooltip(el, area, clip, el.text, shortened)
 			}
