@@ -34,7 +34,7 @@ fn box_border_triangles(frame Rect, box BoxStyle) []BorderTriangle {
 		top *= factor
 		bottom *= factor
 	}
-	radius := math.max(0, math.min(box.radius, math.min(frame.width, frame.height) / 2))
+	radius := math.max(0.0, math.min(box.radius, math.min(frame.width, frame.height) / 2))
 	inner := Rect{
 		x:      frame.x + left
 		y:      frame.y + top
@@ -59,8 +59,8 @@ fn box_border_triangles(frame Rect, box BoxStyle) []BorderTriangle {
 		for index in 0 .. steps + 1 {
 			angle := start + (end - start) * f64(index) / f64(steps)
 			outer_points << border_corner_point(frame, actual, radius, radius, angle)
-			rx := math.max(0, radius - if actual == 0 || actual == 3 { left } else { right })
-			ry := math.max(0, radius - if actual == 0 || actual == 1 { top } else { bottom })
+			rx := math.max(0.0, radius - if actual == 0 || actual == 3 { left } else { right })
+			ry := math.max(0.0, radius - if actual == 0 || actual == 1 { top } else { bottom })
 			inner_points << border_corner_point(inner, actual, rx, ry, angle)
 			// A corner's halves meet on its diagonal; sides use their own colors.
 			selected := if angle < 225 + f64(actual) * 90 { (actual + 3) % 4 } else { actual }
