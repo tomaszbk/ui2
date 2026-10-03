@@ -809,6 +809,7 @@ fn node_to_element(node &VNode, frame Rect) !Element {
 		accessibility_role:  node.prop_or('accessibility_role', el.accessibility_role)
 		accessibility_label: node.prop_or('accessibility_label', el.accessibility_label)
 		accessibility_value: node.prop_or('accessibility_value', el.accessibility_value)
+		box:                 if el.kind == .label { v_box(node) } else { el.box }
 		interaction_style:   v_interaction_style(node)
 		native_style:        node.prop_bool('native')
 		autocorrect:         node.prop('autocorrect') != 'false'
@@ -1869,6 +1870,9 @@ fn v_box(node &VNode) BoxStyle {
 		border_pattern: if node.prop('border_pattern') == 'dashed' { .dashed } else { .solid }
 		dash_length: node.prop_or('dash_length', '6').f64()
 		dash_gap: node.prop_or('dash_gap', '4').f64()
+		outline_color: v_color(node, 'outline_color', 0)
+		outline_width: node.prop_or('outline_width', '0').f64()
+		outline_offset: node.prop_or('outline_offset', '0').f64()
 	}
 }
 
@@ -1912,6 +1916,9 @@ fn v_box_patch(node &VNode, prefix string) BoxStylePatch {
 		} else { none }
 		dash_length: v_optional_number(node, prefix + 'dash_length')
 		dash_gap: v_optional_number(node, prefix + 'dash_gap')
+		outline_color: v_optional_color(node, prefix + 'outline_color')
+		outline_width: v_optional_number(node, prefix + 'outline_width')
+		outline_offset: v_optional_number(node, prefix + 'outline_offset')
 	}
 }
 
@@ -1921,6 +1928,10 @@ fn v_interaction_style(node &VNode) InteractionStyle {
 		focus: v_box_patch(node, 'focus_')
 		pressed: v_box_patch(node, 'pressed_')
 		disabled: v_box_patch(node, 'disabled_')
+		hover_text: TextStylePatch{color: v_optional_color(node, 'hover_color')}
+		focus_text: TextStylePatch{color: v_optional_color(node, 'focus_color')}
+		pressed_text: TextStylePatch{color: v_optional_color(node, 'pressed_color')}
+		disabled_text: TextStylePatch{color: v_optional_color(node, 'disabled_color')}
 	}
 }
 

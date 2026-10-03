@@ -19,14 +19,26 @@ pub:
 	border_pattern      ?BorderPattern
 	dash_length         ?f64
 	dash_gap            ?f64
+	outline_color       ?u32
+	outline_width       ?f64
+	outline_offset      ?f64
+}
+
+pub struct TextStylePatch {
+pub:
+	color ?u32
 }
 
 pub struct InteractionStyle {
 pub:
-	hover    BoxStylePatch
-	focus    BoxStylePatch
-	pressed  BoxStylePatch
-	disabled BoxStylePatch
+	hover         BoxStylePatch
+	focus         BoxStylePatch
+	pressed       BoxStylePatch
+	disabled      BoxStylePatch
+	hover_text    TextStylePatch
+	focus_text    TextStylePatch
+	pressed_text  TextStylePatch
+	disabled_text TextStylePatch
 }
 
 pub fn with_interaction_style(el Element, style InteractionStyle) Element {
@@ -67,6 +79,9 @@ fn apply_box_patch(base BoxStyle, patch BoxStylePatch) BoxStyle {
 		border_pattern:      patch.border_pattern or { base.border_pattern }
 		dash_length:         patch.dash_length or { base.dash_length }
 		dash_gap:            patch.dash_gap or { base.dash_gap }
+		outline_color:       patch.outline_color or { base.outline_color }
+		outline_width:       patch.outline_width or { base.outline_width }
+		outline_offset:      patch.outline_offset or { base.outline_offset }
 	}
 }
 
@@ -91,4 +106,30 @@ fn box_edge_color(box BoxStyle, side int) u32 {
 fn box_contains_point(area Rect, x f64, y f64) bool {
 	return area.width > 0 && area.height > 0 && x >= area.x && y >= area.y
 		&& x < area.x + area.width && y < area.y + area.height
+}
+
+fn interaction_text_style(el Element, hovered bool, focused bool, pressed bool) TextStyle {
+	if !el.enabled {
+		return TextStyle{ ...el.text_style, color: el.interaction_style.disabled_text.color or { el.text_style.color } }
+	}
+	mut color := el.text_style.color
+	if hovered { color = el.interaction_style.hover_text.color or { color } }
+	if focused { color = el.interaction_style.focus_text.color or { color } }
+	if pressed { color = el.interaction_style.pressed_text.color or { color } }
+	return TextStyle{ ...el.text_style, color: color }
+}
+
+fn box_outline_geometry(area Rect, box BoxStyle) (Rect, BoxStyle) {
+	width := if box.outline_width > 0 { box.outline_width } else { 0.0 }
+	offset := if box.outline_offset > 0 { box.outline_offset } else { 0.0 }
+	expansion := offset + width
+	return rect(area.x - expansion, area.y - expansion, area.width + expansion * 2, area.height + expansion * 2), BoxStyle{
+		transparent:   true
+		radius:        if box.radius > 0 { box.radius + expansion } else { 0.0 }
+		border_color:  box.outline_color
+		border_left:   width
+		border_top:    width
+		border_right:  width
+		border_bottom: width
+	}
 }

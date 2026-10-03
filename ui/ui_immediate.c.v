@@ -2239,7 +2239,13 @@ fn page_focused_text_area(direction int) {
 		style_pressed := g_touch.down && declared_el.id.len > 0
 			&& declared_el.id == g_touch.pointer_target.id && !g_touch.moved
 			&& box_contains_point(intersect_rect(area, clip), g_touch.current_x, g_touch.current_y)
-		el := Element{...declared_el, box: interaction_box(declared_el, hovered, focused, style_pressed)}
+		el := Element{...declared_el,
+			box: interaction_box(declared_el, hovered, focused, style_pressed)
+			text_style: interaction_text_style(declared_el, hovered, focused, style_pressed)}
+		if el.box.outline_width > 0 {
+			outline_frame, outline_box := box_outline_geometry(area, el.box)
+			draw_box_borders(ctx, outline_frame.x, outline_frame.y, outline_frame.width, outline_frame.height, outline_box)
+		}
 		// A declared tooltip covers the element's whole area and is registered
 		// before its children, so a child with hover text of its own wins over
 		// it where they overlap. A surface only has anything to hide once some
