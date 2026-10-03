@@ -839,6 +839,13 @@ fn node_to_element_base(node &VNode, frame Rect) !Element {
 				box: v_box(node)
 			}
 		}
+		'ScaledContent' {
+			width := node.prop_or('content_width', '0').f64()
+			height := node.prop_or('content_height', '0').f64()
+			contain_content(frame, width, height)!
+			return scaled_content(node.id, frame, width, height, v_box(node),
+				v_children(node, rect(0, 0, width, height))!)
+		}
 		'Column' {
 			return v_column(node, frame)!
 		}

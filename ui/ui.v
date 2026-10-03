@@ -357,6 +357,7 @@ pub:
 	placeholder           string
 	frame                 Rect
 	box                   BoxStyle
+	content_size          LayoutSize // custom: fixed logical composition, fit within frame
 	text_style            TextStyle
 	native_style          bool // button: let the platform own bezel and interaction styling
 	// Transient state supplied by split-process backends so their renderer can
@@ -456,6 +457,13 @@ pub fn validate_element_tree(root Element) ! {
 }
 
 fn validate_element_node(el Element, path string, mut ids map[string]bool) ! {
+	if el.content_size.width != 0 || el.content_size.height != 0 {
+		if el.kind != .view { return error('scaled content must be a view at ${path}') }
+		contain_content(el.frame,el.content_size.width,el.content_size.height)!
+		$if !(android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
+			return error('scaled content requires the custom renderer')
+		}
+	}
 	if el.id.len > 0 {
 		if el.id in ids {
 			return error('duplicate element id `${el.id}` at ${path}')
@@ -941,4 +949,10 @@ fn text_field_display_text(text string, secure bool) string {
 		masked << `•`
 	}
 	return masked.string()
+}
+
+// scaled_content fits fixed logical child geometry inside a viewport without reflow.
+// Custom renderer only. Navigation outside this view keeps its normal dimensions.
+pub fn scaled_content(id string, viewport Rect, width f64, height f64, box_ BoxStyle, children []Element) Element {
+	return Element{...view(id, viewport, box_, children), content_size:LayoutSize{width:width,height:height}}
 }

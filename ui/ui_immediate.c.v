@@ -13,6 +13,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	import time
 
 	struct HitTarget {
+		content_transform ContentTransform
 		id             string
 		action_id      string
 		submit_id      string
@@ -188,6 +189,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	__global g_hit_targets = []HitTarget{}
 	__global g_touch = TouchState{}
 	__global g_scroll_areas = map[string]Rect{}
+	__global g_scroll_transforms = map[string]ContentTransform{}
 	__global g_active_fields = map[string]bool{}
 	__global g_active_sliders = map[string]bool{}
 	__global g_active_switches = map[string]bool{}
@@ -995,6 +997,11 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		return 'pointer:${phase}:${action_id}:${x}:${y}'
 	}
 
+	fn target_pointer_event_id(phase string, target HitTarget, x f64, y f64) string {
+		logical_x, logical_y := target.content_transform.inverse(x,y)
+		return pointer_event_id(phase,target.action_id,logical_x,logical_y)
+	}
+
 	fn handle_touch_down(x f64, y f64) {
 		g_touch = TouchState{
 			down: true
@@ -1027,7 +1034,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			&& (target.clickable || target.button_behavior || target.draggable) {
 			g_touch.pointer_target = target
 			if target.clickable || target.draggable {
-				fire_event(pointer_event_id('down', target.action_id, x, y))
+				fire_event(target_pointer_event_id('down', target, x, y))
 			}
 		}
 	}
@@ -1065,7 +1072,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			apply_scroll_chain(g_touch.scroll_chain, previous_y - y)
 		}
 		if target.action_id.len > 0 && target.draggable {
-			fire_event(pointer_event_id('drag', target.action_id, x, y))
+			fire_event(target_pointer_event_id('drag', target, x, y))
 		}
 	}
 
@@ -1168,7 +1175,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			}
 		}
 		if target.action_id.len > 0 && (target.clickable || target.draggable) {
-			fire_event(pointer_event_id('up', target.action_id, x, y))
+			fire_event(target_pointer_event_id('up', target, x, y))
 		}
 		if target.button_behavior {
 			fire_event(button_action)
@@ -1228,7 +1235,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		y := g_touch.current_y
 		g_touch = TouchState{}
 		if captured.action_id.len > 0 && (captured.clickable || captured.draggable) {
-			fire_event(pointer_event_id('up', captured.action_id, x, y))
+			fire_event(target_pointer_event_id('up', captured, x, y))
 		}
 	}
 
@@ -1305,8 +1312,9 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	}
 
 	fn slider_target_value(target HitTarget, x f64, y f64) f64 {
+		logical_x, logical_y := target.content_transform.inverse(x,y)
 		normalized := slider_normalized_from_point(target.slider_frame,
-			target.slider_spec.orientation, target.slider_padding, x, y)
+			target.slider_spec.orientation, target.slider_padding, logical_x, logical_y)
 		return slider_value_from_normalized(normalized, target.slider_spec.min,
 			target.slider_spec.max, target.slider_spec.step)
 	}
@@ -1823,8 +1831,8 @@ fn page_focused_text_area(direction int) {
 				break
 			}
 		}
-		row_height := dropdown_row_height(el.text_style)
-		anchor := rect(x, y, el.frame.width, el.frame.height)
+		row_height := dropdown_row_height(el.text_style) * ctx.content_transform.scale
+		anchor := ctx.content_transform.project(rect(x, y, el.frame.width, el.frame.height))
 		window := rect(0, 0, f64(ctx.width), f64(ctx.height))
 		frame := dropdown_popup_frame(anchor, options.len, row_height, window)
 		content_height := f64(options.len) * row_height
@@ -1840,8 +1848,8 @@ fn page_focused_text_area(direction int) {
 			row_height: row_height
 			options: options
 			selected: selected_index
-			text_style: el.text_style
-			radius: el.box.radius
+			text_style: TextStyle{...el.text_style, units:.logical, size:font_style_em_pixels(el.text_style)*ctx.content_transform.scale}
+			radius: el.box.radius * ctx.content_transform.scale
 			max_scroll: if content_height > view_height { content_height - view_height } else { 0.0 }
 			mounted: true
 		}
@@ -2009,7 +2017,7 @@ fn page_focused_text_area(direction int) {
 	// the clip it was drawn with, so a control scrolled out of its viewport
 	// cannot answer for the pointer.
 	fn add_tooltip_target(key string, text string, area Rect, clip Rect) {
-		visible := intersect_rect(area, clip)
+		visible := current_presentation_rect(intersect_rect(area, clip))
 		if visible.width <= 0 || visible.height <= 0 {
 			return
 		}
@@ -2205,6 +2213,7 @@ fn page_focused_text_area(direction int) {
 		for id in stale_scrolls {
 			g_scroll_offsets.delete(id)
 			g_scroll_content_h.delete(id)
+			g_scroll_transforms.delete(id)
 		}
 		for id in g_text_area_layouts.keys() {
 			if id !in g_active_fields || (g_text_kinds[id] or { Kind.screen }) != .text_area {
@@ -2227,7 +2236,27 @@ fn page_focused_text_area(direction int) {
 
 	// ── Rendering ──────────────────────────────────────────────────────
 
+	fn render_scaled_content(ctx &DrawContext, el Element, off_x f64, off_y f64, clip Rect, scroll_parent_id string) {
+		if el.hidden { return }
+		viewport := rect(el.frame.x+off_x,el.frame.y+off_y,el.frame.width,el.frame.height)
+		local := contain_content(viewport,el.content_size.width,el.content_size.height) or { return }
+		outer := ctx.content_transform
+		window_clip := outer.project(intersect_rect(viewport,clip))
+		// Draw the viewport's fill/interaction at its normal size before entering content.
+		render_element(ctx, Element{...el, children:[], content_size:LayoutSize{}}, off_x, off_y, clip, scroll_parent_id)
+		transform := outer.compose(local)
+		unsafe { ctx.content_transform = transform }
+		defer { unsafe { ctx.content_transform = outer } }
+		content_clip := intersect_rect(rect(0,0,el.content_size.width,el.content_size.height), transform.inverse_rect(window_clip))
+		if content_clip.width <= 0 || content_clip.height <= 0 { return }
+		for child in el.children { render_element(ctx,child,0,0,content_clip,scroll_parent_id) }
+	}
+
 	fn render_element(ctx &DrawContext, el Element, off_x f64, off_y f64, clip Rect, scroll_parent_id string) {
+		if el.content_size.width > 0 || el.content_size.height > 0 {
+			render_scaled_content(ctx, el, off_x, off_y, clip, scroll_parent_id)
+			return
+		}
 		if el.hidden {
 			return
 		}
@@ -2604,7 +2633,7 @@ fn page_focused_text_area(direction int) {
 							cursor_y := y + el.frame.height * 0.2
 							cursor_h := el.frame.height * 0.6
 							draw_rect(ctx, cursor_x, cursor_y, 2, cursor_h, el.text_style.color, 0)
-							g_gg_app.text_caret = rect(cursor_x, cursor_y, 2, cursor_h)
+							g_gg_app.text_caret = current_presentation_rect(rect(cursor_x, cursor_y, 2, cursor_h))
 							$if macos && ui2_embedder ? {
 								composition := g_gg_app.composition
 								if composition.field_id == el.id {
@@ -2811,6 +2840,15 @@ fn page_focused_text_area(direction int) {
 		ctx.scissor_rect(clip.x, clip.y, clip.width, clip.height)
 	}
 
+	fn current_content_transform() ContentTransform {
+		return if g_gg_app.ctx != unsafe { nil } { g_gg_app.ctx.content_transform } else { ContentTransform{} }
+	}
+
+	fn current_presentation_rect(area Rect) Rect {
+  projected := current_content_transform().project(area)
+  return if g_gg_app.ctx != unsafe { nil } { presentation_rect(projected,f64(g_gg_app.ctx.scale)) } else { projected }
+ }
+
 	fn add_hit_target(target HitTarget, clip Rect) {
 		visible := intersect_rect(Rect{
 			x: target.x
@@ -2821,12 +2859,14 @@ fn page_focused_text_area(direction int) {
 		if visible.width <= 0 || visible.height <= 0 {
 			return
 		}
+		projected := current_presentation_rect(visible)
 		g_hit_targets << HitTarget{
 			...target
-			x: visible.x
-			y: visible.y
-			w: visible.width
-			h: visible.height
+			content_transform:current_content_transform()
+			x: projected.x
+			y: projected.y
+			w: projected.width
+			h: projected.height
 		}
 	}
 
@@ -3259,7 +3299,7 @@ fn page_focused_text_area(direction int) {
 			cursor_h := if cursor.height > 0 { cursor.height } else { font_style_line_height(el.text_style) }
 			caret := rect(caret_origin + cursor.x, caret_top + cursor.y, 2, cursor_h)
 			draw_rect(ctx, caret.x, caret.y, caret.width, caret.height, el.text_style.color, 0)
-			g_gg_app.text_caret = caret
+			g_gg_app.text_caret = current_presentation_rect(caret)
 			$if macos && ui2_embedder ? {
 				composition := g_gg_app.composition
 				if composition.field_id == el.id {
