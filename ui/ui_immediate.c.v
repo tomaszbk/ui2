@@ -3262,7 +3262,7 @@ fn page_focused_text_area(direction int) {
 	fn draw_rich_label_text(ctx &DrawContext, el Element, x f64, y f64, clip Rect) bool {
 		$if !android {
 			if el.text_runs.len > 0 {
-				shaped := ctx.shape_runs(el.text_runs, el.text_style, math.max(0, el.frame.width), math.max(1, el.text_style.lines), true) or { eprintln('ui2: rich label: ${err}'); return false }
+				shaped := ctx.shape_runs(el.text_runs, el.text_style, math.max(0.0, el.frame.width), math.max(1, el.text_style.lines), true) or { eprintln('ui2: rich label: ${err}'); return false }
 				inside := if clip.width > 0 && clip.height > 0 { intersect_rect(rect(x, y, el.frame.width, el.frame.height), clip) } else { rect(x, y, el.frame.width, el.frame.height) }
 				if inside.width <= 0 || inside.height <= 0 { return false }
 				// Culling whole runs is insufficient for partial glyphs and baseline
@@ -3423,7 +3423,7 @@ fn page_focused_text_area(direction int) {
 		} $else {
 			// A shaped block supplies both its geometry and the glyphs painted here.
 			// Editors pass an unbounded width so their value is clipped, not ellipsized.
-			width := if fit || style.lines > 1 { math.max(0, w) } else { -1.0 }
+			width := if fit || style.lines > 1 { math.max(0.0, w) } else { -1.0 }
 			shaped := ctx.shape_text(t, style, width, if style.lines > 1 { style.lines } else { 1 }, fit) or {
 				eprintln('ui2: text: ${err}')
 				return false
