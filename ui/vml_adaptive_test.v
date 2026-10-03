@@ -1,5 +1,7 @@
 module ui2
 
+import json2
+
 fn adaptive_test_element(root Element, id string) ?Element {
 	if root.id == id { return root }
 	for child in root.children {
@@ -216,21 +218,26 @@ fn assert_adaptive_container_metadata_is_nonvisual(tag string, first string, sec
 		}
 		root := element_from_vnode(node, rect(0, 0, 390, 844))!
 		expected := element_from_vnode(expected_node, rect(0, 0, 390, 844))!
-		assert root == expected, '${tag}: adaptive=${mode}'
+		// V 3005dc3's generated equality compares recursive array headers.
+		// Serialization includes every field and descendant without depending
+		// on where the parser allocated its arrays.
+		assert json2.encode(root) == json2.encode(expected), '${tag}: adaptive=${mode}'
 		assert node.children[0].props == before
 		assert node.children[0].children.len == child_count
 		validate_element_tree(root)!
 	}
 	// Standalone containers and nested layouts also take specialized traversals.
 	direct := element_from_vml(annotated, rect(0, 0, 390, 844))!
-	assert direct == element_from_vml(clean, rect(0, 0, 390, 844))!, tag
+	direct_expected := element_from_vml(clean, rect(0, 0, 390, 844))!
+	assert json2.encode(direct) == json2.encode(direct_expected), tag
 	for mode in ['true', 'false'] {
 		nested := 'Screen { adaptive: ${mode} width: 760 height: 520
 			View { width: 500 height: 400 ${annotated} } }'
 		expected := 'Screen { adaptive: ${mode} width: 760 height: 520
 			View { width: 500 height: 400 ${clean} } }'
-		assert element_from_vml(nested, rect(0, 0, 390, 844))! == element_from_vml(expected, rect(0,
-			0, 390, 844))!, '${tag}: nested adaptive=${mode}'
+		nested_root := element_from_vml(nested, rect(0, 0, 390, 844))!
+		nested_expected := element_from_vml(expected, rect(0, 0, 390, 844))!
+		assert json2.encode(nested_root) == json2.encode(nested_expected), '${tag}: nested adaptive=${mode}'
 	}
 }
 

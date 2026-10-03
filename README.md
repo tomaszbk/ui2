@@ -36,9 +36,20 @@ updates and dispatchers. See [the embedder contract and acceptance tests](docs/c
 
 ## Requirements
 
-`ui2` needs V 0.5.2 or newer. The module is split across `ui/`, `appkit/`,
+`ui2` requires V development revision
+[`3005dc3`](https://github.com/vlang/v/commit/3005dc383743bb2e2b3642f44307b6e75e7b37e3)
+or a compatible newer compiler. The V 0.5.2 release binary is insufficient;
+CI bootstraps the verified source revision with pinned `vc` and Boehm GC assets using
+[the shared setup action](.github/actions/setup-v/action.yml).
+The module is split across `ui/`, `appkit/`,
 `uikit/`, `windows/`, and `linux/` through the `subdirs` field of `v.mod`, and
 older compilers ignore that field. Run `v up` if `import ui2` fails.
+
+Custom desktop builds also need Pango 1.50+, FreeType and their text-library
+dependencies. The vglyph runtime is included in the repository. See
+[custom desktop text setup](docs/vglyph-text.md) for macOS, Linux and Windows
+installation, linking and distribution. Native, Android and headless builds
+retain their existing dependencies.
 
 To use `ui2` from a project outside this repository, link the clone into
 `~/.vmodules`:
@@ -517,17 +528,17 @@ platform it draws on and a declared size matches the native controls beside it.
 The default size of 15 is therefore a 20 px em square on Linux and Windows, and
 15 px on macOS and iOS.
 
-The custom renderer draws through fontstash, which sizes a glyph by its
-ascender-to-descender height rather than by the em square. `ui2` reads
-`unitsPerEm` and the `hhea` metrics out of the font file and converts, so the
-declared size means the same thing no matter which face is loaded.
+The custom desktop renderer uses vglyph/Pango for layout and shaping and
+FreeType for rasterization. Its CPU measurement works before opening a window
+and uses the same font resolution, wrapping and point conversion as drawing.
+Device DPI is applied separately for each drawing context. See
+[the text backend contract](docs/vglyph-text.md#measurement-and-units).
 
-The renderer picks the font itself instead of taking the first face `fc-match`
-reports, which varies by distribution. `ui2` ships Roboto and Roboto Mono in
-`assets/fonts/`, so every custom-rendered window draws the same faces on every
-platform. Nothing has to be installed for that to work while the module is on
-the build machine; to ship a binary elsewhere, copy `assets/fonts/` next to it
-or put the files in a `fonts/` directory beside it.
+The renderer picks a default text face from UI2's font discovery. `ui2` ships
+Roboto and Roboto Mono in `assets/fonts/`, giving custom windows the same
+default text faces on each platform. These fonts are found directly while
+the module is on the build machine; to ship a binary elsewhere, copy
+`assets/fonts/` next to it or put the files in a `fonts/` directory beside it.
 
 Failing all of those, the renderer looks for Inter, Roboto, Noto Sans, Open
 Sans, DejaVu Sans, Liberation Sans, Ubuntu, Cantarell, FreeSans, and Arial among
@@ -540,15 +551,15 @@ the quickest way to compare faces:
 UI2_FONT=/usr/share/fonts/truetype/roboto/Roboto-Regular.ttf ./users
 ```
 
-Use static font files, not variable ones. `stb_truetype`, the rasterizer
-fontstash builds with, ignores the `fvar` and `gvar` tables, so a variable font
-draws every weight at its default instance and bold text stops being bold. The
-renderer skips variable files (`Roboto[wdth,wght].ttf`, `*-VariableFont*.ttf`)
-when choosing a default for that reason.
+The bundled fonts and default discovery use static faces. vglyph can shape
+variable fonts, but UI2's public styles still expose the existing bold/italic
+flags; additional weight and variation controls need their own API.
 
 `TextStyle.font_family` names a family. The native backends hand the name to the
-platform's font manager; the custom renderer resolves it against the same font
-directories and ignores it when the machine has no such face.
+platform's font manager; the custom desktop renderer registers a matching
+file from UI2's font directories or asks Pango/Fontconfig to resolve the family.
+An unavailable family falls back through the default text face before symbol
+fonts.
 
 A family that names a fixed-pitch face is the exception: dropping to the
 proportional default would lose the column alignment it was asked for. So
@@ -559,36 +570,29 @@ New. The bundled Roboto Mono means that list always resolves.
 
 ### Symbols
 
-A text face carries the letters of the scripts it was cut for and little else.
-Roboto has 927 code points, so the triangles, arrows and check marks an
-interface labels its rows with are not in it, and fontstash draws a code point
-it cannot find as glyph 0 — the empty box, or tofu.
+UI2 bundles Material Icons, Noto Sans Symbols 2 and monochrome Noto Emoji
+alongside the text faces. The desktop text adapter registers the bundled
+files with Pango/Fontconfig before measurement or drawing. Pango shapes
+clusters and uses separate preferences for normal text and emoji, preserving
+UI2's explicit and bundled fallback priorities. The current
+profile prefers bundled monochrome Noto Emoji; installing a color emoji font
+does not switch that default. System fonts cover scripts and codepoints still
+missing from those faces. Use the same font set and preferences when comparing
+logical layout across machines.
 
-`ui2` therefore ships Noto Sans Symbols 2 and Noto Emoji in `assets/fonts/` as
-well, and hands them to fontstash as fallbacks for every face it loads.
-Fontstash searches the chain whenever a glyph lookup lands on that empty box, so
-a label mixing letters and symbols is still drawn in one pass and measured
-exactly the way it is drawn; `TextStyle.font_family` faces get the same chain.
-
-Noto Sans Symbols 2 comes first and covers the geometric shapes, dingbats, box
-elements and braille. Then one symbol face off the machine — Noto Sans Symbols,
-Segoe UI Symbol, Apple Symbols, Symbola, or the widest text face it finds —
-which is what covers the blocks Noto Sans Symbols 2 leaves out, the arrows at
-U+2190 and the box drawing at U+2500 among them. Only one is taken, since every
-face in the chain stays in memory for as long as the window does.
-
-Emoji are drawn from Noto Emoji, the monochrome family: they come out as
-outlines in the color the label was given, not as the color artwork a desktop
-draws. `stb_truetype` reads neither the bitmaps nor the layers a color emoji
-font keeps its artwork in, so an installed `NotoColorEmoji.ttf` or Segoe UI
-Emoji is never searched — it would draw an empty space rather than an empty box,
-which is no better.
-
-`UI2_FONT_SYMBOLS` takes a file path and is searched ahead of the bundled face:
+`UI2_FONT_SYMBOLS` supplies an additional symbol font file, preferred before
+the bundled symbol and emoji fallbacks in both the desktop adapter and the
+remaining Fontstash paths:
 
 ```sh
 UI2_FONT_SYMBOLS=/usr/share/fonts/truetype/ancient-scripts/Symbola.ttf ./treeview
 ```
+
+Android custom and headless measurement still use Fontstash. Those paths
+retain UI2's explicit symbol fallback chain, the font's ascender/descender
+conversion and monochrome emoji. Their `stb_truetype` rasterizer does not
+apply variable font axes or render bitmap/layered color emoji, so use static
+outline fonts there.
 
 ## Charts
 

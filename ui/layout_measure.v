@@ -122,7 +122,17 @@ pub fn measure_layout_element(element Element, constraints LayoutConstraints, me
 		} else {
 			element.text
 		}
-		measured := measure(content, element.text_style, text_width)!
+		measured := $if (linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
+			// The built-in editor adapter wraps every row in the content width.
+			// External callbacks retain the declared TextStyle without sentinels.
+			if element.kind == .text_area && voidptr(measure) == voidptr(measure_layout_text) {
+				layout_measure_vglyph_editor_text(content, element.text_style, text_width)!
+			} else {
+				measure(content, element.text_style, text_width)!
+			}
+		} $else {
+			measure(content, element.text_style, text_width)!
+		}
 		preferred = LayoutSize{
 			width:  measured.width + insets.left + insets.right
 			height: measured.height + insets.top + insets.bottom
@@ -156,6 +166,18 @@ fn layout_measure_control_insets(element Element) BoxPadding {
 			// edge. NSAttributedString measures glyphs only; include the cell's
 			// existing margins so an intrinsic label does not truncate itself.
 			return BoxPadding{ left: 2, right: 2 }
+		}
+	}
+	$if (linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
+		if element.kind == .text_area {
+			// Match text_area_content_rect, including the gutter reserved before
+			// a scrollbar is visible, so intrinsic measurement wraps identically.
+			return BoxPadding{
+				left: math.max(2, element.padding_left)
+				right: if element.disable_scroll { 8 } else { 12 }
+				top: 8
+				bottom: 8
+			}
 		}
 	}
 	return match element.kind {

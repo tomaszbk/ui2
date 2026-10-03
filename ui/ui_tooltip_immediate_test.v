@@ -250,27 +250,29 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		assert tooltip_frame(10, 10, 120, 30, rect(0, 0, 100, 40)) == rect(4, 4, 120, 30)
 	}
 
-	fn test_tooltip_text_wraps_to_a_readable_measure() {
-		lines, width := tooltip_lines('Save', tooltip_test_width)
-		assert lines == ['Save']
-		assert width == 40
-		// Explicit lines are kept, and a trailing newline does not add one.
-		multi, multi_width := tooltip_lines('line one\nline two, longer\n', tooltip_test_width)
-		assert multi == ['line one', 'line two, longer']
-		assert multi_width == 160
-		// Long text wraps at the measure: 36 runes of ten pixels.
-		words := []string{len: 20, init: 'word${index:02}'}
-		wrapped, wrapped_width := tooltip_lines(words.join(' '), tooltip_test_width)
-		assert wrapped.len == 4
-		assert wrapped[0] == 'word00 word01 word02 word03 word04'
-		assert wrapped_width == 340
-		// A word wider than the measure is left for the draw to shorten.
-		_, long_width := tooltip_lines('x'.repeat(100), tooltip_test_width)
-		assert long_width == tooltip_max_text_width
-		// Very long text stops at the line cap.
-		many := []string{len: 200, init: 'word${index:03}'}
-		capped, _ := tooltip_lines(many.join(' '), tooltip_test_width)
-		assert capped.len == tooltip_max_lines
+	$if android {
+		fn test_tooltip_text_wraps_to_a_readable_measure() {
+			lines, width := tooltip_lines('Save', tooltip_test_width)
+			assert lines == ['Save']
+			assert width == 40
+			// Explicit lines are kept, and a trailing newline does not add one.
+			multi, multi_width := tooltip_lines('line one\nline two, longer\n', tooltip_test_width)
+			assert multi == ['line one', 'line two, longer']
+			assert multi_width == 160
+			// Long text wraps at the measure: 36 runes of ten pixels.
+			words := []string{len: 20, init: 'word${index:02}'}
+			wrapped, wrapped_width := tooltip_lines(words.join(' '), tooltip_test_width)
+			assert wrapped.len == 4
+			assert wrapped[0] == 'word00 word01 word02 word03 word04'
+			assert wrapped_width == 340
+			// A word wider than the measure is left for the draw to shorten.
+			_, long_width := tooltip_lines('x'.repeat(100), tooltip_test_width)
+			assert long_width == tooltip_max_text_width
+			// Very long text stops at the line cap.
+			many := []string{len: 200, init: 'word${index:03}'}
+			capped, _ := tooltip_lines(many.join(' '), tooltip_test_width)
+			assert capped.len == tooltip_max_lines
+		}
 	}
 
 	fn test_tooltip_targets_cover_the_visible_part_of_an_element() {

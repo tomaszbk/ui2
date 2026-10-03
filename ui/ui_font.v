@@ -1,11 +1,7 @@
-// ui2 declares text sizes in points, the unit both native backends take. The
-// custom renderer draws through fontstash, which sizes a glyph by the font's
-// ascender-to-descender height instead of by its em square, so the very same
-// declared size comes out a different height for every font file. That is why
-// a Linux window reads smaller than the Windows one, and why it changes from
-// distribution to distribution: `fc-match` hands gg whatever sans face sorts
-// first. Resolving the point size against the metrics of the font actually
-// being drawn, and picking that font on purpose, makes the two match.
+// UI2 retains its legacy point-size profile on all backends. Desktop custom
+// text passes the logical em size to vglyph; Android and CPU Fontstash paths
+// still convert it to the font's ascender-to-descender height. Font discovery
+// and the legacy line spacing below are shared by both text adapters.
 module ui2
 
 import os
@@ -49,9 +45,8 @@ fn font_render_size(points f64, metrics FontMetrics) f64 {
 	return font_em_pixels(points) * f64(span) / f64(metrics.units_per_em)
 }
 
-// font_line_height spaces the lines of a multi-line label. Fontstash reports a
-// font's own line height only after a draw, so the em square plus the usual
-// quarter of leading is what keeps the lines apart.
+// font_line_height retains the legacy em square plus one quarter of leading.
+// The vglyph adapter requests this same logical line height from Pango.
 fn font_line_height(points f64) f64 {
 	return font_em_pixels(points) * 1.25
 }

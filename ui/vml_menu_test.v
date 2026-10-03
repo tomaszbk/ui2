@@ -1,5 +1,7 @@
 module ui2
 
+import json2
+
 fn test_menu_bar_from_vml_matches_native_declarations() {
 	menus := menu_bar_from_vml('
 		MenuBar {
@@ -19,7 +21,7 @@ fn test_menu_bar_from_vml_matches_native_declarations() {
 			}
 		}
 	') or { panic(err) }
-	assert menus == [
+	expected := [
 		Menu{
 			title: 'File'
 			items: [
@@ -34,6 +36,9 @@ fn test_menu_bar_from_vml_matches_native_declarations() {
 			items: [menu_check_item('wrap', 'Word Wrap', true)]
 		},
 	]
+	// V 3005dc3 compares nested struct arrays by their memory representation.
+	// Compare every declared field, including submenu descendants, as values.
+	assert json2.encode(menus) == json2.encode(expected)
 }
 
 fn test_menu_bar_from_vml_accepts_one_menu_and_action_ids() {

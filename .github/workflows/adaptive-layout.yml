@@ -5,12 +5,18 @@ on:
     paths:
       - 'ui/**'
       - 'ide/**'
+      - 'thirdparty/vglyph/**'
+      - 'assets/fonts/**'
+      - '.github/actions/setup-v/**'
       - '.github/workflows/adaptive-layout.yml'
   push:
     branches: [master, work/ide-adaptive-layout]
     paths:
       - 'ui/**'
       - 'ide/**'
+      - 'thirdparty/vglyph/**'
+      - 'assets/fonts/**'
+      - '.github/actions/setup-v/**'
       - '.github/workflows/adaptive-layout.yml'
 
 permissions:
@@ -33,31 +39,36 @@ jobs:
           path: ui2
           persist-credentials: false
 
-      - name: Install V 0.5.2
-        shell: bash
-        run: |
-          curl --fail --location --retry 3 \
-            --output "$RUNNER_TEMP/v.zip" \
-            https://github.com/vlang/v/releases/download/0.5.2/v_linux.zip
-          unzip -q "$RUNNER_TEMP/v.zip" -d "$RUNNER_TEMP"
-          echo "$RUNNER_TEMP/v" >> "$GITHUB_PATH"
-          "$RUNNER_TEMP/v/v" version
-
       - name: Install Linux development dependencies
         run: |
           sudo apt-get update -qq
           sudo apt-get install --quiet -y --no-install-recommends \
             libx11-dev libxcursor-dev libxi-dev libxrandr-dev libxinerama-dev \
-            libxfixes-dev libgl1-mesa-dev libegl-dev libasound2-dev
+            libxfixes-dev libgl1-mesa-dev libegl-dev libasound2-dev \
+            pkg-config libpango1.0-dev libfreetype6-dev libharfbuzz-dev \
+            libfribidi-dev libfontconfig1-dev fonts-noto-core fonts-noto-cjk fonts-noto-color-emoji
+
+      - name: Set up verified V
+        uses: ./ui2/.github/actions/setup-v
+        with:
+          c-compiler: gcc
+          tcc-revision: d6e7ac1b1bcc98aed734a6ecbfa8509f24606c74
+
+      - name: Verify custom text dependencies
+        run: |
+          text_modules='pango pangoft2 freetype2 harfbuzz fribidi fontconfig gobject-2.0 glib-2.0'
+          pkg-config --exists $text_modules
+          pkg-config --atleast-version=1.50 pango
+          pkg-config --modversion $text_modules
 
       - name: Check the IDE
-        run: v -check ui2/ide
+        run: v -cc gcc -check ui2/ide
 
       - name: Test layout geometry
-        run: v test ui2/ui/adaptive_layout_test.v
+        run: v -cc gcc test ui2/ui/adaptive_layout_test.v
 
       - name: Test adaptive VML
-        run: v test ui2/ui/vml_adaptive_test.v
+        run: v -cc gcc test ui2/ui/vml_adaptive_test.v
 
       - name: Test designer and generated companion
-        run: v test ui2/ide
+        run: v -cc gcc test ui2/ide

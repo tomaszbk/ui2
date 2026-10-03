@@ -3,6 +3,23 @@
 module ui2
 
 $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
+	$if android {
+		struct CustomFontState {
+		mut:
+			font_metrics FontMetrics
+			font_files map[string]string
+			font_indexed bool
+			font_family_files map[string]string
+			font_family_metrics map[string]FontMetrics
+			font_symbol_ids []int
+			font_symbol_bases map[int]bool
+			font_symbol_fons voidptr
+		}
+	} $else {
+		// Desktop font state and atlas now belong to DrawContext.
+		struct CustomFontState {}
+	}
+
 	// The old drawing/input helpers address the current window through globals.
 	// The embedder changes that current window at each callback boundary. These
 	// are owning snapshots: map and array headers move between a window and the
@@ -54,14 +71,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		active_scrolls map[string]bool
 		image_ids map[string]int
 		active_images map[string]bool
-		font_metrics FontMetrics
-		font_files map[string]string
-		font_indexed bool
-		font_family_files map[string]string
-		font_family_metrics map[string]FontMetrics
-		font_symbol_ids []int
-		font_symbol_bases map[int]bool
-		font_symbol_fons voidptr
+		legacy_fonts CustomFontState
 		open_dropdown string
 		dropdown_popup DropdownPopup
 		dropdown_hover int = -1
@@ -188,14 +198,16 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		state.active_scrolls = g_active_scrolls
 		state.image_ids = g_image_ids
 		state.active_images = g_active_images
-		state.font_metrics = g_font_metrics
-		state.font_files = g_font_files
-		state.font_indexed = g_font_indexed
-		state.font_family_files = g_font_family_files
-		state.font_family_metrics = g_font_family_metrics
-		state.font_symbol_ids = g_font_symbol_ids
-		state.font_symbol_bases = g_font_symbol_bases
-		state.font_symbol_fons = g_font_symbol_fons
+		$if android {
+			state.legacy_fonts.font_metrics = g_font_metrics
+			state.legacy_fonts.font_files = g_font_files
+			state.legacy_fonts.font_indexed = g_font_indexed
+			state.legacy_fonts.font_family_files = g_font_family_files
+			state.legacy_fonts.font_family_metrics = g_font_family_metrics
+			state.legacy_fonts.font_symbol_ids = g_font_symbol_ids
+			state.legacy_fonts.font_symbol_bases = g_font_symbol_bases
+			state.legacy_fonts.font_symbol_fons = g_font_symbol_fons
+		}
 		state.open_dropdown = g_open_dropdown
 		state.dropdown_popup = g_dropdown_popup
 		state.dropdown_hover = g_dropdown_hover
@@ -256,14 +268,16 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		g_active_scrolls = state.active_scrolls
 		g_image_ids = state.image_ids
 		g_active_images = state.active_images
-		g_font_metrics = state.font_metrics
-		g_font_files = state.font_files
-		g_font_indexed = state.font_indexed
-		g_font_family_files = state.font_family_files
-		g_font_family_metrics = state.font_family_metrics
-		g_font_symbol_ids = state.font_symbol_ids
-		g_font_symbol_bases = state.font_symbol_bases
-		g_font_symbol_fons = state.font_symbol_fons
+		$if android {
+			g_font_metrics = state.legacy_fonts.font_metrics
+			g_font_files = state.legacy_fonts.font_files
+			g_font_indexed = state.legacy_fonts.font_indexed
+			g_font_family_files = state.legacy_fonts.font_family_files
+			g_font_family_metrics = state.legacy_fonts.font_family_metrics
+			g_font_symbol_ids = state.legacy_fonts.font_symbol_ids
+			g_font_symbol_bases = state.legacy_fonts.font_symbol_bases
+			g_font_symbol_fons = state.legacy_fonts.font_symbol_fons
+		}
 		g_open_dropdown = state.open_dropdown
 		g_dropdown_popup = state.dropdown_popup
 		g_dropdown_hover = state.dropdown_hover
