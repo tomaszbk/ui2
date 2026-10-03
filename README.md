@@ -250,6 +250,236 @@ Repeater {
 }
 ```
 
+## Custom buttons
+
+A `Button` can be styled directly in VML. Leave `native` unset when the
+application should own its colors and shape; `native: true` requests the
+standard native-style appearance instead.
+
+```vml
+Button {
+    id: save
+    text: "Save"
+    on_tap: app.save()
+    x: 20
+    y: 20
+    width: 120
+    height: 40
+    background: #2563EB
+    border_color: #1D4ED8
+    border_width: 1
+    corner_radius: 8
+    color: #FFFFFF
+    bold: true
+}
+```
+
+When the button needs arbitrary content rather than a single caption, compose
+it from a `Rectangle` (or `View`) and opt the container into button activation
+with `button_behavior: true`. The whole rectangle is the activation target;
+noninteractive children such as its `Label` do not block the tap:
+
+```vml
+Rectangle {
+    id: save_card
+    button_behavior: true
+    on_tap: app.save()
+    x: 20
+    y: 20
+    width: 180
+    height: 56
+    background: #2563EB
+    corner_radius: 8
+    cursor: "pointing_hand"
+
+    Label {
+        text: "Save changes"
+        x: 16
+        y: 16
+        width: 148
+        height: 24
+        align: center
+        color: #FFFFFF
+        bold: true
+    }
+}
+```
+
+`button_behavior` emits the ordinary `on_tap` action once when a press starts
+on the element and is released inside without becoming a drag or scroll
+gesture. It also gives the composite the default accessibility role `button`
+and derives its accessibility label from the first visible, noninteractive
+descendant with a label or text; set `accessibility_role` or
+`accessibility_label` explicitly to override those defaults.
+
+This adds activation semantics without requesting a native bezel or pressed
+visuals—the rectangle and its children remain application-drawn. The native
+Windows backend exposes the composite as a focusable button to accessibility
+tools and supports Enter/Space activation; the other renderers do not add
+native keyboard focus treatment. Use `Button` when a platform-drawn bezel and
+pressed state are required.
+
+This is deliberately separate from `clickable: true`. A clickable view is a
+low-level pointer surface that reports `pointer:down:...` and `pointer:up:...`
+events (and can be combined with `draggable`) for code that needs coordinates
+or gesture phases. Use `button_behavior` for a normal action-bearing composite
+control. If both flags are set, the surface emits the raw pointer phases and
+then its ordinary action after a successful tap.
+
+To reuse that style, put the defaults in a sibling VML module. `PrimaryButton`
+can live in `PrimaryButton.vml` or the conventional snake-case
+`primary_button.vml`:
+
+```vml
+module PrimaryButton
+
+Button {
+    height: 40
+    background: #2563EB
+    border_color: #1D4ED8
+    border_width: 1
+    corner_radius: 8
+    color: #FFFFFF
+    bold: true
+}
+```
+
+Import the module from `app.vml` and set the instance-specific properties.
+Properties on an instance override the module defaults:
+
+```vml
+import PrimaryButton
+
+Screen {
+    PrimaryButton {
+        id: save
+        text: "Save"
+        on_tap: app.save()
+        x: 20
+        y: 20
+        width: 120
+    }
+}
+```
+
+A reusable composite can put only the interactive surface in its module and
+accept its visible content as instance children. For example,
+`action_surface.vml` can contain:
+
+```vml
+module ActionSurface
+
+Rectangle {
+    button_behavior: true
+    height: 56
+    background: #2563EB
+    corner_radius: 8
+}
+```
+
+The importing document supplies the action and any combination of labels,
+images, or decorative rectangles:
+
+```vml
+import ActionSurface
+
+Screen {
+    ActionSurface {
+        id: save_card
+        on_tap: app.save()
+        x: 20
+        y: 20
+        width: 180
+
+        Label {
+            text: "Save changes"
+            x: 16
+            y: 16
+            width: save_card.width - 32
+            height: 24
+            align: center
+            color: #FFFFFF
+            bold: true
+        }
+    }
+}
+```
+
+VML imports require a file path so they can resolve sibling modules. Use the
+file-backed runtime API instead of passing an embedded source string:
+
+```v
+ui2.run_vml_file[App](
+    source_path: os.join_path(os.dir(@FILE), 'app.vml')
+    model: App{}
+    title: 'My app'
+    width: 400
+    height: 300
+)!
+```
+
+The other file-backed entry points are `new_vml_app_file` and
+`element_from_vml_model_file`. Source-string `run_vml` and compile-time `$vml`
+do not expand imports. Imported VML files are read at runtime, so deploy them
+beside the document that imports them.
+
+In V code, the equivalent reusable control is an ordinary function returning
+an `Element`:
+
+```v
+fn primary_button(id string, title string, frame ui2.Rect) ui2.Element {
+    return ui2.button(
+        id,
+        title,
+        frame,
+        ui2.BoxStyle{
+            bg: 0x2563eb
+            radius: 8
+            border_color: 0x1d4ed8
+            border_left: 1
+            border_top: 1
+            border_right: 1
+            border_bottom: 1
+        },
+        ui2.TextStyle{
+            color: 0xffffff
+            bold: true
+        },
+    )
+}
+```
+
+A button emits its `id` by default. Wrap it with `with_action` when its lookup
+identity and action name should differ; `button_with_image`, `with_tooltip`, and
+`with_native_style` can be composed in the same way.
+
+For arbitrary child elements, use `button_view` instead. Child frames are
+relative to the view, just as they are for an ordinary `view`:
+
+```v
+fn save_card(id string, action string, frame ui2.Rect) ui2.Element {
+    caption := ui2.label(
+        '${id}_caption',
+        'Save changes',
+        ui2.rect(16, 16, frame.width - 32, 24),
+        ui2.TextStyle{ color: 0xffffff, bold: true, align: .center },
+    )
+    return ui2.with_action(
+        ui2.button_view(
+            id,
+            frame,
+            ui2.BoxStyle{ bg: 0x2563eb, radius: 8 },
+            [caption],
+        ),
+        action,
+    )
+}
+```
+
+`with_button_behavior(existing_view)` is the modifier form when the composite
+already exists. `button_view` and `with_button_behavior` leave the raw
+`clickable` flag unset.
+
 ## Backend capabilities
 
 Call `control_support(kind)` to query support. macOS implements every shared
@@ -300,7 +530,9 @@ its text area is plain-text, so those two controls report `partial` support.
 Shared state includes `hidden`, `enabled`, `accessibility_role`,
 `accessibility_label`, and `accessibility_value`. Native backends expose these
 through AppKit/UIKit. Standard Windows controls expose their native name and
-value; explicit Windows accessibility overrides are not yet implemented.
+value; `button_behavior` views also expose a native button role, generated
+label, keyboard focus, and accessibility activation. Other explicit Windows
+accessibility role/value overrides are not yet implemented.
 `autocorrect` and `padding_left` configure applicable mobile text inputs.
 
 ## Visual IDE

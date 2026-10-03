@@ -12,9 +12,19 @@ $if !ui2_custom_rendering ? {
 
 #flag windows -lshell32
 
+#flag windows -loleacc
+
+#flag windows -lole32
+
+#flag windows -loleaut32
+
+#flag windows -luuid
+
 #insert "@VMODROOT/windows/native_helpers_windows.h"
 
 fn C.ui2_win_register_classes() int
+
+fn C.ui2_win_shutdown_accessibility()
 
 fn C.ui2_win_visual_styles_enabled() int
 
@@ -44,6 +54,8 @@ fn C.ui2_win_destroy(hwnd voidptr)
 
 fn C.ui2_win_is_window(hwnd voidptr) int
 
+fn C.ui2_win_is_enabled(hwnd voidptr) int
+
 fn C.ui2_win_parent(hwnd voidptr) voidptr
 
 fn C.ui2_win_set_parent(hwnd voidptr, parent voidptr)
@@ -56,6 +68,10 @@ fn C.ui2_win_show(hwnd voidptr, visible int)
 
 fn C.ui2_win_enable(hwnd voidptr, enabled int)
 
+fn C.ui2_win_configure_accessible_button(hwnd voidptr, label &u16, active int)
+
+fn C.ui2_win_is_accessible_button(hwnd voidptr) int
+
 fn C.ui2_win_create_tooltip(hwnd voidptr, text &u16) voidptr
 
 fn C.ui2_win_tooltip_add_target(tooltip voidptr, target voidptr) int
@@ -65,6 +81,10 @@ fn C.ui2_win_border_width(width f64, extent int) int
 fn C.ui2_win_destroy_tooltip(tooltip voidptr)
 
 fn C.ui2_win_focus(hwnd voidptr)
+
+fn C.ui2_win_focus_next(hwnd voidptr, backwards int) int
+
+fn C.ui2_win_draw_focus_rect(hwnd voidptr)
 
 fn C.ui2_win_focus_handle() voidptr
 
@@ -93,6 +113,16 @@ fn C.ui2_win_set_edit_options(hwnd voidptr, placeholder &u16, readonly int, padd
 fn C.ui2_win_placeholder_matches(hwnd voidptr, expected &u16) int
 
 fn C.ui2_win_widget_style(hwnd voidptr) usize
+
+fn C.ui2_win_click(hwnd voidptr)
+
+fn C.ui2_win_notify_invoked(hwnd voidptr)
+
+fn C.ui2_win_accessible_button_info(hwnd voidptr, expected_name &u16) u32
+
+fn C.ui2_win_accessible_button_invoke(hwnd voidptr) int
+
+fn C.ui2_win_dispatch_pending_messages()
 
 fn C.ui2_win_get_selection(hwnd voidptr, start &u32, end &u32)
 
@@ -157,6 +187,8 @@ fn C.ui2_win_ticks() u64
 
 fn C.ui2_win_point_to_root(hwnd voidptr, root voidptr, x &int, y &int)
 
+fn C.ui2_win_root_point_in_client(root voidptr, target voidptr, x int, y int) int
+
 fn C.ui2_win_menu_create() voidptr
 
 fn C.ui2_win_menu_add(menu voidptr, command u32, title &u16, enabled int)
@@ -212,11 +244,12 @@ struct WindowsRunConfig {
 }
 
 struct WindowsPointerBinding {
-	id         string
-	clickable  bool
-	draggable  bool
-	long_press bool
-	swipe_left bool
+	id              string
+	clickable       bool
+	button_behavior bool
+	draggable       bool
+	long_press      bool
+	swipe_left      bool
 }
 
 @[heap]
@@ -271,6 +304,7 @@ mut:
 	rendering          bool
 	key_consumed       bool
 	pointer_handle     voidptr
+	pointer_binding    WindowsPointerBinding
 	pointer_start_x    int
 	pointer_start_y    int
 	pointer_started    u64
@@ -460,6 +494,7 @@ fn run_window_with_min_size(title string, width int, height int, min_width int, 
 	}
 	if C.ui2_win_register_classes() == 0 {
 		eprintln('ui2: failed to register Win32 window classes')
+		C.ui2_win_shutdown_accessibility()
 		return
 	}
 	wide_title := title.to_wide()
@@ -467,6 +502,7 @@ fn run_window_with_min_size(title string, width int, height int, min_width int, 
 	unsafe { free(wide_title) }
 	if root == unsafe { nil } {
 		eprintln('ui2: failed to create the Win32 window')
+		C.ui2_win_shutdown_accessibility()
 		return
 	}
 	st.root = root
@@ -479,6 +515,7 @@ fn run_window_with_min_size(title string, width int, height int, min_width int, 
 	C.ui2_win_message_loop()
 	native_remove_tray()
 	windows_dispose_all()
+	C.ui2_win_shutdown_accessibility()
 }
 
 pub fn refresh() {
@@ -918,6 +955,13 @@ fn windows_render_element(parent voidptr, el Element, key string, parent_key str
 		}, y_offset)
 	}
 	windows_register_bindings(hwnd, el)
+	if el.kind == .view {
+		caption := windows_button_accessibility_caption(el.accessibility_label)
+		wide_caption := caption.to_wide()
+		C.ui2_win_configure_accessible_button(hwnd, wide_caption,
+			windows_bool(el.button_behavior))
+		unsafe { free(wide_caption) }
+	}
 	if el.children.len > 0 {
 		if el.kind == .scroll {
 			content_height := windows_content_height(el.children)
@@ -1052,6 +1096,12 @@ fn windows_options_signature(entries []MenuEntry) string {
 		parts << entry.id.bytes().hex() + ':' + entry.title.bytes().hex()
 	}
 	return parts.join('|')
+}
+
+fn windows_button_accessibility_caption(label string) string {
+	// The standard BUTTON proxy treats ampersands as access-key markers.
+	// Escape them so an accessibility label remains literal text.
+	return label.replace('&', '&&')
 }
 
 fn windows_update_element(key string, hwnd voidptr, el Element, y_offset int, created bool) {
@@ -1266,13 +1316,16 @@ fn windows_register_bindings(hwnd voidptr, el Element) {
 	if el.submit_id.len > 0 && el.kind == .text_field {
 		st.submit_ids[handle] = el.submit_id
 	}
-	if el.clickable || el.draggable || el.long_press || el.swipe_left {
+	if el.enabled && !el.hidden
+		&& (el.clickable || (el.kind == .view && el.button_behavior) || el.draggable
+		|| el.long_press || el.swipe_left) {
 		st.pointer_bindings[handle] = WindowsPointerBinding{
-			id: action_id
-			clickable: el.clickable
-			draggable: el.draggable
-			long_press: el.long_press
-			swipe_left: el.swipe_left
+			id:              action_id
+			clickable:       el.clickable
+			button_behavior: el.kind == .view && el.button_behavior
+			draggable:       el.draggable
+			long_press:      el.long_press
+			swipe_left:      el.swipe_left
 		}
 	}
 	if el.menu.len > 0 {
@@ -1311,6 +1364,11 @@ fn windows_reparent_direct_children(key string, new_parent voidptr) {
 
 fn windows_cleanup_node_resources(key string, hwnd voidptr, kind Kind) {
 	mut st := windows_state()
+	if st.pointer_handle == hwnd {
+		C.ui2_win_release_mouse()
+		st.pointer_handle = unsafe { nil }
+		st.pointer_binding = WindowsPointerBinding{}
+	}
 	if kind == .image {
 		bitmap := st.images[key] or { voidptr(unsafe { nil }) }
 		if hwnd != unsafe { nil } && C.ui2_win_is_window(hwnd) != 0 {
@@ -1437,6 +1495,33 @@ fn windows_emit_action(id string) {
 	if id.len > 0 && voidptr(st.event_handler) != unsafe { nil } {
 		st.event_handler(id)
 	}
+}
+
+fn windows_emit_button_behavior_action(hwnd voidptr, id string) bool {
+	st := windows_state()
+	if id.len == 0 || voidptr(st.event_handler) == unsafe { nil } {
+		return false
+	}
+	C.ui2_win_notify_invoked(hwnd)
+	st.event_handler(id)
+	return true
+}
+
+fn windows_button_behavior_accessibility_action(current WindowsPointerBinding, target_available bool) string {
+	if current.button_behavior && current.id.len > 0 && target_available {
+		return current.id
+	}
+	return ''
+}
+
+@[export: 'ui2_windows_accessibility_activate']
+fn ui2_windows_accessibility_activate(hwnd voidptr) int {
+	st := windows_state()
+	current := st.pointer_bindings[windows_handle_id(hwnd)] or { WindowsPointerBinding{} }
+	action := windows_button_behavior_accessibility_action(current,
+		C.ui2_win_is_window(hwnd) != 0 && C.ui2_win_is_enabled(hwnd) != 0
+		&& C.ui2_win_is_accessible_button(hwnd) != 0)
+	return windows_bool(windows_emit_button_behavior_action(hwnd, action))
 }
 
 fn windows_snap_slider_value(hwnd voidptr, spec SliderSpec) f64 {
@@ -1702,6 +1787,14 @@ fn ui2_windows_window_proc(hwnd voidptr, message u32, wparam usize, lparam isize
 				C.ui2_win_paint_background(hwnd, box.bg, box.radius, transparent,
 					box.border_color, box.border_left, box.border_top, box.border_right,
 					box.border_bottom)
+				if kind == .view {
+					binding := st.pointer_bindings[windows_handle_id(hwnd)] or {
+						WindowsPointerBinding{}
+					}
+					if binding.button_behavior {
+						C.ui2_win_draw_focus_rect(hwnd)
+					}
+				}
 				return 0
 			}
 		}
@@ -1738,6 +1831,23 @@ fn ui2_windows_window_proc(hwnd voidptr, message u32, wparam usize, lparam isize
 		win_wm_key_down {
 			if windows_dispatch_key(u32(wparam)) {
 				return 0
+			}
+			if wparam == 0x09
+				&& C.ui2_win_focus_next(hwnd, windows_bool(C.ui2_win_key_down(0x10) != 0)) != 0 {
+				return 0
+			}
+			if wparam in [usize(0x0d), usize(0x20)]
+				&& (usize(lparam) & (usize(1) << 30)) == 0 {
+				binding := st.pointer_bindings[windows_handle_id(hwnd)] or {
+					WindowsPointerBinding{}
+				}
+				action := windows_button_behavior_accessibility_action(binding,
+					C.ui2_win_is_window(hwnd) != 0 && C.ui2_win_is_enabled(hwnd) != 0
+					&& C.ui2_win_is_accessible_button(hwnd) != 0)
+				if action.len > 0 {
+					C.ui2_win_click(hwnd)
+					return 0
+				}
 			}
 		}
 		win_wm_dropfiles {
@@ -1893,23 +2003,36 @@ fn ui2_windows_cursor(hwnd voidptr) int {
 @[export: 'ui2_windows_control_pointer']
 fn ui2_windows_control_pointer(hwnd voidptr, message u32, local_x int, local_y int) {
 	mut st := windows_state()
-	mut target := hwnd
-	mut binding := WindowsPointerBinding{}
-	for target != unsafe { nil } {
-		binding = st.pointer_bindings[windows_handle_id(target)] or { WindowsPointerBinding{} }
-		if binding.id.len > 0 || target == st.root {
-			break
-		}
-		target = C.ui2_win_parent(target)
-	}
-	if binding.id.len == 0 {
-		return
-	}
 	mut x := local_x
 	mut y := local_y
 	C.ui2_win_point_to_root(hwnd, st.root, &x, &y)
 	if message == win_wm_lbutton_down {
+		mut target := voidptr(usize(hwnd))
+		mut binding := WindowsPointerBinding{}
+		for target != unsafe { nil } {
+			handle := windows_handle_id(target)
+			binding = st.pointer_bindings[handle] or { WindowsPointerBinding{} }
+			if binding.id.len > 0 || target == st.root {
+				break
+			}
+			key := st.handle_keys[handle] or { '' }
+			if key.len > 0 {
+				kind := st.node_kinds[key] or { Kind.screen }
+				if kind !in [.screen, .view, .label, .image] {
+					// A nested native control owns its pointer interaction.
+					return
+				}
+			}
+			target = C.ui2_win_parent(target)
+		}
+		if binding.id.len == 0 {
+			return
+		}
+		if binding.button_behavior {
+			C.ui2_win_focus(target)
+		}
 		st.pointer_handle = target
+		st.pointer_binding = binding
 		st.pointer_start_x = x
 		st.pointer_start_y = y
 		st.pointer_started = C.ui2_win_ticks()
@@ -1920,9 +2043,11 @@ fn ui2_windows_control_pointer(hwnd voidptr, message u32, local_x int, local_y i
 		}
 		return
 	}
-	if st.pointer_handle != target {
+	if st.pointer_handle == unsafe { nil } {
 		return
 	}
+	target := st.pointer_handle
+	binding := st.pointer_binding
 	if message == win_wm_mouse_move {
 		move_x := x - st.pointer_start_x
 		move_y := y - st.pointer_start_y
@@ -1939,24 +2064,45 @@ fn ui2_windows_control_pointer(hwnd voidptr, message u32, local_x int, local_y i
 	}
 	C.ui2_win_release_mouse()
 	st.pointer_handle = unsafe { nil }
+	st.pointer_binding = WindowsPointerBinding{}
 	delta_x := x - st.pointer_start_x
 	delta_y := y - st.pointer_start_y
 	duration := C.ui2_win_ticks() - st.pointer_started
 	mut gesture := false
+	mut gesture_event := ''
 	if binding.swipe_left && delta_x <= -60 && delta_y >= -40 && delta_y <= 40 {
-		windows_emit_action('swipe_left:' + binding.id)
+		gesture_event = 'swipe_left:' + binding.id
 		gesture = true
 	} else if binding.long_press && !st.pointer_moved && duration >= 500 && delta_x >= -8 && delta_x <= 8
 		&& delta_y >= -8 && delta_y <= 8 {
-		windows_emit_action('long:' + binding.id)
+		gesture_event = 'long:' + binding.id
 		gesture = true
+	}
+	current_binding := st.pointer_bindings[windows_handle_id(target)] or { WindowsPointerBinding{} }
+	button_action := windows_button_behavior_action(binding, current_binding, gesture,
+		st.pointer_moved, C.ui2_win_is_window(target) != 0
+		&& C.ui2_win_is_enabled(target) != 0
+		&& C.ui2_win_root_point_in_client(st.root, target, x, y) != 0)
+	if gesture_event.len > 0 {
+		windows_emit_action(gesture_event)
 	}
 	if binding.clickable || binding.draggable {
 		windows_emit_action('pointer:up:${binding.id}:${x}:${y}')
 	}
+	if button_action.len > 0 {
+		windows_emit_button_behavior_action(target, button_action)
+	}
 	if gesture {
 		st.suppress_click[windows_handle_id(target)] = true
 	}
+}
+
+fn windows_button_behavior_action(captured WindowsPointerBinding, current WindowsPointerBinding, gesture bool, moved bool, target_available bool) string {
+	if captured.button_behavior && captured.id.len > 0 && current.button_behavior
+		&& current.id.len > 0 && !gesture && !moved && target_available {
+		return captured.id
+	}
+	return ''
 }
 
 fn windows_text_area_handle(id string) ?voidptr {
