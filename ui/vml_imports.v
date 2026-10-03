@@ -49,6 +49,7 @@ pub fn parse_vml_file(path string) !&VNode {
 	mut stack := []string{}
 	mut node := parse_vml_file_with_stack(path, '', mut stack)!
 	assign_vml_paths(mut node, '0')
+	inherit_vml_units(mut node, 'legacy')
 	return node
 }
 
@@ -200,6 +201,7 @@ pub fn new_vml_app_file[T](path string, model T) !&VmlApp[T] {
 // config while imports get a stable directory for relative resolution.
 pub struct VmlFileRunConfig[T] {
 pub:
+	units UnitProfile = .legacy
 	source_path string
 	model       T
 	title       string = 'App'
@@ -212,7 +214,8 @@ pub:
 // run_vml_file owns one typed model for a file-backed VML window and resolves
 // imports relative to source_path before validation and rendering.
 pub fn run_vml_file[T](config VmlFileRunConfig[T]) ! {
-	template := parse_vml_file(config.source_path)!
+	mut template := parse_vml_file(config.source_path)!
+	inherit_vml_units(mut template, config.units.str())
 	v_validate_template[T](template, config.model)!
 	initial_frame := rect(0, 0, f64(config.width), f64(config.height))
 	resolved, events := v_evaluate_template(template, config.model, initial_frame)!

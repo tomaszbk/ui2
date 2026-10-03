@@ -240,7 +240,7 @@ $if (linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ?
 		layout_validate_text_measurement(style, -1)!
 		return vglyph.TextStyle{
 			font_name: engine.font_name(style)!
-			size: f32(font_em_pixels(style.size))
+			size: f32(font_style_em_pixels(style))
 			weight: text_style_weight(style)
 			typeface: if style.italic { .italic } else { .regular }
 			color: hex_color(style.color)

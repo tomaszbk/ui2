@@ -6,6 +6,7 @@ module ui2
 
 $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
 	import gg
+	import math
 	import sokol.gfx
 	import sokol.sfons
 	import sokol.sgl
@@ -394,16 +395,20 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	}
 
 	fn (ctx &DrawContext) draw_rect_filled(x f32, y f32, w f32, h f32, c gg.Color) {
-		ctx.activate(); ctx.inner.draw_rect_filled(x, y, w, h, c)
+		area := presentation_rect(rect(f64(x), f64(y), f64(w), f64(h)), f64(ctx.scale))
+		ctx.activate(); ctx.inner.draw_rect_filled(f32(area.x), f32(area.y), f32(area.width), f32(area.height), c)
 	}
 	fn (ctx &DrawContext) draw_rect_empty(x f32, y f32, w f32, h f32, c gg.Color) {
-		ctx.activate(); ctx.inner.draw_rect_empty(x, y, w, h, c)
+		area := presentation_rect(rect(f64(x), f64(y), f64(w), f64(h)), f64(ctx.scale))
+		ctx.activate(); ctx.inner.draw_rect_empty(f32(area.x), f32(area.y), f32(area.width), f32(area.height), c)
 	}
 	fn (ctx &DrawContext) draw_rounded_rect_filled(x f32, y f32, w f32, h f32, radius f32, c gg.Color) {
-		ctx.activate(); ctx.inner.draw_rounded_rect_filled(x, y, w, h, radius, c)
+		area := presentation_rect(rect(f64(x), f64(y), f64(w), f64(h)), f64(ctx.scale))
+		ctx.activate(); ctx.inner.draw_rounded_rect_filled(f32(area.x), f32(area.y), f32(area.width), f32(area.height), radius, c)
 	}
 	fn (ctx &DrawContext) draw_rounded_rect_empty(x f32, y f32, w f32, h f32, radius f32, c gg.Color) {
-		ctx.activate(); ctx.inner.draw_rounded_rect_empty(x, y, w, h, radius, c)
+		area := presentation_rect(rect(f64(x), f64(y), f64(w), f64(h)), f64(ctx.scale))
+		ctx.activate(); ctx.inner.draw_rounded_rect_empty(f32(area.x), f32(area.y), f32(area.width), f32(area.height), radius, c)
 	}
 	fn (ctx &DrawContext) draw_triangle_filled(x f32, y f32, x2 f32, y2 f32, x3 f32, y3 f32, c gg.Color) {
 		ctx.activate(); ctx.inner.draw_triangle_filled(x, y, x2, y2, x3, y3, c)
@@ -411,8 +416,11 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	fn (ctx &DrawContext) draw_line_with_config(x f32, y f32, x2 f32, y2 f32, config gg.PenConfig) {
 		ctx.activate(); ctx.inner.draw_line_with_config(x, y, x2, y2, config)
 	}
-	fn (ctx &DrawContext) scissor_rect(x int, y int, w int, h int) {
-		ctx.activate(); ctx.inner.scissor_rect(x, y, w, h)
+	fn (ctx &DrawContext) scissor_rect(x f64, y f64, w f64, h f64) {
+		area := presentation_rect(rect(x, y, w, h), f64(ctx.scale))
+		ctx.activate()
+		sgl.scissor_rect(int(math.round(area.x * ctx.scale)), int(math.round(area.y * ctx.scale)),
+			int(math.round(area.width * ctx.scale)), int(math.round(area.height * ctx.scale)), true)
 	}
 	$if android {
 	fn (ctx &DrawContext) set_text_cfg(config gg.TextCfg) {

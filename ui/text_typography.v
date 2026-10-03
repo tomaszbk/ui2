@@ -14,9 +14,9 @@ fn text_style_line_height(style TextStyle) f64 {
 	return if style.line_height > 0 {
 		style.line_height
 	} else if style.line_height_factor > 0 {
-		font_em_pixels(style.size) * style.line_height_factor
+		font_style_em_pixels(style) * style.line_height_factor
 	} else {
-		font_line_height(style.size)
+		font_style_line_height(style)
 	}
 }
 

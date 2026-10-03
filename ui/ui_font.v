@@ -556,3 +556,26 @@ fn font_paths() (string, string) {
 	}
 	return font_pick(font_system_dirs())
 }
+
+// Logical typography uses the same unit as geometry. Legacy keeps platform points.
+fn font_style_em_pixels(style TextStyle) f64 {
+	return if style.units == .logical { style.size } else { font_em_pixels(style.size) }
+}
+
+fn font_style_line_height(style TextStyle) f64 {
+	return font_style_em_pixels(style) * 1.25
+}
+
+fn font_style_render_size(style TextStyle, metrics FontMetrics) f64 {
+	span := metrics.ascender - metrics.descender
+	return if span > 0 && metrics.units_per_em > 0 {
+		font_style_em_pixels(style) * f64(span) / f64(metrics.units_per_em)
+	} else {
+		font_style_em_pixels(style)
+	}
+}
+
+// Native toolkit APIs still expect points, including Win32's DPI conversion.
+fn native_font_points(style TextStyle) f64 {
+	return if style.units == .logical { style.size / font_pixels_per_point() } else { style.size }
+}

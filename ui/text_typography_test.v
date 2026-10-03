@@ -19,6 +19,13 @@ fn test_typography_defaults_and_validation() {
 	}
 }
 
+fn test_logical_typography_factors_and_runs_keep_profile() {
+	assert text_style_line_height(TextStyle{size: 18, units: .logical, line_height_factor: 1.5}) == 27
+	el := element_from_vml('Screen { units: "logical" Label { font_size: 18 Run { text: "a" } Run { text: "b" units: "legacy" } } }', rect(0, 0, 200, 100))!
+	assert el.children[0].text_runs[0].style.units == .logical
+	assert el.children[0].text_runs[1].style.units == .legacy
+}
+
 fn test_vml_runs_inherit_and_explicit_false_overrides() {
 	node := parse_vml('Label { font_size: 24 color: #123456 weight: 800 bold: true lines: 3 Run { text: "first " } Run { text: "small" font_size: 12 weight: 400 bold: false baseline_offset: 3 } }')!
 	el := node_to_element(node, rect(0, 0, 200, 100))!
