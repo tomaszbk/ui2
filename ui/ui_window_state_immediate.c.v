@@ -56,6 +56,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		scroll_offsets map[string]f64
 		scroll_content_h map[string]f64
 		scroll_areas map[string]Rect
+		scroll_transforms map[string]ContentTransform
 		scroll_viewports map[string]Rect
 		pending_scroll map[string]f64
 		scroll_order []string
@@ -183,6 +184,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		state.scroll_offsets = g_scroll_offsets
 		state.scroll_content_h = g_scroll_content_h
 		state.scroll_areas = g_scroll_areas
+		state.scroll_transforms = g_scroll_transforms
 		state.scroll_viewports = g_scroll_viewports
 		state.pending_scroll = g_pending_scroll
 		state.scroll_order = g_scroll_order
@@ -253,6 +255,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		g_scroll_offsets = state.scroll_offsets
 		g_scroll_content_h = state.scroll_content_h
 		g_scroll_areas = state.scroll_areas
+		g_scroll_transforms = state.scroll_transforms
 		g_scroll_viewports = state.scroll_viewports
 		g_pending_scroll = state.pending_scroll
 		g_scroll_order = state.scroll_order

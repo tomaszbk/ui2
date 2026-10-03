@@ -25,6 +25,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		width int
 		height int
 		scale f32 = 1
+		content_transform ContentTransform
 		ft &gg.FT = unsafe { nil }
 		font_inited bool
 		owns_surface bool
@@ -40,6 +41,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		width int
 		height int
 		scale f32 = 1
+		content_transform ContentTransform
 		text &TextEngine = unsafe { nil }
 		text_renderer &vglyph.Renderer = unsafe { nil }
 		text_font_generation int = -1
@@ -282,7 +284,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			if ctx.destroyed || ctx.text_renderer == unsafe { nil } { return }
 			ctx.prepare_text_draw()
 			mut renderer := ctx.text_renderer
-			renderer.draw_layout(shaped.layout, f32(x), f32(y))
+			ctx.draw_transformed_layout(mut renderer, shaped.layout, x, y)
 		}
 
 		fn (ctx &DrawContext) draw_shaped_clipped(shaped ShapedText, x f64, y f64, clip Rect) {
@@ -292,7 +294,14 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 				y + it.y + it.descent > clip.y && y + it.y - it.ascent < clip.y + clip.height)
 			ctx.prepare_text_draw()
 			mut renderer := ctx.text_renderer
-			renderer.draw_layout(visible, f32(x), f32(y))
+			ctx.draw_transformed_layout(mut renderer, visible, x, y)
+		}
+
+		fn (ctx &DrawContext) draw_transformed_layout(mut renderer vglyph.Renderer, layout vglyph.Layout, x f64, y f64) {
+			t := ctx.content_transform
+			if t == ContentTransform{} { renderer.draw_layout(layout, f32(x), f32(y)); return }
+			renderer.draw_layout_transformed(layout, f32(t.x+x*t.scale), f32(t.y+y*t.scale),
+				vglyph.AffineTransform{xx:f32(t.scale), yy:f32(t.scale)})
 		}
 
 		fn (ctx &DrawContext) prepare_text_draw() {
@@ -395,29 +404,34 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	}
 
 	fn (ctx &DrawContext) draw_rect_filled(x f32, y f32, w f32, h f32, c gg.Color) {
-		area := presentation_rect(rect(f64(x), f64(y), f64(w), f64(h)), f64(ctx.scale))
+		area := presentation_rect(ctx.content_transform.project(rect(f64(x), f64(y), f64(w), f64(h))), f64(ctx.scale))
 		ctx.activate(); ctx.inner.draw_rect_filled(f32(area.x), f32(area.y), f32(area.width), f32(area.height), c)
 	}
 	fn (ctx &DrawContext) draw_rect_empty(x f32, y f32, w f32, h f32, c gg.Color) {
-		area := presentation_rect(rect(f64(x), f64(y), f64(w), f64(h)), f64(ctx.scale))
+		area := presentation_rect(ctx.content_transform.project(rect(f64(x), f64(y), f64(w), f64(h))), f64(ctx.scale))
 		ctx.activate(); ctx.inner.draw_rect_empty(f32(area.x), f32(area.y), f32(area.width), f32(area.height), c)
 	}
 	fn (ctx &DrawContext) draw_rounded_rect_filled(x f32, y f32, w f32, h f32, radius f32, c gg.Color) {
-		area := presentation_rect(rect(f64(x), f64(y), f64(w), f64(h)), f64(ctx.scale))
-		ctx.activate(); ctx.inner.draw_rounded_rect_filled(f32(area.x), f32(area.y), f32(area.width), f32(area.height), radius, c)
+		area := presentation_rect(ctx.content_transform.project(rect(f64(x), f64(y), f64(w), f64(h))), f64(ctx.scale))
+		ctx.activate(); ctx.inner.draw_rounded_rect_filled(f32(area.x), f32(area.y), f32(area.width), f32(area.height), radius * f32(ctx.content_transform.scale), c)
 	}
 	fn (ctx &DrawContext) draw_rounded_rect_empty(x f32, y f32, w f32, h f32, radius f32, c gg.Color) {
-		area := presentation_rect(rect(f64(x), f64(y), f64(w), f64(h)), f64(ctx.scale))
-		ctx.activate(); ctx.inner.draw_rounded_rect_empty(f32(area.x), f32(area.y), f32(area.width), f32(area.height), radius, c)
+		area := presentation_rect(ctx.content_transform.project(rect(f64(x), f64(y), f64(w), f64(h))), f64(ctx.scale))
+		ctx.activate(); ctx.inner.draw_rounded_rect_empty(f32(area.x), f32(area.y), f32(area.width), f32(area.height), radius * f32(ctx.content_transform.scale), c)
 	}
 	fn (ctx &DrawContext) draw_triangle_filled(x f32, y f32, x2 f32, y2 f32, x3 f32, y3 f32, c gg.Color) {
-		ctx.activate(); ctx.inner.draw_triangle_filled(x, y, x2, y2, x3, y3, c)
+		a := ctx.content_transform.project(rect(f64(x), f64(y), 0, 0))
+		b := ctx.content_transform.project(rect(f64(x2), f64(y2), 0, 0))
+		d := ctx.content_transform.project(rect(f64(x3), f64(y3), 0, 0))
+		ctx.activate(); ctx.inner.draw_triangle_filled(f32(a.x), f32(a.y), f32(b.x), f32(b.y), f32(d.x), f32(d.y), c)
 	}
 	fn (ctx &DrawContext) draw_line_with_config(x f32, y f32, x2 f32, y2 f32, config gg.PenConfig) {
-		ctx.activate(); ctx.inner.draw_line_with_config(x, y, x2, y2, config)
+		a := ctx.content_transform.project(rect(f64(x), f64(y), 0, 0))
+		b := ctx.content_transform.project(rect(f64(x2), f64(y2), 0, 0))
+		ctx.activate(); ctx.inner.draw_line_with_config(f32(a.x), f32(a.y), f32(b.x), f32(b.y), gg.PenConfig{...config, thickness:config.thickness*f32(ctx.content_transform.scale)})
 	}
 	fn (ctx &DrawContext) scissor_rect(x f64, y f64, w f64, h f64) {
-		area := presentation_rect(rect(x, y, w, h), f64(ctx.scale))
+		area := presentation_rect(ctx.content_transform.project(rect(x, y, w, h)), f64(ctx.scale))
 		ctx.activate()
 		sgl.scissor_rect(int(math.round(area.x * ctx.scale)), int(math.round(area.y * ctx.scale)),
 			int(math.round(area.width * ctx.scale)), int(math.round(area.height * ctx.scale)), true)
@@ -433,11 +447,13 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		ctx.activate(); return ctx.inner.text_width_f(text)
 	}
 	fn (ctx &DrawContext) draw_text(x int, y int, text string, config gg.TextCfg) {
-		ctx.activate(); ctx.inner.draw_text(x, y, text, config)
+		area := ctx.content_transform.project(rect(f64(x),f64(y),0,0))
+		ctx.activate(); ctx.inner.draw_text(int(area.x), int(area.y), text, gg.TextCfg{...config,size:int(f64(config.size)*ctx.content_transform.scale+0.5),max_width:int(f64(config.max_width)*ctx.content_transform.scale)})
 	}
 	}
 	fn (ctx &DrawContext) draw_image_with_config(config gg.DrawImageConfig) {
-		ctx.activate(); ctx.inner.draw_image_with_config(config)
+		area := ctx.content_transform.project(rect(f64(config.img_rect.x), f64(config.img_rect.y), f64(config.img_rect.width), f64(config.img_rect.height)))
+		ctx.activate(); ctx.inner.draw_image_with_config(gg.DrawImageConfig{...config, img_rect:gg.Rect{x:f32(area.x),y:f32(area.y),width:f32(area.width),height:f32(area.height)}})
 	}
 	fn (mut ctx DrawContext) create_image_from_byte_array(bytes []u8, config gg.ImageConfig) !gg.Image {
 		ctx.activate()

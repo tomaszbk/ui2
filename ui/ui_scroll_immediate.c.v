@@ -11,6 +11,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 
 	fn reset_scroll_frame() {
 		g_scroll_areas = map[string]Rect{}
+		g_scroll_transforms = map[string]ContentTransform{}
 		g_scroll_viewports = map[string]Rect{}
 		g_scroll_order = []string{}
 		g_scroll_parents = map[string]string{}
@@ -37,6 +38,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		}
 		g_active_scrolls[id] = true
 		g_scroll_viewports[id] = frame
+		g_scroll_transforms[id] = current_content_transform()
 		g_scroll_content_h[id] = content_height
 		if parent_id.len > 0 {
 			g_scroll_parents[id] = parent_id
@@ -54,11 +56,12 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		offset := scroll_offset(id)
 		area := intersect_rect(frame, clip)
 		if enabled && area.width > 0 && area.height > 0 {
-			g_scroll_areas[id] = area
+			g_scroll_areas[id] = current_content_transform().project(area)
 			g_scroll_order << id
 			if show_scrollbar {
-				g_scrollbar_geometries[id] = scrollbar_geometry(frame, content_height, offset,
-					persistent)
+				bar := scrollbar_geometry(frame, content_height, offset, persistent)
+				transform := current_content_transform()
+				g_scrollbar_geometries[id] = ScrollbarGeometry{track:transform.project(bar.track),thumb:transform.project(bar.thumb)}
 			}
 		}
 		return offset
@@ -131,8 +134,9 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 				continue
 			}
 			before := scroll_offset(id)
-			set_scroll_offset(id, before + remaining, scroll_maximum(id))
-			remaining -= scroll_offset(id) - before
+			scale := (g_scroll_transforms[id] or { ContentTransform{} }).scale
+			set_scroll_offset(id, before + remaining / scale, scroll_maximum(id))
+			remaining -= (scroll_offset(id) - before) * scale
 		}
 	}
 
@@ -350,9 +354,9 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 				ctx.draw_shaped_clipped(shaped, content.x, top, text_clip)
 				if g_focused_field == el.id {
 					cursor := shaped.cursor(editor.selection.caret)
-					g_gg_app.text_caret = rect(content.x + cursor.x, top + cursor.y, 2, cursor.height)
+					g_gg_app.text_caret = current_presentation_rect(rect(content.x + cursor.x, top + cursor.y, 2, cursor.height))
 					$if macos && ui2_embedder ? {
-						caret := g_gg_app.text_caret
+						caret := rect(content.x + cursor.x, top + cursor.y, 2, cursor.height)
 						if caret.y + caret.height > text_clip.y && caret.y < text_clip.y + text_clip.height {
 							draw_rect(ctx, caret.x, caret.y, caret.width, caret.height, style.color, 0)
 						}

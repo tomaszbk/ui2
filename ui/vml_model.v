@@ -1198,8 +1198,16 @@ fn v_eval_node(node &VNode, incoming_scope map[string]VValue, frame Rect, mut ev
 	if node.tag == 'Screen' && resolved.prop_bool('adaptive') {
 		v_validate_adaptive_screen(resolved)!
 	}
-	child_metrics := v_layout_child_metrics(node, scope, actual, mut evaluation.measure)!
-	mut layout := v_child_layout(resolved, actual, child_metrics, mut evaluation.measure)!
+	layout_actual := if node.tag == 'ScaledContent' {
+		rect(0, 0, resolved.prop_or('content_width', '0').f64(), resolved.prop_or('content_height', '0').f64())
+	} else {
+		actual
+	}
+	if node.tag == 'ScaledContent' {
+		contain_content(actual, layout_actual.width, layout_actual.height)!
+	}
+	child_metrics := v_layout_child_metrics(node, scope, layout_actual, mut evaluation.measure)!
+	mut layout := v_child_layout(resolved, layout_actual, child_metrics, mut evaluation.measure)!
 	for child in node.children {
 		if child.tag == 'Repeater' {
 			v_expand_repeater(child, scope, mut resolved.children, mut evaluation, mut layout)!

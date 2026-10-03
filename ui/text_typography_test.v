@@ -112,3 +112,12 @@ fn test_runtime_run_binding_rebuilds_intrinsic_measurement() {
 	assert text_runs_content(sliced) == 'é 日…'
 	assert sliced.last().style.size == 12
 }
+
+fn test_floating_overlay_scales_complete_typography_once() {
+	style := TextStyle{units: .logical, size: 24, letter_spacing: 2, line_height: 36, baseline_offset: 4, weight: 800}
+	output := scaled_overlay_text_style(style, 0.5)
+	assert output.size == 12 && output.line_height == 18
+	assert output.letter_spacing == 1 && output.baseline_offset == 2
+	assert output.weight == 800
+	assert text_style_line_height(scaled_overlay_text_style(TextStyle{units: .logical, size: 24, line_height_factor: 1.5}, 0.5)) == 18
+}

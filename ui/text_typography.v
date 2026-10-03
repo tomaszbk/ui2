@@ -46,3 +46,15 @@ fn text_runs_slice(runs []TextRun, start int, end int, ellipsis bool) []TextRun 
 	}
 	return result
 }
+
+// Floating overlays live outside the content transform and retain its typography.
+fn scaled_overlay_text_style(style TextStyle, scale f64) TextStyle {
+	return TextStyle{
+		...style
+		units: .logical
+		size: font_style_em_pixels(style) * scale
+		letter_spacing: style.letter_spacing * scale
+		line_height: style.line_height * scale
+		baseline_offset: style.baseline_offset * scale
+	}
+}
