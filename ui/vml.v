@@ -901,7 +901,7 @@ fn node_to_element_base(node &VNode, frame Rect) !Element {
 			return view(node.id, frame, v_box(node), v_children(node, local)!)
 		}
 		'Label' {
-			return label(node.id, node.prop('text'), frame, v_text_style(node))
+			return v_rich_label(node, frame)!
 		}
 		'Image' {
 			return image(node.id, node.prop_or('source', node.prop('path')), frame)
@@ -1865,6 +1865,12 @@ fn v_text_style(node &VNode) TextStyle {
 		background_color:   v_color(node, 'background_color', 0)
 		size:               node.prop_or('font_size', node.prop_or('size', '15')).f64()
 		font_family:        node.prop('font_family')
+		weight:             node.prop_int('weight')
+		letter_spacing:     node.prop_f64('letter_spacing')
+		line_height:        node.prop_f64('line_height')
+		line_height_factor: node.prop_f64('line_height_factor')
+		baseline_offset:    node.prop_f64('baseline_offset')
+		tabular_figures:    node.prop_bool('tabular_figures')
 		bold:               node.prop_bool('bold')
 		italic:             node.prop_bool('italic')
 		underline:          node.prop_bool('underline')
@@ -1907,4 +1913,25 @@ fn v_valign(raw string) VAlign {
 		'middle', 'center' { VAlign.middle }
 		else { TextStyle{}.valign }
 	}
+}
+
+// Run children inherit only omitted properties; an explicit false/zero wins.
+fn v_rich_label(node &VNode, frame Rect) !Element {
+	style := v_text_style(node)
+	layout_validate_text_measurement(style, -1)!
+	if node.children.len == 0 { return label(node.id, node.prop('text'), frame, style) }
+	if node.prop('text').len > 0 { return error('Label uses either text or Run children') }
+	mut runs := []TextRun{}
+	mut content := ''
+	for child in node.children {
+		if child.tag != 'Run' { return error('Label children must be Run nodes') }
+		mut props := node.props.clone()
+		for key, value in child.props { props[key] = value }
+		run_style := v_text_style(&VNode{ props: props })
+		layout_validate_text_measurement(run_style, -1)!
+		part := child.prop('text')
+		runs << TextRun{ text: part, style: run_style }
+		content += part
+	}
+	return Element{ ...label(node.id, content, frame, style), text_runs: runs }
 }

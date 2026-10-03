@@ -250,6 +250,13 @@ pub:
 	background_color   u32
 	size               f64 = 15.0
 	font_family        string
+	// weight 0 preserves bold compatibility; explicit 100–900 overrides bold.
+	weight             int
+	letter_spacing     f64
+	line_height        f64
+	line_height_factor f64
+	baseline_offset    f64
+	tabular_figures    bool
 	bold               bool
 	italic             bool
 	underline          bool
@@ -357,7 +364,7 @@ pub:
 	// paint the caret and selection owned by the input backend.
 	focused               bool
 	text_selection         TextSelection
-	text_runs             []TextRun // text_area: optional rich text style runs
+	text_runs             []TextRun // label/text_area: optional rich text style runs
 	keyboard              int
 	emit_change           bool
 	long_press            bool
@@ -717,6 +724,12 @@ pub fn transformed_image_with_cursor(id string, path string, frame Rect, rotatio
 		clickable: clickable
 		cursor: cursor
 	}
+}
+
+// rich_label uses full per-run styles; VML Run children additionally inherit
+// omitted properties. Desktop custom supports shared wrapping and baselines.
+pub fn rich_label(id string, runs []TextRun, frame Rect, style TextStyle) Element {
+	return Element{...label(id, text_runs_content(runs), frame, style), text_runs: runs}
 }
 
 pub fn button(id string, title string, frame Rect, box_ BoxStyle, style TextStyle) Element {

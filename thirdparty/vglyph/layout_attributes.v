@@ -177,6 +177,9 @@ fn apply_rich_text_style(mut ctx Context, list PangoAttrList, style TextStyle, s
 
 			// Apply typeface (bold/italic override)
 			apply_typeface(desc.ptr, style.typeface)
+			if style.weight > 0 {
+				C.pango_font_description_set_weight(desc.ptr, unsafe { PangoWeight(style.weight) })
+			}
 
 			// Apply Variations
 			if unsafe { style.features != nil } && style.features.variation_axes.len > 0 {
