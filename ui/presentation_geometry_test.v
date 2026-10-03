@@ -34,3 +34,19 @@ fn test_unknown_units_are_rejected() {
 		assert false
 	}
 }
+
+fn test_border_tessellation_frame_matches_fractional_fill_presentation() {
+	transform := ContentTransform{ scale: 0.5, y: 60 }
+	original := rect(72.5, 64.5, 368.5, 200.5)
+	// At DPI2 the fill begins on pixel (73,185), ending on (441,385).
+	local := transform.rounded_local_rect(original, 2)
+	assert local == rect(73, 65, 368, 200)
+	assert transform.project(local) == rect(36.5, 92.5, 184, 100)
+	assert original == rect(72.5, 64.5, 368.5, 200.5)
+	for dpi in [1.0, 1.25, 1.5, 2.0] {
+		snapped := transform.rounded_local_rect(original, dpi)
+		projected := transform.project(snapped)
+		assert math.abs(projected.x * dpi - math.round(projected.x * dpi)) < 0.00001
+		assert math.abs((projected.x + projected.width) * dpi - math.round((projected.x + projected.width) * dpi)) < 0.00001
+	}
+}

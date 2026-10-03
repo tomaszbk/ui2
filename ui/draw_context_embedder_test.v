@@ -277,3 +277,58 @@ fn test_closing_with_deferred_atlas_images_keeps_another_context_alive() {
 		assert !gfx.is_valid()
 	}
 }
+
+fn test_scaled_composition_gpu_submission_keeps_caret_and_layout_on_resize() {
+	$if macos && ui2_embedder ?&& ui2_custom_rendering ?&& !ui2_headless ? {
+		previous_app := g_gg_app
+		isolated := new_custom_window_state()
+		previous_state := activate_custom_window_state(isolated)
+		defer {
+			discard_custom_window_state(isolated)
+			activate_custom_window_state(previous_state)
+			g_gg_app = previous_app
+		}
+		mut ctx := new_surface_draw_context(gg.Config{ width: 640, height: 480 }, text_gpu_test_environment())!
+		defer { ctx.destroy() }
+		g_gg_app = &GgApp{ ctx: ctx }
+		style := TextStyle{ units: .logical, size: 24, font_family: 'Inter' }
+		field := text_field('field', '', '', rect(72, 570, 500, 60), BoxStyle{ bg: 0xffffff }, style, keyboard_default)
+		rich := rich_label('rich', [
+			TextRun{ text: 'Baseline ', style: TextStyle{ ...style, size: 48, weight: 800 } },
+			TextRun{ text: 'raised', style: TextStyle{ ...style, size: 26, baseline_offset: 12, color: 0xcc2244 } },
+		], rect(72, 290, 400, 45), TextStyle{ ...style, lines: 3 })
+		reference := ctx.shape_runs(rich.text_runs, rich.text_style, 400, 3, true)!.size
+		for viewport in [rect(0, 0, 640, 480), rect(0, 0, 853, 599)] {
+			window := C.ui2_embedder_create(&C.ui2_embedder_config{ title: c'UI2 scaled composition verification', width: int(viewport.width), height: int(viewport.height), visible: false }, &C.ui2_embedder_callbacks{}, unsafe { nil })
+			assert window != unsafe { nil }
+			text_gpu_test_surface(mut ctx, window)
+			g_focused_field = 'field'
+			ctx.begin()
+			render_element(ctx, scaled_content('slide', viewport, 1280, 720, BoxStyle{ transparent: true }, [
+				rich,
+				field,
+			]), 0, 0, viewport, '')
+			assert sgl.error() == .no_error
+			assert ctx.content_transform == ContentTransform{}
+			assert ctx.shape_runs(rich.text_runs, rich.text_style, 400, 3, true)!.size == reference
+			caret := g_gg_app.text_caret
+			if viewport.width == 640 {
+				assert caret.x == 42
+				assert caret.width == 1
+				assert caret.y >= 345 && caret.y + caret.height <= 375
+				set_text('field', 'local draft')
+				mut editor := g_text_editors['field'] or { panic('editor was not mounted') }
+				editor.set_caret(0)
+				replace_text_editor('field', editor)
+			} else {
+				assert caret.x == 56
+				assert caret.y > 439 && caret.y + caret.height < 480
+				assert text('field') == 'local draft'
+				assert (g_text_editors['field'] or { panic('editor lost on resize') }).selection.caret == 0
+			}
+			ctx.end()
+			C.ui2_embedder_frame_done(window)
+			C.ui2_embedder_close(window)
+		}
+	}
+}

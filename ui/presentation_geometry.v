@@ -53,3 +53,9 @@ pub fn (transform ContentTransform) inverse_rect(area Rect) Rect {
 	x, y := transform.inverse(area.x, area.y)
 	return rect(x, y, area.width / transform.scale, area.height / transform.scale)
 }
+
+// Snap an outer paint frame to the same physical edges as filled rectangles,
+// then return to composition coordinates for tessellation. Layout is unchanged.
+fn (transform ContentTransform) rounded_local_rect(area Rect, device_scale f64) Rect {
+	return transform.inverse_rect(presentation_rect(transform.project(area), device_scale))
+}
