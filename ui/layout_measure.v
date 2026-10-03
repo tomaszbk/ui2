@@ -128,7 +128,15 @@ pub fn measure_layout_element(element Element, constraints LayoutConstraints, me
 			if element.kind == .text_area && voidptr(measure) == voidptr(measure_layout_text) {
 				layout_measure_custom_text_area(content, element.text_style, text_width)!
 			} else {
-				measure(content, element.text_style, text_width)!
+				$if !android {
+					if element.kind == .label && element.text_runs.len > 0 && voidptr(measure) == voidptr(measure_layout_text) {
+						layout_measure_vglyph_runs(element.text_runs, element.text_style, text_width)!
+					} else {
+						measure(content, element.text_style, text_width)!
+					}
+				} $else {
+					measure(content, element.text_style, text_width)!
+				}
 			}
 		} $else {
 			measure(content, element.text_style, text_width)!
@@ -199,6 +207,16 @@ fn layout_measure_control_insets(element Element) BoxPadding {
 fn layout_validate_text_measurement(style TextStyle, max_width f64) ! {
 	if !math.is_finite(style.size) || style.size <= 0 {
 		return error('intrinsic text size must be finite and positive')
+	}
+	if style.weight != 0 && (style.weight < 100 || style.weight > 900) {
+		return error('text weight must be zero or 100–900')
+	}
+	for value in [style.letter_spacing, style.line_height, style.line_height_factor,
+		style.baseline_offset] {
+		if !math.is_finite(value) { return error('typography values must be finite') }
+	}
+	if style.line_height < 0 || style.line_height_factor < 0 || (style.line_height > 0 && style.line_height_factor > 0) {
+		return error('choose one nonnegative line height or factor')
 	}
 	if !math.is_finite(max_width) || (max_width < 0 && max_width != -1) {
 		return error('text measurement width must be nonnegative or -1')

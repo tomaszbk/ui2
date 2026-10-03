@@ -2327,8 +2327,7 @@ fn page_focused_text_area(direction int) {
 			.label {
 				x := el.frame.x + off_x
 				y := el.frame.y + off_y
-				shortened := draw_label_text(ctx, el.text, x, y, el.frame.width, el.frame.height,
-					el.text_style, clip)
+				shortened := draw_rich_label_text(ctx, el, x, y, clip)
 				add_full_text_tooltip(el, area, clip, el.text, shortened)
 			}
 			.image {
@@ -3204,6 +3203,19 @@ fn page_focused_text_area(direction int) {
 	// label rather than running on over what comes after it.
 	fn draw_label_text(ctx &DrawContext, t string, x f64, y f64, w f64, h f64, style TextStyle, clip Rect) bool {
 		return draw_text_in_box(ctx, t, x, y, w, h, style, true, clip)
+	}
+
+	fn draw_rich_label_text(ctx &DrawContext, el Element, x f64, y f64, clip Rect) bool {
+		$if !android {
+			if el.text_runs.len > 0 {
+				shaped := ctx.shape_runs(el.text_runs, el.text_style, math.max(0, el.frame.width), math.max(1, el.text_style.lines), true) or { eprintln('ui2: rich label: ${err}'); return false }
+				inside := if clip.width > 0 && clip.height > 0 { intersect_rect(rect(x, y, el.frame.width, el.frame.height), clip) } else { rect(x, y, el.frame.width, el.frame.height) }
+				if inside.width <= 0 || inside.height <= 0 { return false }
+				ctx.draw_shaped_clipped(shaped, x, text_block_top(y, el.frame.height, shaped.size.height, el.text_style.valign), inside)
+				return shaped.truncated || shaped.size.height > el.frame.height
+			}
+		}
+		return draw_label_text(ctx, el.text, x, y, el.frame.width, el.frame.height, el.text_style, clip)
 	}
 
 	// A style that draws down the middle of its box. The caret and the selection

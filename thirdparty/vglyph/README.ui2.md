@@ -58,6 +58,8 @@ Local changes are intentionally narrow:
   constants from upstream validation tests are excluded from the runtime copy.
   Optional Linux accessibility linking requires both `atk` and `atk-bridge-2.0`.
 
+- Numeric `TextStyle.weight` overrides description/typeface weight in both plain and rich font descriptions; the text cache includes it. This UI2 extension exposes 100–900 weights without collapsing them to a bold flag.
+
 For updates, compare these files with the pinned upstream tree and reconcile the
 listed patches before changing the pin. Exercise CPU layout at multiple DPI
 values, new glyph upload in the same frame, atlas growth/reuse and context

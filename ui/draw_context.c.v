@@ -265,6 +265,12 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			return engine.shape(text, style, width, lines, ellipsize)
 		}
 
+		fn (ctx &DrawContext) shape_runs(runs []TextRun, style TextStyle, width f64, lines int, ellipsize bool) !ShapedText {
+			if ctx.destroyed || ctx.text == unsafe { nil } { return error('text context is closed') }
+			mut engine := ctx.text
+			return engine.shape_runs(runs, style, width, lines, ellipsize)
+		}
+
 		fn (ctx &DrawContext) shape_text_area(text string, style TextStyle, width f64) !ShapedText {
 			if ctx.destroyed || ctx.text == unsafe { nil } { return error('text context is closed') }
 			mut engine := ctx.text
