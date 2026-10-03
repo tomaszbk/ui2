@@ -511,8 +511,14 @@ $if (linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ?
 		// Initialize the process context through the same public measurement route.
 		layout_measure_vglyph_text('', style, width)!
 		mut engine := g_cpu_text_engine
-		shaped := engine.shape_runs(runs, style, width, math.max(1, style.lines), width >= 0)!
-		return LayoutSize{width: if width >= 0 { math.min(width, shaped.size.width) } else { shaped.size.width }, height: shaped.size.height}
+		limit := math.max(1, style.lines)
+		shaped := engine.shape_runs(runs, style, width, limit, width >= 0)!
+		// With unbounded width Pango does not ellipsize; its natural layout
+		// still includes every paragraph. Match the ordinary label line budget.
+		height := if shaped.lines.len > limit {
+			shaped.lines[limit - 1].y + shaped.lines[limit - 1].height
+		} else { shaped.size.height }
+		return LayoutSize{width: if width >= 0 { math.min(width, shaped.size.width) } else { shaped.size.width }, height: height}
 	}
 
 }
