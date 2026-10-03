@@ -304,6 +304,13 @@ fn test_scaled_composition_gpu_submission_keeps_caret_and_layout_on_resize() {
 			text_gpu_test_surface(mut ctx, window)
 			g_focused_field = 'field'
 			ctx.begin()
+			// Independent font advances: this bundled Inter face measures 114.890625
+			// logical units. Both paint paths must retain that fractional budget.
+			tight_style := TextStyle{ units: .logical, size: 48, font_family: 'Inter', weight: 900, line_height: 59, valign: .top }
+			assert !draw_label_text(ctx, '96%', 0, 0, 114.890625, 59, tight_style, viewport)
+			assert draw_label_text(ctx, '96%', 0, 0, 114.0, 59, tight_style, viewport)
+			tight_rich := rich_label('tight', [TextRun{ text: '96%', style: tight_style }], rect(0, 0, 114.890625, 59), tight_style)
+			assert !draw_rich_label_text(ctx, tight_rich, 0, 0, viewport)
 			render_element(ctx, scaled_content('slide', viewport, 1280, 720, BoxStyle{ transparent: true }, [
 				rich,
 				field,
