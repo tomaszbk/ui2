@@ -277,6 +277,8 @@ pub:
 	font_name string
 	// typeface overrides the weight/style in font_name when not .regular.
 	typeface Typeface = .regular
+	// UI2 extension: zero leaves the description/typeface weight unchanged.
+	weight int
 	// size overrides the size specified in font_name.
 	// It is specified in points.
 	size     f32

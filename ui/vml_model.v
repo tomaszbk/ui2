@@ -1048,6 +1048,9 @@ fn v_eval_node(node &VNode, incoming_scope map[string]VValue, frame Rect, mut ev
 	mut resolved := &VNode{
 		tag:  node.tag
 		id:   node.id
+		// Normalization can introduce static inherited properties (units)
+		// without expressions. Preserve them; evaluation overwrites expressions.
+		props: node.props.clone()
 		line: node.line
 		path: node.path
 	}
@@ -1566,6 +1569,7 @@ fn vml_apply_assignment[T](mut model T, assignment VmlAssignment) ! {
 
 pub struct VmlRunConfig[T] {
 pub:
+	units      UnitProfile = .legacy
 	source     string
 	model      T
 	title      string = 'App'
@@ -1683,7 +1687,8 @@ fn (mut controller VmlController[T]) handle(event_id string) {
 // run_vml owns one typed model for the window, exposes it to VML as `app`, and
 // reconciles the cached document after each binding write or app action.
 pub fn run_vml[T](config VmlRunConfig[T]) ! {
-	template := parse_vml(config.source)!
+	mut template := parse_vml(config.source)!
+	inherit_vml_units(mut template, config.units.str())
 	v_validate_template[T](template, config.model)!
 	initial_frame := rect(0, 0, f64(config.width), f64(config.height))
 	resolved, events := v_evaluate_template(template, config.model, initial_frame)!

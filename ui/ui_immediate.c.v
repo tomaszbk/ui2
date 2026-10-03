@@ -2093,7 +2093,7 @@ fn page_focused_text_area(direction int) {
 			// Measured with the configuration draw_text_in_box draws with, so no
 			// line that fits here is shortened when it is drawn.
 			ctx.set_text_cfg(gg.TextCfg{
-				size: int(font_render_size(style.size, text_font_metrics('')) + 0.5)
+				size: int(font_style_render_size(style, text_font_metrics('')) + 0.5)
 				align: .left
 				vertical_align: .middle
 			})
@@ -2103,7 +2103,7 @@ fn page_focused_text_area(direction int) {
 			if lines.len == 0 {
 				return
 			}
-			line_h := font_line_height(style.size)
+			line_h := font_style_line_height(style)
 			window := rect(0, 0, f64(ctx.width), f64(ctx.height))
 			frame := tooltip_frame(g_tooltip.anchor_x, g_tooltip.anchor_y,
 				text_width + tooltip_padding * 2, f64(lines.len) * line_h + tooltip_padding * 2, window)
@@ -2334,8 +2334,7 @@ fn page_focused_text_area(direction int) {
 			.label {
 				x := el.frame.x + off_x
 				y := el.frame.y + off_y
-				shortened := draw_label_text(ctx, el.text, x, y, el.frame.width, el.frame.height,
-					el.text_style, clip)
+				shortened := draw_rich_label_text(ctx, el, x, y, clip)
 				add_full_text_tooltip(el, area, clip, el.text, shortened)
 			}
 			.image {
@@ -2815,7 +2814,7 @@ fn page_focused_text_area(direction int) {
 	}
 
 	fn apply_clip(ctx &DrawContext, clip Rect) {
-		ctx.scissor_rect(int(clip.x), int(clip.y), int(clip.width), int(clip.height))
+		ctx.scissor_rect(clip.x, clip.y, clip.width, clip.height)
 	}
 
 	fn add_hit_target(target HitTarget, clip Rect) {
@@ -3202,6 +3201,23 @@ fn page_focused_text_area(direction int) {
 		return draw_text_in_box(ctx, t, x, y, w, h, style, true, clip)
 	}
 
+	fn draw_rich_label_text(ctx &DrawContext, el Element, x f64, y f64, clip Rect) bool {
+		$if !android {
+			if el.text_runs.len > 0 {
+				shaped := ctx.shape_runs(el.text_runs, el.text_style, math.max(0, el.frame.width), math.max(1, el.text_style.lines), true) or { eprintln('ui2: rich label: ${err}'); return false }
+				inside := if clip.width > 0 && clip.height > 0 { intersect_rect(rect(x, y, el.frame.width, el.frame.height), clip) } else { rect(x, y, el.frame.width, el.frame.height) }
+				if inside.width <= 0 || inside.height <= 0 { return false }
+				// Culling whole runs is insufficient for partial glyphs and baseline
+				// rises: install the label's physical scissor as well.
+				apply_clip(ctx, inside)
+				ctx.draw_shaped_clipped(shaped, x, text_block_top(y, el.frame.height, shaped.size.height, el.text_style.valign), inside)
+				apply_clip(ctx, clip)
+				return shaped.truncated || shaped.size.height > el.frame.height
+			}
+		}
+		return draw_label_text(ctx, el.text, x, y, el.frame.width, el.frame.height, el.text_style, clip)
+	}
+
 	// A style that draws down the middle of its box. The caret and the selection
 	// of an editable field are measured from the middle, so its text has to be
 	// drawn there too.
@@ -3252,7 +3268,7 @@ fn page_focused_text_area(direction int) {
 				caret_top = text_block_top(y, h, caret_shape.size.height, .middle)
 			}
 			cursor := caret_shape.cursor(editor.selection.caret)
-			cursor_h := if cursor.height > 0 { cursor.height } else { font_line_height(el.text_style.size) }
+			cursor_h := if cursor.height > 0 { cursor.height } else { font_style_line_height(el.text_style) }
 			caret := rect(caret_origin + cursor.x, caret_top + cursor.y, 2, cursor_h)
 			draw_rect(ctx, caret.x, caret.y, caret.width, caret.height, el.text_style.color, 0)
 			g_gg_app.text_caret = caret
@@ -3298,14 +3314,14 @@ fn page_focused_text_area(direction int) {
 			ensure_family_fallbacks(ctx, family)
 			cfg := gg.TextCfg{
 				color: hex_color(style.color)
-				size: int(font_render_size(style.size, text_font_metrics(family)) + 0.5)
+				size: int(font_style_render_size(style, text_font_metrics(family)) + 0.5)
 				bold: style.bold
 				italic: style.italic
 				family: family
 				align: text_align(style.align)
 				vertical_align: .middle
 			}
-			line_h := font_line_height(style.size)
+			line_h := font_style_line_height(style)
 			parts := if style.lines > 1 {
 				wrap_text_lines(ctx, t, w, style.lines, cfg)
 			} else {

@@ -685,7 +685,7 @@ fn update_text_area_view(view View, el Element, declared_text_changed bool) {
 	macos.msg_void_rect(view, 'setFrame:', native_rect(el.frame))
 	set_box_background(view, el.box)
 	macos.msg_void1(view, 'setTextColor:', ios.color(el.text_style.color))
-	macos.msg_void1(view, 'setFont:', font(el.text_style.size, el.text_style.bold))
+	macos.msg_void1(view, 'setFont:', font(native_font_points(el.text_style), el.text_style.bold))
 	macos.msg_void_bool(view, 'setEditable:', !el.readonly && el.enabled)
 	macos.msg_void_bool(view, 'setSelectable:', true)
 	macos.msg_void_bool(view, 'setScrollEnabled:', !el.disable_scroll)
@@ -696,7 +696,7 @@ fn update_text_area_view(view View, el Element, declared_text_changed bool) {
 }
 
 fn new_dropdown_view(el Element) View {
-	view := new_button_view(el.frame, el.text, el.box, el.text_style.color, el.text_style.size, el.text_style.bold, el.text_style.lines)
+	view := new_button_view(el.frame, el.text, el.box, el.text_style.color, native_font_points(el.text_style), el.text_style.bold, el.text_style.lines)
 	update_dropdown_view(view, el, true)
 	return view
 }
@@ -739,13 +739,13 @@ fn checkbox_title(el Element) string {
 }
 
 fn new_checkbox_view(el Element) View {
-	view := new_button_view(el.frame, checkbox_title(el), el.box, el.text_style.color, el.text_style.size, el.text_style.bold, el.text_style.lines)
+	view := new_button_view(el.frame, checkbox_title(el), el.box, el.text_style.color, native_font_points(el.text_style), el.text_style.bold, el.text_style.lines)
 	update_checkbox_view(view, el)
 	return view
 }
 
 fn update_checkbox_view(view View, el Element) {
-	update_button_view(view, el.frame, checkbox_title(el), el.box, el.text_style.color, el.text_style.size, el.text_style.bold, el.text_style.lines)
+	update_button_view(view, el.frame, checkbox_title(el), el.box, el.text_style.color, native_font_points(el.text_style), el.text_style.bold, el.text_style.lines)
 	macos.msg_void_i64(view, 'setContentHorizontalAlignment:', 1)
 }
 
@@ -764,7 +764,7 @@ fn update_switch_control_view(view View, el Element) {
 }
 
 fn new_toggle_button_view(el Element) View {
-	view := new_button_view(el.frame, el.text, el.box, el.text_style.color, el.text_style.size, el.text_style.bold, el.text_style.lines)
+	view := new_button_view(el.frame, el.text, el.box, el.text_style.color, native_font_points(el.text_style), el.text_style.bold, el.text_style.lines)
 	update_toggle_button_view(view, el)
 	return view
 }
@@ -1040,19 +1040,19 @@ fn native_create_element(el Element) View {
 		.view { new_native_view(el.frame, el.box, el.button_behavior) }
 		.scroll { new_scroll_view(el.frame, el.box) }
 		.label {
-			new_label_view(el.frame, el.text, el.text_style.color, el.text_style.size, el.text_style.bold, align_value(el.text_style.align), el.text_style.lines, el.text_style.valign, label_needs_container(el))
+			new_label_view(el.frame, el.text, el.text_style.color, native_font_points(el.text_style), el.text_style.bold, align_value(el.text_style.align), el.text_style.lines, el.text_style.valign, label_needs_container(el))
 		}
 		.image { new_image_view(el.frame, el.image_path, el.rotation) }
 		.button {
-			new_button_view(el.frame, el.text, el.box, el.text_style.color, el.text_style.size, el.text_style.bold, el.text_style.lines)
+			new_button_view(el.frame, el.text, el.box, el.text_style.color, native_font_points(el.text_style), el.text_style.bold, el.text_style.lines)
 		}
 		.checkbox { new_checkbox_view(el) }
 		.switch_control { new_switch_control_view(el) }
 		.toggle_button { new_toggle_button_view(el) }
 		.dropdown { new_dropdown_view(el) }
 		.text_field {
-			field := new_text_field_view(el.frame, el.placeholder, el.text, el.box, el.text_style.color, el.text_style.size, el.keyboard, el.secure)
-			update_text_field_view(field, el.frame, el.placeholder, el.text, el.box, el.text_style.color, el.text_style.size, el.keyboard, el.secure, el.autocorrect, true, el.padding_left, el.readonly, el.enabled)
+			field := new_text_field_view(el.frame, el.placeholder, el.text, el.box, el.text_style.color, native_font_points(el.text_style), el.keyboard, el.secure)
+			update_text_field_view(field, el.frame, el.placeholder, el.text, el.box, el.text_style.color, native_font_points(el.text_style), el.keyboard, el.secure, el.autocorrect, true, el.padding_left, el.readonly, el.enabled)
 			field
 		}
 		.text_area { new_text_area_view(el) }
@@ -1074,18 +1074,18 @@ fn native_update_element(native View, el Element, declared_text_changed bool) {
 			set_corner_radius(native, el.box.radius)
 		}
 		.label {
-			update_label_view(native, el.frame, el.text, el.text_style.color, el.text_style.size, el.text_style.bold, align_value(el.text_style.align), el.text_style.lines, el.text_style.valign, label_needs_container(el))
+			update_label_view(native, el.frame, el.text, el.text_style.color, native_font_points(el.text_style), el.text_style.bold, align_value(el.text_style.align), el.text_style.lines, el.text_style.valign, label_needs_container(el))
 		}
 		.image { update_image_view(native, el.frame, el.image_path, el.rotation) }
 		.button {
-			update_button_view(native, el.frame, el.text, el.box, el.text_style.color, el.text_style.size, el.text_style.bold, el.text_style.lines)
+			update_button_view(native, el.frame, el.text, el.box, el.text_style.color, native_font_points(el.text_style), el.text_style.bold, el.text_style.lines)
 		}
 		.checkbox { update_checkbox_view(native, el) }
 		.switch_control { update_switch_control_view(native, el) }
 		.toggle_button { update_toggle_button_view(native, el) }
 		.dropdown { update_dropdown_view(native, el, declared_text_changed) }
 		.text_field {
-			update_text_field_view(native, el.frame, el.placeholder, el.text, el.box, el.text_style.color, el.text_style.size, el.keyboard, el.secure, el.autocorrect, declared_text_changed, el.padding_left, el.readonly, el.enabled)
+			update_text_field_view(native, el.frame, el.placeholder, el.text, el.box, el.text_style.color, native_font_points(el.text_style), el.keyboard, el.secure, el.autocorrect, declared_text_changed, el.padding_left, el.readonly, el.enabled)
 		}
 		.text_area { update_text_area_view(native, el, declared_text_changed) }
 		.slider { update_slider_view(native, el) }

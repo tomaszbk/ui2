@@ -175,10 +175,10 @@ $if (linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ?
 					engine.index = font_index(dirs)
 					engine.indexed = true
 				}
-				path = font_lookup(engine.index, style.font_family, style.bold, style.italic)
+				path = font_lookup(engine.index, style.font_family, text_style_weight(style) >= 600, style.italic)
 				if path.len == 0 { path = font_lookup(engine.index, style.font_family, false, false) }
 				if path.len == 0 && font_is_mono_family(style.font_family) {
-					path = font_mono_path(engine.index, style.font_family, style.bold, style.italic)
+					path = font_mono_path(engine.index, style.font_family, text_style_weight(style) >= 600, style.italic)
 				}
 				if path.len == 0 {
 					// Let Fontconfig resolve aliases unknown to our file index, but
@@ -191,7 +191,7 @@ $if (linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ?
 				}
 			}
 		} else {
-			path = if style.bold { engine.bold } else { engine.regular }
+			path = if text_style_weight(style) >= 600 { engine.bold } else { engine.regular }
 			if style.italic {
 				variant := font.get_path_variant(path, .italic)
 				if os.is_file(variant) { path = variant }
@@ -226,20 +226,47 @@ $if (linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ?
 
 	fn (mut engine TextEngine) shape_locked(text string, style TextStyle, max_width f64,
 		max_lines int, ellipsize bool, word_char bool) !ShapedText {
+		return engine.shape_runs_locked(text, []TextRun{}, style, max_width, max_lines, ellipsize, word_char)
+	}
+
+	fn (mut engine TextEngine) shape_runs(runs []TextRun, style TextStyle, max_width f64,
+		max_lines int, ellipsize bool) !ShapedText {
+		g_text_font_mutex.lock()
+		defer { g_text_font_mutex.unlock() }
+		return engine.shape_runs_locked(text_runs_content(runs), runs, style, max_width, max_lines, ellipsize, false)
+	}
+
+	fn (mut engine TextEngine) glyph_style(style TextStyle) !vglyph.TextStyle {
+		layout_validate_text_measurement(style, -1)!
+		return vglyph.TextStyle{
+			font_name: engine.font_name(style)!
+			size: f32(font_style_em_pixels(style))
+			weight: text_style_weight(style)
+			typeface: if style.italic { .italic } else { .regular }
+			color: hex_color(style.color)
+			underline: style.underline
+			strikethrough: style.strikethrough
+			letter_spacing: f32(style.letter_spacing)
+			rise: f32(style.baseline_offset)
+			features: if style.tabular_figures { &vglyph.FontFeatures{opentype_features: [vglyph.FontFeature{tag: 'tnum', value: 1}]} } else { unsafe { nil } }
+		}
+	}
+
+	fn (mut engine TextEngine) layout_runs(text string, runs []TextRun, cfg vglyph.TextConfig) !vglyph.Layout {
+		if runs.len == 0 { return engine.context.layout_text(text, cfg) }
+		mut glyph_runs := []vglyph.StyleRun{}
+		for run in runs { glyph_runs << vglyph.StyleRun{text: run.text, style: engine.glyph_style(run.style)!} }
+		return engine.context.layout_rich_text(vglyph.RichText{runs: glyph_runs}, cfg)
+	}
+
+	fn (mut engine TextEngine) shape_runs_locked(text string, runs []TextRun, style TextStyle, max_width f64,
+		max_lines int, ellipsize bool, word_char bool) !ShapedText {
 		layout_validate_text_measurement(style, max_width)!
 		if engine.context == unsafe { nil } { return error('text context is closed') }
 		if max_lines < 0 { return error('text line limit must be nonnegative') }
-		line_height := font_line_height(style.size)
+		line_height := text_style_line_height(style)
 		cfg := vglyph.TextConfig{
-			style: vglyph.TextStyle{
-				font_name: engine.font_name(style)!
-				size: f32(font_em_pixels(style.size))
-				typeface: if style.bold && style.italic { .bold_italic }
-					else if style.bold { .bold } else if style.italic { .italic } else { .regular }
-				color: hex_color(style.color)
-				underline: style.underline
-				strikethrough: style.strikethrough
-			}
+			style: engine.glyph_style(style)!
 			block: vglyph.BlockStyle{
 				width: f32(max_width)
 				wrap: if word_char { .word_char } else { .word }
@@ -260,7 +287,7 @@ $if (linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ?
 		initial_cfg := if ellipsize && max_lines == 1 && (text.contains('\n') || text.contains('\r')) {
 			vglyph.TextConfig{...cfg, block: vglyph.BlockStyle{...cfg.block, ellipsize: false, max_lines: 0}}
 		} else { cfg }
-		mut layout := engine.context.layout_text(text, initial_cfg)!
+		mut layout := engine.layout_runs(text, runs, initial_cfg)!
 		if ellipsize && max_lines > 0 && layout.lines.len > max_lines {
 			// Pango's negative height limits each paragraph separately. Keep its
 			// shaped prefix and shape the remaining source as one ellipsized line
@@ -268,7 +295,8 @@ $if (linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ?
 			last_line := layout.lines[max_lines - 1]
 			mut tail_end := math.min(text.len, last_line.start_index + last_line.length)
 			for tail_end > last_line.start_index && text[tail_end - 1] in [u8(10), u8(13)] { tail_end-- }
-			tail := engine.context.layout_text(text[last_line.start_index..tail_end] + '…', vglyph.TextConfig{
+			tail_runs := text_runs_slice(runs, last_line.start_index, tail_end, true)
+			tail := engine.layout_runs(text[last_line.start_index..tail_end] + '…', tail_runs, vglyph.TextConfig{
 				...cfg
 				block: vglyph.BlockStyle{...cfg.block, max_lines: 1}
 			})!
@@ -478,4 +506,19 @@ $if (linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ?
 		g_text_font_mutex.unlock()
 		return engine.measure(text, style, request)!.size
 	}
+
+	fn layout_measure_vglyph_runs(runs []TextRun, style TextStyle, width f64) !LayoutSize {
+		// Initialize the process context through the same public measurement route.
+		layout_measure_vglyph_text('', style, width)!
+		mut engine := g_cpu_text_engine
+		limit := math.max(1, style.lines)
+		shaped := engine.shape_runs(runs, style, width, limit, width >= 0)!
+		// With unbounded width Pango does not ellipsize; its natural layout
+		// still includes every paragraph. Match the ordinary label line budget.
+		height := if shaped.lines.len > limit {
+			shaped.lines[limit - 1].y + shaped.lines[limit - 1].height
+		} else { shaped.size.height }
+		return LayoutSize{width: if width >= 0 { math.min(width, shaped.size.width) } else { shaped.size.width }, height: height}
+	}
+
 }

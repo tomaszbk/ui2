@@ -191,7 +191,7 @@ $if android && !ui2_headless ? {
 		ensure_family_fallbacks(ctx, family)
 		ctx.set_text_cfg(gg.TextCfg{
 			color: hex_color(style.color)
-			size: int(font_render_size(style.size, text_font_metrics(family)) + 0.5)
+			size: int(font_style_render_size(style, text_font_metrics(family)) + 0.5)
 			bold: style.bold
 			italic: style.italic
 			family: family
@@ -226,7 +226,7 @@ $if android && !ui2_headless ? {
 		ensure_family_fallbacks(ctx, family)
 		cfg := gg.TextCfg{
 			color: hex_color(style.color)
-			size: int(font_render_size(style.size, text_font_metrics(family)) + 0.5)
+			size: int(font_style_render_size(style, text_font_metrics(family)) + 0.5)
 			bold: style.bold
 			italic: style.italic
 			family: family
@@ -240,7 +240,7 @@ $if android && !ui2_headless ? {
 		line_ranges := text_area_line_rune_ranges(shown, lines)
 		selection_start, selection_end := editor.selection.ordered()
 		show_selection := g_focused_field == el.id && selection_start != selection_end
-		line_height := math.max(1.0, font_line_height(style.size))
+		line_height := math.max(1.0, font_style_line_height(style))
 		content_height := f64(lines.len) * line_height + text_area_vertical_padding * 2
 		// Read-only means not editable, not unscrollable. disable_scroll only
 		// hides the scroller, matching Element's documented/native behavior.
