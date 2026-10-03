@@ -46,7 +46,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 			down:           true
 			current_x:      20
 			current_y:      30
-			pointer_target: HitTarget{ action_id: 'drag' }
+			pointer_target: HitTarget{ action_id: 'drag', draggable: true }
 		}
 		app.scheduler.set_deadline(500)
 		on_event(&gg.Event{ typ: .iconified }, app)

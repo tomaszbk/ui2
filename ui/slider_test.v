@@ -18,7 +18,7 @@ fn test_slider_normalized_values_snap_to_steps_and_cap_last_step() {
 	assert slider_value_from_normalized(1, 0, 95, 10) == 95
 	assert slider_value_from_normalized(-1, -20, 100, 0) == -20
 	assert slider_value_from_normalized(2, -20, 100, 0) == 100
-	assert math.abs(slider_value_from_normalized(0.25, -100, 100, 0) - -50) < 0.000001
+	assert math.abs(slider_value_from_normalized(0.25, -100, 100, 0) + 50) < 0.000001
 }
 
 fn test_slider_maps_horizontal_and_vertical_pointer_coordinates() {

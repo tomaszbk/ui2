@@ -2,9 +2,9 @@
 // These tests exercise the native backend and do not apply to custom builds.
 module ui2
 
-$if !ui2_custom_rendering ? {
-
 import macos
+
+$if !ui2_custom_rendering ? {
 
 fn test_appkit_key_codes_use_physical_ansi_positions() {
 	assert appkit_key_code(0x2b) == .comma
