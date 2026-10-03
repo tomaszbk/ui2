@@ -58,6 +58,7 @@ Local changes are intentionally narrow:
   constants from upstream validation tests are excluded from the runtime copy.
   Optional Linux accessibility linking requires both `atk` and `atk-bridge-2.0`.
 
+- Rich text preserves the requested absolute line grid across mixed font sizes and fallback fonts; explicit UI2 line height uses `BlockStyle.strict_line_height` to normalize plain fallback layouts too. The normalization moves line baselines/items/query rectangles together and retains glyph sizes. Plain legacy non-ellipsis metrics remain unchanged.
 - Numeric `TextStyle.weight` overrides description/typeface weight in both plain and rich font descriptions; the text cache includes it. This UI2 extension exposes 100–900 weights without collapsing them to a bold flag.
 
 For updates, compare these files with the pinned upstream tree and reconcile the

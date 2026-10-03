@@ -255,6 +255,8 @@ pub mut:
 	width f32       = -1.0
 	// Zero preserves natural Pango line height. Values use logical units.
 	line_height f32
+	// UI2 extension: keep an explicit line grid across fallback font metrics.
+	strict_line_height bool
 	// Zero is unlimited. Ellipsizing requires a constrained width.
 	max_lines int
 	ellipsize bool
