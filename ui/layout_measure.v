@@ -64,17 +64,17 @@ pub fn (constraints LayoutConstraints) deflate(padding BoxPadding) !LayoutConstr
 	horizontal := padding.left + padding.right
 	vertical := padding.top + padding.bottom
 	return LayoutConstraints{
-		min_width:  math.max(0, constraints.min_width - horizontal)
-		min_height: math.max(0, constraints.min_height - vertical)
+		min_width:  math.max(0.0, constraints.min_width - horizontal)
+		min_height: math.max(0.0, constraints.min_height - vertical)
 		max_width:  if constraints.max_width < 0 {
 			-1
 		} else {
-			math.max(0, constraints.max_width - horizontal)
+			math.max(0.0, constraints.max_width - horizontal)
 		}
 		max_height: if constraints.max_height < 0 {
 			-1
 		} else {
-			math.max(0, constraints.max_height - vertical)
+			math.max(0.0, constraints.max_height - vertical)
 		}
 	}
 }
@@ -115,7 +115,7 @@ pub fn measure_layout_element(element Element, constraints LayoutConstraints, me
 		text_width := if outer_width < 0 {
 			-1.0
 		} else {
-			math.max(0, outer_width - insets.left - insets.right)
+			math.max(0.0, outer_width - insets.left - insets.right)
 		}
 		content := if element.text.len == 0 && element.kind in [.text_field, .text_area] {
 			element.placeholder
@@ -146,7 +146,7 @@ pub fn measure_layout_element(element Element, constraints LayoutConstraints, me
 			height: measured.height + insets.top + insets.bottom
 		}
 		if element.kind == .checkbox {
-			preferred = LayoutSize{ ...preferred, height: math.max(18, preferred.height) }
+			preferred = LayoutSize{ ...preferred, height: math.max(18.0, preferred.height) }
 		}
 	} else {
 		mut width := 0.0
@@ -181,7 +181,7 @@ fn layout_measure_control_insets(element Element) BoxPadding {
 			// Include the gutter reserved by text_area_content_rect even when no
 			// scrollbar is visible, so measurement and drawing wrap identically.
 			return BoxPadding{
-				left:   math.max(2, element.padding_left)
+				left:   math.max(2.0, element.padding_left)
 				right:  if element.disable_scroll { 8 } else { 12 }
 				top:    8
 				bottom: 8
@@ -194,10 +194,10 @@ fn layout_measure_control_insets(element Element) BoxPadding {
 		}
 		.checkbox { BoxPadding{ left: 26 } }
 		.dropdown {
-			BoxPadding{ left: math.max(0, element.padding_left), right: 32, top: 6, bottom: 6 }
+			BoxPadding{ left: math.max(0.0, element.padding_left), right: 32, top: 6, bottom: 6 }
 		}
 		.text_field {
-			BoxPadding{ left: math.max(0, element.padding_left), right: 8, top: 6, bottom: 6 }
+			BoxPadding{ left: math.max(0.0, element.padding_left), right: 8, top: 6, bottom: 6 }
 		}
 		.text_area { BoxPadding{ left: 8, right: 8, top: 8, bottom: 8 } }
 		else { BoxPadding{} }

@@ -138,3 +138,20 @@ fn test_rounded_single_edge_keeps_its_color_through_both_corner_halves() {
 		}
 	}
 }
+
+fn test_fractional_rounded_border_retains_subunit_outer_and_inner_corners() {
+	frame := rect(10, 20, 10, 10)
+	mesh := box_border_triangles(frame, BoxStyle{ radius: 0.75, border_left: 0.25, border_top: 0.25, border_right: 0.25, border_bottom: 0.25 })
+	mut contains_outer_arc := false
+	mut contains_inner_arc := false
+	for triangle in mesh {
+		for p in [triangle.a, triangle.b, triangle.c] {
+			// The top-left arc occupies the open corner square; a sharp ring
+			// instead has vertices only on the straight edges.
+			if p.x > 10 && p.x < 10.25 && p.y > 20 && p.y < 20.75 { contains_outer_arc = true }
+			if p.x > 10.25 && p.x < 10.75 && p.y > 20.25 && p.y < 20.75 { contains_inner_arc = true }
+		}
+	}
+	assert contains_outer_arc
+	assert contains_inner_arc
+}
