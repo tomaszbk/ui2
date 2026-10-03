@@ -44,6 +44,8 @@ fn box_border_triangles(frame Rect, box BoxStyle) []BorderTriangle {
 	mut outer_points := []BorderPoint{}
 	mut inner_points := []BorderPoint{}
 	mut sides := []int{}
+	mut alternate_sides := []int{}
+	widths := [top, right, bottom, left]
 	// Begin halfway around top-left, then follow the perimeter clockwise.
 	for corner in 0 .. 5 {
 		actual := corner % 4
@@ -61,7 +63,9 @@ fn box_border_triangles(frame Rect, box BoxStyle) []BorderTriangle {
 			ry := math.max(0, radius - if actual == 0 || actual == 1 { top } else { bottom })
 			inner_points << border_corner_point(inner, actual, rx, ry, angle)
 			// A corner's halves meet on its diagonal; sides use their own colors.
-			sides << if angle < 225 + f64(actual) * 90 { (actual + 3) % 4 } else { actual }
+			selected := if angle < 225 + f64(actual) * 90 { (actual + 3) % 4 } else { actual }
+			sides << selected
+			alternate_sides << if selected == actual { (actual + 3) % 4 } else { actual }
 		}
 	}
 	mut triangles := []BorderTriangle{}
@@ -76,7 +80,11 @@ fn box_border_triangles(frame Rect, box BoxStyle) []BorderTriangle {
 		// Between corners the destination owns the edge; inside a corner the
 		// midpoint of the segment determines the half (avoid one-step bias).
 		side := sides[index - 1]
-		color := box_edge_color(box, side)
+		// A missing side has no color contribution. Its corner's area comes
+		// entirely from the adjacent border, including the half beyond diagonal.
+		alternate := alternate_sides[index - 1]
+		paint_side := if widths[side] == 0 && widths[alternate] > 0 { alternate } else { side }
+		color := box_edge_color(box, paint_side)
 		mut cursor := 0.0
 		for cursor < length - 0.0000001 {
 			mut amount := length - cursor

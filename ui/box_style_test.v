@@ -114,3 +114,27 @@ fn test_focus_outline_is_outside_without_changing_frame_or_hit_bounds() {
 	assert !box_contains_point(el.frame, 8, 20)
 	assert interaction_box(el, false, false, false).outline_width == 0
 }
+
+fn test_rounded_single_edge_keeps_its_color_through_both_corner_halves() {
+	for side in 0 .. 4 {
+		widths := [if side == 0 { 4.0 } else { 0.0 }, if side == 1 { 4.0 } else { 0.0 },
+			if side == 2 { 4.0 } else { 0.0 }, if side == 3 { 4.0 } else { 0.0 }]
+		box := BoxStyle{
+			radius:              12
+			border_top:          widths[0]
+			border_right:        widths[1]
+			border_bottom:       widths[2]
+			border_left:         widths[3]
+			border_color:        0xff0000
+			border_top_color:    if side == 0 { ?u32(0x0000ff) } else { none }
+			border_right_color:  if side == 1 { ?u32(0x0000ff) } else { none }
+			border_bottom_color: if side == 2 { ?u32(0x0000ff) } else { none }
+			border_left_color:   if side == 3 { ?u32(0x0000ff) } else { none }
+		}
+		for triangle in box_border_triangles(rect(0, 0, 100, 60), box) {
+			if triangle_area(triangle) > 0.000001 {
+				assert triangle.color == 0x0000ff
+			}
+		}
+	}
+}
