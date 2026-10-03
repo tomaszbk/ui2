@@ -833,6 +833,7 @@ fn node_to_element_base(node &VNode, frame Rect) !Element {
 		'Screen' {
 			return Element{
 				...screen(v_color(node, 'background', 0xffffff), v_children(node, local)!)
+				id: node.id
 				box: v_box(node)
 			}
 		}
