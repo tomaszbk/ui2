@@ -102,7 +102,7 @@ fn grid_validate_config(config GridLayoutConfig, child_count int) ! {
 }
 
 fn grid_automatic_columns(config GridLayoutConfig, child_count int) int {
-	inner := math.max(0, config.frame.width - config.padding.left - config.padding.right)
+	inner := math.max(0.0, config.frame.width - config.padding.left - config.padding.right)
 	fit := if inner < config.auto_columns_min_width {
 		f64(1)
 	} else {
@@ -372,7 +372,7 @@ fn grid_fit_padding(available f64, leading f64, trailing f64, automatic bool) (f
 
 fn grid_fit_spacing(available f64, count int, spacing f64, automatic bool) f64 {
 	if automatic && count > 1 {
-		return math.min(spacing, math.max(0, available) / f64(count - 1))
+		return math.min(spacing, math.max(0.0, available) / f64(count - 1))
 	}
 	return spacing
 }
@@ -410,8 +410,8 @@ pub fn grid_layout_frames(config GridLayoutConfig, child_count int) ![]Rect {
 	vertical_spacing := grid_fit_spacing(config.frame.height - top - bottom, rows, config.spacing.vertical, automatic)
 	computed_width := config.frame.width - left - right - horizontal_spacing * f64(columns - 1)
 	computed_height := config.frame.height - top - bottom - vertical_spacing * f64(rows - 1)
-	inner_width := if automatic { math.max(0, computed_width) } else { computed_width }
-	inner_height := if automatic { math.max(0, computed_height) } else { computed_height }
+	inner_width := if automatic { math.max(0.0, computed_width) } else { computed_width }
+	inner_height := if automatic { math.max(0.0, computed_height) } else { computed_height }
 	widths := grid_axis_sizes(inner_width, columns, config.column_default_width, config.force_column_width, config.columns_minimum, automatic)!
 	heights := grid_axis_sizes(inner_height, rows, config.row_default_height, config.force_row_height, config.rows_minimum, automatic)!
 	mut x_positions := []f64{len: columns}
@@ -490,7 +490,7 @@ fn grid_preferred_track_extra(tracks []f64, start int, count int, preferred f64,
 	for index in start .. start + count {
 		current += tracks[index]
 	}
-	return math.max(0, (preferred - current) / f64(count))
+	return math.max(0.0, (preferred - current) / f64(count))
 }
 
 // grid_layout creates a view whose children are assigned to cells in their
