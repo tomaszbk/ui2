@@ -19,3 +19,17 @@ pub fn measure_layout_text(text string, style TextStyle, max_width f64) !LayoutS
 	}
 	return layout_measure_cpu_text(text, style, max_width)
 }
+
+$if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headless ? {
+	fn layout_measure_custom_text_area(text string, style TextStyle, max_width f64) !LayoutSize {
+		layout_validate_text_measurement(style, max_width)!
+		ctx := g_gg_app.ctx
+		if ctx != unsafe { nil } && ctx.font_inited {
+			ensure_symbol_fallbacks(ctx)
+			return layout_measure_text_area_lines(text, style, max_width, font_line_height(style.size), fn [ctx, style] (line string) f64 {
+				return menu_text_width(ctx, line, style)
+			})
+		}
+		return layout_measure_cpu_fontstash(text, style, max_width, true)
+	}
+}

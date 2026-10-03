@@ -86,6 +86,10 @@ fn (mut fonts LayoutMeasureFonts) load(path string) !int {
 }
 
 fn layout_measure_cpu_text(text string, style TextStyle, max_width f64) !LayoutSize {
+	return layout_measure_cpu_fontstash(text, style, max_width, false)
+}
+
+fn layout_measure_cpu_fontstash(text string, style TextStyle, max_width f64, text_area bool) !LayoutSize {
 	mut fonts := g_layout_measure_fonts
 	fonts.mutex.lock()
 	defer { fonts.mutex.unlock() }
@@ -101,6 +105,12 @@ fn layout_measure_cpu_text(text string, style TextStyle, max_width f64) !LayoutS
 	stash.set_font(id)
 	stash.set_size(f32(int(font_render_size(style.size, metrics) + 0.5)))
 	stash.set_align(int(fontstash.Align.left) | int(fontstash.Align.baseline))
+	if text_area {
+		return layout_measure_text_area_lines(text, style, max_width, font_line_height(style.size), fn [stash] (line string) f64 {
+			mut glyph_bounds := [4]f32{}
+			return f64(stash.text_bounds(0, 0, line, &glyph_bounds[0]))
+		})
+	}
 	return layout_measure_text_lines(text, style, max_width, font_line_height(style.size), fn [stash] (line string) f64 {
 		mut glyph_bounds := [4]f32{}
 		return f64(stash.text_bounds(0, 0, line, &glyph_bounds[0]))
