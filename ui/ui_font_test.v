@@ -501,3 +501,14 @@ fn test_text_block_top_defaults_to_a_centred_label() {
 	assert style.valign == .middle
 	assert text_block_top(0, 100, 20, style.valign) == 40
 }
+
+
+fn test_optional_inter_bundle_does_not_replace_legacy_default_font() {
+	dir := font_test_dir('optional-inter', ['Inter-Regular.ttf', 'Inter-Bold.ttf',
+		'Roboto-Regular.ttf', 'Roboto-Bold.ttf'])
+	defer { os.rmdir_all(dir) or {} }
+	regular, bold := font_pick([dir])
+	assert os.file_name(regular) == 'Roboto-Regular.ttf'
+	assert os.file_name(bold) == 'Roboto-Bold.ttf'
+	assert os.file_name(font_lookup(font_index([dir]), 'Inter', false, false)) == 'Inter-Regular.ttf'
+}
