@@ -1,6 +1,8 @@
 module ui2
 
-import math
+$if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headless ? {
+	import math
+}
 
 fn layout_measure_fixture_width(text string) f64 {
 	mut width := 0.0
@@ -93,49 +95,77 @@ fn test_layout_default_text_measurement_uses_real_fonts_before_window_creation()
 	assert wrapped.height > wide.height
 }
 
-fn layout_measure_require_declared_zero_lines(_text string, style TextStyle, _width f64) !LayoutSize {
-	if style.lines != 0 { return error('external callbacks must receive the declared label style') }
-	return LayoutSize{width: 16, height: 20}
+fn test_layout_editor_measurement_preserves_rows_and_splits_overlong_words() {
+	// Independent advances: W=12, i=3. Two Ws fill the first 24-unit row;
+	// three i glyphs fill the next, followed by an empty paragraph and one W.
+	style := TextStyle{ lines: 1 }
+	assert layout_measure_text_area_lines('WWiii\r\n\r\nW', style, 24, 20,
+		layout_measure_fixture_width)! == LayoutSize{ width: 24, height: 80 }
+	assert layout_measure_text_area_lines('WWiii\r\n\r\nW', style, -1, 20,
+		layout_measure_fixture_width)! == LayoutSize{ width: 33, height: 60 }
+	assert layout_measure_text_area_lines('ab cd\tef\n', style, 24, 20,
+		layout_measure_fixture_width)! == LayoutSize{ width: 16, height: 80 }
+	assert layout_measure_text_area_lines('WW', style, 0, 20,
+		layout_measure_fixture_width)! == LayoutSize{}
+	assert style.lines == 1
 }
 
 fn layout_measure_require_declared_editor_style(_text string, style TextStyle, _width f64) !LayoutSize {
 	if style.lines != 1 || style.size != 16 || style.font_family != 'Roboto Mono' {
 		return error('external callbacks must receive the declared editor style')
 	}
-	return LayoutSize{width: 16, height: 20}
+	return LayoutSize{ width: 16, height: 20 }
 }
 
-fn test_custom_intrinsic_text_area_wraps_all_rows_in_the_drawn_content_width() {
-	$if (linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
-		style := TextStyle{size: 16, font_family: 'Roboto Mono'}
+fn test_custom_intrinsic_editor_matches_wrapping_content_width_before_window_creation() {
+	$if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headless ? {
+		style := TextStyle{ size: 16, font_family: 'Roboto Mono', lines: 1 }
 		advance := measure_layout_text('M', style, -1)!.width
-		// The width accommodates exactly two fixed-width glyphs. Five glyphs
-		// occupy three rows and the explicit paragraph contributes a fourth.
+		// With two monospaced glyphs per row, five Ms occupy three rows.
+		// CRLF blank, final M and trailing newline contribute three more.
 		content_width := advance * 2 + 0.05
-		for scrolling in [true, false] {
-			area := Element{
-				...text_area('notes', 'MMMMM\nM', Rect{}, BoxStyle{}, style)
-				padding_left: 12
-				disable_scroll: !scrolling
+		for padding_left in [0.0, 12.0] {
+			for scrolling in [true, false] {
+				area := Element{
+					...text_area('notes', 'MMMMM\r\n\r\nM\n', Rect{}, BoxStyle{}, style)
+					padding_left:   padding_left
+					disable_scroll: !scrolling
+				}
+				gutter := if scrolling { 12.0 } else { 8.0 }
+				left := if padding_left == 0 { 2.0 } else { 12.0 }
+				available := content_width + left + gutter
+				measured := measure_layout_element(area, LayoutConstraints{ max_width: available },
+					measure_layout_text)!
+				assert math.abs(measured.height - (font_line_height(style.size) * 6 + 16)) < 0.01
+				assert math.abs(measured.width - (advance * 2 + left + gutter)) < 0.01
+				assert area.text_style == style
+				custom := measure_layout_element(area, LayoutConstraints{},
+					layout_measure_require_declared_editor_style)!
+				assert custom == LayoutSize{ width: 16 + left + gutter, height: 36 }
+				fixed := Element{ ...area, frame: rect(0, 0, 90, 30) }
+				assert measure_layout_element(fixed, LayoutConstraints{}, layout_measure_unexpected_text)! == LayoutSize{ width: 90, height: 30 }
+				zero_content := measure_layout_element(area,
+					LayoutConstraints{ max_width: left + gutter }, measure_layout_text)!
+				$if android {
+					assert zero_content == LayoutSize{ width: left + gutter, height: 16 }
+				} $else {
+					assert zero_content.width == left + gutter
+					assert zero_content.height >= 16
+				}
 			}
-			gutter := if scrolling { 12.0 } else { 8.0 }
-			measured := measure_layout_element(area,
-				LayoutConstraints{max_width: content_width + 12 + gutter}, measure_layout_text)!
-			assert measured.width > advance * 2 + 12 + gutter - 0.01
-			assert measured.width <= content_width + 12 + gutter
-			// Pango quantizes line height to 1/1024 of a device pixel.
-			assert math.abs(measured.height - font_line_height(style.size) * 4 - 16) < 0.01
-			assert area.text_style.lines == 1
-			// Only the built-in adapter requests unlimited editor wrapping;
-			// an embedder's callback still sees its original public style.
-			custom := measure_layout_element(area, LayoutConstraints{},
-				layout_measure_require_declared_editor_style)!
-			assert custom.height == 36
-			fixed := Element{...area, frame: rect(0, 0, 90, 30)}
-			assert measure_layout_element(fixed, LayoutConstraints{}, layout_measure_unexpected_text)! == LayoutSize{width: 90, height: 30}
 		}
-		label_one_line := label('caption', 'one\ntwo', Rect{}, TextStyle{lines: 0})
-		assert measure_layout_element(label_one_line, LayoutConstraints{}, layout_measure_require_declared_zero_lines)! == LayoutSize{width: 16, height: 20}
+	}
+}
+
+fn layout_measure_require_declared_zero_lines(_text string, style TextStyle, _width f64) !LayoutSize {
+	if style.lines != 0 { return error('external callbacks must receive the declared label style') }
+	return LayoutSize{ width: 16, height: 20 }
+}
+
+fn test_intrinsic_label_keeps_its_declared_line_limit() {
+	$if ( linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headless ? {
+		label_one_line := label('caption', 'one\ntwo', Rect{}, TextStyle{ lines: 0 })
+		assert measure_layout_element(label_one_line, LayoutConstraints{}, layout_measure_require_declared_zero_lines)! == LayoutSize{ width: 16, height: 20 }
 		assert label_one_line.text_style.lines == 0
 		one_row := measure_layout_text('one', label_one_line.text_style, -1)!
 		default_label := measure_layout_element(label_one_line, LayoutConstraints{}, measure_layout_text)!

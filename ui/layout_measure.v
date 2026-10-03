@@ -122,11 +122,11 @@ pub fn measure_layout_element(element Element, constraints LayoutConstraints, me
 		} else {
 			element.text
 		}
-		measured := $if (linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
-			// The built-in editor adapter wraps every row in the content width.
-			// External callbacks retain the declared TextStyle without sentinels.
+		measured := $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headless ? {
+			// Editors wrap every row, unlike labels with a declared line limit.
+			// Keep external callbacks' original TextStyle contract unchanged.
 			if element.kind == .text_area && voidptr(measure) == voidptr(measure_layout_text) {
-				layout_measure_vglyph_editor_text(content, element.text_style, text_width)!
+				layout_measure_custom_text_area(content, element.text_style, text_width)!
 			} else {
 				measure(content, element.text_style, text_width)!
 			}
@@ -168,14 +168,14 @@ fn layout_measure_control_insets(element Element) BoxPadding {
 			return BoxPadding{ left: 2, right: 2 }
 		}
 	}
-	$if (linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
+	$if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headless ? {
 		if element.kind == .text_area {
-			// Match text_area_content_rect, including the gutter reserved before
-			// a scrollbar is visible, so intrinsic measurement wraps identically.
+			// Include the gutter reserved by text_area_content_rect even when no
+			// scrollbar is visible, so measurement and drawing wrap identically.
 			return BoxPadding{
-				left: math.max(2, element.padding_left)
-				right: if element.disable_scroll { 8 } else { 12 }
-				top: 8
+				left:   math.max(2, element.padding_left)
+				right:  if element.disable_scroll { 8 } else { 12 }
+				top:    8
 				bottom: 8
 			}
 		}
@@ -214,6 +214,24 @@ fn layout_measure_text_lines(text string, style TextStyle, max_width f64, line_h
 		wrap_text_lines_measured(text, max_width, style.lines, width_of)
 	} else {
 		[text]
+	}
+	mut width := 0.0
+	for line in lines { width = math.max(width, width_of(line)) }
+	return LayoutConstraints{ max_width: max_width }.constrain(LayoutSize{
+		width:  width
+		height: line_height * f64(lines.len)
+	})
+}
+
+fn layout_measure_text_area_lines(text string, style TextStyle, max_width f64, line_height f64, width_of fn (string) f64) !LayoutSize {
+	layout_validate_text_measurement(style, max_width)!
+	if !math.is_finite(line_height) || line_height <= 0 {
+		return error('text measurement needs a positive finite line height')
+	}
+	lines := if max_width < 0 {
+		text.replace('\r\n', '\n').replace('\r', '\n').split('\n')
+	} else {
+		wrap_text_area_lines(text, max_width, width_of)
 	}
 	mut width := 0.0
 	for line in lines { width = math.max(width, width_of(line)) }
