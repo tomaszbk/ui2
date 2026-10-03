@@ -14,7 +14,7 @@ pub fn measure_layout_text(text string, style TextStyle, max_width f64) !LayoutS
 		ctx := g_gg_app.ctx
 		if !g_gg_app.scheduler.is_closed() && ctx != unsafe { nil } && ctx.font_inited {
 			ensure_symbol_fallbacks(ctx)
-			return layout_measure_text_lines(text, style, max_width, font_line_height(style.size), fn [ctx, style] (line string) f64 {
+			return layout_measure_text_lines(text, style, max_width, font_style_line_height(style), fn [ctx, style] (line string) f64 {
 				return menu_text_width(ctx, line, style)
 			})
 		}
@@ -33,7 +33,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 			ctx := g_gg_app.ctx
 			if !g_gg_app.scheduler.is_closed() && ctx != unsafe { nil } && ctx.font_inited {
 				ensure_symbol_fallbacks(ctx)
-				return layout_measure_text_area_lines(text, style, max_width, font_line_height(style.size), fn [ctx, style] (line string) f64 {
+				return layout_measure_text_area_lines(text, style, max_width, font_style_line_height(style), fn [ctx, style] (line string) f64 {
 					return menu_text_width(ctx, line, style)
 				})
 			}

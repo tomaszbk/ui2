@@ -244,8 +244,14 @@ pub:
 	height f64
 }
 
+pub enum UnitProfile {
+	legacy
+	logical
+}
+
 pub struct TextStyle {
 pub:
+	units UnitProfile = .legacy
 	color              u32 = 0x111111
 	background_color   u32
 	size               f64 = 15.0

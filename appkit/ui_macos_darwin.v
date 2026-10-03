@@ -1283,13 +1283,13 @@ fn native_create_element(el Element) NativeView {
 			native_new_scroll(element_rect(el.frame), el.box, el.persistent_scrollbars)
 		}
 		.label {
-			native_new_label(element_rect(el.frame), el.text, el.text_style.color, el.text_style.size, el.text_style.bold, el.text_style.italic, el.text_style.underline, align_value(el.text_style.align), el.text_style.lines, el.text_style.valign, label_needs_container(el))
+			native_new_label(element_rect(el.frame), el.text, el.text_style.color, native_font_points(el.text_style), el.text_style.bold, el.text_style.italic, el.text_style.underline, align_value(el.text_style.align), el.text_style.lines, el.text_style.valign, label_needs_container(el))
 		}
 		.image {
 			native_new_image(element_rect(el.frame), el.image_path, el.rotation)
 		}
 		.button {
-			native_new_button(element_rect(el.frame), el.text, el.box, el.text_style.color, el.text_style.size, el.text_style.bold, el.text_style.italic, el.text_style.underline, el.text_style.lines, el.image_path, el.native_style)
+			native_new_button(element_rect(el.frame), el.text, el.box, el.text_style.color, native_font_points(el.text_style), el.text_style.bold, el.text_style.italic, el.text_style.underline, el.text_style.lines, el.image_path, el.native_style)
 		}
 		.checkbox {
 			native_new_checkbox(el)
@@ -1329,13 +1329,13 @@ fn native_update_element(native NativeView, el Element, declared_text_changed bo
 			native_set_scrollbar_mode(native, el.persistent_scrollbars)
 		}
 		.label {
-			native_update_label(native, element_rect(el.frame), el.text, el.text_style.color, el.text_style.size, el.text_style.bold, el.text_style.italic, el.text_style.underline, align_value(el.text_style.align), el.text_style.lines, el.text_style.valign, label_needs_container(el))
+			native_update_label(native, element_rect(el.frame), el.text, el.text_style.color, native_font_points(el.text_style), el.text_style.bold, el.text_style.italic, el.text_style.underline, align_value(el.text_style.align), el.text_style.lines, el.text_style.valign, label_needs_container(el))
 		}
 		.image {
 			native_update_image(native, element_rect(el.frame), el.image_path, el.rotation)
 		}
 		.button {
-			native_update_button(native, element_rect(el.frame), el.text, el.box, el.text_style.color, el.text_style.size, el.text_style.bold, el.text_style.italic, el.text_style.underline, el.text_style.lines, el.image_path, el.native_style)
+			native_update_button(native, element_rect(el.frame), el.text, el.box, el.text_style.color, native_font_points(el.text_style), el.text_style.bold, el.text_style.italic, el.text_style.underline, el.text_style.lines, el.image_path, el.native_style)
 		}
 		.checkbox {
 			native_update_checkbox(native, el)
@@ -1351,7 +1351,7 @@ fn native_update_element(native NativeView, el Element, declared_text_changed bo
 		}
 		.text_field {
 			native_update_text_field(native, element_rect(el.frame), el.placeholder, el.text,
-				el.box, el.text_style.color, el.text_style.size,
+				el.box, el.text_style.color, native_font_points(el.text_style),
 				declared_text_changed, el.readonly, el.enabled)
 		}
 		.text_area {
@@ -2105,7 +2105,7 @@ fn native_hover_text(key string, native NativeView, el Element) string {
 	mut st := state()
 	if cached := st.node_shortened[key] {
 		if cached.text == full_text && cached.width == el.frame.width
-			&& cached.height == el.frame.height && cached.size == el.text_style.size
+			&& cached.height == el.frame.height && cached.size == native_font_points(el.text_style)
 			&& cached.bold == el.text_style.bold && cached.italic == el.text_style.italic
 			&& cached.image == el.image_path {
 			return if cached.shortened { full_text } else { '' }
@@ -2116,7 +2116,7 @@ fn native_hover_text(key string, native NativeView, el Element) string {
 		text:      full_text
 		width:     el.frame.width
 		height:    el.frame.height
-		size:      el.text_style.size
+		size:      native_font_points(el.text_style)
 		bold:      el.text_style.bold
 		italic:    el.text_style.italic
 		image:     el.image_path
@@ -2146,7 +2146,7 @@ fn shortenable_text(el Element) string {
 // with every character that wide, beside whatever the control draws next to it, needs
 // no measuring. Most labels in a grid are short numbers and stop here.
 fn text_surely_fits(text string, el Element) bool {
-	size := if el.text_style.size > 0 { el.text_style.size } else { 13.0 }
+	size := if native_font_points(el.text_style) > 0 { native_font_points(el.text_style) } else { 13.0 }
 	reserve := match el.kind {
 		.label { 6.0 }
 		.checkbox { 28.0 }
@@ -2226,7 +2226,7 @@ fn native_update_checkbox(checkbox_view NativeView, el Element) {
 	macos.msg_void1(checkbox_view, 'setTitle:', macos.nsstring(el.text))
 	macos.msg_void_i64(checkbox_view, 'setState:', if el.checked { i64(1) } else { i64(0) })
 	macos.msg_void_bool(checkbox_view, 'setAllowsMixedState:', false)
-	macos.msg_void1(checkbox_view, 'setFont:', native_font(el.text_style.size, el.text_style.bold, el.text_style.italic))
+	macos.msg_void1(checkbox_view, 'setFont:', native_font(native_font_points(el.text_style), el.text_style.bold, el.text_style.italic))
 }
 
 fn native_new_switch_control(el Element) NativeView {
@@ -2248,7 +2248,7 @@ fn native_update_switch_control(view NativeView, el Element) {
 
 fn native_new_toggle_button(el Element) NativeView {
 	native := native_new_button(element_rect(el.frame), el.text, el.box, el.text_style.color,
-		el.text_style.size, el.text_style.bold, el.text_style.italic, el.text_style.underline,
+		native_font_points(el.text_style), el.text_style.bold, el.text_style.italic, el.text_style.underline,
 		el.text_style.lines, el.image_path, el.native_style)
 	native_update_toggle_button(native, el)
 	return native
@@ -2327,7 +2327,7 @@ fn native_update_dropdown(popup NativeView, el Element) {
 		macos.msg_void1(popup, 'addItemWithTitle:', macos.nsstring(item.title))
 	}
 	native_select_dropdown_item(popup, el.text)
-	macos.msg_void1(popup, 'setFont:', native_font(el.text_style.size, el.text_style.bold, el.text_style.italic))
+	macos.msg_void1(popup, 'setFont:', native_font(native_font_points(el.text_style), el.text_style.bold, el.text_style.italic))
 	macos.msg_void_bool(popup, 'setBordered:', box_draws_fill(el.box))
 	macos.msg_void_u64(popup, 'setBezelStyle:', 1)
 }
@@ -2337,7 +2337,7 @@ fn native_new_text_field(el Element) NativeView {
 	cls := if el.secure { 'NSSecureTextField' } else { 'NSTextField' }
 	field := macos.msg_id_rect(macos.alloc(cls), 'initWithFrame:', appkit_rect(frame))
 	native_update_text_field(field, frame, el.placeholder, el.text, el.box, el.text_style.color,
-		el.text_style.size, true, el.readonly, el.enabled)
+		native_font_points(el.text_style), true, el.readonly, el.enabled)
 	return field
 }
 
@@ -2446,7 +2446,7 @@ fn native_set_text_area_content(tv NativeView, el Element) {
 		return
 	}
 	macos.msg_void_bool(tv, 'setRichText:', true)
-	native_text_view_set_attributed_string(tv, el.text, el.text_style.color, el.text_style.background_color, el.text_style.size, el.text_style.font_family, el.text_style.bold, el.text_style.italic, el.text_style.underline, el.text_style.strikethrough, el.text_style.vertical_align)
+	native_text_view_set_attributed_string(tv, el.text, el.text_style.color, el.text_style.background_color, native_font_points(el.text_style), el.text_style.font_family, el.text_style.bold, el.text_style.italic, el.text_style.underline, el.text_style.strikethrough, el.text_style.vertical_align)
 	base_length := native_utf16_length(el.text)
 	if base_length > 0 {
 		native_text_view_add_effect(tv, 0, base_length, text_style_effect_value(el.text_style))

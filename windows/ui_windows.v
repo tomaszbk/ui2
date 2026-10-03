@@ -1257,11 +1257,11 @@ fn windows_update_style(key string, hwnd voidptr, el Element) {
 		}
 	} else if el.kind !in [.view, .scroll, .image, .slider, .switch_control] {
 		font_text := windows_font_text(el)
-		font_sig := '${el.text_style.size}:${el.text_style.font_family.bytes().hex()}:${windows_bool(el.text_style.bold)}:${windows_bool(el.text_style.italic)}:${windows_bool(el.text_style.underline)}:${windows_bool(el.text_style.strikethrough)}:${windows_font_glyph_key(font_text)}'
+		font_sig := '${native_font_points(el.text_style)}:${el.text_style.font_family.bytes().hex()}:${windows_bool(el.text_style.bold)}:${windows_bool(el.text_style.italic)}:${windows_bool(el.text_style.underline)}:${windows_bool(el.text_style.strikethrough)}:${windows_font_glyph_key(font_text)}'
 		if (st.font_sigs[key] or { '' }) != font_sig {
 			wide_family := el.text_style.font_family.to_wide()
 			wide_text := font_text.to_wide()
-			font := C.ui2_win_create_font(hwnd, el.text_style.size, wide_family, windows_bool(el.text_style.bold), windows_bool(el.text_style.italic), windows_bool(el.text_style.underline), windows_bool(el.text_style.strikethrough), wide_text)
+			font := C.ui2_win_create_font(hwnd, native_font_points(el.text_style), wide_family, windows_bool(el.text_style.bold), windows_bool(el.text_style.italic), windows_bool(el.text_style.underline), windows_bool(el.text_style.strikethrough), wide_text)
 			unsafe { free(wide_family) }
 			unsafe { free(wide_text) }
 			if font != unsafe { nil } {

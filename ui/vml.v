@@ -756,6 +756,7 @@ pub fn parse_vml(source string) !&VNode {
 	mut node := p.parse_node()!
 	p.eat(.eof)!
 	assign_vml_paths(mut node, '0')
+	inherit_vml_units(mut node, 'legacy')
 	return node
 }
 
@@ -776,6 +777,9 @@ pub fn element_from_vnode(node &VNode, frame Rect) !Element {
 }
 
 fn node_to_element(node &VNode, frame Rect) !Element {
+	if node.prop('units').len > 0 && node.prop('units') !in ['legacy', 'logical'] {
+		return error('units must be legacy or logical')
+	}
 	resolved := if node.tag == 'Screen' && node.prop_bool('adaptive') {
 		frame
 	} else {
@@ -1859,8 +1863,15 @@ fn v_box(node &VNode) BoxStyle {
 	}
 }
 
+fn inherit_vml_units(mut node VNode, inherited string) {
+	profile := node.prop_or('units', inherited)
+	if profile == 'logical' || 'units' in node.props { node.props['units'] = profile }
+	for mut child in node.children { inherit_vml_units(mut child, profile) }
+}
+
 fn v_text_style(node &VNode) TextStyle {
 	return TextStyle{
+		units:              if node.prop('units') == 'logical' { .logical } else { .legacy }
 		color:              v_color(node, 'color', 0x111111)
 		background_color:   v_color(node, 'background_color', 0)
 		size:               node.prop_or('font_size', node.prop_or('size', '15')).f64()

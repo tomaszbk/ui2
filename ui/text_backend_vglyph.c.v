@@ -229,11 +229,11 @@ $if (linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ?
 		layout_validate_text_measurement(style, max_width)!
 		if engine.context == unsafe { nil } { return error('text context is closed') }
 		if max_lines < 0 { return error('text line limit must be nonnegative') }
-		line_height := font_line_height(style.size)
+		line_height := font_style_line_height(style)
 		cfg := vglyph.TextConfig{
 			style: vglyph.TextStyle{
 				font_name: engine.font_name(style)!
-				size: f32(font_em_pixels(style.size))
+				size: f32(font_style_em_pixels(style))
 				typeface: if style.bold && style.italic { .bold_italic }
 					else if style.bold { .bold } else if style.italic { .italic } else { .regular }
 				color: hex_color(style.color)

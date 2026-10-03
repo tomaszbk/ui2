@@ -110,7 +110,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			ensure_family_fallbacks(ctx, family)
 			ctx.set_text_cfg(gg.TextCfg{
 				color: hex_color(style.color)
-				size: int(font_render_size(style.size, text_font_metrics(family)) + 0.5)
+				size: int(font_style_render_size(style, text_font_metrics(family)) + 0.5)
 				bold: style.bold
 				italic: style.italic
 				family: family
