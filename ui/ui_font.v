@@ -353,16 +353,17 @@ fn font_system_dirs() []string {
 	}
 }
 
-// font_preferences ranks the faces worth defaulting to. Inter and Roboto read
-// closest to Segoe UI, the font the Windows backend draws with; the rest are
-// the sans faces a desktop is nearly certain to already have.
+// font_preferences keeps Roboto ahead of optional bundled Inter so adding
+// typography assets preserves the legacy default and gg's Roboto Mono slot.
+// Applications can still request Inter explicitly. Native system preferences
+// remain first when resolving fonts outside the bundle.
 fn font_preferences() []string {
 	$if windows {
-		return ['Segoe UI', 'Inter', 'Roboto', 'Arial']
+		return ['Segoe UI', 'Roboto', 'Inter', 'Arial']
 	} $else $if macos {
-		return ['SFNS', 'SFNSText', 'Inter', 'Roboto', 'Helvetica']
+		return ['SFNS', 'SFNSText', 'Roboto', 'Inter', 'Helvetica']
 	} $else {
-		return ['Inter', 'Roboto', 'Noto Sans', 'Open Sans', 'DejaVu Sans', 'Liberation Sans',
+		return ['Roboto', 'Inter', 'Noto Sans', 'Open Sans', 'DejaVu Sans', 'Liberation Sans',
 			'Ubuntu', 'Cantarell', 'FreeSans', 'Arial']
 	}
 }
