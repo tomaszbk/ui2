@@ -1048,6 +1048,9 @@ fn v_eval_node(node &VNode, incoming_scope map[string]VValue, frame Rect, mut ev
 	mut resolved := &VNode{
 		tag:  node.tag
 		id:   node.id
+		// Normalization can introduce static inherited properties (units)
+		// without expressions. Preserve them; evaluation overwrites expressions.
+		props: node.props.clone()
 		line: node.line
 		path: node.path
 	}

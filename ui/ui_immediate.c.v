@@ -3207,7 +3207,11 @@ fn page_focused_text_area(direction int) {
 				shaped := ctx.shape_runs(el.text_runs, el.text_style, math.max(0, el.frame.width), math.max(1, el.text_style.lines), true) or { eprintln('ui2: rich label: ${err}'); return false }
 				inside := if clip.width > 0 && clip.height > 0 { intersect_rect(rect(x, y, el.frame.width, el.frame.height), clip) } else { rect(x, y, el.frame.width, el.frame.height) }
 				if inside.width <= 0 || inside.height <= 0 { return false }
+				// Culling whole runs is insufficient for partial glyphs and baseline
+				// rises: install the label's physical scissor as well.
+				apply_clip(ctx, inside)
 				ctx.draw_shaped_clipped(shaped, x, text_block_top(y, el.frame.height, shaped.size.height, el.text_style.valign), inside)
+				apply_clip(ctx, clip)
 				return shaped.truncated || shaped.size.height > el.frame.height
 			}
 		}
