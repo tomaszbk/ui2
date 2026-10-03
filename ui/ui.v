@@ -291,6 +291,11 @@ pub:
 	superscript   bool
 }
 
+pub enum BorderPattern {
+	solid
+	dashed
+}
+
 pub struct BoxStyle {
 pub:
 	bg            u32 = 0xffffff
@@ -301,6 +306,13 @@ pub:
 	border_top    f64
 	border_right  f64
 	border_bottom f64
+	border_left_color ?u32
+	border_top_color ?u32
+	border_right_color ?u32
+	border_bottom_color ?u32
+	border_pattern BorderPattern
+	dash_length f64 = 6
+	dash_gap f64 = 4
 }
 
 // box_draws_fill is shared by native and custom renderers so every element
@@ -351,6 +363,7 @@ pub:
 	placeholder           string
 	frame                 Rect
 	box                   BoxStyle
+	interaction_style     InteractionStyle // custom renderer: sparse visual state overrides
 	text_style            TextStyle
 	native_style          bool // button: let the platform own bezel and interaction styling
 	// Transient state supplied by split-process backends so their renderer can

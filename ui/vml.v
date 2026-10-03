@@ -805,6 +805,7 @@ fn node_to_element(node &VNode, frame Rect) !Element {
 		accessibility_role:  node.prop_or('accessibility_role', el.accessibility_role)
 		accessibility_label: node.prop_or('accessibility_label', el.accessibility_label)
 		accessibility_value: node.prop_or('accessibility_value', el.accessibility_value)
+		interaction_style:   v_interaction_style(node)
 		native_style:        node.prop_bool('native')
 		autocorrect:         node.prop('autocorrect') != 'false'
 		padding_left:        node.prop_or('pad_left', el.padding_left.str()).f64()
@@ -1856,6 +1857,65 @@ fn v_box(node &VNode) BoxStyle {
 		border_top:    node.prop_or('border_top', border_width).f64()
 		border_right:  node.prop_or('border_right', border_width).f64()
 		border_bottom: node.prop_or('border_bottom', border_width).f64()
+		border_left_color: v_optional_color(node, 'border_left_color')
+		border_top_color: v_optional_color(node, 'border_top_color')
+		border_right_color: v_optional_color(node, 'border_right_color')
+		border_bottom_color: v_optional_color(node, 'border_bottom_color')
+		border_pattern: if node.prop('border_pattern') == 'dashed' { .dashed } else { .solid }
+		dash_length: node.prop_or('dash_length', '6').f64()
+		dash_gap: node.prop_or('dash_gap', '4').f64()
+	}
+}
+
+fn v_optional_color(node &VNode, key string) ?u32 {
+	if node.prop(key).len == 0 { return none }
+	return v_color(node, key, 0)
+}
+
+fn v_optional_number(node &VNode, key string) ?f64 {
+	if node.prop(key).len == 0 { return none }
+	return node.prop(key).f64()
+}
+
+fn v_optional_number_or(node &VNode, key string, fallback ?f64) ?f64 {
+	if value := v_optional_number(node, key) { return value }
+	return fallback
+}
+
+fn v_optional_bool(node &VNode, key string) ?bool {
+	if node.prop(key).len == 0 { return none }
+	return node.prop_bool(key)
+}
+
+fn v_box_patch(node &VNode, prefix string) BoxStylePatch {
+	width := v_optional_number(node, prefix + 'border_width')
+	return BoxStylePatch{
+		bg: v_optional_color(node, prefix + 'background')
+		radius: v_optional_number(node, prefix + 'radius')
+		transparent: v_optional_bool(node, prefix + 'transparent')
+		border_color: v_optional_color(node, prefix + 'border_color')
+		border_left: v_optional_number_or(node, prefix + 'border_left', width)
+		border_top: v_optional_number_or(node, prefix + 'border_top', width)
+		border_right: v_optional_number_or(node, prefix + 'border_right', width)
+		border_bottom: v_optional_number_or(node, prefix + 'border_bottom', width)
+		border_left_color: v_optional_color(node, prefix + 'border_left_color')
+		border_top_color: v_optional_color(node, prefix + 'border_top_color')
+		border_right_color: v_optional_color(node, prefix + 'border_right_color')
+		border_bottom_color: v_optional_color(node, prefix + 'border_bottom_color')
+		border_pattern: if node.prop(prefix + 'border_pattern').len > 0 {
+			?BorderPattern(if node.prop(prefix + 'border_pattern') == 'dashed' { .dashed } else { .solid })
+		} else { none }
+		dash_length: v_optional_number(node, prefix + 'dash_length')
+		dash_gap: v_optional_number(node, prefix + 'dash_gap')
+	}
+}
+
+fn v_interaction_style(node &VNode) InteractionStyle {
+	return InteractionStyle{
+		hover: v_box_patch(node, 'hover_')
+		focus: v_box_patch(node, 'focus_')
+		pressed: v_box_patch(node, 'pressed_')
+		disabled: v_box_patch(node, 'disabled_')
 	}
 }
 

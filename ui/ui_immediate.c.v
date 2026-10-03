@@ -2227,12 +2227,19 @@ fn page_focused_text_area(direction int) {
 
 	// ── Rendering ──────────────────────────────────────────────────────
 
-	fn render_element(ctx &DrawContext, el Element, off_x f64, off_y f64, clip Rect, scroll_parent_id string) {
-		if el.hidden {
+	fn render_element(ctx &DrawContext, declared_el Element, off_x f64, off_y f64, clip Rect, scroll_parent_id string) {
+		if declared_el.hidden {
 			return
 		}
 		apply_clip(ctx, clip)
-		area := element_area(ctx, el, off_x, off_y)
+		area := element_area(ctx, declared_el, off_x, off_y)
+		hovered := g_tooltip.pointer_in && box_contains_point(intersect_rect(area, clip), g_tooltip.pointer_x,
+			g_tooltip.pointer_y)
+		focused := declared_el.focused || (declared_el.id.len > 0 && declared_el.id == g_focused_field)
+		style_pressed := g_touch.down && declared_el.id.len > 0
+			&& declared_el.id == g_touch.pointer_target.id && !g_touch.moved
+			&& box_contains_point(intersect_rect(area, clip), g_touch.current_x, g_touch.current_y)
+		el := Element{...declared_el, box: interaction_box(declared_el, hovered, focused, style_pressed)}
 		// A declared tooltip covers the element's whole area and is registered
 		// before its children, so a child with hover text of its own wins over
 		// it where they overlap. A surface only has anything to hide once some
@@ -3082,21 +3089,10 @@ fn page_focused_text_area(direction int) {
 	}
 
 	fn draw_box_borders(ctx &DrawContext, x f64, y f64, w f64, h f64, box BoxStyle) {
-		left := box_border_width(box.border_left, w)
-		top := box_border_width(box.border_top, h)
-		right := box_border_width(box.border_right, w)
-		bottom := box_border_width(box.border_bottom, h)
-		if left > 0 {
-			draw_rect(ctx, x, y, left, h, box.border_color, 0)
-		}
-		if top > 0 {
-			draw_rect(ctx, x, y, w, top, box.border_color, 0)
-		}
-		if right > 0 {
-			draw_rect(ctx, x + w - right, y, right, h, box.border_color, 0)
-		}
-		if bottom > 0 {
-			draw_rect(ctx, x, y + h - bottom, w, bottom, box.border_color, 0)
+		for triangle in box_border_triangles(rect(x, y, w, h), box) {
+			ctx.draw_triangle_filled(f32(triangle.a.x), f32(triangle.a.y),
+				f32(triangle.b.x), f32(triangle.b.y), f32(triangle.c.x), f32(triangle.c.y),
+				hex_color(triangle.color))
 		}
 	}
 
