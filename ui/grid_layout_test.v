@@ -312,3 +312,15 @@ fn test_grid_preferred_size_respects_forced_tracks_and_minimums() {
 	}, [rect(0, 0, 200, 100), rect(0, 0, 200, 100), rect(0, 0, 200, 100)]) or { panic(err) }
 	assert preferred == rect(0, 0, 140, 55)
 }
+
+fn test_automatic_grid_preserves_fractional_capacity_and_edges() {
+	frames := grid_layout_frames(GridLayoutConfig{ frame: rect(0, 0, 100.5, 20.5), auto_columns_min_width: 50.25 }, 2)!
+	assert frames == [rect(0, 0, 50.25, 20.5), rect(50.25, 0, 50.25, 20.5)]
+	tiny := grid_layout_frames(GridLayoutConfig{ frame: rect(0, 0, 0.75, 0.5), auto_columns_min_width: 0.1, spacing: GridSpacing{ horizontal: 0.5 } }, 2)!
+	assert tiny == [rect(0, 0, 0.125, 0.5), rect(0.625, 0, 0.125, 0.5)]
+}
+
+fn test_grid_intrinsic_spans_keep_fractional_content_size() {
+	preferred := grid_layout_preferred_size(GridLayoutConfig{ columns: 2, child_spans: [GridSpan{ column_span: 2 }] }, [rect(0, 0, 3.5, 2.25)])!
+	assert preferred == rect(0, 0, 3.5, 2.25)
+}
