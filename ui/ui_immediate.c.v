@@ -5,7 +5,6 @@
 module ui2
 
 $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
-	import fontstash
 	import gg
 	import math
 	import os
@@ -195,14 +194,16 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	__global g_active_toggles = map[string]bool{}
 	__global g_active_scrolls = map[string]bool{}
 	__global g_image_ids = map[string]int{}
-	__global g_font_metrics = FontMetrics{}
-	__global g_font_files = map[string]string{}
-	__global g_font_indexed = false
-	__global g_font_family_files = map[string]string{}
-	__global g_font_family_metrics = map[string]FontMetrics{}
-	__global g_font_symbol_ids = []int{}
-	__global g_font_symbol_bases = map[int]bool{}
-	__global g_font_symbol_fons = voidptr(unsafe { nil })
+	$if android {
+		__global g_font_metrics = FontMetrics{}
+		__global g_font_files = map[string]string{}
+		__global g_font_indexed = false
+		__global g_font_family_files = map[string]string{}
+		__global g_font_family_metrics = map[string]FontMetrics{}
+		__global g_font_symbol_ids = []int{}
+		__global g_font_symbol_bases = map[int]bool{}
+		__global g_font_symbol_fons = voidptr(unsafe { nil })
+	}
 	__global g_active_images = map[string]bool{}
 	__global g_open_dropdown = ''
 	__global g_dropdown_popup = DropdownPopup{}
@@ -270,6 +271,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		g_text_props.delete(id)
 		g_text_editors.delete(id)
 		g_text_kinds.delete(id)
+		forget_text_area_layout(id)
 	}
 
 	// ── Public API ─────────────────────────────────────────────────────
@@ -323,12 +325,12 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		g_event_handler = event_fn
 		configure_animation_driver(request_refresh, false)
 		publish_menu_context(event_fn, title, unsafe { nil })
-		// Choosing the font here rather than letting gg ask `fc-match` for one
-		// keeps the window legible and identical across distributions, and
-		// gives draw_text the metrics it needs to size text in points.
+		// Pick the bundled font before constructing either drawing adapter.
 		font_regular, font_bold := font_paths()
-		if font_regular.len > 0 {
-			g_font_metrics = font_file_metrics(font_regular) or { FontMetrics{} }
+		$if android {
+			if font_regular.len > 0 {
+				g_font_metrics = font_file_metrics(font_regular) or { FontMetrics{} }
+			}
 		}
 		g_gg_app.ctx = gg_draw_context(gg.new_context(
 			bg_color: hex_color(0xf4f6f8)
@@ -709,7 +711,12 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	fn on_cleanup(app &GgApp) {
 		app.scheduler.close()
 		mut state := unsafe { app }
+		if state.ctx != unsafe { nil } {
+			mut ctx := state.ctx
+			ctx.destroy()
+		}
 		state.ctx = unsafe { nil }
+		clear_text_area_layouts()
 		state.declared_root = Element{}
 		state.has_root = false
 		state.editable_fields.clear()
@@ -782,7 +789,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		now := renderer_now_ms()
 		work := app.scheduler.begin_frame(now) or { return }
 		defer { app.scheduler.finish_frame(work) }
-		ensure_symbol_fallbacks(ctx)
+		$if android { ensure_symbol_fallbacks(ctx) }
 		if work.build && voidptr(g_build_screen) != unsafe { nil } {
 			app.scheduler.record_build()
 			declared := g_build_screen()
@@ -847,11 +854,9 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			}
 		}
 		check_long_press()
-		// gg.begin flushes the PREVIOUS atlas. New glyphs (including tooltip
-		// sizes and worker text) must be uploaded before this frame's sgl draw.
-		// Flushing here also leaves the next gg.begin with no pending upload.
-		if ctx.font_inited {
-			ctx.ft.flush()
+		$if android {
+			// Android's legacy gg atlas uploads glyphs introduced by this frame.
+			if ctx.font_inited { ctx.ft.flush() }
 		}
 		ctx.end()
 		app.scheduler.record_draw()
@@ -1985,23 +1990,6 @@ fn page_focused_text_area(direction int) {
 		g_tooltip.update(target, blocked, now)
 	}
 
-	// tooltip_lines wraps tooltip text to a readable measure and reports the
-	// width of the widest line, so short help gets a snug bubble. The line cap
-	// keeps a long string from filling the window; its last line carries the
-	// rest and is shortened when drawn.
-	fn tooltip_lines(text string, measure fn (string) f64) ([]string, f64) {
-		lines := wrap_text_lines_measured(text.trim_right(' \t\r\n'), tooltip_max_text_width,
-			tooltip_max_lines, measure)
-		mut widest := 0.0
-		for line in lines {
-			width := measure(line)
-			if width > widest {
-				widest = width
-			}
-		}
-		return lines, math.min(math.ceil(widest), tooltip_max_text_width)
-	}
-
 	// tooltip_frame puts a tooltip below and to the right of the pointer, clear
 	// of the cursor, and keeps it inside the window: it is pushed in from the
 	// right edge, and opens above the pointer when there is no room below.
@@ -2034,33 +2022,53 @@ fn page_focused_text_area(direction int) {
 			size: tooltip_text_size
 			align: .left
 		}
-		// Measured with the configuration draw_text_in_box draws with, so no
-		// line that fits here is shortened when it is drawn.
-		ctx.set_text_cfg(gg.TextCfg{
-			size: int(font_render_size(style.size, text_font_metrics('')) + 0.5)
-			align: .left
-			vertical_align: .middle
-		})
-		lines, text_width := tooltip_lines(g_tooltip.text, fn [ctx] (line string) f64 {
-			return f64(ctx.text_width_f(line))
-		})
-		if lines.len == 0 {
-			return
-		}
-		line_h := font_line_height(style.size)
-		window := rect(0, 0, f64(ctx.width), f64(ctx.height))
-		frame := tooltip_frame(g_tooltip.anchor_x, g_tooltip.anchor_y,
-			text_width + tooltip_padding * 2, f64(lines.len) * line_h + tooltip_padding * 2, window)
-		apply_clip(ctx, window)
-		draw_rect(ctx, frame.x + 1, frame.y + 2, frame.width, frame.height, tooltip_shadow,
-			tooltip_radius)
-		draw_rect(ctx, frame.x, frame.y, frame.width, frame.height, tooltip_background,
-			tooltip_radius)
-		draw_outline(ctx, frame.x, frame.y, frame.width, frame.height, tooltip_border,
-			tooltip_radius)
-		for i, line in lines {
-			draw_text_in_box(ctx, line, frame.x + tooltip_padding,
-				frame.y + tooltip_padding + f64(i) * line_h, text_width, line_h, style, true, Rect{})
+		$if android {
+			// Measured with the configuration draw_text_in_box draws with, so no
+			// line that fits here is shortened when it is drawn.
+			ctx.set_text_cfg(gg.TextCfg{
+				size: int(font_render_size(style.size, text_font_metrics('')) + 0.5)
+				align: .left
+				vertical_align: .middle
+			})
+			lines, text_width := tooltip_lines(g_tooltip.text, fn [ctx] (line string) f64 {
+				return f64(ctx.text_width_f(line))
+			})
+			if lines.len == 0 {
+				return
+			}
+			line_h := font_line_height(style.size)
+			window := rect(0, 0, f64(ctx.width), f64(ctx.height))
+			frame := tooltip_frame(g_tooltip.anchor_x, g_tooltip.anchor_y,
+				text_width + tooltip_padding * 2, f64(lines.len) * line_h + tooltip_padding * 2, window)
+			apply_clip(ctx, window)
+			draw_rect(ctx, frame.x + 1, frame.y + 2, frame.width, frame.height, tooltip_shadow,
+				tooltip_radius)
+			draw_rect(ctx, frame.x, frame.y, frame.width, frame.height, tooltip_background,
+				tooltip_radius)
+			draw_outline(ctx, frame.x, frame.y, frame.width, frame.height, tooltip_border,
+				tooltip_radius)
+			for i, line in lines {
+				draw_text_in_box(ctx, line, frame.x + tooltip_padding,
+					frame.y + tooltip_padding + f64(i) * line_h, text_width, line_h, style, true, Rect{})
+			}
+		} $else {
+			shaped := ctx.shape_text(g_tooltip.text.trim_right(' \t\r\n'), style,
+				tooltip_max_text_width, tooltip_max_lines, true) or {
+				eprintln('ui2: tooltip text: ${err}')
+				return
+			}
+			text_width := math.min(math.ceil(shaped.size.width), tooltip_max_text_width)
+			window := rect(0, 0, f64(ctx.width), f64(ctx.height))
+			frame := tooltip_frame(g_tooltip.anchor_x, g_tooltip.anchor_y,
+				text_width + tooltip_padding * 2, shaped.size.height + tooltip_padding * 2, window)
+			apply_clip(ctx, window)
+			draw_rect(ctx, frame.x + 1, frame.y + 2, frame.width, frame.height, tooltip_shadow,
+				tooltip_radius)
+			draw_rect(ctx, frame.x, frame.y, frame.width, frame.height, tooltip_background,
+				tooltip_radius)
+			draw_outline(ctx, frame.x, frame.y, frame.width, frame.height, tooltip_border,
+				tooltip_radius)
+			ctx.draw_shaped(shaped, frame.x + tooltip_padding, frame.y + tooltip_padding)
 		}
 	}
 
@@ -2133,7 +2141,7 @@ fn page_focused_text_area(direction int) {
 		}
 		for id in g_text_area_layouts.keys() {
 			if id !in g_active_fields || (g_text_kinds[id] or { Kind.screen }) != .text_area {
-				g_text_area_layouts.delete(id)
+				forget_text_area_layout(id)
 			}
 		}
 		mut stale_images := []string{}
@@ -2502,40 +2510,45 @@ fn page_focused_text_area(direction int) {
 					el.frame.width, el.frame.height), padding_left), clip)
 				if content_clip.width > 0 && content_clip.height > 0 {
 					apply_clip(ctx, content_clip)
-					if is_focused && !editor.selection.collapsed() {
-						draw_text_field_selection(ctx, display_text, editor.selection, x + padding_left,
-							y, content_width, el.frame.height, el.text_style)
-					}
-					if editor.text.len > 0 {
-						draw_editable_text(ctx, display_text, x + padding_left, y, content_width, el.frame.height, el.text_style)
-					} else if el.placeholder.len > 0 {
-						placeholder_style := TextStyle{
-							...el.text_style
-							color: 0x999999
+					$if android {
+						if is_focused && !editor.selection.collapsed() {
+							draw_text_field_selection(ctx, display_text, editor.selection, x + padding_left,
+								y, content_width, el.frame.height, el.text_style)
 						}
-						draw_editable_text(ctx, el.placeholder, x + padding_left, y, content_width, el.frame.height, placeholder_style)
-					}
-					if is_focused {
-						before := editor.text.runes()[..editor.selection.caret].string()
-						caret_text := text_field_display_text(before, el.secure)
-						text_w := f64(ctx.text_width(caret_text))
-						text_origin := text_field_aligned_text_origin(x + padding_left, content_width,
-							f64(ctx.text_width(display_text)), el.text_style.align)
-						cursor_x := text_origin + text_w
-						cursor_y := y + el.frame.height * 0.2
-						cursor_h := el.frame.height * 0.6
-						draw_rect(ctx, cursor_x, cursor_y, 2, cursor_h, el.text_style.color, 0)
-						g_gg_app.text_caret = rect(cursor_x, cursor_y, 2, cursor_h)
-						$if macos && ui2_embedder ? {
-							composition := g_gg_app.composition
-							if composition.field_id == el.id {
-								marked_start := text_field_display_text(editor.text.runes()[..composition.start + composition.mark_start].string(), el.secure)
-								marked_end := text_field_display_text(editor.text.runes()[..composition.start + composition.mark_start + composition.mark_length].string(), el.secure)
-								left := text_origin + f64(ctx.text_width(marked_start))
-								right := text_origin + f64(ctx.text_width(marked_end))
-								draw_rect(ctx, left, cursor_y + cursor_h, right - left, 1, el.text_style.color, 0)
+						if editor.text.len > 0 {
+							draw_editable_text(ctx, display_text, x + padding_left, y, content_width, el.frame.height, el.text_style)
+						} else if el.placeholder.len > 0 {
+							placeholder_style := TextStyle{
+								...el.text_style
+								color: 0x999999
+							}
+							draw_editable_text(ctx, el.placeholder, x + padding_left, y, content_width, el.frame.height, placeholder_style)
+						}
+						if is_focused {
+							before := editor.text.runes()[..editor.selection.caret].string()
+							caret_text := text_field_display_text(before, el.secure)
+							text_w := f64(ctx.text_width(caret_text))
+							text_origin := text_field_aligned_text_origin(x + padding_left, content_width,
+								f64(ctx.text_width(display_text)), el.text_style.align)
+							cursor_x := text_origin + text_w
+							cursor_y := y + el.frame.height * 0.2
+							cursor_h := el.frame.height * 0.6
+							draw_rect(ctx, cursor_x, cursor_y, 2, cursor_h, el.text_style.color, 0)
+							g_gg_app.text_caret = rect(cursor_x, cursor_y, 2, cursor_h)
+							$if macos && ui2_embedder ? {
+								composition := g_gg_app.composition
+								if composition.field_id == el.id {
+									marked_start := text_field_display_text(editor.text.runes()[..composition.start + composition.mark_start].string(), el.secure)
+									marked_end := text_field_display_text(editor.text.runes()[..composition.start + composition.mark_start + composition.mark_length].string(), el.secure)
+									left := text_origin + f64(ctx.text_width(marked_start))
+									right := text_origin + f64(ctx.text_width(marked_end))
+									draw_rect(ctx, left, cursor_y + cursor_h, right - left, 1, el.text_style.color, 0)
+								}
 							}
 						}
+					} $else {
+						draw_shaped_text_field(ctx, el, editor, display_text, x + padding_left,
+							y, content_width, el.frame.height, is_focused)
 					}
 					apply_clip(ctx, clip)
 				}
@@ -3106,186 +3119,6 @@ fn page_focused_text_area(direction int) {
 		draw_rect(ctx, bar.thumb.x, bar.thumb.y, bar.thumb.width, bar.thumb.height, 0xcbd5e1, 2.5)
 	}
 
-	// text_font_file resolves a declared family to the file fontstash has to
-	// load. gg reads TextCfg.family as a path and, when it cannot read one,
-	// returns without touching the font state at all, leaving the string drawn
-	// in whatever the previous element used. An unknown family therefore has to
-	// come back empty so the default font is used instead.
-	fn text_font_file(family string, bold bool, italic bool) string {
-		if family.len == 0 {
-			return ''
-		}
-		key := '${family}:${bold}:${italic}'
-		if path := g_font_family_files[key] {
-			return path
-		}
-		mut path := ''
-		if os.is_file(family) {
-			path = family
-		} else {
-			if !g_font_indexed {
-				mut dirs := font_bundle_dirs()
-				dirs << font_system_dirs()
-				g_font_files = font_index(dirs)
-				g_font_indexed = true
-			}
-			path = font_lookup(g_font_files, family, bold, italic)
-			if path.len == 0 && (bold || italic) {
-				// A family with no bold or italic file of its own still reads
-				// better in its regular weight than in the default font.
-				path = font_lookup(g_font_files, family, false, false)
-			}
-			if path.len == 0 && font_is_mono_family(family) {
-				// Falling back to the proportional default would break the
-				// column alignment the element asked for in the first place.
-				path = font_mono_path(g_font_files, family, bold, italic)
-			}
-		}
-		g_font_family_files[key] = path
-		return path
-	}
-
-	// ensure_symbol_fallbacks hands fontstash the faces to look in when the font
-	// a string is drawn in has no outline for one of its code points. fontstash
-	// walks a font's fallback list whenever a glyph lookup lands on index 0 —
-	// the empty box, or tofu — and rasterizes the first face that does have the
-	// code point, so a label mixing letters and symbols is still drawn in one
-	// pass and measured exactly the way it is drawn.
-	//
-	// The ids belong to the fontstash context gg loaded its fonts into. Sokol
-	// builds a new one whenever the window is recreated, on an Android resume
-	// among others, so the loaded faces are tracked against the context they
-	// came from rather than behind a flag that a new context would not clear.
-	fn ensure_symbol_fallbacks(ctx &DrawContext) {
-		if !ctx.font_inited || ctx.ft == unsafe { nil } || ctx.ft.fons == unsafe { nil } {
-			return
-		}
-		fons := ctx.ft.fons
-		if g_font_symbol_fons != voidptr(fons) {
-			g_font_symbol_fons = voidptr(fons)
-			g_text_area_layouts = map[string]TextAreaLayout{}
-			g_font_symbol_ids = []int{}
-			g_font_symbol_bases = map[int]bool{}
-			for path in font_symbol_paths() {
-				bytes := os.read_bytes(path) or { continue }
-				id := fons.add_font_mem(path, bytes, true)
-				if id != fontstash.invalid {
-					g_font_symbol_ids << id
-				}
-			}
-		}
-		for base in [ctx.ft.font_normal, ctx.ft.font_bold, ctx.ft.font_mono, ctx.ft.font_italic] {
-			add_symbol_fallbacks(fons, base)
-		}
-	}
-
-	// add_symbol_fallbacks attaches the chain to one font, once. fontstash gives
-	// a font a fixed number of fallback slots and appends to them blindly, so
-	// registering the same face twice would spend them for nothing.
-	fn add_symbol_fallbacks(fons &fontstash.Context, base int) {
-		if base == fontstash.invalid || g_font_symbol_ids.len == 0 || base in g_font_symbol_bases {
-			return
-		}
-		g_font_symbol_bases[base] = true
-		for id in g_font_symbol_ids {
-			if id != base {
-				fons.add_fallback_font(base, id)
-			}
-		}
-	}
-
-	// ensure_family_fallbacks gives a face named by TextStyle.font_family the
-	// same chain. gg loads such a file itself, on the first draw that asks for
-	// it, and keeps the id in a map of its own; loading it here first puts the
-	// id in that map before any glyph is rasterized from it, which is the only
-	// moment the fallbacks can still be attached.
-	fn ensure_family_fallbacks(ctx &DrawContext, path string) {
-		if path.len == 0 || g_font_symbol_ids.len == 0 || !ctx.font_inited {
-			return
-		}
-		mut id := ctx.ft.fonts_map[path]
-		if id == 0 {
-			bytes := os.read_bytes(path) or { return }
-			id = ctx.ft.fons.add_font_mem(path, bytes, true)
-			if id == fontstash.invalid {
-				return
-			}
-			unsafe {
-				ctx.ft.fonts_map[path] = id
-			}
-		}
-		add_symbol_fallbacks(ctx.ft.fons, id)
-	}
-
-	// text_font_metrics reports the metrics to size a string with: the chosen
-	// family's own, or the window font's when the element declared none.
-	fn text_font_metrics(path string) FontMetrics {
-		if path.len == 0 {
-			return g_font_metrics
-		}
-		if metrics := g_font_family_metrics[path] {
-			return metrics
-		}
-		metrics := font_file_metrics(path) or { g_font_metrics }
-		g_font_family_metrics[path] = metrics
-		return metrics
-	}
-
-	fn text_align(a Align) gg.HorizontalAlign {
-		return match a {
-			.left { .left }
-			.center { .center }
-			.right { .right }
-		}
-	}
-
-	// text_ellipsis marks a line the renderer had to shorten. AppKit's cells
-	// truncate with this glyph too, and the bundled Roboto always has it.
-	const text_ellipsis = '\u2026'
-
-	// fit_text shortens a line that is wider than the box it was given. Both
-	// native backends hand their labels NSLineBreakByTruncatingTail, so a long
-	// string ends in an ellipsis there; the immediate renderer draws straight
-	// into the window and would otherwise run the tail over its neighbours and
-	// off the window edge.
-	// Break text into the lines a multi-line label draws: on its own newlines, and on
-	// spaces wherever a line would outgrow the width. A word wider than the line is
-	// left whole and truncated when it is drawn, rather than split mid-word.
-	fn wrap_text_lines(ctx &DrawContext, t string, w f64, limit int, cfg gg.TextCfg) []string {
-		if limit <= 1 || w <= 0 {
-			return t.split('\n')
-		}
-		ctx.set_text_cfg(cfg)
-		return wrap_text_lines_measured(t, w, limit, fn [ctx] (line string) f64 {
-			return f64(ctx.text_width_f(line))
-		})
-	}
-
-	fn fit_text(ctx &DrawContext, t string, w f64, cfg gg.TextCfg) string {
-		if w <= 0 {
-			return t
-		}
-		ctx.set_text_cfg(cfg)
-		if f64(ctx.text_width_f(t)) <= w {
-			return t
-		}
-		runes := t.runes()
-		// The longest head that still fits, found by halving rather than by
-		// dropping one rune at a time, so a long line costs a handful of
-		// measurements instead of one per character.
-		mut kept := 0
-		mut high := runes.len
-		for kept < high {
-			mid := (kept + high + 1) / 2
-			if f64(ctx.text_width_f(runes[..mid].string() + text_ellipsis)) <= w {
-				kept = mid
-			} else {
-				high = mid - 1
-			}
-		}
-		return runes[..kept].string() + text_ellipsis
-	}
-
 	// draw_text draws text that belongs to a box, shortening it when it does
 	// not fit, and reports whether it had to. A control draws its text down the
 	// middle of the box whatever the style says, because a label is the only
@@ -3303,13 +3136,6 @@ fn page_focused_text_area(direction int) {
 		return draw_text_in_box(ctx, t, x, y, w, h, style, true, clip)
 	}
 
-	// draw_editable_text draws the text of a field the caller can type in.
-	// Those controls place the caret by measuring the whole string, so a
-	// shortened line would leave the caret sitting past the end of it.
-	fn draw_editable_text(ctx &DrawContext, t string, x f64, y f64, w f64, h f64, style TextStyle) {
-		draw_text_in_box(ctx, t, x, y, w, h, centered_text_style(style), false, Rect{})
-	}
-
 	// A style that draws down the middle of its box. The caret and the selection
 	// of an editable field are measured from the middle, so its text has to be
 	// drawn there too.
@@ -3320,37 +3146,60 @@ fn page_focused_text_area(direction int) {
 		}
 	}
 
-	// draw_text_field_selection paints the selected rune range before its text.
-	// The range is derived from the rendered string so secure fields highlight
-	// their bullet characters instead of leaking the underlying value.
-	fn draw_text_field_selection(ctx &DrawContext, display_text string, selection TextSelection, x f64, y f64, w f64, h f64, style TextStyle) {
-		before, selected := text_field_selection_text(display_text, selection)
-		if selected.len == 0 || w <= 0 {
-			return
-		}
-		family := text_font_file(style.font_family, style.bold, style.italic)
-		ensure_family_fallbacks(ctx, family)
-		ctx.set_text_cfg(gg.TextCfg{
-			color: hex_color(style.color)
-			size: int(font_render_size(style.size, text_font_metrics(family)) + 0.5)
-			bold: style.bold
-			italic: style.italic
-			family: family
-			align: text_align(style.align)
-			vertical_align: .middle
-		})
-		text_width := f64(ctx.text_width(display_text))
-		text_origin := text_field_aligned_text_origin(x, w, text_width, style.align)
-		mut left := text_origin + f64(ctx.text_width(before))
-		mut right := left + f64(ctx.text_width(selected))
-		if left < x {
-			left = x
-		}
-		if right > x + w {
-			right = x + w
-		}
-		if right > left {
-			draw_rect(ctx, left, y + h * 0.2, right - left, h * 0.6, 0xb8d7ff, 0)
+	$if !android {
+		// Keep the editor's rune offsets while obtaining all painted geometry from
+		// the same full shaped line, including ligatures and mixed direction runs.
+		fn draw_shaped_text_field(ctx &DrawContext, el Element, editor TextEditor, display_text string,
+			x f64, y f64, w f64, h f64, focused bool) {
+			shown := if editor.text.len > 0 { display_text } else { el.placeholder }
+			style := TextStyle{
+				...el.text_style
+				align: .left
+				color: if editor.text.len > 0 { el.text_style.color } else { u32(0x999999) }
+			}
+			shaped := ctx.shape_text(shown, style, -1, 1, false) or {
+				eprintln('ui2: text field `${el.id}`: ${err}')
+				return
+			}
+			origin := text_field_aligned_text_origin(x, w, shaped.size.width, el.text_style.align)
+			top := text_block_top(y, h, shaped.size.height, .middle)
+			if focused && editor.text.len > 0 && !editor.selection.collapsed() {
+				start, end := editor.selection.ordered()
+				for selected in shaped.selection(start, end) {
+					draw_rect(ctx, origin + selected.x, top + selected.y, selected.width,
+						selected.height, 0xb8d7ff, 0)
+				}
+			}
+			ctx.draw_shaped(shaped, origin, top)
+			if !focused { return }
+			// A placeholder is painted text, but the editor caret still addresses
+			// its empty value and follows that value's horizontal alignment.
+			mut caret_shape := shaped
+			mut caret_origin := origin
+			mut caret_top := top
+			if editor.text.len == 0 {
+				caret_shape = ctx.shape_text('', style, -1, 1, false) or {
+					eprintln('ui2: text field caret `${el.id}`: ${err}')
+					return
+				}
+				caret_origin = text_field_aligned_text_origin(x, w, caret_shape.size.width, el.text_style.align)
+				caret_top = text_block_top(y, h, caret_shape.size.height, .middle)
+			}
+			cursor := caret_shape.cursor(editor.selection.caret)
+			cursor_h := if cursor.height > 0 { cursor.height } else { font_line_height(el.text_style.size) }
+			caret := rect(caret_origin + cursor.x, caret_top + cursor.y, 2, cursor_h)
+			draw_rect(ctx, caret.x, caret.y, caret.width, caret.height, el.text_style.color, 0)
+			g_gg_app.text_caret = caret
+			$if macos && ui2_embedder ? {
+				composition := g_gg_app.composition
+				if composition.field_id == el.id {
+					start := composition.start + composition.mark_start
+					for marked in shaped.selection(start, start + composition.mark_length) {
+						draw_rect(ctx, origin + marked.x, top + marked.y + marked.height - 1,
+							marked.width, 1, el.text_style.color, 0)
+					}
+				}
+			}
 		}
 	}
 
@@ -3360,14 +3209,6 @@ fn page_focused_text_area(direction int) {
 			.center { x + (w - text_width) / 2 }
 			.right { x + w - text_width }
 		}
-	}
-
-	fn text_field_selection_text(display_text string, selection TextSelection) (string, string) {
-		runes := display_text.runes()
-		start, end := selection.ordered()
-		from := clamp_int(start, 0, runes.len)
-		to := clamp_int(end, from, runes.len)
-		return runes[..from].string(), runes[from..to].string()
 	}
 
 	// clip is the region the caller is drawn under, and is what a block of text too
@@ -3381,63 +3222,84 @@ fn page_focused_text_area(direction int) {
 		if t.len == 0 {
 			return false
 		}
-		text_x := match style.align {
-			.left { int(x) }
-			.center { int(x + w / 2) }
-			.right { int(x + w) }
-		}
-		family := text_font_file(style.font_family, style.bold, style.italic)
-		ensure_family_fallbacks(ctx, family)
-		cfg := gg.TextCfg{
-			color: hex_color(style.color)
-			size: int(font_render_size(style.size, text_font_metrics(family)) + 0.5)
-			bold: style.bold
-			italic: style.italic
-			family: family
-			align: text_align(style.align)
-			vertical_align: .middle
-		}
-		line_h := font_line_height(style.size)
-		parts := if style.lines > 1 {
-			wrap_text_lines(ctx, t, w, style.lines, cfg)
-		} else {
-			[t]
-		}
-		block_h := f64(parts.len) * line_h
-		// A block with more lines than its box has room for is anchored at the top of
-		// the box and would run on out of the bottom of it, over whatever is drawn
-		// below. A native control draws only inside itself, so the lines that do not
-		// fit are cut off at the box rather than drawn past it.
-		bounded := block_h > h && clip.width > 0 && clip.height > 0
-		if bounded {
-			inside := intersect_rect(Rect{
-				x:      x
-				y:      y
-				width:  w
-				height: h
-			}, clip)
-			if inside.width <= 0 || inside.height <= 0 {
+		$if android {
+			text_x := match style.align {
+				.left { int(x) }
+				.center { int(x + w / 2) }
+				.right { int(x + w) }
+			}
+			family := text_font_file(style.font_family, style.bold, style.italic)
+			ensure_family_fallbacks(ctx, family)
+			cfg := gg.TextCfg{
+				color: hex_color(style.color)
+				size: int(font_render_size(style.size, text_font_metrics(family)) + 0.5)
+				bold: style.bold
+				italic: style.italic
+				family: family
+				align: text_align(style.align)
+				vertical_align: .middle
+			}
+			line_h := font_line_height(style.size)
+			parts := if style.lines > 1 {
+				wrap_text_lines(ctx, t, w, style.lines, cfg)
+			} else {
+				[t]
+			}
+			block_h := f64(parts.len) * line_h
+			// A block with more lines than its box has room for is anchored at the top of
+			// the box and would run on out of the bottom of it, over whatever is drawn
+			// below. A native control draws only inside itself, so the lines that do not
+			// fit are cut off at the box rather than drawn past it.
+			bounded := block_h > h && clip.width > 0 && clip.height > 0
+			if bounded {
+				inside := intersect_rect(Rect{
+					x:      x
+					y:      y
+					width:  w
+					height: h
+				}, clip)
+				if inside.width <= 0 || inside.height <= 0 {
+					return false
+				}
+				apply_clip(ctx, inside)
+			}
+			// The text block is as tall as the lines it ended up with, and valign says
+			// where that block sits in a frame with room to spare. draw_text is given the
+			// centre of each line because the config centres a line on its baseline box.
+			start_y := text_block_top(y, h, block_h, style.valign) + line_h / 2
+			mut shortened := false
+			for i, part in parts {
+				line_y := start_y + f64(i) * line_h
+				line := if fit { fit_text(ctx, part, w, cfg) } else { part }
+				if line != part || (bounded && line_y > y + h) {
+					shortened = true
+				}
+				ctx.draw_text(int(text_x), int(line_y), line, cfg)
+			}
+			if bounded {
+				apply_clip(ctx, clip)
+			}
+			return shortened
+		} $else {
+			// A shaped block supplies both its geometry and the glyphs painted here.
+			// Editors pass an unbounded width so their value is clipped, not ellipsized.
+			width := if fit || style.lines > 1 { math.max(0, w) } else { -1.0 }
+			shaped := ctx.shape_text(t, style, width, if style.lines > 1 { style.lines } else { 1 }, fit) or {
+				eprintln('ui2: text: ${err}')
 				return false
 			}
-			apply_clip(ctx, inside)
-		}
-		// The text block is as tall as the lines it ended up with, and valign says
-		// where that block sits in a frame with room to spare. draw_text is given the
-		// centre of each line because the config centres a line on its baseline box.
-		start_y := text_block_top(y, h, block_h, style.valign) + line_h / 2
-		mut shortened := false
-		for i, part in parts {
-			line_y := start_y + f64(i) * line_h
-			line := if fit { fit_text(ctx, part, w, cfg) } else { part }
-			if line != part || (bounded && line_y > y + h) {
-				shortened = true
+			block_h := shaped.size.height
+			bounded := block_h > h && clip.width > 0 && clip.height > 0
+			if bounded {
+				inside := intersect_rect(rect(x, y, w, h), clip)
+				if inside.width <= 0 || inside.height <= 0 { return false }
+				apply_clip(ctx, inside)
 			}
-			ctx.draw_text(int(text_x), int(line_y), line, cfg)
+			top := text_block_top(y, h, block_h, style.valign)
+			ctx.draw_shaped(shaped, x, top)
+			if bounded { apply_clip(ctx, clip) }
+			return shaped.truncated || (bounded && block_h > h)
 		}
-		if bounded {
-			apply_clip(ctx, clip)
-		}
-		return shortened
 	}
 
 	fn draw_text_centered(ctx &DrawContext, t string, x f64, y f64, w f64, h f64, style TextStyle) bool {

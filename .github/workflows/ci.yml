@@ -10,55 +10,43 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+env:
+  # The vglyph runtime is pinned in thirdparty/vglyph; its C dependencies are
+  # resolved by the host package manager and their versions are logged below.
+  TEXT_PKG_CONFIG_MODULES: pango pangoft2 freetype2 harfbuzz fribidi fontconfig gobject-2.0 glib-2.0
+
 jobs:
   build-examples:
     name: Build examples (${{ matrix.os }}${{ matrix.custom && ', custom renderer' || '' }})
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
         include:
           - os: ubuntu-latest
-            v_asset: v_linux.zip
+            c_compiler: gcc
+            compiler_flags: -cc gcc
+            tcc_revision: d6e7ac1b1bcc98aed734a6ecbfa8509f24606c74
           - os: macos-latest
-            v_asset: v_macos_arm64.zip
+            c_compiler: clang
+            compiler_flags: -cc clang
+            tcc_revision: 1d0ad0ecf70a91a1df64cebf215e683b1d5aedb5
           - os: windows-latest
-            v_asset: v_windows.zip
+            c_compiler: gcc
+            compiler_flags: -cc gcc
+            tcc_revision: dc80dc81dcb8df649456090348b504b0be97a623
           - os: macos-latest
-            v_asset: v_macos_arm64.zip
+            c_compiler: clang
+            compiler_flags: -cc clang
+            tcc_revision: 1d0ad0ecf70a91a1df64cebf215e683b1d5aedb5
             custom: true
           - os: windows-latest
-            v_asset: v_windows.zip
+            c_compiler: gcc
+            tcc_revision: dc80dc81dcb8df649456090348b504b0be97a623
             custom: true
+            compiler_flags: -cc gcc
     steps:
-      # setup-v builds source archives when the requested tree has no checked-in
-      # binary. V master currently fails that bootstrap on hosted runners, and
-      # the 0.5.2 source bootstrap can pick up an incompatible vc snapshot. Use
-      # the official 0.5.2 release binaries instead; 0.5.2 is ui2's documented
-      # minimum supported V version.
-      - name: Setup V
-        if: runner.os != 'Windows'
-        shell: bash
-        run: |
-          curl --fail --location --retry 3 \
-            --output "$RUNNER_TEMP/v.zip" \
-            "https://github.com/vlang/v/releases/download/0.5.2/${{ matrix.v_asset }}"
-          unzip -q "$RUNNER_TEMP/v.zip" -d "$RUNNER_TEMP"
-          echo "$RUNNER_TEMP/v" >> "$GITHUB_PATH"
-          "$RUNNER_TEMP/v/v" version
-
-      - name: Setup V
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $archive = Join-Path $env:RUNNER_TEMP 'v.zip'
-          Invoke-WebRequest -Uri "https://github.com/vlang/v/releases/download/0.5.2/${{ matrix.v_asset }}" -OutFile $archive
-          Expand-Archive -Path $archive -DestinationPath $env:RUNNER_TEMP -Force
-          $vdir = Join-Path $env:RUNNER_TEMP 'v'
-          $vdir | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-          & (Join-Path $vdir 'v.exe') version
-
       # `import ui2` resolves through the checkout directory name, so the
       # repository has to land in a directory called `ui2`.
       - uses: actions/checkout@v4
@@ -70,16 +58,80 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install --quiet -y --no-install-recommends \
-            libx11-dev libxcursor-dev libxi-dev libgl1-mesa-dev libasound2-dev
+            libx11-dev libxcursor-dev libxi-dev libgl1-mesa-dev libasound2-dev \
+            pkg-config libpango1.0-dev libfreetype6-dev libharfbuzz-dev \
+            libfribidi-dev libfontconfig1-dev fonts-noto-core fonts-noto-cjk fonts-noto-color-emoji
+
+      - name: Install macOS custom text dependencies
+        if: runner.os == 'macOS' && matrix.custom
+        run: brew install pango freetype harfbuzz fribidi fontconfig pkgconf
+
+      - name: Install Windows C toolchain
+        if: runner.os == 'Windows'
+        id: msys2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          install: >-
+            mingw-w64-ucrt-x86_64-gcc
+            mingw-w64-ucrt-x86_64-pkgconf
+            ${{ matrix.custom && 'mingw-w64-ucrt-x86_64-pango mingw-w64-ucrt-x86_64-freetype' || '' }}
+
+      - name: Expose Windows C toolchain
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ucrtRoot = Join-Path '${{ steps.msys2.outputs.msys2-location }}' 'ucrt64'
+          (Join-Path $ucrtRoot 'bin') | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          "PKG_CONFIG_PATH=$(Join-Path $ucrtRoot 'lib\pkgconfig');$(Join-Path $ucrtRoot 'share\pkgconfig')" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Set up verified V
+        uses: ./ui2/.github/actions/setup-v
+        with:
+          c-compiler: ${{ matrix.c_compiler }}
+          tcc-revision: ${{ matrix.tcc_revision }}
+
+      - name: Verify custom text dependencies
+        if: runner.os != 'Windows' && (runner.os == 'Linux' || matrix.custom)
+        shell: bash
+        run: |
+          pkg-config --exists $TEXT_PKG_CONFIG_MODULES
+          pkg-config --atleast-version=1.50 pango
+          pkg-config --modversion $TEXT_PKG_CONFIG_MODULES
+
+      - name: Verify custom text dependencies
+        if: runner.os == 'Windows' && matrix.custom
+        shell: pwsh
+        run: |
+          $modules = $env:TEXT_PKG_CONFIG_MODULES.Split(' ')
+          pkg-config --exists @modules
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          pkg-config --atleast-version=1.50 pango
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          pkg-config --modversion @modules
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Test VML menu declarations
-        run: v ${{ matrix.custom && '-d ui2_custom_rendering' || '' }} test ui2/ui/vml_menu_test.v
+        run: v ${{ matrix.compiler_flags }} ${{ matrix.custom && '-d ui2_custom_rendering' || '' }} test ui2/ui/vml_menu_test.v
 
       - name: Test immediate scrolling
         if: runner.os == 'Linux' || matrix.custom
         run: |
-          v ${{ matrix.custom && '-d ui2_custom_rendering' || '' }} test ui2/ui/ui_scroll_immediate_test.v
-          v ${{ matrix.custom && '-d ui2_custom_rendering' || '' }} test ui2/examples/scrollview
+          v ${{ matrix.compiler_flags }} ${{ matrix.custom && '-d ui2_custom_rendering' || '' }} test ui2/ui/ui_scroll_immediate_test.v
+          v ${{ matrix.compiler_flags }} ${{ matrix.custom && '-d ui2_custom_rendering' || '' }} test ui2/examples/scrollview
+
+      - name: Test custom text measurement and vendored runtime
+        if: runner.os == 'Linux' || matrix.custom
+        run: |
+          v ${{ matrix.compiler_flags }} ${{ matrix.custom && '-d ui2_custom_rendering' || '' }} test ui2/ui/text_backend_vglyph_test.v
+          v ${{ matrix.compiler_flags }} ${{ matrix.custom && '-d ui2_custom_rendering' || '' }} test ui2/thirdparty/vglyph/ui2_context_test.v
+          v ${{ matrix.compiler_flags }} ${{ matrix.custom && '-d ui2_custom_rendering' || '' }} test ui2/thirdparty/vglyph/ui2_host_ime_test.v
+
+      - name: Check owned macOS embedder
+        if: runner.os == 'macOS' && matrix.custom
+        working-directory: ui2
+        run: make check-embedder-macos
 
       - name: Build all examples
-        run: v run ui2/examples/build_examples.vsh ${{ matrix.custom && '-d ui2_custom_rendering' || '' }}
+        run: v run ui2/examples/build_examples.vsh ${{ matrix.compiler_flags }} ${{ matrix.custom && '-d ui2_custom_rendering' || '' }}

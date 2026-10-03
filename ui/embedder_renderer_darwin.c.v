@@ -84,7 +84,6 @@ $if macos && ui2_embedder ? && ui2_custom_rendering ? && !ui2_headless ? {
 		configure_animation_driver(request_refresh, false)
 		publish_menu_context(event, title, unsafe { nil })
 		font_regular, font_bold := font_paths()
-		g_font_metrics = font_file_metrics(font_regular) or { FontMetrics{} }
 		device := C.ui2_embedder_metal_device()
 		if device == unsafe { nil } { return error('a main-thread Metal device is required') }
 		app.ctx = new_surface_draw_context(gg.Config{

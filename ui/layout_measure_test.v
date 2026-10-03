@@ -1,5 +1,7 @@
 module ui2
 
+import math
+
 fn layout_measure_fixture_width(text string) f64 {
 	mut width := 0.0
 	for character in text.runes() {
@@ -89,4 +91,54 @@ fn test_layout_default_text_measurement_uses_real_fonts_before_window_creation()
 	wrapped := measure_layout_text('WWW WWW', TextStyle{ ...style, lines: 3 }, wide.width + 1)!
 	assert wrapped.width <= wide.width + 1
 	assert wrapped.height > wide.height
+}
+
+fn layout_measure_require_declared_zero_lines(_text string, style TextStyle, _width f64) !LayoutSize {
+	if style.lines != 0 { return error('external callbacks must receive the declared label style') }
+	return LayoutSize{width: 16, height: 20}
+}
+
+fn layout_measure_require_declared_editor_style(_text string, style TextStyle, _width f64) !LayoutSize {
+	if style.lines != 1 || style.size != 16 || style.font_family != 'Roboto Mono' {
+		return error('external callbacks must receive the declared editor style')
+	}
+	return LayoutSize{width: 16, height: 20}
+}
+
+fn test_custom_intrinsic_text_area_wraps_all_rows_in_the_drawn_content_width() {
+	$if (linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
+		style := TextStyle{size: 16, font_family: 'Roboto Mono'}
+		advance := measure_layout_text('M', style, -1)!.width
+		// The width accommodates exactly two fixed-width glyphs. Five glyphs
+		// occupy three rows and the explicit paragraph contributes a fourth.
+		content_width := advance * 2 + 0.05
+		for scrolling in [true, false] {
+			area := Element{
+				...text_area('notes', 'MMMMM\nM', Rect{}, BoxStyle{}, style)
+				padding_left: 12
+				disable_scroll: !scrolling
+			}
+			gutter := if scrolling { 12.0 } else { 8.0 }
+			measured := measure_layout_element(area,
+				LayoutConstraints{max_width: content_width + 12 + gutter}, measure_layout_text)!
+			assert measured.width > advance * 2 + 12 + gutter - 0.01
+			assert measured.width <= content_width + 12 + gutter
+			// Pango quantizes line height to 1/1024 of a device pixel.
+			assert math.abs(measured.height - font_line_height(style.size) * 4 - 16) < 0.01
+			assert area.text_style.lines == 1
+			// Only the built-in adapter requests unlimited editor wrapping;
+			// an embedder's callback still sees its original public style.
+			custom := measure_layout_element(area, LayoutConstraints{},
+				layout_measure_require_declared_editor_style)!
+			assert custom.height == 36
+			fixed := Element{...area, frame: rect(0, 0, 90, 30)}
+			assert measure_layout_element(fixed, LayoutConstraints{}, layout_measure_unexpected_text)! == LayoutSize{width: 90, height: 30}
+		}
+		label_one_line := label('caption', 'one\ntwo', Rect{}, TextStyle{lines: 0})
+		assert measure_layout_element(label_one_line, LayoutConstraints{}, layout_measure_require_declared_zero_lines)! == LayoutSize{width: 16, height: 20}
+		assert label_one_line.text_style.lines == 0
+		one_row := measure_layout_text('one', label_one_line.text_style, -1)!
+		default_label := measure_layout_element(label_one_line, LayoutConstraints{}, measure_layout_text)!
+		assert default_label.height == one_row.height
+	}
 }

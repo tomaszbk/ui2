@@ -17,7 +17,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		g_text_props = map[string]string{}
 		g_text_kinds = map[string]Kind{}
 		g_text_editors = map[string]TextEditor{}
-		g_text_area_layouts = map[string]TextAreaLayout{}
+		clear_text_area_layouts()
 		g_hit_targets = []HitTarget{}
 		g_touch = TouchState{}
 		g_focused_field = ''
@@ -37,12 +37,14 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		scroll_test_events << id
 	}
 
-fn test_text_area_wraps_words_and_preserves_explicit_blank_lines() {
-		reset_scroll_test_state()
-		assert wrap_text_area_lines('one two three', 70, scroll_test_width) == ['one two', 'three']
-		assert wrap_text_area_lines('one\r\n\r\ntwo\n', 100, scroll_test_width) == ['one', '', 'two', '']
-		assert wrap_text_area_lines('', 100, scroll_test_width) == ['']
-		assert wrap_text_area_lines('one\ttwo', 30, scroll_test_width) == ['one', 'two']
+	$if android {
+		fn test_text_area_wraps_words_and_preserves_explicit_blank_lines() {
+			reset_scroll_test_state()
+			assert wrap_text_area_lines('one two three', 70, scroll_test_width) == ['one two', 'three']
+			assert wrap_text_area_lines('one\r\n\r\ntwo\n', 100, scroll_test_width) == ['one', '', 'two', '']
+			assert wrap_text_area_lines('', 100, scroll_test_width) == ['']
+			assert wrap_text_area_lines('one\ttwo', 30, scroll_test_width) == ['one', 'two']
+		}
 	}
 
 	fn test_page_navigation_scrolls_the_focused_text_area() {
@@ -58,54 +60,63 @@ fn test_text_area_wraps_words_and_preserves_explicit_blank_lines() {
 		assert scroll_offset('notes') == 240
 	}
 
-	fn test_text_area_wraps_long_words_without_splitting_utf8_bytes() {
-		reset_scroll_test_state()
-		assert wrap_text_area_lines('é界🙂abcd', 30, scroll_test_width) == ['é界🙂', 'abc', 'd']
-		assert wrap_text_area_lines('é界', 1, scroll_test_width) == ['é', '界']
-		assert wrap_text_area_lines('abc', 0, scroll_test_width).len == 0
-		assert wrap_text_area_lines('abc', -1, scroll_test_width).len == 0
-	}
-
-	fn test_text_area_does_not_limit_content_to_one_thousand_lines() {
-		reset_scroll_test_state()
-		mut lines := []string{}
-		for index in 0 .. 1105 {
-			lines << 'line ${index}'
+	$if android {
+		fn test_text_area_wraps_long_words_without_splitting_utf8_bytes() {
+			reset_scroll_test_state()
+			assert wrap_text_area_lines('é界🙂abcd', 30, scroll_test_width) == ['é界🙂', 'abc', 'd']
+			assert wrap_text_area_lines('é界', 1, scroll_test_width) == ['é', '界']
+			assert wrap_text_area_lines('abc', 0, scroll_test_width).len == 0
+			assert wrap_text_area_lines('abc', -1, scroll_test_width).len == 0
 		}
-		assert wrap_text_area_lines(lines.join('\n'), 500, scroll_test_width) == lines
 	}
 
-	fn test_text_area_wrap_cache_tracks_text_width_and_font_changes() {
-		reset_scroll_test_state()
-		style := TextStyle{}
-		assert text_area_lines('text', 'abcdef', 30, style, 15, scroll_test_width) == ['abc', 'def']
-		measured := scroll_test_measurements
-		assert text_area_lines('text', 'abcdef', 30, style, 15, scroll_test_width) == ['abc', 'def']
-		assert scroll_test_measurements == measured
-		assert text_area_lines('text', 'abcdef', 60, style, 15, scroll_test_width) == ['abcdef']
-		assert text_area_lines('text', 'new', 60, style, 15, scroll_test_width) == ['new']
-		before_font := scroll_test_measurements
-		text_area_lines('text', 'new', 60, TextStyle{size: 20}, 20, scroll_test_width)
-		assert scroll_test_measurements > before_font
+	$if android {
+		fn test_text_area_does_not_limit_content_to_one_thousand_lines() {
+			reset_scroll_test_state()
+			mut lines := []string{}
+			for index in 0 .. 1105 {
+				lines << 'line ${index}'
+			}
+			assert wrap_text_area_lines(lines.join('\n'), 500, scroll_test_width) == lines
+		}
+	}
+
+	$if android {
+		fn test_text_area_wrap_cache_tracks_text_width_and_font_changes() {
+			reset_scroll_test_state()
+			style := TextStyle{}
+			assert text_area_lines('text', 'abcdef', 30, style, 15, scroll_test_width) == ['abc', 'def']
+			measured := scroll_test_measurements
+			assert text_area_lines('text', 'abcdef', 30, style, 15, scroll_test_width) == ['abc', 'def']
+			assert scroll_test_measurements == measured
+			assert text_area_lines('text', 'abcdef', 60, style, 15, scroll_test_width) == ['abcdef']
+			assert text_area_lines('text', 'new', 60, style, 15, scroll_test_width) == ['new']
+			before_font := scroll_test_measurements
+			text_area_lines('text', 'new', 60, TextStyle{size: 20}, 20, scroll_test_width)
+			assert scroll_test_measurements > before_font
+		}
 	}
 
 	fn test_text_area_content_is_top_aligned_and_clipped_inside_its_pane() {
 		content := text_area_content_rect(rect(20, 100, 200, 216), 12, true)
 		assert content == rect(32, 108, 176, 200)
-		first, last := visible_text_area_rows(100, content.y, 20, 0, content)
-		assert first == 0
-		assert last == 10
-		bottom_first, bottom_last := visible_text_area_rows(100, content.y, 20, 1800, content)
-		assert bottom_first == 90
-		assert bottom_last == 100
-		parent_clip := intersect_rect(content, rect(0, 138, 150, 70))
-		assert parent_clip == rect(32, 138, 118, 70)
-		clipped_first, clipped_last := visible_text_area_rows(100, content.y, 20, 0, parent_clip)
-		assert clipped_first == 1
-		assert clipped_last == 5
-		empty_first, empty_last := visible_text_area_rows(100, content.y, 20, 0, Rect{})
-		assert empty_first == 0
-		assert empty_last == 0
+		$if android {
+			first, last := visible_text_area_rows(100, content.y, 20, 0, content)
+			assert first == 0
+			assert last == 10
+			bottom_first, bottom_last := visible_text_area_rows(100, content.y, 20, 1800, content)
+			assert bottom_first == 90
+			assert bottom_last == 100
+			parent_clip := intersect_rect(content, rect(0, 138, 150, 70))
+			assert parent_clip == rect(32, 138, 118, 70)
+			clipped_first, clipped_last := visible_text_area_rows(100, content.y, 20, 0, parent_clip)
+			assert clipped_first == 1
+			assert clipped_last == 5
+			empty_first, empty_last := visible_text_area_rows(100, content.y, 20, 0, Rect{})
+			assert empty_first == 0
+			assert empty_last == 0
+		}
+
 		small := text_area_content_rect(rect(0, 0, 10, 10), 12, true)
 		assert small.width == 0
 		assert small.height == 0
@@ -381,7 +392,8 @@ fn test_text_area_wraps_words_and_preserves_explicit_blank_lines() {
 	fn test_unmounted_text_area_drops_scroll_and_wrapping_state() {
 		reset_scroll_test_state()
 		scroll_test_panes()
-		text_area_lines('text', 'abcdef', 30, TextStyle{}, 15, scroll_test_width)
+		replace_text_area_layout('text', TextAreaLayout{text: 'abcdef', width: 30,
+			lines: ['abc', 'def'], ranges: [TextAreaLineRange{start: 0, end: 3}, TextAreaLineRange{start: 3, end: 6}]})
 		g_text_values['text'] = 'abcdef'
 		g_text_kinds['text'] = .text_area
 		g_active_scrolls = map[string]bool{}
@@ -453,53 +465,122 @@ fn test_text_area_wraps_words_and_preserves_explicit_blank_lines() {
 }
 
 fn test_text_area_line_ranges_follow_wrapped_source_runes() {
-	lines := ['one two', 'three']
-	assert text_area_line_rune_ranges('one two three', lines) == [
-		TextAreaLineRange{
-			start: 0
-			end: 7
-		},
-		TextAreaLineRange{
-			start: 8
-			end: 13
-		},
-	]
+	$if android && !ui2_headless ? {
+		lines := ['one two', 'three']
+		assert text_area_line_rune_ranges('one two three', lines) == [
+			TextAreaLineRange{
+				start: 0
+				end: 7
+			},
+			TextAreaLineRange{
+				start: 8
+				end: 13
+			},
+		]
+	}
 }
 
 fn test_text_area_line_ranges_keep_original_crlf_offsets() {
-	assert text_area_line_rune_ranges('a\r\nbc', ['a', 'bc']) == [
-		TextAreaLineRange{
-			start: 0
-			end: 1
-		},
-		TextAreaLineRange{
-			start: 3
-			end: 5
-		},
-	]
+	$if android && !ui2_headless ? {
+		assert text_area_line_rune_ranges('a\r\nbc', ['a', 'bc']) == [
+			TextAreaLineRange{
+				start: 0
+				end: 1
+			},
+			TextAreaLineRange{
+				start: 3
+				end: 5
+			},
+		]
+	}
 }
 
 fn test_text_area_vertical_and_line_boundary_navigation() {
-	reset_scroll_test_state()
-	g_focused_field = 'notes'
-	g_text_area_layouts['notes'] = TextAreaLayout{
-		text: 'one\ntwo\nthree'
-		lines: ['one', 'two', 'three']
+	$if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
+		reset_scroll_test_state()
+		g_focused_field = 'notes'
+		replace_text_area_layout('notes', TextAreaLayout{
+			text: 'one\ntwo\nthree'
+			lines: ['one', 'two', 'three']
+			ranges: [TextAreaLineRange{start: 0, end: 3}, TextAreaLineRange{start: 4, end: 7}, TextAreaLineRange{start: 8, end: 13}]
+		})
+		mut editor := text_editor('one\ntwo\nthree')
+		editor.set_caret(6)
+		assert move_focused_text_area_caret(mut editor, 1, false)
+		assert editor.selection.caret == 10
+		assert move_focused_text_area_caret(mut editor, -1, true)
+		assert editor.selection == TextSelection{
+			anchor: 10
+			caret: 6
+		}
+		assert move_focused_text_area_line_boundary(mut editor, false, false)
+		assert editor.selection.caret == 4
+		assert move_focused_text_area_line_boundary(mut editor, true, true)
+		assert editor.selection == TextSelection{
+			anchor: 4
+			caret: 7
+		}
 	}
-	mut editor := text_editor('one\ntwo\nthree')
-	editor.set_caret(6)
-	assert move_focused_text_area_caret(mut editor, 1, false)
-	assert editor.selection.caret == 10
-	assert move_focused_text_area_caret(mut editor, -1, true)
-	assert editor.selection == TextSelection{
-		anchor: 10
-		caret: 6
+}
+
+fn test_text_area_shaped_source_lines_keep_crlf_navigation_and_owned_snapshot() {
+	$if (linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
+		reset_scroll_test_state()
+		mut engine := new_text_engine(1)!
+		defer { engine.free(); reset_scroll_test_state() }
+		style := TextStyle{size: 16, font_family: 'Roboto Mono'}
+		mut editor := text_editor('one\r\n\r\ntwo\n'.clone())
+		shaped := engine.shape_area(editor.text, style, 400)!
+		remember_shaped_text_area('notes', shaped, 400, style)
+		snapshot := g_text_area_layouts['notes'] or { panic('missing layout') }
+		assert snapshot.text.str != editor.text.str
+		assert snapshot.lines == ['one', '', 'two', '']
+		assert snapshot.ranges == [
+			TextAreaLineRange{start: 0, end: 3},
+			TextAreaLineRange{start: 5, end: 5},
+			TextAreaLineRange{start: 7, end: 10},
+			TextAreaLineRange{start: 11, end: 11},
+		]
+		g_focused_field = 'notes'
+		editor.set_caret(2)
+		assert move_focused_text_area_caret(mut editor, 1, false)
+		assert editor.selection.caret == 5
+		assert move_focused_text_area_caret(mut editor, 1, false)
+		assert editor.selection.caret == 7
+		assert move_focused_text_area_line_boundary(mut editor, true, false)
+		assert editor.selection.caret == 10
+		// Replacing the editor allocation cannot invalidate the stored source
+		// string or line slices used by the next navigation event.
+		replace_text_editor('notes', editor)
+		replace_text_editor('notes', text_editor('replacement'.clone()))
+		assert g_text_area_layouts['notes'].text == 'one\r\n\r\ntwo\n'
+		assert g_text_area_layouts['notes'].lines == ['one', '', 'two', '']
+		forget_text_state('notes')
+		assert 'notes' !in g_text_area_layouts
 	}
-	assert move_focused_text_area_line_boundary(mut editor, false, false)
-	assert editor.selection.caret == 4
-	assert move_focused_text_area_line_boundary(mut editor, true, true)
-	assert editor.selection == TextSelection{
-		anchor: 4
-		caret: 7
+}
+
+fn test_text_area_utf16_selection_preserves_rune_editor_contract_after_shaping() {
+	$if (linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
+		reset_scroll_test_state()
+		mut engine := new_text_engine(1)!
+		defer { engine.free(); reset_scroll_test_state() }
+		value := 'A🙂e\u0301\nB'
+		style := TextStyle{size: 16}
+		shaped := engine.shape_area(value, style, 400)!
+		remember_shaped_text_area('notes', shaped, 400, style)
+		g_active_fields['notes'] = true
+		g_text_kinds['notes'] = .text_area
+		replace_text_value('notes', value)
+		replace_text_editor('notes', text_editor(value.clone()))
+		text_area_set_selection('notes', 1, 2)
+		assert g_text_editors['notes'].selection == TextSelection{anchor: 1, caret: 2}
+		assert text_area_caret('notes') == 3
+		assert text_area_selection_length('notes') == 2
+		selected := shaped.selection(1, 2)
+		assert selected.len == 1
+		assert selected[0].width > 0
+		forget_text_state('notes')
+		forget_portable_text_area_selection('notes')
 	}
 }

@@ -5,14 +5,19 @@
 module ui2
 
 $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
-	import fontstash
 	import gg
-	import os
-	import os.font
 	import sokol.gfx
 	import sokol.sfons
 	import sokol.sgl
+	$if android {
+		import fontstash
+		import os
+		import os.font
+	} $else {
+		import ui2.thirdparty.vglyph
+	}
 
+	$if android {
 	struct DrawContext {
 	mut:
 		inner &gg.Context = unsafe { nil }
@@ -27,6 +32,24 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		image_ids map[int]bool
 		destroyed bool
 	}
+	} $else {
+	struct DrawContext {
+	mut:
+		inner &gg.Context = unsafe { nil }
+		width int
+		height int
+		scale f32 = 1
+		text &TextEngine = unsafe { nil }
+		text_renderer &vglyph.Renderer = unsafe { nil }
+		text_font_generation int = -1
+		font_inited bool
+		owns_surface bool
+		gl_context sgl.Context
+		swapchain gfx.Swapchain
+		image_ids map[int]bool
+		destroyed bool
+	}
+	}
 
 	__global g_draw_device_users = 0
 	__global g_draw_device_environment = gfx.Environment{}
@@ -40,12 +63,28 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	}
 
 	fn (mut ctx DrawContext) sync_gg() {
-		if ctx.inner == unsafe { nil } || ctx.owns_surface { return }
+		if ctx.inner == unsafe { nil } || ctx.owns_surface || ctx.destroyed { return }
 		ctx.width = ctx.inner.width
 		ctx.height = ctx.inner.height
 		ctx.scale = ctx.inner.scale
-		ctx.ft = ctx.inner.ft
-		ctx.font_inited = ctx.inner.font_inited
+		$if android {
+			ctx.ft = ctx.inner.ft
+			ctx.font_inited = ctx.inner.font_inited
+		} $else {
+			// gg currently creates Fontstash unconditionally during init. Release
+			// that unused atlas as soon as the GPU is available; all UI2 desktop
+			// text uses the per-context vglyph renderer from this point onward.
+			if gfx.is_valid() {
+				if ctx.inner.ft != unsafe { nil } && ctx.inner.ft.fons != unsafe { nil } {
+					sfons.destroy(ctx.inner.ft.fons)
+					// gg's resize handler writes ft.scale unconditionally. Retain an
+					// inert FT shell, with no atlas or legacy font drawing enabled.
+					ctx.inner.ft = &gg.FT{scale: ctx.scale}
+				}
+				ctx.inner.font_inited = false
+				ctx.ensure_text_resources() or { panic('ui2: ${err}') }
+			}
+		}
 	}
 
 	// The GFX device is shared, while command buffers, atlases and images belong
@@ -61,8 +100,8 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 				return error('the owned renderer cannot share a running gg/Sokol app device')
 			}
 			// Every SGL pipeline creates five GFX primitive pipelines. A window
-			// has a default, alpha, additive and font pipeline, plus one shader
-			// for its font atlas. Size the shared device for the SGL pools instead
+			// has a default pipeline and its own alpha/additive pipelines. Size
+			// the shared device for the SGL pools instead
 			// of GFX's single-window defaults, which failed on the third window.
 			gfx.setup(&gfx.Desc{
 				buffer_pool_size: draw_context_pool_size
@@ -122,13 +161,20 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			owns_surface: true
 			gl_context: gl_context
 		}
-		ctx.ft = new_draw_fonts(config) or {
-			ctx.destroy()
-			return err
+		$if android {
+			ctx.ft = new_draw_fonts(config) or {
+				ctx.destroy()
+				return err
+			}
+			ctx.font_inited = true
+			inner.ft = ctx.ft
+			inner.font_inited = true
+		} $else {
+			ctx.ensure_text_resources() or {
+				ctx.destroy()
+				return err
+			}
 		}
-		ctx.font_inited = true
-		inner.ft = ctx.ft
-		inner.font_inited = true
 		return ctx
 	}
 
@@ -144,6 +190,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		return sgl.make_pipeline(&desc)
 	}
 
+	$if android {
 	fn new_draw_fonts(config gg.Config) !&gg.FT {
 		normal_path := if config.font_path.len > 0 { config.font_path } else { font.default() }
 		normal := if config.font_bytes_normal.len > 0 {
@@ -194,6 +241,64 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			fons.expand_atlas(next_width, next_height)
 		}
 	}
+	}
+
+	$if !android {
+		fn (mut ctx DrawContext) ensure_text_resources() ! {
+			if ctx.destroyed { return error('drawing context is closed') }
+			if ctx.text != unsafe { nil } && ctx.text.scale == ctx.scale { return }
+			ctx.activate()
+			if ctx.text_renderer != unsafe { nil } { ctx.text_renderer.free() }
+			if ctx.text != unsafe { nil } { ctx.text.free() }
+			ctx.text = unsafe { nil }
+			ctx.text_renderer = unsafe { nil }
+			ctx.font_inited = false
+			ctx.text = new_text_engine(ctx.scale)!
+			ctx.text_renderer = vglyph.new_renderer(mut ctx.inner, ctx.scale)
+			ctx.font_inited = true
+		}
+
+		fn (ctx &DrawContext) shape_text(text string, style TextStyle, width f64,
+			lines int, ellipsize bool) !ShapedText {
+			if ctx.destroyed || ctx.text == unsafe { nil } { return error('text context is closed') }
+			mut engine := ctx.text
+			return engine.shape(text, style, width, lines, ellipsize)
+		}
+
+		fn (ctx &DrawContext) shape_text_area(text string, style TextStyle, width f64) !ShapedText {
+			if ctx.destroyed || ctx.text == unsafe { nil } { return error('text context is closed') }
+			mut engine := ctx.text
+			return engine.shape_area(text, style, width)
+		}
+
+		fn (ctx &DrawContext) draw_shaped(shaped ShapedText, x f64, y f64) {
+			if ctx.destroyed || ctx.text_renderer == unsafe { nil } { return }
+			ctx.prepare_text_draw()
+			mut renderer := ctx.text_renderer
+			renderer.draw_layout(shaped.layout, f32(x), f32(y))
+		}
+
+		fn (ctx &DrawContext) draw_shaped_clipped(shaped ShapedText, x f64, y f64, clip Rect) {
+			if ctx.destroyed || ctx.text_renderer == unsafe { nil } || clip.height <= 0 { return }
+			mut visible := shaped.layout
+			visible.items = shaped.layout.items.filter(
+				y + it.y + it.descent > clip.y && y + it.y - it.ascent < clip.y + clip.height)
+			ctx.prepare_text_draw()
+			mut renderer := ctx.text_renderer
+			renderer.draw_layout(visible, f32(x), f32(y))
+		}
+
+		fn (ctx &DrawContext) prepare_text_draw() {
+			ctx.activate()
+			if ctx.text_font_generation != ctx.text.font_generation {
+				// Pango may recycle FT face addresses after registering a new font.
+				// Discard identities, preserving atlas pixels referenced by quads.
+				mut renderer := ctx.text_renderer
+				renderer.clear_glyph_cache()
+				unsafe { ctx.text_font_generation = ctx.text.font_generation }
+			}
+		}
+	}
 
 	fn (ctx &DrawContext) activate() {
 		if ctx.owns_surface && !ctx.destroyed { sgl.set_context(ctx.gl_context) }
@@ -207,26 +312,41 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		ctx.inner.width = width
 		ctx.inner.height = height
 		ctx.inner.scale = ctx.scale
-		if ctx.ft != unsafe { nil } { ctx.ft.scale = ctx.scale }
+		$if android {
+			if ctx.ft != unsafe { nil } { ctx.ft.scale = ctx.scale }
+		} $else {
+			ctx.ensure_text_resources() or { panic('ui2: ${err}') }
+		}
 		ctx.activate()
 	}
 
 	fn (ctx &DrawContext) begin() {
 		if !ctx.owns_surface { ctx.inner.begin(); return }
 		ctx.activate()
-		if ctx.font_inited { ctx.ft.flush() }
+		$if android {
+			if ctx.font_inited { ctx.ft.flush() }
+		}
 		sgl.defaults()
 		sgl.matrix_mode_projection()
 		sgl.ortho(0, f32(ctx.swapchain.width), f32(ctx.swapchain.height), 0, -1, 1)
 	}
 
 	fn (ctx &DrawContext) end() {
+		$if !android {
+			if !ctx.destroyed && ctx.text_renderer != unsafe { nil } {
+				mut renderer := ctx.text_renderer
+				// Atlas uploads precede this frame's GPU submission so new worker
+				// text and tooltips are visible in a single on-demand frame.
+				renderer.commit()
+			}
+		}
 		if !ctx.owns_surface { ctx.inner.end(); return }
 		ctx.activate()
 		gfx.begin_pass(gfx.Pass{action: ctx.inner.clear_pass, swapchain: ctx.swapchain})
 		sgl.draw()
 		gfx.end_pass()
 		gfx.commit()
+		unsafe { ctx.inner.frame++ }
 	}
 
 	fn release_draw_device() {
@@ -239,13 +359,25 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	}
 
 	fn (mut ctx DrawContext) destroy() {
-		if !ctx.owns_surface || ctx.destroyed { return }
+		if ctx.destroyed { return }
 		ctx.activate()
+		$if !android {
+			if ctx.text_renderer != unsafe { nil } { ctx.text_renderer.free() }
+			if ctx.text != unsafe { nil } { ctx.text.free() }
+			ctx.text_renderer = unsafe { nil }
+			ctx.text = unsafe { nil }
+		}
+		ctx.font_inited = false
+		if !ctx.owns_surface {
+			ctx.destroyed = true
+			return
+		}
 		for id, _ in ctx.image_ids { ctx.inner.remove_cached_image_by_idx(id) }
 		ctx.image_ids.clear()
-		if ctx.ft != unsafe { nil } { sfons.destroy(ctx.ft.fons) }
-		ctx.ft = unsafe { nil }
-		ctx.font_inited = false
+		$if android {
+			if ctx.ft != unsafe { nil } { sfons.destroy(ctx.ft.fons) }
+			ctx.ft = unsafe { nil }
+		}
 		ctx.inner.ft = unsafe { nil }
 		ctx.inner.font_inited = false
 		sgl.destroy_pipeline(ctx.inner.pipeline.alpha)
@@ -276,6 +408,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	fn (ctx &DrawContext) scissor_rect(x int, y int, w int, h int) {
 		ctx.activate(); ctx.inner.scissor_rect(x, y, w, h)
 	}
+	$if android {
 	fn (ctx &DrawContext) set_text_cfg(config gg.TextCfg) {
 		ctx.activate(); ctx.inner.set_text_cfg(config)
 	}
@@ -287,6 +420,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	}
 	fn (ctx &DrawContext) draw_text(x int, y int, text string, config gg.TextCfg) {
 		ctx.activate(); ctx.inner.draw_text(x, y, text, config)
+	}
 	}
 	fn (ctx &DrawContext) draw_image_with_config(config gg.DrawImageConfig) {
 		ctx.activate(); ctx.inner.draw_image_with_config(config)

@@ -10,12 +10,18 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		thumb Rect
 	}
 
+	struct TextAreaLineRange {
+		start int
+		end   int
+	}
+
 	struct TextAreaLayout {
 		text          string
 		width         f64
 		style         TextStyle
 		rendered_size int
 		lines         []string
+		ranges        []TextAreaLineRange
 	}
 
 	// Viewports are full layout boxes; areas are their visible, hittable parts.

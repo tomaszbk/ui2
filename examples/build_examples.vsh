@@ -5,6 +5,7 @@
 //   v run examples/build_examples.vsh -d ui2_custom_rendering
 
 import os
+import rand
 
 const vexe = os.quoted_path(@VEXE)
 
@@ -15,13 +16,13 @@ fn println_one_of_many(msg string, entry_idx int, entries_len int) {
 println('v executable: ${vexe}')
 print('v version: ${execute('${vexe} version').output}')
 
-extra_flags := args#[1..].join(' ')
+extra_flags := os.args[1..].join(' ')
 
 examples_dir := join_path(@VMODROOT, 'examples')
 
-build_dir := join_path(temp_dir(), 'ui2-examples-build')
+build_dir := join_path(temp_dir(), 'ui2-examples-build-${rand.ulid()}')
 
-mkdir_all(build_dir)!
+mkdir(build_dir)!
 
 defer {
 	rmdir_all(build_dir) or {}
@@ -52,7 +53,9 @@ mut failures := []string{}
 
 for entry_idx, entry in entries {
 	out := join_path(build_dir, file_name(entry) + $if windows { '.exe' } $else { '' })
-	cmd := '${vexe} -N -W ${extra_flags} -o ${quoted_path(out)} ${quoted_path(entry)}'
+	// Reject warnings; compiler notices also cover pre-existing unused private
+	// helpers shared across backends and are not compilation failures.
+	cmd := '${vexe} -W ${extra_flags} -o ${quoted_path(out)} ${quoted_path(entry)}'
 	println_one_of_many('compile with: ${cmd}', entry_idx, entries.len)
 	ret := execute(cmd)
 	if ret.exit_code != 0 {

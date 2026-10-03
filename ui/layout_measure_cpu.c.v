@@ -1,6 +1,8 @@
 @[has_globals]
 module ui2
 
+// Retained for native/headless/Android consumers not migrated to vglyph.
+$if !(linux || ((macos || windows) && ui2_custom_rendering ?)) || ui2_headless ? {
 import fontstash
 import os
 import os.font
@@ -105,4 +107,6 @@ fn layout_measure_cpu_text(text string, style TextStyle, max_width f64) !LayoutS
 		mut glyph_bounds := [4]f32{}
 		return f64(stash.text_bounds(0, 0, line, &glyph_bounds[0]))
 	})
+}
+
 }

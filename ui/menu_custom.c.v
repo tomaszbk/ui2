@@ -105,18 +105,26 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		if t.len == 0 {
 			return 0.0
 		}
-		family := text_font_file(style.font_family, style.bold, style.italic)
-		ensure_family_fallbacks(ctx, family)
-		ctx.set_text_cfg(gg.TextCfg{
-			color: hex_color(style.color)
-			size: int(font_render_size(style.size, text_font_metrics(family)) + 0.5)
-			bold: style.bold
-			italic: style.italic
-			family: family
-			align: .left
-			vertical_align: .middle
-		})
-		return f64(ctx.text_width_f(t))
+		$if android {
+			family := text_font_file(style.font_family, style.bold, style.italic)
+			ensure_family_fallbacks(ctx, family)
+			ctx.set_text_cfg(gg.TextCfg{
+				color: hex_color(style.color)
+				size: int(font_render_size(style.size, text_font_metrics(family)) + 0.5)
+				bold: style.bold
+				italic: style.italic
+				family: family
+				align: .left
+				vertical_align: .middle
+			})
+			return f64(ctx.text_width_f(t))
+		} $else {
+			shaped := ctx.shape_text(t, style, -1, 1, false) or {
+				eprintln('ui2: menu text: ${err}')
+				return 0
+			}
+			return shaped.size.width
+		}
 	}
 
 	// draw_menu_bar draws the bar and every open panel, and rebuilds the hit

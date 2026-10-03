@@ -10,55 +10,56 @@ Noto Sans Symbols 2 v2.008, the `unhinted` build from
 and Noto Emoji 3.002 from
 [google/fonts](https://github.com/google/fonts/tree/main/ofl/notoemoji).
 
-The custom renderer draws with these files unless the application overrides them
-(see "Fonts and text sizes" in the top-level README), so a `gg` window looks the
-same on Linux, Android, and macOS or Windows built with `-d ui2_custom_rendering`.
+The custom renderer uses these files unless the application overrides them
+(see "Fonts and text sizes" in the top-level README). The desktop vglyph
+adapter registers the bundled faces with Pango/Fontconfig before measuring
+or drawing. Android custom and headless measurement retain Fontstash.
 
-`RobotoMono-Regular.ttf` has to keep that name and stay in this directory: gg
-finds its mono face by rewriting `-Regular` to `Mono-Regular` in the path it was
-given. It is also what an element asking for an unavailable fixed-pitch family,
-such as `Consolas` or the generic `monospace`, falls back to.
+`RobotoMono-Regular.ttf` has to keep that name and stay in this directory: the
+remaining gg/Fontstash paths find the mono face by rewriting `-Regular` to
+`Mono-Regular` in the path they receive. UI2 also uses it when an element asks
+for an unavailable fixed-pitch family, such as `Consolas` or generic `monospace`.
 
 `MaterialIcons-Regular.ttf` supplies portable equivalents for platform icon
-names such as SF Symbols on a custom-rendered desktop. It is also at the front
-of the fallback chain so its private-use glyphs can be drawn without depending
-on a machine-installed icon font.
+names such as SF Symbols on a custom-rendered desktop. It makes those
+private-use glyphs available without a machine-installed icon font.
 
-`NotoSansSymbols2-Regular.ttf` is not drawn with directly; it follows Material
-Icons in the fallback chain and is the first general-purpose symbol face
-the renderer searches when the text font has no outline for a code point. Roboto
-covers 927 of them, which is every letter an interface is written in and almost
-none of the marks it labels rows with, so a ▸ or a ✓ would otherwise come
-out as the empty box. Noto Sans Symbols 2 carries the geometric shapes, dingbats,
-box elements and braille, and the renderer adds one symbol face off the machine
-behind it for the blocks it leaves out, arrows among them.
+`NotoSansSymbols2-Regular.ttf` supplies geometric shapes, dingbats, box
+elements and braille that the text faces do not cover. `NotoEmoji-Regular.ttf`
+supplies monochrome emoji outlines, which take the text's color.
 
-`NotoEmoji-Regular.ttf` sits behind it in that same chain and is what draws an
-emoji. It is the monochrome Noto Emoji, not the color one: `stb_truetype` reads
-neither the bitmaps of `NotoColorEmoji.ttf` nor the layers of a COLR font, and
-the outline such a face leaves at the base glyph is empty, so it would trade the
-empty box for an empty space. Monochrome emoji are outlines like any other
-glyph, and they take the color the label was given. The file also carries U+FE0F
-and U+200D, the variation selector and the joiner that emoji are written with,
-which would otherwise draw a box of their own — the renderer does no shaping, so
-it draws every code point it is handed.
+On desktop, Pango shapes clusters and Fontconfig chooses fallback faces,
+preserving UI2's explicit and bundled priorities. `UI2_FONT_SYMBOLS` takes
+precedence over bundled symbol and emoji fallbacks. The current profile
+prefers bundled Noto Emoji outlines; installing color emoji does not switch
+that default. System fonts cover scripts and codepoints still missing from
+these faces. Use the same font set and preferences for layout comparisons. See
+[the desktop text contract](../../docs/vglyph-text.md).
 
-Upstream ships the monochrome family as the variable `NotoEmoji[wght].ttf`
-only, which is the one thing this directory cannot use, so the file here is its
-regular instance:
+The Android/headless Fontstash paths keep an explicit fallback chain:
+Material Icons, Noto Sans Symbols 2, an installed symbol face, then Noto Emoji.
+Their `stb_truetype` rasterizer reads neither bitmap color emoji nor COLR layers,
+and draws individual code points without complex shaping. The bundled
+monochrome face also covers U+FE0F and U+200D so those paths do not draw empty
+boxes for variation selectors and joiners. Its presence does not add
+grapheme-aware editing to the existing editor.
+
+The bundled monochrome family is a static regular instance of upstream's
+variable `NotoEmoji[wght].ttf`, generated with:
 
 ```sh
 fonttools varLib.instancer -q 'NotoEmoji[wght].ttf' wght=400 \
 	--update-name-table -o NotoEmoji-Regular.ttf
 ```
 
-These are the static instances on purpose. `stb_truetype`, the rasterizer
-fontstash builds with, ignores the `fvar` and `gvar` tables, so the variable
-`Roboto[wdth,wght].ttf` would draw bold text at the regular weight.
+These static instances work on both text paths. The remaining Fontstash
+rasterizer ignores `fvar` and `gvar`, so a variable `Roboto[wdth,wght].ttf`
+would draw its default weight there. UI2's styles currently select bold and
+italic; additional desktop weight/variation controls require a separate API.
 
 For Roboto, the `web` build rather than `unhinted` because it is a third of the
-size and carries the same outlines; `stb_truetype` never runs hinting
-instructions, so the `hinted` build would only add bytes. For the same reason
+size and carries the same outlines. The Fontstash path never runs hinting
+instructions, so the `hinted` build would only add bytes there. For the same reason
 Noto Sans Symbols 2 is the `unhinted` build rather than the `googlefonts` one,
 which is the same outlines and twice the file.
 
