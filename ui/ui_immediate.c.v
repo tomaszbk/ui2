@@ -3145,7 +3145,8 @@ fn page_focused_text_area(direction int) {
 	}
 
 	fn draw_box_borders(ctx &DrawContext, x f64, y f64, w f64, h f64, box BoxStyle) {
-		for triangle in box_border_triangles(rect(x, y, w, h), box) {
+		frame := ctx.content_transform.rounded_local_rect(rect(x, y, w, h), f64(ctx.scale))
+		for triangle in box_border_triangles(frame, box) {
 			ctx.draw_triangle_filled(f32(triangle.a.x), f32(triangle.a.y),
 				f32(triangle.b.x), f32(triangle.b.y), f32(triangle.c.x), f32(triangle.c.y),
 				hex_color(triangle.color))
