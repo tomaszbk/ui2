@@ -771,6 +771,7 @@ fn (mut ts TextSystem) get_cache_key(text string, cfg &TextConfig) u64 {
 	packed |= u64(cfg.orientation) << 16
 	if cfg.block.ellipsize { packed |= u64(1) << 20 }
 	if cfg.block.insert_hyphens { packed |= u64(1) << 21 }
+	if cfg.block.strict_line_height { packed |= u64(1) << 22 }
 	hash = fnv_hash_u64(hash, packed)
 
 	// Features

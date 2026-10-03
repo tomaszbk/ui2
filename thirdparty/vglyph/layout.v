@@ -268,6 +268,13 @@ pub fn (mut ctx Context) layout_rich_text(rt RichText, cfg TextConfig) !Layout {
 
 	// 4. Process layout
 	mut result := build_layout_from_pango(mut ctx, layout, text, ctx.scale_factor, cfg)
+	// Absolute line-height attributes apply per font run in Pango. Mixed
+	// ascenders/descenders can enlarge the resulting line box despite the
+	// requested advance. Restore the shared grid without changing glyph sizes.
+	if !result.ellipsized && !cfg.block.strict_line_height && cfg.orientation == .horizontal && cfg.block.line_height > 0 {
+		normalize_absolute_line_height(layout, mut result, cfg.block.line_height,
+			ctx.scale_factor, compute_line_rises(layout))
+	}
 	result.cloned_object_ids = cloned_ids
 	return result
 }
@@ -427,17 +434,17 @@ fn build_layout_from_pango(mut ctx Context, layout PangoLayout, text string, sca
 		visual_width:       v_width
 		visual_height:      v_height
 	}
-	if result.ellipsized && cfg.orientation == .horizontal && cfg.block.line_height > 0 {
-		normalize_ellipsized_line_height(layout, mut result, cfg.block.line_height,
+	if (result.ellipsized || cfg.block.strict_line_height) && cfg.orientation == .horizontal && cfg.block.line_height > 0 {
+		normalize_absolute_line_height(layout, mut result, cfg.block.line_height,
 			scale_factor, line_rises)
 	}
 	return result
 }
 
 // Pango shapes its synthetic ellipsis without the absolute-line-height
-// attribute. Restore the requested line grid for both glyph baselines and
+// attribute and can expand mixed-font line extents. Restore the line grid for
 // queries; keep the font ascent/descent so rasterization retains its size.
-fn normalize_ellipsized_line_height(pango_layout PangoLayout, mut layout Layout,
+fn normalize_absolute_line_height(pango_layout PangoLayout, mut layout Layout,
 	line_height f32, scale_factor f32, line_rises []LineRise) {
 	mut shifts := []f32{len: layout.lines.len}
 	for i, line in layout.lines {

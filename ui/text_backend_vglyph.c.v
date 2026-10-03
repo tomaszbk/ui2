@@ -271,6 +271,7 @@ $if (linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ?
 				width: f32(max_width)
 				wrap: if word_char { .word_char } else { .word }
 				line_height: f32(line_height)
+				strict_line_height: style.line_height > 0 || style.line_height_factor > 0
 				insert_hyphens: false
 				max_lines: max_lines
 				ellipsize: ellipsize

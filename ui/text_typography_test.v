@@ -114,10 +114,55 @@ fn test_runtime_run_binding_rebuilds_intrinsic_measurement() {
 }
 
 fn test_floating_overlay_scales_complete_typography_once() {
-	style := TextStyle{units: .logical, size: 24, letter_spacing: 2, line_height: 36, baseline_offset: 4, weight: 800}
+	style := TextStyle{ units: .logical, size: 24, letter_spacing: 2, line_height: 36, baseline_offset: 4, weight: 800 }
 	output := scaled_overlay_text_style(style, 0.5)
 	assert output.size == 12 && output.line_height == 18
 	assert output.letter_spacing == 1 && output.baseline_offset == 2
 	assert output.weight == 800
-	assert text_style_line_height(scaled_overlay_text_style(TextStyle{units: .logical, size: 24, line_height_factor: 1.5}, 0.5)) == 18
+	assert text_style_line_height(scaled_overlay_text_style(TextStyle{ units: .logical, size: 24, line_height_factor: 1.5 }, 0.5)) == 18
+}
+
+fn test_mixed_size_runs_keep_absolute_parent_line_grid() {
+	$if ( linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headless ? {
+		mut engine := new_text_engine(1)!
+		defer { engine.free() }
+		for pair in [[48.0, 15.0, 67.2], [38.0, 18.0, 38.0], [22.0, 14.0, 30.8]] {
+			base := TextStyle{ units: .logical, font_family: 'Inter', size: pair[0], line_height: pair[2], lines: 5 }
+			runs := [
+				TextRun{ text: 'Large ', style: TextStyle{ ...base, weight: 900 } },
+				TextRun{ text: 'small', style: TextStyle{ ...base, size: pair[1] } },
+			]
+			single := engine.shape_runs(runs, base, -1, 5, false)!
+			fallback := engine.shape('Latin ♜', base, -1, 5, false)!
+			assert math.abs(fallback.size.height - pair[2]) < 0.02
+			assert math.abs(single.size.height - pair[2]) < 0.02
+			wrapped_runs := [TextRun{ text: 'Large first ', style: base },
+				TextRun{ text: 'small second words third line', style: TextStyle{ ...base, size: pair[1], baseline_offset: 3 } }]
+			for ellipsis in [false, true] {
+				shaped := engine.shape_runs(wrapped_runs, base, 160, 2, ellipsis)!
+				assert shaped.lines.len >= 2
+				assert math.abs(shaped.size.height - f64(shaped.lines.len) * pair[2]) < 0.02
+				for i, line in shaped.lines {
+					assert math.abs(line.y - f64(i) * pair[2]) < 0.02
+				}
+				if ellipsis {
+					assert shaped.lines.len == 2
+				}
+			}
+			shaped := engine.shape_runs(wrapped_runs, base, 160, 5, true)!
+			measured := layout_measure_vglyph_runs(wrapped_runs, base, 160)!
+			assert math.abs(measured.height - shaped.size.height) < 0.02
+		}
+	}
+}
+
+fn test_rich_baseline_offset_is_complete_run_style() {
+	$if ( linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headless ? {
+		mut engine := new_text_engine(1)!
+		defer { engine.free() }
+		base := TextStyle{ units: .logical, font_family: 'Inter', size: 24, line_height: 36, baseline_offset: 3 }
+		plain := engine.shape('baseline', base, -1, 1, false)!
+		rich := engine.shape_runs([TextRun{ text: 'baseline', style: base }], base, -1, 1, false)!
+		assert math.abs(plain.layout.items[0].y - rich.layout.items[0].y) < 0.02
+	}
 }
