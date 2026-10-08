@@ -18,11 +18,15 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 	}
 
 	fn window_state_mount_editor(on_event ElementCallback) {
-		root := screen(0xffffff, [Element{ kind: .text_area, id: 'editor', on_event: on_event }])
+		// Scroll's 16-unit bottom inset keeps the original 500-unit range.
+		root := screen(0xffffff, [
+			Element{ kind: .text_area, id: 'editor', on_event: on_event },
+			Element{ kind: .scroll, id: 'pane', frame: rect(0, 0, 100, 80), children: [
+				Element{ kind: .view, frame: rect(0, 0, 100, 484) },
+			] },
+		])
 		update_custom_focus_tree(root)
 		sync_mounted_focus_controls(root, 'root')
-		register_scroll_view(named_scroll_state_id('pane'), rect(0, 0, 100, 80), rect(0, 0, 100, 80), 500,
-			true, true, false, HitTarget{})
 	}
 }
 

@@ -415,6 +415,8 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	$if !android {
 		fn draw_shaped_text_area(ctx &DrawContext, el Element, value string, x f64, y f64, clip Rect,
 			scroll_parent_id string) {
+			dispatch := custom_input_dispatch(g_gg_app)
+			root := g_focus_navigation.root
 			mut editor := g_text_editors[el.id] or { text_editor(value.clone()) }
 			$if macos && ui2_embedder ? { editor = custom_composition_editor(el.id, editor) }
 			frame := rect(x, y, el.frame.width, el.frame.height)
@@ -431,6 +433,9 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			scroll_id := text_area_scroll_id(el)
 			offset := register_scroll_view_in_parent(scroll_id, scroll_parent_id, frame, clip,
 				content_height, el.enabled, !el.disable_scroll, el.persistent_scrollbars, HitTarget{ id: el.id, on_event: el.on_event })
+			// Range clamping can call user code. The shaped text belongs to the
+			// captured context; selection, caret and drawing cannot outlive it.
+			if !custom_frame_current(dispatch, ctx) || g_focus_navigation.root != root { return }
 			text_clip := intersect_rect(content, clip)
 			if text_clip.width > 0 && text_clip.height > 0 {
 				apply_clip(ctx, text_clip)
