@@ -347,9 +347,13 @@ fn (mut app IdeApp) perform_action(event string, payload ui2.ElementEvent) {
 fn handle_ide_key(key string) {
 	mut state := unsafe { ide_state }
 	focused := ui2.focused_id()
-	if focused.len > 0 && key in ['forward_delete', 'backspace', 'left', 'right', 'up', 'down',
+	if key in ['forward_delete', 'backspace', 'left', 'right', 'up', 'down',
 		'shift+left', 'shift+right', 'shift+up', 'shift+down', 'cmd+z', 'cmd+shift+z'] {
-		return
+		// Focus also belongs to navigator and component buttons. Only actual
+		// editor semantics reserve these commands for draft editing/selection.
+		if node := ui2.semantic_node(focused) {
+			if node.role == 'textbox' { return }
+		}
 	}
 	mut handled := true
 	match key {

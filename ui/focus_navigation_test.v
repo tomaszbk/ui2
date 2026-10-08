@@ -170,6 +170,88 @@ fn test_directional_geometry_has_beam_priority_and_deterministic_ties() {
 	assert manager.directional(.up) && manager.current == 'right'
 }
 
+fn test_geometry_lookup_tracks_named_labels_reorder_removal_and_scope_reparenting() {
+	mut manager := FocusManager{}
+	outside := focus_fixture('outside', 0, 0)
+	origin := Element{ ...focus_fixture('origin', 0, 40), key: 'origin' }
+	right := Element{ ...focus_fixture('right', 100, 40), key: 'right' }
+	label := Element{ kind: .label, id: 'caption', key: 'caption', frame: rect(3.25, 4.5, 20, 10) }
+	panel := Element{ kind: .view, id: 'panel', key: 'panel', focus_scope: true, children: [origin, label, right] }
+	root := screen(0xffffff, [outside, panel])
+	manager.update(root, map[string]f64{})
+	assert manager.set_focus('outside')
+	assert manager.enter_scope('panel') && manager.current == 'origin'
+	manager.set_geometry('caption', rect(6.5, 9.25, 20.5, 10.75))
+	assert (manager.node('caption') or { panic('missing label') }).frame == rect(6.5, 9.25, 20.5, 10.75)
+	assert !manager.can_focus('caption')
+	assert (manager.path_node('root/k:70616e656c/k:63617074696f6e') or { panic('missing label path') }).frame == rect(6.5, 9.25, 20.5, 10.75)
+
+	// Removing the label and reversing declaration order changes every retained
+	// index. Paint geometry must still update the requested control and its path.
+	manager.update(screen(0xffffff, [Element{ ...panel, children: [right, origin] }, outside]), map[string]f64{})
+	assert manager.current == 'origin' && manager.scopes.map(it.id) == ['panel']
+	assert manager.order() == ['right', 'origin']
+	assert manager.node('caption') == none
+	assert manager.path_node('root/k:70616e656c/k:63617074696f6e') == none
+	manager.set_geometry('caption', rect(-100, -100, 1, 1))
+	manager.set_geometry('right', rect(0.25, -60.5, 40.5, 30.25))
+	assert (manager.path_node('root/k:70616e656c/k:7269676874') or { panic('missing reordered control') }).frame == rect(0.25, -60.5, 40.5, 30.25)
+	assert (manager.node('origin') or { panic('missing origin') }).frame == rect(0, 40, 40, 30)
+	assert manager.directional(.up) && manager.current == 'right'
+
+	// A surviving id can move out of an active scope. Lookups must expose its
+	// new ancestry immediately, while scope removal restores the outside target.
+	manager.update(screen(0xffffff, [right, outside]), map[string]f64{})
+	assert manager.scopes.len == 0 && manager.current == 'outside'
+	assert manager.node('panel') == none && manager.node('origin') == none
+	assert manager.path_node('root/k:70616e656c/k:7269676874') == none
+	assert (manager.node('right') or { panic('missing reparented control') }).scopes.len == 0
+	assert (manager.path_node('root/k:7269676874') or { panic('missing new path') }).el.id == 'right'
+	manager.set_geometry('right', rect(90.125, 0.25, 40.5, 30.25))
+	assert manager.directional(.right) && manager.current == 'right'
+}
+
+fn test_fractional_geometry_lookup_and_anonymous_scroll_paths_survive_rebuild() {
+	mut manager := FocusManager{}
+	below := Element{ ...focus_fixture('below', 6.25, 75.125), key: 'below' }
+	pane := Element{ kind: .scroll, key: 'pane', frame: rect(4.5, 8.25, 90, 40), children: [below] }
+	composition := Element{
+		kind: .view
+		key: 'composition'
+		frame: rect(10.25, 20.5, 250, 125)
+		content_size: LayoutSize{ width: 200, height: 100 }
+		children: [pane]
+	}
+	root := screen(0xffffff, [composition])
+	manager.update(root, map[string]f64{ 'root/k:636f6d706f736974696f6e/k:70616e65': 5.5 })
+	assert (manager.node('below') or { panic('missing projected control') }).frame == rect(23.6875, 117.84375, 50, 37.5)
+	assert (manager.path_node('root/k:636f6d706f736974696f6e/k:70616e65') or { panic('missing anonymous pane') }).frame == rect(15.875, 30.8125, 112.5, 50)
+	requests := manager.reveals('below')
+	assert requests.len == 1 && requests[0].id == ''
+	assert requests[0].path == 'root/k:636f6d706f736974696f6e/k:70616e65'
+	assert requests[0].rect == rect(6.25, 75.125, 40, 30)
+	assert focus_reveal_offset(5.5, 40, requests[0].rect) == 65.125
+
+	manager.set_geometry('below', rect(24.3125, 116.90625, 49.375, 36.875))
+	assert (manager.path_node('root/k:636f6d706f736974696f6e/k:70616e65/k:62656c6f77') or { panic('missing painted control') }).frame == rect(24.3125, 116.90625, 49.375, 36.875)
+	assert (manager.node('below') or { panic('missing painted id') }).frame == rect(24.3125, 116.90625, 49.375, 36.875)
+	root_frame := (manager.path_node('root') or { panic('missing root') }).frame
+	manager.set_geometry('', rect(-1, -1, 1, 1))
+	manager.set_geometry('absent', rect(-2, -2, 1, 1))
+	assert (manager.path_node('root') or { panic('missing root after unnamed geometry') }).frame == root_frame
+
+	// Replace the keyed pane with an index-addressed ancestor and a new offset.
+	// Neither its former path nor the paint-only geometry may survive rebuilding.
+	changed := Element{ ...composition, children: [Element{ ...pane, key: '' }] }
+	manager.update(screen(0xffffff, [focus_fixture('before', 0, 0), changed]), map[string]f64{ 'root/k:636f6d706f736974696f6e/i:0': 15.25 })
+	assert manager.path_node('root/k:636f6d706f736974696f6e/k:70616e65') == none
+	assert manager.path_node('root/k:636f6d706f736974696f6e/k:70616e65/k:62656c6f77') == none
+	assert (manager.node('below') or { panic('missing rebuilt projection') }).frame == rect(23.6875, 105.65625, 50, 37.5)
+	rebuilt := manager.reveals('below')
+	assert rebuilt.len == 1 && rebuilt[0].path == 'root/k:636f6d706f736974696f6e/i:0'
+	assert rebuilt[0].rect == rect(6.25, 75.125, 40, 30)
+}
+
 fn test_mounted_offscreen_controls_remain_in_order_and_reveal_inside_out() {
 	mut manager := FocusManager{}
 	root := Element{

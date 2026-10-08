@@ -33,6 +33,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		key_event_handler KeyEventFn = unsafe { nil }
 		drop_handler DropFn = unsafe { nil }
 		key_consumed bool
+		input_generation u64
 		keyboard CustomKeyboardState
 		text_values map[string]string
 		text_props map[string]string
@@ -127,6 +128,9 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		if previous == state {
 			return previous
 		}
+		previous.input_generation++
+		mut next := unsafe { state }
+		next.input_generation++
 		previous.capture()
 		state.restore()
 		g_active_custom_window_state = state
@@ -139,6 +143,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	// resource caches. Disposing one window also leaves a nested caller intact.
 	fn discard_custom_window_state(state &CustomWindowState) {
 		previous := activate_custom_window_state(state)
+		reset_custom_keyboard()
 		for id in g_text_values.keys() {
 			forget_text_state(id)
 		}

@@ -71,6 +71,8 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 	}
 
 	fn activate_semantic_control(id string, action SemanticAction) bool {
+		dispatch := custom_input_dispatch(g_gg_app)
+		if !dispatch.valid() { return false }
 		node := g_focus_navigation.node(id) or { return false }
 		if node.hidden || !node.enabled || !g_focus_navigation.in_scope(node) { return false }
 		target := custom_focus_target(node)
@@ -82,7 +84,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 			if value != before {
 				fire_target_event(target, ElementEvent{ kind: .change, id: id, value: value })
 			}
-			invalidate_custom_paint()
+			if dispatch.valid() { invalidate_custom_paint() }
 			return true
 		}
 		if action != .activate || !semantic_activatable(node.el) { return false }
@@ -96,7 +98,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 			}
 			else { fire_target_event(target, ElementEvent{ kind: .tap, id: id }) }
 		}
-		invalidate_custom_paint()
+		if dispatch.valid() { invalidate_custom_paint() }
 		return true
 	}
 

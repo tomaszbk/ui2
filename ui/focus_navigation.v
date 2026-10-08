@@ -25,10 +25,11 @@ struct FocusNode {
 	hidden      bool
 	enabled     bool
 	scopes      []string
-	frame       Rect
 	transform   ContentTransform
 	local_frame Rect
 	scrolls     []string
+mut:
+	frame       Rect
 }
 
 struct FocusScopeEntry {
@@ -49,6 +50,10 @@ struct FocusManager {
 mut:
 	root           Element
 	nodes          []FocusNode
+	// Index the retained registry itself, including named non-focusable nodes
+	// painted by custom backends and anonymous ancestors addressed by path.
+	node_indices   map[string]int
+	path_indices   map[string]int
 	current        string
 	scopes         []FocusScopeEntry
 	scroll_offsets map[string]f64
@@ -78,6 +83,8 @@ fn (mut manager FocusManager) update_presented(root Element, offsets map[string]
 	manager.root = root
 	manager.scroll_offsets = offsets.clone()
 	manager.nodes.clear()
+	manager.node_indices.clear()
+	manager.path_indices.clear()
 	manager.collect(root, 'root', '', 0, 0, transform, false, true, []string{}, []string{})
 	// Validate the complete active chain: a surviving inner scope may have
 	// moved out of its parent, or that parent may have disappeared entirely.
@@ -111,6 +118,9 @@ fn (mut manager FocusManager) collect(el Element, path string, parent string,
 	local := rect(off_x + el.frame.x, off_y + el.frame.y, el.frame.width, el.frame.height)
 	mut child_scopes := scopes.clone()
 	if el.focus_scope { child_scopes << el.id }
+	index := manager.nodes.len
+	if el.id.len > 0 { manager.node_indices[el.id] = index }
+	manager.path_indices[path] = index
 	manager.nodes << FocusNode{
 		el:          el
 		path:        path
@@ -149,13 +159,13 @@ fn (mut manager FocusManager) collect(el Element, path string, parent string,
 }
 
 fn (manager &FocusManager) node(id string) ?FocusNode {
-	for node in manager.nodes { if node.el.id == id && id.len > 0 { return node } }
-	return none
+	index := manager.node_indices[id] or { return none }
+	return manager.nodes[index]
 }
 
 fn (manager &FocusManager) path_node(path string) ?FocusNode {
-	for node in manager.nodes { if node.path == path { return node } }
-	return none
+	index := manager.path_indices[path] or { return none }
+	return manager.nodes[index]
 }
 
 fn (manager &FocusManager) in_scope(node FocusNode) bool {
@@ -246,12 +256,8 @@ fn (mut manager FocusManager) leave_scope() bool {
 // hit-test geometry are reimplemented here. Backends may project a control's
 // final geometry with their common presentation helper before navigation.
 fn (mut manager FocusManager) set_geometry(id string, frame Rect) {
-	for i, node in manager.nodes {
-		if node.el.id == id {
-			manager.nodes[i] = FocusNode{ ...node, frame: frame }
-			return
-		}
-	}
+	index := manager.node_indices[id] or { return }
+	manager.nodes[index].frame = frame
 }
 
 fn (mut manager FocusManager) directional(direction FocusDirection) bool {

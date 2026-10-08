@@ -103,7 +103,14 @@ fn handle_focus_key(event KeyEvent, repeated bool) bool {
 	node := manager.node(focused_id()) or { return false }
 	if !manager.can_focus(node.el.id) { return false }
 	if event.code in [.enter, .kp_enter, .space] && !event.shift && semantic_activatable(node.el) {
-		if !repeated { activate_semantic_control(node.el.id, .activate) }
+		if !repeated {
+			$if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
+				// Establish ownership before the action can reenter input. Lifecycle
+				// reset clears it; an invalid outer dispatch never re-latches it.
+				own_custom_activation(event.code)
+			}
+			activate_semantic_control(node.el.id, .activate)
+		}
 		return true
 	}
 	if !event.shift && node.el.kind == .slider {

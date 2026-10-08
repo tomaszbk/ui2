@@ -543,6 +543,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		if g_gg_app.scheduler.is_closed() {
 			return
 		}
+		reset_custom_keyboard()
 		g_gg_app.scheduler.close()
 		$if macos && ui2_embedder ? {
 			C.ui2_embedder_close(g_gg_app.native_window)
@@ -710,7 +711,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		g_touch = TouchState{}
 		g_focus_navigation = &FocusManager{}
 		g_focused_field = ''
-		g_custom_keyboard = CustomKeyboardState{}
+		reset_custom_keyboard()
 		state.composition = TextComposition{}
 	}
 
@@ -929,7 +930,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 				}
 			}
 			.iconified, .suspended {
-				g_custom_keyboard = CustomKeyboardState{}
+				reset_custom_keyboard()
 				if e.typ == .iconified {
 					state.iconified = true
 				} else {
@@ -953,16 +954,17 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 				state.scheduler.invalidate(.surface)
 			}
 			.touches_cancelled, .unfocused {
-				if e.typ == .unfocused { g_custom_keyboard = CustomKeyboardState{} }
+				if e.typ == .unfocused { reset_custom_keyboard() }
 				g_tooltip.dismiss()
 				cancel_touch()
 			}
 			.char {
-				if !custom_consumed_character(e.char_code) { handle_char_input(e.char_code) }
+				custom_character_input(app, e.char_code)
 			}
 			.key_down {
 				g_tooltip.dismiss()
-				if !custom_key_down(e, false, state.composition.field_id.len > 0) {
+				dispatch := begin_custom_input_dispatch(app)
+				if !custom_key_down(e, false, state.composition.field_id.len > 0, dispatch) && dispatch.valid() {
 					handle_key_down(e.key_code, e.modifiers)
 				}
 			}
@@ -1379,10 +1381,12 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 
 	// ── Keyboard input ─────────────────────────────────────────────────
 
-	fn dispatch_key_event(e &gg.Event) bool {
+	fn dispatch_key_event(e &gg.Event, dispatch CustomInputDispatch) bool {
+		if !dispatch.valid() { return true }
 		if voidptr(g_key_event_handler) != unsafe { nil } {
 			g_key_consumed = false
 			g_key_event_handler(immediate_key_event(e))
+			if !dispatch.valid() { return true }
 			if g_key_consumed {
 				g_key_consumed = false
 				return true
@@ -1404,6 +1408,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		}
 		g_key_consumed = false
 		g_key_handler(event_key)
+		if !dispatch.valid() { return true }
 		consumed := g_key_consumed
 		g_key_consumed = false
 		return consumed
@@ -1487,6 +1492,8 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	}
 
 	fn handle_key_down(key gg.KeyCode, modifiers u32) {
+		dispatch := custom_input_dispatch(g_gg_app)
+		if !dispatch.valid() { return }
 		if g_focused_field.len == 0 || g_focused_field !in g_text_editors {
 			return
 		}
@@ -1501,6 +1508,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 				replace_text_value(g_focused_field, editor.text)
 				replace_text_editor(g_focused_field, editor)
 				fire_field_change(g_focused_field)
+				if !dispatch.valid() { return }
 			}
 		}
 		if key == .delete {
@@ -1508,6 +1516,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 				replace_text_value(g_focused_field, editor.text)
 				replace_text_editor(g_focused_field, editor)
 				fire_field_change(g_focused_field)
+				if !dispatch.valid() { return }
 			}
 		}
 		mut navigation_key := match key {

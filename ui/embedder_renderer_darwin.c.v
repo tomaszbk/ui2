@@ -155,6 +155,7 @@ $if macos && ui2_embedder ? && ui2_custom_rendering ? && !ui2_headless ? {
 			activate_custom_window_state(previous_state)
 			g_gg_app = previous_app
 		}
+		reset_custom_keyboard()
 		app.scheduler.close()
 		app.cleanup_pending = true
 		if app.callback_depth == 0 { cleanup_embedder_app(app) }
@@ -246,19 +247,28 @@ $if macos && ui2_embedder ? && ui2_custom_rendering ? && !ui2_headless ? {
 			scroll_x: native.scroll_x
 			scroll_y: native.scroll_y
 		}
+		dispatch_context := custom_input_dispatch(app)
 		if event.typ in [.resized, .restored, .resumed] { app.surface_retry_at = -1 }
 		if event.typ == .key_down {
 			app.scheduler.invalidate(.build)
 			g_tooltip.dismiss()
+			dispatch := begin_custom_input_dispatch(app)
 			if custom_key_down(&event, native.skip_dispatch,
-				native.text_input && app.composition.field_id.len > 0) {
-				if !app.scheduler.is_closed() { sync_embedder_text(app) }
+				native.text_input && app.composition.field_id.len > 0, dispatch) {
+				if dispatch.valid() { sync_embedder_text(app) }
 				return true
 			}
+			if !dispatch.valid() { return true }
 			if !native.text_input && (g_focused_field.len == 0 || app.editable_fields[g_focused_field]) {
 				handle_key_down(event.key_code, event.modifiers)
 			}
-		} else if event.typ == .char && g_focused_field.len > 0 && !app.editable_fields[g_focused_field] {
+			if !dispatch.valid() { return true }
+			sync_embedder_text(app)
+			return false
+		} else if event.typ == .char {
+			if g_focused_field.len > 0 && !app.editable_fields[g_focused_field] { return false }
+			dispatch := custom_character_input(app, event.char_code)
+			if dispatch.valid() { sync_embedder_text(app) }
 			return false
 		} else if event.typ == .files_dropped {
 			if voidptr(g_drop_handler) != unsafe { nil } && native.paths != unsafe { nil } && native.path_count > 0 {
@@ -267,12 +277,13 @@ $if macos && ui2_embedder ? && ui2_custom_rendering ? && !ui2_headless ? {
 					paths << unsafe { cstring_to_vstring(native.paths[index]) }
 				}
 				g_drop_handler(DropEvent{paths: paths, x: f64(native.x), y: f64(native.y)})
+				if !dispatch_context.valid() { return false }
 				app.scheduler.invalidate(.build)
 			}
 		} else {
 			on_event(&event, app)
 		}
-		if !app.scheduler.is_closed() { sync_embedder_text(app) }
+		if dispatch_context.valid() { sync_embedder_text(app) }
 		return false
 	}
 
@@ -288,6 +299,7 @@ $if macos && ui2_embedder ? && ui2_custom_rendering ? && !ui2_headless ? {
 			activate_custom_window_state(previous_state)
 			g_gg_app = previous_app
 		}
+		dispatch := begin_custom_input_dispatch(app)
 		id := g_focused_field
 		// NSTextInputClient text/IME deliveries have their own provenance and
 		// must never inherit a pending Sokol character from a physical key.
@@ -309,9 +321,10 @@ $if macos && ui2_embedder ? && ui2_custom_rendering ? && !ui2_headless ? {
 			replace_text_value(id, editor.text)
 			replace_text_editor(id, editor)
 			fire_field_change(id)
+			if !dispatch.valid() { return }
 			app.scheduler.invalidate(.build)
 		}
-		if !app.scheduler.is_closed() { sync_embedder_text(app) }
+		if dispatch.valid() { sync_embedder_text(app) }
 	}
 
 	fn custom_composition_editor(id string, editor TextEditor) TextEditor {

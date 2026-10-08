@@ -101,7 +101,14 @@ fn publish_menu_context(app_name string, window voidptr) {
 
 fn emit_menu_callback(callback ElementCallback, id string) {
 	if voidptr(callback) != unsafe { nil } {
-		callback(ElementEvent{ kind: .tap, id: id })
+		$if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
+			dispatch := custom_input_dispatch(g_gg_app)
+			if !dispatch.valid() { return }
+			callback(ElementEvent{ kind: .tap, id: id })
+			if !dispatch.valid() { return }
+		} $else {
+			callback(ElementEvent{ kind: .tap, id: id })
+		}
 		request_refresh()
 	}
 }

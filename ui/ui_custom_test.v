@@ -22,6 +22,10 @@ $if ui2_custom_rendering ? {
 	}
 
 	fn test_custom_desktop_backend_exposes_desktop_hooks() {
+		previous_app := g_gg_app
+		previous := activate_custom_window_state(new_custom_window_state())
+		g_gg_app = &GgApp{}
+		defer { activate_custom_window_state(previous); g_gg_app = previous_app }
 		on_key(custom_test_key_handler)
 		on_key_event(custom_test_key_event_handler)
 		on_drop(custom_test_drop_handler)
