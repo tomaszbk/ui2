@@ -93,6 +93,60 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		}
 	}
 
+	fn test_round_join_excluded_geometry_passes_hits_and_tooltips_through() {
+		old_app := g_gg_app
+		old_targets := g_hit_targets.clone()
+		old_tooltips := g_tooltip_targets.clone()
+		defer { g_gg_app=old_app; g_hit_targets=old_targets.clone(); g_tooltip_targets=old_tooltips.clone() }
+		g_gg_app = &GgApp{ctx:&DrawContext{content_transform:ContentTransform{scale:2,x:10,y:20},scale:1}}
+		for variant in 0 .. 4 {
+			mut path := VectorPath{}
+			path.move_to(10,10)
+			path.line_to(11,10)
+			end := match variant {
+				0 { vector_point(30,10) }
+				1 { vector_point(11,11) }
+				2 { vector_point(11,9) }
+				else { vector_point(10,10) }
+			}
+			path.line_to(end.x,end.y)
+			shape := prepare_vector_shape(path,VectorStyle{stroke:0,stroke_width:4,cap:.butt,join:.round,tolerance:0.001})!
+			excluded := match variant {
+				1 { vector_point(9.5,9.5) }
+				2 { vector_point(9.5,10.5) }
+				else { vector_point(9.5,10) }
+			}
+			painted := match variant {
+				0 { vector_point(20,10) }
+				1 { vector_point(12.3,8.7) }
+				2 { vector_point(12.3,11.3) }
+				else { vector_point(12.8,10) }
+			}
+			for mode in [VectorHitMode.paint,.stroke] {
+				el := vector_canvas(id:'upper',frame:rect(3,4,40,40),shapes:[shape],hit_mode:mode,tooltip:'stroke')!
+				g_hit_targets = []HitTarget{}
+				add_hit_target(HitTarget{id:'lower',x:3,y:4,w:40,h:40},rect(0,0,100,100))
+				add_hit_target(HitTarget{id:'upper',x:3,y:4,w:40,h:40,is_vector_canvas:true,
+					vector_origin:el.frame,vector_shapes:el.vector_shapes,vector_hit_mode:mode},rect(0,0,100,100))
+				g_tooltip_targets = []TooltipTarget{}
+				add_tooltip_target('lower','lower tooltip',el.frame,rect(0,0,100,100))
+				add_element_tooltip('upper','stroke',el,el.frame,rect(0,0,100,100))
+				for dpi in [f32(1),1.25,1.5,2] {
+					g_gg_app.ctx.scale = dpi
+					// Window coordinates include the canvas origin and content transform.
+					ex := 10 + 2 * (3 + excluded.x)
+					ey := 20 + 2 * (4 + excluded.y)
+					px := 10 + 2 * (3 + painted.x)
+					py := 20 + 2 * (4 + painted.y)
+					assert hit_test(ex,ey).id == 'lower'
+					assert tooltip_target_at(g_tooltip_targets,ex,ey).text == 'lower tooltip'
+					assert hit_test(px,py).id == 'upper'
+					assert tooltip_target_at(g_tooltip_targets,px,py).text == 'stroke'
+				}
+			}
+		}
+	}
+
 	fn test_cleanup_releases_retained_vector_target_references() {
 		old_app := g_gg_app
 		defer { g_gg_app=old_app }

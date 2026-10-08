@@ -88,18 +88,28 @@ fn vector_fill_mesh(contours []VectorContour, rule VectorFillRule) ![]VectorTria
 	return mesh
 }
 
-fn vector_disk(mut mesh []VectorTriangle, center VectorPoint, radius f64, tolerance f64) ! {
+fn vector_round_arc(mut mesh []VectorTriangle, center VectorPoint, a VectorPoint, b VectorPoint, radius f64, sweep f64, tolerance f64) ! {
 	if radius <= 0 { return }
-	// Inscribed disk, with maximum chord error <= tolerance.
+	// Inscribed arc, with maximum chord error <= tolerance. Limit each chord
+	// to 45 degrees even at coarse tolerances, so a semicircle never collapses.
 	step := 2 * math.acos(math.max(-1.0, math.min(1.0, 1 - tolerance / radius)))
-	count := int(math.max(8.0, math.ceil(2 * math.pi / step)))
+	count := int(math.max(1.0, math.ceil(math.abs(sweep) / math.min(step, math.pi / 4))))
 	if count > 4096 { return error('vector round stroke exceeds 4096 arc segments') }
 	if mesh.len + count > 131072 { return error('vector stroke exceeds 131072 triangles') }
+	start := math.atan2(a.y - center.y, a.x - center.x)
+	mut previous := a
 	for i in 0 .. count {
-		a := 2 * math.pi * f64(i) / f64(count)
-		b := 2 * math.pi * f64(i + 1) / f64(count)
-		vector_triangle(mut mesh, center, vector_point(center.x + radius * math.cos(a), center.y + radius * math.sin(a)), vector_point(center.x + radius * math.cos(b), center.y + radius * math.sin(b)))
+		angle := start + sweep * f64(i + 1) / f64(count)
+		// Exact normal endpoints keep the arc joined to both segment quads.
+		next := if i + 1 == count { b } else { vector_point(center.x + radius * math.cos(angle), center.y + radius * math.sin(angle)) }
+		vector_triangle(mut mesh, center, previous, next)
+		previous = next
 	}
+}
+
+fn vector_disk(mut mesh []VectorTriangle, center VectorPoint, radius f64, tolerance f64) ! {
+	edge := vector_point(center.x + radius, center.y)
+	vector_round_arc(mut mesh, center, edge, edge, radius, 2 * math.pi, tolerance)!
 }
 
 fn vector_stroke_join(mut mesh []VectorTriangle, previous VectorPoint, point VectorPoint, next VectorPoint, style VectorStyle) ! {
@@ -108,15 +118,25 @@ fn vector_stroke_join(mut mesh []VectorTriangle, previous VectorPoint, point Vec
 	d2 := vector_sub(next, point)
 	u1 := vector_mul(d1, 1 / vector_length(d1))
 	u2 := vector_mul(d2, 1 / vector_length(d2))
-	turn := vector_cross(u1, u2)
-	if style.join == .round {
-		vector_disk(mut mesh, point, radius, style.tolerance)!
-		return
-	}
-	if math.abs(turn) <= vector_epsilon { return }
-	side := if turn > 0 { -1.0 } else { 1.0 }
+	// Normalization can introduce a tiny cross product even for exactly
+	// collinear segments of different lengths. Preserve their zero turn.
+	turn := if vector_cross(d1, d2) == 0 { 0.0 } else { vector_cross(u1, u2) }
+	dot := u1.x * u2.x + u1.y * u2.y
+	// Positive dot distinguishes straight-through from a reversing cusp.
+	// Keep small nonzero round turns: their displacement can exceed tolerance
+	// at large widths even when the normalized cross product is tiny.
+	if turn == 0 && dot > 0 { return }
+	if style.join != .round && math.abs(turn) <= vector_epsilon { return }
+	side := if turn >= 0 { -1.0 } else { 1.0 }
 	a := vector_add(point, vector_point(-u1.y * radius * side, u1.x * radius * side))
 	b := vector_add(point, vector_point(-u2.y * radius * side, u2.x * radius * side))
+	if style.join == .round {
+		// The signed turn sweeps only the outer corner. An exact reversal uses
+		// the incoming forward semicircle, rather than filling behind the cusp.
+		sweep := if turn == 0 && dot < 0 { math.pi } else { math.atan2(turn, dot) }
+		vector_round_arc(mut mesh, point, a, b, radius, sweep, style.tolerance)!
+		return
+	}
 	if style.join == .miter {
 		t := vector_cross(vector_sub(b, a), u2) / turn
 		miter := vector_add(a, vector_mul(u1, t))
