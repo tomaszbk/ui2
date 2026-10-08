@@ -6,14 +6,24 @@ $if !ui2_custom_rendering ? {
 import macos
 
 #include "@VMODROOT/appkit/focus_events_darwin_test.h"
+fn C.ui2_focus_test_mark_text(editor voidptr, text voidptr, location u64, length u64)
 fn C.ui2_focus_test_key_event(window voidptr, event_type u64, code u16, characters voidptr, modifiers u64, timestamp f64, repeated bool) voidptr
 
 __global native_focus_timestamp f64
 __global native_focus_keys = []KeyEvent{}
 __global native_focus_resign_in_callback bool
 __global native_focus_resign_in_observer bool
+__global native_focus_consume_in_observer bool
+__global native_marked_legacy_keys = []string{}
+__global native_marked_consume bool
+fn native_marked_key_handler(key string) {
+	native_marked_legacy_keys << key
+	if !native_marked_consume { return }
+	if key.starts_with('text:') { consume_text_key() } else { consume_key() }
+}
 fn native_focus_key_observer(event KeyEvent) {
 	native_focus_keys << event
+	if native_focus_consume_in_observer { consume_key() }
 	if native_focus_resign_in_observer { macos.msg_void(state().window, 'resignKeyWindow') }
 }
 fn native_focus_editor_event(event ElementEvent) {
@@ -94,6 +104,20 @@ fn test_appkit_consumed_activation_repeats_preserve_new_native_editor_until_rele
 			if !unchanged || activations != 1 { failures << '${kind}/${code}' }
 			expected_keys := if code == 0x4c { 9 } else { 8 }
 			if native_focus_keys.filter(it.code == appkit_key_code(code)).len != expected_keys { failures << 'observers:${kind}/${code}' }
+			// Owned activation repeats remain consumed even if composition starts
+			// in the newly focused real NSTextInputClient before key release.
+			C.ui2_focus_test_mark_text(editor, macos.nsstring('áñ'), 0, 2)
+			assert macos.msg_bool(editor, 'hasMarkedText')
+			marked_draft := text('edit')
+			marked_selection := macos.msg_range(editor, 'selectedRange')
+			observed := native_focus_keys.len
+			send_native_focus_key(code, characters, true, 10, 0)
+			assert native_focus_keys.len == observed + 1
+			assert text('edit') == marked_draft && macos.msg_range(editor, 'selectedRange') == marked_selection
+			assert macos.msg_bool(editor, 'hasMarkedText') && focused_id() == 'edit'
+			macos.msg_void(editor, 'unmarkText')
+			set_text('edit', before)
+			macos.msg_void_range(editor, 'setSelectedRange:', selection)
 			// Unrelated Unicode input still reaches the editor while owned.
 			send_native_focus_key(0x2d, 'ñ', false, 10, 0)
 			assert text('edit') == 'caññ'
@@ -240,4 +264,121 @@ fn test_appkit_navigation_preserves_native_editor_selection_and_reveals_offscree
 	assert focused_id() == 'nested-below'
 	assert scroll_offset('inner') == 0 && scroll_offset('outer') == 180
 }
+
+// Real NSTextInputClient marked text and injected Cocoa sendEvent: commands;
+// this does not exercise a physical OS input method or candidate window.
+fn test_appkit_marked_text_tab_uses_native_editor_without_default_focus_navigation() {
+	pool := macos.autorelease_pool_new()
+	defer { macos.release(pool) }
+	native_current_app()
+	ensure_runtime_classes()
+	mut st := state()
+	previous := *st
+	unsafe { *st = RuntimeState{} }
+	st.window = native_new_window(native_rect(0, 0, 380, 260), 'Marked text fixture')
+	st.root_view = native_new_flipped_view(native_rect(0, 0, 380, 260), BoxStyle{})
+	st.button_handler = native_new_object('UI2ButtonHandler')
+	native_set_content_view(st.window, st.root_view)
+	macos.msg_void1(st.window, 'makeKeyAndOrderFront:', st.window)
+	defer {
+		macos.msg_void(st.window, 'close')
+		macos.release(st.window)
+		macos.release(st.root_view)
+		macos.release(st.button_handler)
+		unsafe { *st = previous }
+	}
+	mut failures := []string{}
+	native_focus_consume_in_observer = false
+	for kind in [Kind.text_field, .text_area] {
+		for modifiers in [u64(0), u64(0x20000)] {
+			root := screen(0xffffff, [Element{kind: .view, id: 'scope', focus_scope: true, children: [
+				Element{kind: .button, id: 'before', text: 'Before', frame: rect(10, 10, 100, 30)},
+				Element{kind: kind, id: 'edit', text: 'café ñ', frame: rect(10, 50, 180, 80)},
+				Element{kind: .button, id: 'after', text: 'After', frame: rect(10, 150, 100, 30)},
+			]}])
+			render_root(root)
+			assert enter_focus_scope('scope')
+			focus('edit')
+			set_text('edit', 'borrador café ñ')
+			editor := macos.msg_id(st.window, 'firstResponder')
+			assert macos.responds_to(editor, 'hasMarkedText')
+			if kind == .text_field {
+				field := st.views['edit'] or { panic('missing field') }
+				assert editor == macos.msg_id(field, 'currentEditor')
+				assert editor != field
+			}
+			macos.msg_void_range(editor, 'setSelectedRange:', macos.range(9, 4))
+			C.ui2_focus_test_mark_text(editor, macos.nsstring('cañé'), 1, 2)
+			assert macos.msg_bool(editor, 'hasMarkedText')
+			assert text('edit') == 'borrador cañé ñ'
+			draft := text('edit')
+			selection := macos.msg_range(editor, 'selectedRange')
+			render_root(Element{...root, box: BoxStyle{bg: 0xeeeeee}})
+			assert macos.msg_bool(editor, 'hasMarkedText')
+			assert text('edit') == draft && macos.msg_range(editor, 'selectedRange') == selection
+			// Record Cocoa's own behavior on exactly the same real editor/draft.
+			// The reference goes straight to NSWindow's implementation.
+			native_focus_timestamp += 1
+			reference := C.ui2_focus_test_key_event(st.window, 10, 0x30, macos.nsstring('\t'), modifiers, native_focus_timestamp, false)
+			C.ui2_macos_window_send_event(st.window, reference)
+			expected_text := text('edit')
+			expected_selection := macos.msg_range(editor, 'selectedRange')
+			expected_marked := macos.msg_bool(editor, 'hasMarkedText')
+			assert focused_id() == 'edit'
+			macos.msg_void(editor, 'unmarkText')
+			set_text('edit', 'borrador café ñ')
+			macos.msg_void_range(editor, 'setSelectedRange:', macos.range(9, 4))
+			C.ui2_focus_test_mark_text(editor, macos.nsstring('cañé'), 1, 2)
+			assert text('edit') == draft && macos.msg_range(editor, 'selectedRange') == selection
+			native_focus_keys = []KeyEvent{}
+			on_key_event(native_focus_key_observer)
+			send_native_focus_key(0x30, '\t', false, 10, modifiers)
+			assert native_focus_keys.len == 1 && native_focus_keys[0].code == .tab
+			unchanged_route := focused_id() == 'edit' && active_focus_scope() == 'scope'
+			native_result := text('edit') == expected_text && macos.msg_range(editor, 'selectedRange') == expected_selection
+				&& macos.msg_bool(editor, 'hasMarkedText') == expected_marked
+			eprintln('marked Cocoa kind=${kind} shift=${modifiers != 0} retained_focus=${unchanged_route} native_text_selection=${native_result}')
+			if !unchanged_route || !native_result { failures << '${kind}/${modifiers}' }
+			// Explicit application handlers may still consume a composition key.
+			focus('edit')
+			macos.msg_void(editor, 'unmarkText')
+			set_text('edit', 'borrador café ñ')
+			macos.msg_void_range(editor, 'setSelectedRange:', macos.range(9, 4))
+			C.ui2_focus_test_mark_text(editor, macos.nsstring('cañé'), 1, 2)
+			native_marked_legacy_keys = []string{}
+			native_marked_consume = false
+			on_key(native_marked_key_handler)
+			send_native_focus_key(0x30, '\t', false, 10, modifiers)
+			assert native_marked_legacy_keys.len == 1
+			assert text('edit') == expected_text && macos.msg_range(editor, 'selectedRange') == expected_selection
+			assert macos.msg_bool(editor, 'hasMarkedText') == expected_marked && focused_id() == 'edit'
+			macos.msg_void(editor, 'unmarkText')
+			set_text('edit', 'borrador café ñ')
+			macos.msg_void_range(editor, 'setSelectedRange:', macos.range(9, 4))
+			C.ui2_focus_test_mark_text(editor, macos.nsstring('cañé'), 1, 2)
+			native_marked_legacy_keys = []string{}
+			native_marked_consume = true
+			send_native_focus_key(0x30, '\t', false, 10, modifiers)
+			assert native_marked_legacy_keys.len == 1
+			assert native_marked_legacy_keys[0] == (if kind == .text_area { 'text:edit:' } else { '' }) + if modifiers == 0 { 'tab' } else { 'shift+tab' }
+			assert text('edit') == draft && macos.msg_range(editor, 'selectedRange') == selection
+			assert macos.msg_bool(editor, 'hasMarkedText') && focused_id() == 'edit'
+			on_key(unsafe { nil })
+			native_focus_consume_in_observer = true
+			send_native_focus_key(0x30, '\t', false, 10, modifiers)
+			native_focus_consume_in_observer = false
+			assert text('edit') == draft && macos.msg_range(editor, 'selectedRange') == selection
+			assert macos.msg_bool(editor, 'hasMarkedText') && focused_id() == 'edit'
+			macos.msg_void(editor, 'unmarkText')
+			assert !macos.msg_bool(editor, 'hasMarkedText')
+			send_native_focus_key(0x30, '\t', false, 11, modifiers)
+			send_native_focus_key(0x30, '\t', false, 10, modifiers)
+			assert focused_id() == if modifiers == 0 { 'after' } else { 'before' }
+			assert native_focus_keys.len == 5
+			render_root(screen(0xffffff, []))
+		}
+	}
+	assert failures.len == 0, failures.str()
+}
+
 }

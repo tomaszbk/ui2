@@ -118,6 +118,23 @@ $if !ui2_custom_rendering ? {
 		return result
 	}
 
+	fn appkit_text_client_has_marked_text() bool {
+		st := state()
+		responder := macos.msg_id(st.window, 'firstResponder')
+		if macos.responds_to(responder, 'hasMarkedText') {
+			return macos.msg_bool(responder, 'hasMarkedText')
+		}
+		// NSTextField itself is not the NSTextInputClient. Its current shared
+		// field editor owns composition when AppKit reports the control here.
+		if native := st.views[focused_id()] {
+			if macos.responds_to(native, 'currentEditor') {
+				editor := macos.msg_id(native, 'currentEditor')
+				return macos.responds_to(editor, 'hasMarkedText') && macos.msg_bool(editor, 'hasMarkedText')
+			}
+		}
+		return false
+	}
+
 	// Intercept before NSControl and the shared field editor dispatch. Tab cannot
 	// be handled a second time by AppKit, and a semantic button consumes repeats.
 	fn appkit_navigation_key(event macos.Id) bool {
@@ -135,6 +152,9 @@ $if !ui2_custom_rendering ? {
 		owned := repeated && (st.activation_keys[physical] or { false })
 		if !repeated { st.activation_keys.delete(physical) }
 		if !owned && (key.ctrl || key.cmd || key.alt) { return false }
+		// Explicit application handling still precedes the native input context.
+		// Already consumed activation repeats remain owned during composition.
+		composing := !owned && appkit_text_client_has_marked_text()
 		manager := focus_manager()
 		mut candidate := owned || key.code == .tab
 		if node := manager.node(focused_id()) {
@@ -154,6 +174,7 @@ $if !ui2_custom_rendering ? {
 			if node := manager.node(focused_id()) {
 				if node.el.kind == .text_area { name = 'text:${node.el.id}:${name}' }
 			}
+			st.navigation_key_dispatched = true
 			st.key_handler(name)
 			consumed := st.key_consumed || st.text_key_consumed
 			st.key_consumed = false
@@ -161,6 +182,7 @@ $if !ui2_custom_rendering ? {
 			if consumed || st.keyboard_generation != generation { return true }
 		}
 		if owned { return true }
+		if composing { return false } // AppKit owns default composition commands.
 		// Claim before the synchronous callback: it may focus/remove a control,
 		// refresh, resign or close the window. Never re-latch after that callback.
 		if !repeated && !key.shift && key.code in [.space, .enter, .kp_enter] {
@@ -194,22 +216,26 @@ $if !ui2_custom_rendering ? {
 			C.ui2_macos_window_send_event(self, event)
 			return
 		}
+		mut st := state()
+		previous_dispatch := st.navigation_key_dispatched
+		st.navigation_key_dispatched = false
+		defer { st.navigation_key_dispatched = previous_dispatch }
 		// Native editors can bypass window keyDown:. Observe each key-down here;
 		// performKeyEquivalent/keyDown share the event/timestamp deduplication.
 		if macos.msg_u64(event, 'type') == 10 {
 			generation := state().keyboard_generation
 			if dispatch_typed_key_event(event) || state().keyboard_generation != generation { return }
 		}
+		composing := macos.msg_u64(event, 'type') == 10 && appkit_text_client_has_marked_text()
 		if appkit_navigation_key(macos.Id(event)) { return }
 		previous := focused_id()
-		mut st := state()
 		if native := st.views[previous] {
 			if (st.view_kinds[previous] or { Kind.view }) == .text_field && native_control_is_editing(native) {
 				st.focus_selections[previous] = native_control_selected_range(native)
 			}
 		}
 		C.ui2_macos_window_send_event(self, event)
-		if st.navigation.scopes.len > 0 && !st.navigation.can_focus(focused_id()) {
+		if !composing && st.navigation.scopes.len > 0 && !st.navigation.can_focus(focused_id()) {
 			destination := if st.navigation.can_focus(previous) {
 				previous
 			} else {

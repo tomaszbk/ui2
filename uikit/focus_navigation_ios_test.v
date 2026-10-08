@@ -4,6 +4,7 @@ module ui2
 import macos
 
 #include "@VMODROOT/uikit/focus_events_ios_test.h"
+fn C.ui2_ios_focus_test_visible_in_scroll(target voidptr, pane voidptr) bool
 fn C.ui2_ios_focus_test_select(view voidptr, location i64, length i64)
 fn C.ui2_ios_focus_test_selection_is(view voidptr, location i64, length i64) bool
 
@@ -262,4 +263,81 @@ fn test_ios_scope_removal_restores_eligible_native_responder_and_resigns_removed
 	assert focused_id() == 'outside' && g_ios_navigation.current == 'outside'
 	assert !macos.msg_bool(inside, 'isFirstResponder')
 	assert text('outside') == 'local ñá'
+}
+
+fn ios_nested_scroll_fixture(outer_id string, inner_id string) Element {
+	return scroll(outer_id, rect(10.25, 20.5, 220.75, 110.5), 0xffffff, [
+		scroll(inner_id, rect(0, 250.5, 180.5, 90.5), 0xffffff, [
+			Element{kind: .view, id: 'scope', focus_scope: true, frame: rect(0, 0, 180.5, 330.75), children: [
+				Element{kind: .text_field, id: 'target', text: 'café ñ', frame: rect(0, 300.5, 150.25, 30.25)},
+			]},
+		]),
+	])
+}
+
+fn test_ios_nested_anonymous_and_named_scrolls_use_mounted_paths_for_geometry_and_reveal() {
+	begin_ios_semantic_fixture()
+	defer { end_ios_semantic_fixture() }
+	for outer_id in ['', 'outer'] {
+		for inner_id in ['', 'inner'] {
+			root := screen(0xffffff, [ios_nested_scroll_fixture(outer_id, inner_id)])
+			render_root(root)
+			outer := g_nodes['i:0'] or { panic('missing outer UIScrollView') }
+			inner := g_nodes['i:0/i:0'] or { panic('missing inner UIScrollView') }
+			target := g_views['target'] or { panic('missing target') }
+			set_scroll_content_offset_y(outer, 37.25)
+			set_scroll_content_offset_y(inner, 15.75)
+			node := semantic_node('target') or { panic('missing target semantics') }
+			assert node.frame == rect(10.25, 518.5, 150.25, 30.25)
+			assert g_ios_navigation.scroll_offsets['root/i:0'] == 37.25
+			assert g_ios_navigation.scroll_offsets['root/i:0/i:0'] == 15.75
+			if outer_id.len > 0 { assert (g_views[outer_id] or { panic('missing public outer lookup') }) == outer }
+			if inner_id.len > 0 { assert (g_views[inner_id] or { panic('missing public inner lookup') }) == inner }
+			assert enter_focus_scope('scope') && focused_id() == 'target'
+			// Isolate our reveal from UIKit's first-responder automatic scrolling.
+			set_scroll_content_offset_y(outer, 0)
+			set_scroll_content_offset_y(inner, 0)
+			focus('target')
+			assert scroll_content_offset_y(inner) == 240.25
+			assert scroll_content_offset_y(outer) == 230.5
+			assert C.ui2_ios_focus_test_visible_in_scroll(target, inner)
+			assert C.ui2_ios_focus_test_visible_in_scroll(target, outer)
+			assert (semantic_node('target') or { panic('missing revealed target') }).frame.y == 100.75
+			assert text('target') == 'café ñ' && active_focus_scope() == 'scope'
+			assert leave_focus_scope()
+			dismiss_keyboard()
+			set_scroll_content_offset_y(outer, 37.25)
+			set_scroll_content_offset_y(inner, 15.75)
+			// Unkeyed sibling insertion changes actual mounted paths. Named
+			// panes preserve declared-id restoration when recreated there.
+			render_root(screen(0xffffff, [Element{kind: .label, text: 'Inserted'}, root.children[0]]))
+			new_outer := g_nodes['i:1'] or { panic('missing reordered outer') }
+			new_inner := g_nodes['i:1/i:0'] or { panic('missing reordered inner') }
+			if outer_id.len > 0 {
+				assert (g_views[outer_id] or { panic('lost public outer lookup') }) == new_outer
+				assert scroll_content_offset_y(new_outer) == 37.25
+			}
+			if inner_id.len > 0 {
+				assert (g_views[inner_id] or { panic('lost public inner lookup') }) == new_inner
+				assert scroll_content_offset_y(new_inner) == 15.75
+			}
+			set_scroll_content_offset_y(new_outer, 37.25)
+			set_scroll_content_offset_y(new_inner, 15.75)
+			reordered := semantic_node('target') or { panic('missing reordered semantics') }
+			assert reordered.path == 'root/i:1/i:0/i:0/i:0'
+			assert reordered.frame.y == 518.5
+			assert g_ios_navigation.reveals('target').map(it.path) == ['root/i:1/i:0', 'root/i:1']
+			assert enter_focus_scope('scope') && focused_id() == 'target'
+			set_scroll_content_offset_y(new_outer, 0)
+			set_scroll_content_offset_y(new_inner, 0)
+			focus('target')
+			new_target := g_views['target'] or { panic('missing reordered target') }
+			assert C.ui2_ios_focus_test_visible_in_scroll(new_target, new_inner)
+			assert C.ui2_ios_focus_test_visible_in_scroll(new_target, new_outer)
+			assert scroll_content_offset_y(new_inner) == 240.25 && scroll_content_offset_y(new_outer) == 230.5
+			assert active_focus_scope() == 'scope'
+			assert leave_focus_scope()
+			render_root(screen(0xffffff, []))
+		}
+	}
 }

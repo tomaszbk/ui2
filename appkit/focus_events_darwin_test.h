@@ -16,3 +16,12 @@ static inline void *ui2_focus_test_key_event(void *window, unsigned long type,
         type, (ui2_focus_test_point){0, 0}, modifiers, timestamp, number, nil,
         (id)characters, (id)characters, repeated, code);
 }
+
+#include <Foundation/NSRange.h>
+// Typed ranges preserve NSTextInputClient's ABI in both native architectures.
+static inline void ui2_focus_test_mark_text(void *editor, void *text,
+        unsigned long location, unsigned long length) {
+    ((void (*)(id, SEL, id, NSRange, NSRange))objc_msgSend)((id)editor,
+        sel_registerName("setMarkedText:selectedRange:replacementRange:"),
+        (id)text, NSMakeRange(location, length), NSMakeRange(NSNotFound, 0));
+}

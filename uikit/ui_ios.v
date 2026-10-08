@@ -306,11 +306,12 @@ pub fn focus(id string) {
 	native := g_views[id] or { return }
 	if macos.msg_bool(native, 'becomeFirstResponder') { g_ios_navigation.current = id }
 	for request in g_ios_navigation.reveals(id) {
-		if pane := g_views[request.id] {
-			C.ui2_ios_scroll_rect_visible(pane, request.rect.x, request.rect.y,
-				request.rect.width, request.rect.height, false)
-		}
+		key := g_ios_navigation_paths[request.path] or { continue }
+		pane := g_nodes[key] or { continue }
+		C.ui2_ios_scroll_rect_visible(pane, request.rect.x, request.rect.y,
+			request.rect.width, request.rect.height, false)
 	}
+	sync_focus_navigation()
 }
 
 pub fn focused_id() string {

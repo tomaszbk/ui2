@@ -19,3 +19,17 @@ static inline BOOL ui2_ios_focus_test_selection_is(void *pointer, long location,
         && [input offsetFromPosition:input.beginningOfDocument toPosition:selection.start] == location
         && [input offsetFromPosition:selection.start toPosition:selection.end] == length;
 }
+
+// Query UIKit's own coordinate conversion after nested scrolling. No second
+// geometry implementation in the fixture.
+static inline BOOL ui2_ios_focus_test_visible_in_scroll(void *target_pointer, void *pane_pointer) {
+#if __has_feature(objc_arc)
+    UIView *target = (__bridge UIView *)target_pointer;
+    UIScrollView *pane = (__bridge UIScrollView *)pane_pointer;
+#else
+    UIView *target = (UIView *)target_pointer;
+    UIScrollView *pane = (UIScrollView *)pane_pointer;
+#endif
+    CGRect rect = [target convertRect:target.bounds toView:pane];
+    return CGRectContainsRect(pane.bounds, rect);
+}

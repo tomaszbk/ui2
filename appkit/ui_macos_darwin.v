@@ -115,6 +115,9 @@ mut:
 	key_event_handler   KeyEventFn = KeyEventFn(unsafe { nil })
 	key_consumed        bool
 	text_key_consumed   bool
+	// A navigation key forwarded to the native input context has already
+	// visited KeyFn; its text/window delegates must not dispatch it again.
+	navigation_key_dispatched bool
 	drop_handler        DropFn = DropFn(unsafe { nil })
 	window              NativeView
 	root_view           NativeView
@@ -2921,6 +2924,7 @@ fn ui2_control_text_changed(_self voidptr, _cmd voidptr, notification voidptr) {
 @[export: 'ui2_control_do_command']
 fn ui2_control_do_command(_self voidptr, _cmd voidptr, control voidptr, _text_view voidptr, command voidptr) bool {
 	mut st := state()
+	if st.navigation_key_dispatched { return false }
 	if voidptr(st.key_handler) == unsafe { nil }
 		|| u64(control) !in st.control_change_callbacks {
 		return false
@@ -2947,6 +2951,7 @@ fn ui2_text_view_changed(_self voidptr, _cmd voidptr, notification voidptr) {
 @[export: 'ui2_text_view_do_command']
 fn ui2_text_view_do_command(_self voidptr, _cmd voidptr, text_view voidptr, command voidptr) bool {
 	mut st := state()
+	if st.navigation_key_dispatched { return false }
 	if voidptr(st.key_handler) == unsafe { nil } {
 		return false
 	}
@@ -3025,7 +3030,7 @@ fn ui2_window_key_down(_self voidptr, _cmd voidptr, event voidptr) {
 		return
 	}
 	st := state()
-	if voidptr(st.key_handler) == unsafe { nil } {
+	if st.navigation_key_dispatched || voidptr(st.key_handler) == unsafe { nil } {
 		return
 	}
 	st.key_handler(key_event_string(macos.Id(event)))

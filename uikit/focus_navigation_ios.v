@@ -4,21 +4,26 @@ module ui2
 import macos
 
 __global g_ios_navigation = &FocusManager{}
+__global g_ios_navigation_paths = map[string]string{}
 
 fn focus_manager() &FocusManager { return g_ios_navigation }
 
-fn ios_focus_offsets(el Element, path string, mut offsets map[string]f64) {
+fn ios_focus_offsets(el Element, path string, native_path string, mut offsets map[string]f64) {
+	// Shared focus starts at root; UIKit mounts root.children at the empty
+	// parent key. Use the renderer's reconciliation keys for every Scroll.
+	g_ios_navigation_paths[path] = native_path
 	if el.kind == .scroll {
-		if native := g_views[el.id] { offsets[path] = scroll_content_offset_y(native) }
+		if native := g_nodes[native_path] { offsets[path] = scroll_content_offset_y(native) }
 	}
 	for i, child in el.children {
-		ios_focus_offsets(child, reconciliation_child_key(path, i, child), mut offsets)
+		ios_focus_offsets(child, reconciliation_child_key(path, i, child), reconciliation_child_key(native_path, i, child), mut offsets)
 	}
 }
 
 fn sync_focus_navigation() {
 	mut offsets := map[string]f64{}
-	ios_focus_offsets(g_ios_navigation.root, 'root', mut offsets)
+	g_ios_navigation_paths.clear()
+	ios_focus_offsets(g_ios_navigation.root, 'root', '', mut offsets)
 	g_ios_navigation.update(g_ios_navigation.root, offsets)
 }
 
