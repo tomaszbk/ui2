@@ -2665,8 +2665,11 @@ fn page_focused_text_area(direction int) {
 						options:  options
 					}, clip)
 					if list_open {
-						visible := intersect_rect(rect(x, y, el.frame.width, el.frame.height),
-							clip)
+						// The inverse clip AABB only accelerates traversal. Decide
+						// overlay ownership with the same exact window clip used
+						// for paint and fresh pointer hits.
+						visible := ctx.clip_region.intersect(transformed_clip(area,
+							ctx.content_transform)).bounds()
 						if options.len > 0 && visible.width > 0 && visible.height > 0 {
 							track_dropdown_popup(el, x, y, options, selected)
 						} else {

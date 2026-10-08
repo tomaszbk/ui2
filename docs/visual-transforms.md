@@ -105,7 +105,14 @@ preserves vertices instead of deforming an AABB back into local space.
 
 `ClipRegion` retains convex window polygons. `transformed_clip(frame, matrix)`
 constructs a rectangular clip; `intersect` produces exact nested intersections.
-`contains` includes boundaries, with a `1e-8` cross-product tolerance.
+Bounded regions with zero area (including edge/corner tangency), nonfinite
+coordinates, unrepresentable bounds or nonconvex point sequences are empty.
+Publicly constructed snapshots follow the same rule in `contains`, `bounds`,
+`intersect` and `clip_polygon`; intersections normalize exact duplicate and
+redundant collinear clip vertices. There is no minimum-area cutoff for valid
+small or fractional regions. `contains` includes boundaries with a relative
+floating-point roundoff allowance; painting clips to the inclusive halfplanes
+without enlarging them.
 Broad bounds and inverse rectangle tests include boundaries with a `1e-8` logical
 coordinate tolerance for projection/inverse roundoff; they retain the exact clip
 narrow phase. Filled/stroked
