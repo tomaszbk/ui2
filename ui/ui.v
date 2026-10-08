@@ -17,11 +17,19 @@ pub enum ElementEventKind {
 	long_press
 	swipe_left
 	link
+	drag_start
+	drag_enter
+	drag_leave
+	drag_over
+	drop
+	drag_end
+	drag_cancel
 }
 
 pub struct ElementEvent {
 pub:
 	kind ElementEventKind
+	drag ?DragEvent
 	id   string
 	x    f64
 	y    f64
@@ -430,6 +438,8 @@ pub:
 	secure                    bool   // text_field: native password entry
 	clickable                 bool   // view/image: emit pointer down/up events
 	button_behavior           bool   // view: invoke its callback when released like a button
+	drag_source               ?DragSource
+	drop_target               ?DropTarget
 	draggable                 bool   // view/image: emit pointer drag events
 	rotation                  f64    // image: clockwise degrees
 	cursor                    string // view/image: hover cursor hint
@@ -508,6 +518,7 @@ pub fn validate_element_tree(root Element) ! {
 }
 
 fn validate_element_node(el Element, path string, mut ids map[string]bool) ! {
+	validate_drag_element(el)!
 	if el.content_size.width != 0 || el.content_size.height != 0 {
 		if el.kind != .view { return error('scaled content must be a view at ${path}') }
 		contain_content(el.frame, el.content_size.width, el.content_size.height)!

@@ -46,6 +46,9 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		clickable      bool
 		button_behavior bool
 		draggable      bool
+		drag_source ?DragSource
+		drop_target ?DropTarget
+		drag_generation u64
 	}
 
 	struct TouchState {
@@ -54,6 +57,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		// Keep its event identity until release instead of hit-testing it again.
 		pointer_captured   bool
 		pointer_target     HitTarget
+		drag DragSession
 		pressed_id         string // visual press owner, including ordinary controls
 		down               bool
 		start_x            f64
@@ -702,6 +706,8 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 
 	fn on_cleanup(app &GgApp) {
 		app.scheduler.close()
+		cancel_drag_session(.cancelled)
+		g_drag_registry = DragRegistry{}
 		mut state := unsafe { app }
 		if state.ctx != unsafe { nil } {
 			mut ctx := state.ctx
@@ -824,7 +830,9 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		g_active_scrolls = map[string]bool{}
 		g_active_images = map[string]bool{}
 		// Image resources must be available before starting the GPU pass.
+		refresh_drag_owners(root)
 		preload_images(root)
+		preload_drag_preview()
 		ctx.begin()
 		if app.has_root {
 			g_dropdown_popup.mounted = false
@@ -837,6 +845,8 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 					close_dropdown()
 				}
 			}
+			sync_drag_session()
+			draw_drag_preview(ctx)
 			draw_menu_bar(ctx)
 			update_tooltip(now)
 			draw_tooltip(ctx)
@@ -954,12 +964,18 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			}
 			.touches_cancelled, .unfocused {
 				g_tooltip.dismiss()
-				cancel_touch()
+				if e.typ == .touches_cancelled && (g_touch.drag.pending || g_touch.drag.active) {
+					cancel_drag_session(.cancelled)
+				} else { cancel_touch() }
 			}
 			.char {
 				handle_char_input(e.char_code)
 			}
 			.key_down {
+				if e.key_code == .escape && (g_touch.drag.active || g_touch.drag.pending) {
+					cancel_drag_session(.escape)
+					return
+				}
 				g_tooltip.dismiss()
 				if menu_bar_handle_key(e) {
 					return
@@ -988,6 +1004,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	}
 
 	fn handle_touch_down(x f64, y f64) {
+		if g_touch.down { cancel_touch() }
 		g_touch = TouchState{
 			down: true
 			start_x: x
@@ -1018,6 +1035,8 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		if begin_scrollbar_drag(x, y) {
 			return
 		}
+		begin_drag_candidate(target)
+		if target.drag_source != none { return }
 		if voidptr(target.on_event) != unsafe { nil }
 			&& (target.clickable || target.button_behavior || target.draggable) {
 			g_touch.pointer_target = target
@@ -1039,6 +1058,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		}
 		g_touch.current_x = x
 		g_touch.current_y = y
+		if move_drag_session(x, y) { return }
 		target := if g_touch.pointer_captured {
 			g_touch.pointer_target
 		} else {
@@ -1107,6 +1127,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		}
 		g_touch.current_x = x
 		g_touch.current_y = y
+		if release_drag_session(x, y) { return }
 		captured := g_touch.pointer_target
 		was_captured := g_touch.pointer_captured
 		g_touch.pointer_captured = false
@@ -1225,6 +1246,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	// Finish a captured gesture on focus loss/cancellation so an IDE drag cannot
 	// remain stuck. Ordinary taps are cancelled without activating a control.
 	fn cancel_touch() {
+		if g_touch.drag.pending || g_touch.drag.active { cancel_drag_session(.focus_lost); return }
 		captured := g_touch.pointer_target
 		x := g_touch.current_x
 		y := g_touch.current_y
@@ -1235,7 +1257,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	}
 
 	fn check_long_press() {
-		if !g_touch.down || g_touch.moved || g_touch.long_press_fired || g_touch.scrollbar_drag {
+		if !g_touch.down || g_touch.moved || g_touch.long_press_fired || g_touch.scrollbar_drag || g_touch.drag.pending || g_touch.drag.active {
 			return
 		}
 		elapsed := renderer_now_ms() - g_touch.start_time
@@ -1253,7 +1275,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	fn hit_test(x f64, y f64) HitTarget {
 		for i := g_hit_targets.len - 1; i >= 0; i-- {
 			t := g_hit_targets[i]
-			if x >= t.x && x <= t.x + t.w && y >= t.y && y <= t.y + t.h {
+			if hit_target_contains(t, x, y) {
 				return t
 			}
 		}
@@ -2310,7 +2332,7 @@ fn page_focused_text_area(direction int) {
 				draw_box_borders(ctx, x, y, el.frame.width, el.frame.height, el.box)
 				if el.enabled && voidptr(el.on_event) != unsafe { nil }
 					&& (el.clickable || el.button_behavior || el.draggable || el.long_press
-					|| el.swipe_left) {
+					|| el.swipe_left || el.drag_source != none || el.drop_target != none) {
 					add_hit_target(HitTarget{
 						identity: path
 						kind: el.kind
@@ -2383,7 +2405,7 @@ fn page_focused_text_area(direction int) {
 					draw_rect(ctx, x, y, el.frame.width, el.frame.height, 0xe8ecef, 0)
 				}
 				if el.enabled && voidptr(el.on_event) != unsafe { nil }
-					&& (el.clickable || el.draggable) {
+					&& (el.clickable || el.draggable || el.drag_source != none || el.drop_target != none) {
 					add_hit_target(HitTarget{
 						identity: path
 						kind: el.kind
@@ -2878,7 +2900,9 @@ fn page_focused_text_area(direction int) {
   return if g_gg_app.ctx != unsafe { nil } { presentation_rect(projected,f64(g_gg_app.ctx.scale)) } else { projected }
  }
 
-	fn add_hit_target(target HitTarget, clip Rect) {
+	fn add_hit_target(declared HitTarget, clip Rect) {
+		owner := g_drag_registry.owners[drag_owner_key(declared)] or { HitTarget{} }
+		target := HitTarget{...declared, drag_source: owner.drag_source, drop_target: owner.drop_target, drag_generation: owner.drag_generation}
 		visible := intersect_rect(Rect{
 			x: target.x
 			y: target.y

@@ -27,6 +27,9 @@ updates when external state changes. Workers can post changes through a captured
 reuse the declared tree but still repaint because Sokol presents every callback.
 See [scheduling and diagnostics](docs/custom-rendering-scheduler.md).
 
+Custom windows support [typed drag sources, drop targets and previews](docs/drag-drop.md).
+Run `v -d ui2_custom_rendering run examples/drag_drop` to try the interaction.
+
 On macOS, the experimental owned embedder adds native windows, Metal surfaces,
 IME composition and a blocking event loop. Enable it with both
 `-d ui2_custom_rendering -d ui2_embedder` for idle sleep.
