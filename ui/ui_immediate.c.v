@@ -2377,7 +2377,7 @@ fn page_focused_text_area(direction int) {
 					return
 				}
 				ctx.draw_asset_image(el,geometry)
-				if el.tooltip.len > 0 || g_tooltip_targets.len > 0 {
+				if el.tooltip.len > 0 || (g_tooltip_owners == 0 && g_tooltip_targets.len > 0) {
 					g_tooltip_targets << TooltipTarget{key:tooltip_key(el,area),text:el.tooltip,
 						frame:current_presentation_rect(intersect_rect(geometry.bounds,clip)),
 						image_hit:HitTarget{content_transform:ctx.content_transform,image_geometry:geometry,image_clip:clip}}
