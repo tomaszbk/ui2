@@ -9,6 +9,7 @@ $if !ui2_headless ? {
 	fn C.ui2_linux_signal_send(int)
 	fn C.ui2_linux_signal_drain(int)
 	fn C.ui2_linux_wait(voidptr, int, i64) int
+	fn C.ui2_linux_host_close_pending() bool
 	fn C.sapp_x11_get_display() voidptr
 
 	// Captured by the coordinator's signal closure, independent of app/window
@@ -51,6 +52,9 @@ $if !ui2_headless ? {
 		// A nested callback must let the outer flush finish before it can wait
 		// or deliver tasks. next_wake deliberately suppresses nested scheduling.
 		if app.linux_signal == unsafe { nil } || app.scheduler.is_flushing() { return }
+		// Sokol consumes WM_DELETE_WINDOW before this frame but dispatches its
+		// cancellable quit request afterwards. Let it reach that dispatch/cleanup.
+		if C.ui2_linux_host_close_pending() { return }
 		// Retain Sokol's measured presentation cadence. Samples spanning idle
 		// waits are not refresh intervals; keep the last usable sample instead.
 		sample := i64(sapp.frame_duration() * 1000)
@@ -63,6 +67,8 @@ $if !ui2_headless ? {
 			wake_at := app.scheduler.next_wake(now, app.last_frame, app.frame_interval)
 			if wake_at >= 0 && wake_at <= now { return }
 			delay := if wake_at < 0 { i64(-1) } else { wake_at - now }
+			// Recheck on every retry, including worker wakes, deadlines and EINTR.
+			if C.ui2_linux_host_close_pending() { return }
 			outcome := C.ui2_linux_wait(C.sapp_x11_get_display(), app.linux_signal.fd, delay)
 			app.scheduler.record_wait(outcome)
 			if outcome == -1 { panic('ui2: Linux event wait failed') }

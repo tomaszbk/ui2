@@ -4,7 +4,7 @@
 Usage: python3 tests/render_scheduler/linux_runtime.py /outputs/acceptance /outputs
 No dependencies beyond Python stdlib, libX11, xdotool and the runner's PNG helper.
 The fixture's UI thread exports state after F1; no worker mutates UI. Screenshots
-are taken while the app continues, then F4 verifies normal teardown.
+are taken while the app continues, then WM_DELETE_WINDOW verifies idle teardown.
 """
 import ctypes as c
 import json
@@ -24,6 +24,11 @@ keyboard_x = c.CDLL('libX11.so.6')
 keyboard_x.XOpenDisplay.argtypes = [c.c_char_p]
 keyboard_x.XOpenDisplay.restype = c.c_void_p
 keyboard_x.XCloseDisplay.argtypes = [c.c_void_p]
+keyboard_x.XInternAtom.argtypes = [c.c_void_p, c.c_char_p, c.c_int]
+keyboard_x.XInternAtom.restype = c.c_ulong
+keyboard_x.XSendEvent.argtypes = [c.c_void_p, c.c_ulong, c.c_int, c.c_long, c.c_void_p]
+keyboard_x.XSendEvent.restype = c.c_int
+keyboard_x.XSync.argtypes = [c.c_void_p, c.c_int]
 keyboard_display = keyboard_x.XOpenDisplay(None)
 assert keyboard_display, 'missing X11 display'
 # Install persistent Spanish keysyms before Sokol constructs its key table.
@@ -35,6 +40,35 @@ app = subprocess.Popen([binary, '--state-file', str(state_file), '--reopen'], st
 
 def xd(*args):
     return subprocess.check_output(['xdotool', *map(str, args)], text=True).strip()
+
+
+class ClientMessageData(c.Union):
+    _fields_ = [('b', c.c_char * 20), ('s', c.c_short * 10), ('l', c.c_long * 5)]
+
+
+class ClientMessage(c.Structure):
+    _fields_ = [('type', c.c_int), ('serial', c.c_ulong), ('send_event', c.c_int),
+               ('display', c.c_void_p), ('window', c.c_ulong),
+               ('message_type', c.c_ulong), ('format', c.c_int), ('data', ClientMessageData)]
+
+
+class XEvent(c.Union):
+    _fields_ = [('client', ClientMessage), ('pad', c.c_long * 24)]
+
+
+def request_window_close(window):
+    # Send the same ICCCM message as a window manager. No F4/ui2.quit, extra
+    # input or scheduler invalidation may rescue a blocked idle frame.
+    event = XEvent()
+    event.client.type = 33  # ClientMessage
+    event.client.display = keyboard_display
+    event.client.window = window
+    event.client.message_type = keyboard_x.XInternAtom(keyboard_display, b'WM_PROTOCOLS', 0)
+    event.client.format = 32
+    event.client.data.l[0] = keyboard_x.XInternAtom(keyboard_display, b'WM_DELETE_WINDOW', 0)
+    event.client.data.l[1] = 0  # CurrentTime
+    assert keyboard_x.XSendEvent(keyboard_display, window, 0, 0, c.byref(event)), 'close send failed'
+    keyboard_x.XSync(keyboard_display, 0)
 
 
 def snapshot():
@@ -247,7 +281,7 @@ try:
         assert restored[key] == before_hide[key], ('restoration', key, before_hide, restored)
     assert not restored['stats']['suspended']
     idle_after('unmap/map restoration')
-    xd('key', 'F4')
+    request_window_close(window)
     # Reopened window has a genuinely new GL context, not just an exposed
     # backbuffer. Find it and inspect its first complete retained presentation.
     window = None
@@ -266,9 +300,9 @@ try:
     assert recreated['stats']['draws'] > 0, 'new context must finish its first paint'
     capture('context-recreated')
     idle_after('GL context recreation')
-    xd('key', 'F4')
+    request_window_close(window)
     assert app.wait(timeout=10) == 0
-    print('PASS X11 input, stationary deadline, worker, identity/edit/selection/scroll, capture, animation, resize/restore, normal exit')
+    print('PASS X11 input, stationary deadline, worker, identity/edit/selection/scroll, capture, animation, resize/restore, idle WM_DELETE_WINDOW recreation and exit')
 finally:
     if app.poll() is None:
         app.kill()

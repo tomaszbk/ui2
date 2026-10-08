@@ -1,5 +1,8 @@
 #ifndef UI2_LINUX_IDLE_H
 #define UI2_LINUX_IDLE_H
+#ifndef SOKOL_APP_IMPL_INCLUDED
+#error "ui2 Linux idle wait requires the pinned Sokol app implementation first"
+#endif
 #include <X11/Xlib.h>
 #include <sys/eventfd.h>
 #include <unistd.h>
@@ -7,6 +10,13 @@
 #include <errno.h>
 #include <stdint.h>
 #include <limits.h>
+
+/* UI thread only. sokol.sapp's transitive sokol.c import includes the pinned
+   implementation before this header, so its static _sapp state is visible.
+   Do not change these flags: Sokol owns quit-request dispatch/cancel/cleanup. */
+static bool ui2_linux_host_close_pending(void) {
+    return _sapp.quit_requested || _sapp.quit_ordered;
+}
 
 static int ui2_linux_signal_create(void) {
     return eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
