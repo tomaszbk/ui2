@@ -83,6 +83,8 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		window_state &CustomWindowState = unsafe { nil }
 		native_window voidptr
 		last_frame i64 = -1
+		linux_signal &HostWakeSignal = unsafe { nil }
+		frame_interval i64
 		surface_retry_at i64 = -1
 		callback_depth int
 		cleanup_pending bool
@@ -685,6 +687,10 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	// ── Frame & event loop ─────────────────────────────────────────────
 
 	fn on_init(app &GgApp) {
+		$if linux {
+			mut state := unsafe { app }
+			setup_linux_idle(mut state)
+		}
 		mut ctx := app.ctx
 		ctx.sync_gg()
 		// Sokol's GL/EGL/D3D loops swap even when frame_fn returns early. Their
@@ -703,10 +709,18 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	fn on_cleanup(app &GgApp) {
 		app.scheduler.close()
 		mut state := unsafe { app }
+		$if linux {
+			if state.linux_signal != unsafe { nil } { state.linux_signal.close() }
+		}
 		if state.ctx != unsafe { nil } {
 			mut ctx := state.ctx
+			// Cache ids belong to this GPU context. Release them while its device
+			// is still live; a later run must load textures into its new context.
+			for _, image_id in g_image_ids { ctx.remove_cached_image_by_idx(image_id) }
 			ctx.destroy()
 		}
+		g_image_ids.clear()
+		g_active_images.clear()
 		state.ctx = unsafe { nil }
 		clear_text_area_layouts()
 		state.declared_root = Element{}
@@ -755,7 +769,9 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	}
 
 	fn on_frame(mut app GgApp) {
+		app.scheduler.record_loop_callback()
 		if app.scheduler.is_closed() || app.ctx == unsafe { nil } || app.draining_tasks { return }
+		$if linux { wait_linux_idle(mut app) }
 		drain_custom_tasks(mut app)
 		if app.scheduler.is_closed() { return }
 		mut ctx := app.ctx
@@ -852,6 +868,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		}
 		ctx.end()
 		app.scheduler.record_draw()
+		app.last_frame = renderer_now_ms()
 		app.scheduler.set_deadline(custom_visual_deadline())
 		app.scheduler.set_animation_active(custom_animations_need_frame(app.declared_root))
 	}
