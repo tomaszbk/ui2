@@ -6,8 +6,6 @@ import ui2
 const inside_row_width = 880
 const inside_row_height = 580
 const inside_row_vml_source = $embed_file('canvas_layout_inside_row.vml').to_string()
-const card_root_x = 16.0
-const card_root_y = 16.0
 const tray_x = 18.0
 const canvas_x = 250.0
 const pane_y = 96.0
@@ -60,14 +58,20 @@ fn (mut app InsideRowDemo) describe() {
 	app.canvas_text = '(${int(app.logo_x - canvas_x)}, ${int(app.logo_y - pane_y)})'
 }
 
-pub fn (mut app InsideRowDemo) grab_logo(x f64, y f64) {
-	app.grab_x = x - card_root_x - app.logo_x
-	app.grab_y = y - card_root_y - app.logo_y
+// Pointer input is window-logical; placement and grab offsets belong to the
+// presented card's logical space, including a translated/scaled parent.
+pub fn (mut app InsideRowDemo) grab_logo(x f64, y f64, card ui2.VisualGeometry) {
+	card_x, card_y := card.transform.inverse(x, y)
+	app.grab_x = card_x - card.frame.x - app.logo_x
+	app.grab_y = card_y - card.frame.y - app.logo_y
 }
 
-pub fn (mut app InsideRowDemo) drag_logo(x f64, y f64, card_width f64, card_height f64) {
-	app.logo_x = clamp_inside(x - card_root_x - app.grab_x, tray_x, card_width - logo_size - 18)
-	app.logo_y = clamp_inside(y - card_root_y - app.grab_y, pane_y, card_height - logo_size - 60)
+pub fn (mut app InsideRowDemo) drag_logo(x f64, y f64, card ui2.VisualGeometry) {
+	card_x, card_y := card.transform.inverse(x, y)
+	app.logo_x = clamp_inside(card_x - card.frame.x - app.grab_x, tray_x,
+		card.frame.width - logo_size - 18)
+	app.logo_y = clamp_inside(card_y - card.frame.y - app.grab_y, pane_y,
+		card.frame.height - logo_size - 60)
 	app.describe()
 	app.status = 'Logo is over the ${app.pane_name} pane.'
 }
@@ -94,10 +98,6 @@ pub fn (mut app InsideRowDemo) rotate() {
 	app.status = 'Logo rotated to ${int(app.rotation)}°.'
 }
 
-fn inside_row_card_size(frame ui2.Rect) (f64, f64) {
-	return frame.width - 32.0, frame.height - 32.0
-}
-
 fn canvas_layout_inside_row_callbacks() map[string]ui2.ElementCallback {
 	return {
 		'return': fn (_event ui2.ElementEvent) {
@@ -111,12 +111,20 @@ fn canvas_layout_inside_row_callbacks() map[string]ui2.ElementCallback {
 			ui2.refresh()
 		}
 		'logo':   fn (event ui2.ElementEvent) {
+			if event.kind !in [.pointer_down, .pointer_drag, .pointer_up] {
+				return
+			}
+			// Events are inverse-mapped through the logo's current affine transform.
+			// Recover the window point before changing placement (and its pivot).
+			// An unpresented/removed logo or card intentionally ignores input.
+			logo := ui2.visual_geometry('logo') or { return }
+			card := ui2.visual_geometry('card') or { return }
+			window := logo.transform.point(event.x, event.y)
 			mut state := unsafe { inside_row_state }
-			card_width, card_height := inside_row_card_size(ui2.bounds())
 			match event.kind {
-				.pointer_down { state.grab_logo(event.x, event.y) }
+				.pointer_down { state.grab_logo(window.x, window.y, card) }
 				.pointer_drag, .pointer_up {
-					state.drag_logo(event.x, event.y, card_width, card_height)
+					state.drag_logo(window.x, window.y, card)
 				}
 				else {}
 			}

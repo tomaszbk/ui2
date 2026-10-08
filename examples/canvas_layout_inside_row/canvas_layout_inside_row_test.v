@@ -40,17 +40,18 @@ fn test_inside_row_reports_the_logo_in_both_pane_spaces() {
 
 fn test_inside_row_drag_keeps_its_grab_offset_and_stays_on_the_card() {
 	mut app := inside_row_demo()
-	app.grab_logo(card_root_x + 100, card_root_y + 170)
+	card := ui2.VisualGeometry{ frame: ui2.rect(16, 16, 800, 500) }
+	app.grab_logo(card.frame.x + 100, card.frame.y + 170, card)
 	assert app.grab_x == 8
 	assert app.grab_y == 20
-	app.drag_logo(card_root_x + 400, card_root_y + 300, 800, 500)
+	app.drag_logo(card.frame.x + 400, card.frame.y + 300, card)
 	assert app.logo_x == 392
 	assert app.logo_y == 280
-	app.drag_logo(card_root_x + 5000, card_root_y + 5000, 800, 500)
+	app.drag_logo(card.frame.x + 5000, card.frame.y + 5000, card)
 	assert app.logo_x == 800 - logo_size - 18
 	assert app.logo_y == 500 - logo_size - 60
 	// Neither pane starts before the tray's own origin.
-	app.drag_logo(0, 0, 800, 500)
+	app.drag_logo(0, 0, card)
 	assert app.logo_x == tray_x
 	assert app.logo_y == pane_y
 }
