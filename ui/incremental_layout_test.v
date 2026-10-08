@@ -88,8 +88,10 @@ fn test_incremental_boundary_and_intrinsic_ancestor_sibling_dependencies() {
 	intrinsic.patch('text', incremental_label('text', 'WW WW WW'))!
 	grown := incremental_resolve(mut intrinsic)!
 	assert initial.children[1].frame.y == 20
-	assert grown.children[1].frame.y == 60
-	assert grown.children[0].frame.height == 60
+	// The outer column stretches flow to 60 units: two text rows at the
+	// assigned width, rather than three rows at flow's authored 30-unit width.
+	assert grown.children[1].frame.y == 40
+	assert grown.children[0].frame.height == 40
 }
 
 fn test_incremental_declared_sizes_survive_resize_and_fractional_distribution() {
@@ -282,6 +284,302 @@ fn test_incremental_grid_and_stack_remeasure_assigned_width_before_intrinsic_hei
 	result := incremental_resolve(mut tree)!
 	assert result.frame.height == 45.75
 	assert result.children[0].frame == rect(10, 2.5, 30, 40)
+}
+
+fn test_nested_intrinsic_containers_measure_height_at_assigned_width() {
+	// The outer column owns its children's widths. An authored width remains a
+	// preference when the same container is assigned narrower or wider space.
+	for authored_width in [30.0, 100.0] {
+		text := incremental_label('text', 'WW WW')
+		containers := [
+			incremental_column('nested', rect(0, 0, authored_width, 0), [text])!,
+			grid(GridConfig{ id: 'nested', frame: rect(0, 0, authored_width, 0), columns: 1,
+				children: [text] })!,
+			stack(StackConfig{ id: 'nested', frame: rect(0, 0, authored_width, 0), align_x: .stretch,
+				children: [StackChild{ element: text }] })!,
+		]
+		for nested in containers {
+			mut tree := LayoutTree{}
+			for assigned_width in [50.0, 100.0, 30.0, 50.0] {
+				root := incremental_column('parent', rect(0, 0, assigned_width, 160), [
+					nested,
+					view('after', rect(0, 0, 10, 20), BoxStyle{}, []),
+				])!
+				tree.replace(root)!
+				resolved := incremental_resolve(mut tree)!
+				expected_height := if assigned_width == 100 { 20.0 } else { 40.0 }
+				assert resolved.children[0].frame == rect(0, 0, assigned_width, expected_height)
+				assert resolved.children[0].children[0].frame == rect(0, 0, assigned_width, expected_height)
+				assert resolved.children[1].frame.y == expected_height
+				assert resolved.children[0].layout_input?.width == authored_width
+				tree.reset_stats()
+				cached := incremental_resolve(mut tree)!
+				assert cached.children[0].frame == resolved.children[0].frame
+				assert cached.children[1].frame == resolved.children[1].frame
+				assert tree.stats().measure_visits == 0
+				assert tree.stats().text_measurements == 0
+			}
+			// A subtree patch must move the following sibling using the assigned
+			// width, without rebuilding declarations or changing authored sizing.
+			tree.patch('text', incremental_label('text', 'WW'))!
+			shorter := incremental_resolve(mut tree)!
+			assert shorter.children[0].frame.height == 20
+			assert shorter.children[1].frame.y == 20
+		}
+	}
+}
+
+fn test_wrapped_vertical_flex_intrinsic_width_contains_columns_and_moves_sibling() {
+	children := [
+		view('a', rect(0, 0, 20, 40), BoxStyle{}, []),
+		view('b', rect(0, 0, 20, 40), BoxStyle{}, []),
+		view('c', rect(0, 0, 20, 40), BoxStyle{}, []),
+	]
+	mut tree := LayoutTree{}
+	for height in [80.0, 120.0, 80.0] {
+		column := flex(FlexConfig{ id: 'columns', frame: rect(0, 0, 0, height), orientation: .vertical,
+			wrap: true, children: children.map(FlexChild{ element: it, shrink: 0 }) })!
+		root := flex(FlexConfig{ id: 'parent', frame: rect(0, 0, 200, 160), align: .start,
+			children: [FlexChild{ element: column, shrink: 0 },
+				FlexChild{ element: view('after', rect(0, 0, 10, 20), BoxStyle{}, []), shrink: 0 }] })!
+		tree.replace(root)!
+		resolved := incremental_resolve(mut tree)!
+		expected_width := if height == 80 { 40.0 } else { 20.0 }
+		assert resolved.children[0].frame == rect(0, 0, expected_width, height)
+		assert resolved.children[0].children[0].frame == rect(0, 0, 20, 40)
+		assert resolved.children[0].children[1].frame == rect(0, 40, 20, 40)
+		assert resolved.children[0].children[2].frame == if height == 80 {
+			rect(20, 0, 20, 40)
+		} else {
+			rect(0, 80, 20, 40)
+		}
+		assert resolved.children[1].frame.x == expected_width
+		tree.reset_stats()
+		cached := incremental_resolve(mut tree)!
+		assert cached.children[0].frame == resolved.children[0].frame
+		assert cached.children[1].frame == resolved.children[1].frame
+		assert tree.stats().measure_visits == 0
+	}
+}
+
+fn test_wrapped_vertical_flex_intrinsic_width_includes_padding_and_line_gap() {
+	mut tree := LayoutTree{}
+	column := flex(FlexConfig{ id: 'columns', frame: rect(0, 0, 0, 94), orientation: .vertical,
+		wrap: true, gap: 4, line_gap: 5.5,
+		padding: LayoutPadding{ left: 2.5, right: 3.25, top: 4, bottom: 6 },
+		children: [
+			FlexChild{ element: view('a', rect(0, 0, 20, 40), BoxStyle{}, []), shrink: 0 },
+			FlexChild{ element: view('b', rect(0, 0, 20, 40), BoxStyle{}, []), shrink: 0 },
+			FlexChild{ element: view('c', rect(0, 0, 20, 40), BoxStyle{}, []), shrink: 0 },
+		] })!
+	tree.replace(column)!
+	loose := incremental_resolve(mut tree)!
+	assert loose.frame == rect(0, 0, 51.25, 94)
+	assert loose.children[0].frame == rect(2.5, 4, 20, 40)
+	assert loose.children[1].frame == rect(2.5, 48, 20, 40)
+	assert loose.children[2].frame == rect(28, 4, 20, 40)
+	// Constraining authored height reduces the main axis before wrapping; each
+	// child then needs its own column. The fractional cross extent stays exact.
+	tight := tree.resolve(LayoutConstraints{ max_height: 90 }, incremental_text, LayoutEnvironment{})!
+	assert tight.frame == rect(0, 0, 76.75, 90)
+	assert tight.children[1].frame == rect(28, 4, 20, 40)
+	assert tight.children[2].frame == rect(53.5, 4, 20, 40)
+}
+
+fn incremental_intrinsic_wrapped_columns() !Element {
+	return flex(FlexConfig{ id: 'columns', orientation: .vertical, wrap: true,
+		children: [
+			FlexChild{ element: view('a', rect(0, 0, 20, 40), BoxStyle{}, []), shrink: 0 },
+			FlexChild{ element: view('b', rect(0, 0, 20, 40), BoxStyle{}, []), shrink: 0 },
+			FlexChild{ element: view('c', rect(0, 0, 20, 40), BoxStyle{}, []), shrink: 0 },
+		] })!
+}
+
+fn test_intrinsic_wrapped_columns_use_bounded_height_including_tight_zero() {
+	mut tree := LayoutTree{}
+	tree.replace(incremental_intrinsic_wrapped_columns()!)!
+	constraints := [
+		LayoutConstraints{ max_height: 80 },
+		LayoutConstraints{ min_height: 80, max_height: 80 },
+		LayoutConstraints{ max_height: 0 },
+		LayoutConstraints{ max_height: 160 },
+	]
+	expected_sizes := [rect(0, 0, 40, 80), rect(0, 0, 40, 80), rect(0, 0, 60, 0), rect(0, 0, 20, 120)]
+	expected_third := [rect(20, 0, 20, 40), rect(20, 0, 20, 40), rect(40, 0, 20, 40), rect(0, 80, 20, 40)]
+	for i, limits in constraints {
+		resolved := tree.resolve(limits, incremental_text, LayoutEnvironment{})!
+		assert resolved.frame == expected_sizes[i]
+		assert resolved.children[2].frame == expected_third[i]
+		// A bounded maximum larger than natural content does not force a stretch;
+		// a tight zero is still a real bound and hard child sizes can overflow it.
+		for child in resolved.children {
+			assert child.frame.height == 40
+		}
+		tree.reset_stats()
+		cached := tree.resolve(limits, incremental_text, LayoutEnvironment{})!
+		assert cached.frame == resolved.frame
+		assert cached.children[2].frame == resolved.children[2].frame
+		assert tree.stats().measure_visits == 0
+	}
+}
+
+fn test_horizontal_parent_assigns_height_before_wrapped_columns_width_and_sibling() {
+	mut tree := LayoutTree{}
+	for height in [80.0, 120.0, 80.0, 0.0] {
+		parent := flex(FlexConfig{ id: 'parent', frame: rect(0, 0, 200, height), align: .stretch,
+			children: [
+				FlexChild{ element: incremental_intrinsic_wrapped_columns()!, shrink: 0 },
+				FlexChild{ element: view('after', rect(0, 0, 10, 20), BoxStyle{}, []), shrink: 0 },
+			] })!
+		tree.replace(parent)!
+		resolved := tree.resolve(LayoutConstraints{ min_height: height, max_height: height },
+			incremental_text, LayoutEnvironment{})!
+		expected_width := if height == 80 { 40.0 } else if height == 0 { 60.0 } else { 20.0 }
+		assert resolved.children[0].frame == rect(0, 0, expected_width, height)
+		assert resolved.children[1].frame.x == expected_width
+		assert resolved.children[0].children[2].frame == if height == 80 {
+			rect(20, 0, 20, 40)
+		} else if height == 0 {
+			rect(40, 0, 20, 40)
+		} else {
+			rect(0, 80, 20, 40)
+		}
+		tree.reset_stats()
+		cached := tree.resolve(LayoutConstraints{ min_height: height, max_height: height },
+			incremental_text, LayoutEnvironment{})!
+		assert cached.children[0].frame == resolved.children[0].frame
+		assert cached.children[1].frame == resolved.children[1].frame
+		assert tree.stats().measure_visits == 0
+	}
+}
+
+fn test_vertical_parent_assigns_height_before_wrapped_child_intrinsic_width() {
+	mut tree := LayoutTree{}
+	parent := flex(FlexConfig{ id: 'parent', frame: rect(0, 0, 0, 80), orientation: .vertical,
+		children: [FlexChild{ element: incremental_intrinsic_wrapped_columns()! }] })!
+	tree.replace(parent)!
+	resolved := incremental_resolve(mut tree)!
+	assert resolved.frame == rect(0, 0, 40, 80)
+	assert resolved.children[0].frame == rect(0, 0, 40, 80)
+	assert resolved.children[0].children[2].frame == rect(20, 0, 20, 40)
+}
+
+fn test_wrapped_columns_keep_preferred_height_basis_during_parent_shrink() {
+	mut tree := LayoutTree{}
+	parent := flex(FlexConfig{ id: 'parent', frame: rect(0, 0, 0, 120), orientation: .vertical,
+		children: [
+			FlexChild{ element: incremental_intrinsic_wrapped_columns()! },
+			FlexChild{ element: view('after', rect(0, 0, 20, 60), BoxStyle{}, []) },
+		] })!
+	tree.replace(parent)!
+	resolved := incremental_resolve(mut tree)!
+	// Preferred heights120 and60 shrink proportionally into120:80 and40.
+	// Assigned height80 determines two columns; it must not become a new basis
+	// and cause a second shrink when the shared solver redistributes the parent.
+	assert resolved.frame == rect(0, 0, 40, 120)
+	assert resolved.children[0].frame == rect(0, 0, 40, 80)
+	assert resolved.children[0].children[2].frame == rect(20, 0, 20, 40)
+	assert resolved.children[1].frame == rect(0, 80, 40, 40)
+}
+
+fn test_grid_and_stack_assign_height_before_wrapped_intrinsic_width() {
+	for authored_height in [0.0, 80.0] {
+		containers := [
+			grid(GridConfig{ id: 'outer', frame: rect(0, 0, 0, authored_height), columns: 1,
+				children: [incremental_intrinsic_wrapped_columns()!] })!,
+			stack(StackConfig{ id: 'outer', frame: rect(0, 0, 0, authored_height), align_x: .stretch,
+				align_y: .stretch, children: [StackChild{ element: incremental_intrinsic_wrapped_columns()! }] })!,
+		]
+		for container in containers {
+			mut tree := LayoutTree{}
+			tree.replace(container)!
+			standalone := tree.resolve(LayoutConstraints{ min_height: 80, max_height: 80 },
+				incremental_text, LayoutEnvironment{})!
+			assert standalone.frame == rect(0, 0, 40, 80)
+			assert standalone.children[0].frame == rect(0, 0, 40, 80)
+			assert standalone.children[0].children[2].frame == rect(20, 0, 20, 40)
+			// The dependency reaches an enclosing Flex through either container.
+			// Its following sibling must start after both wrapped columns.
+			parent := flex(FlexConfig{ id: 'parent', frame: rect(0, 0, 200, 80), align: .stretch,
+				children: [FlexChild{ element: container, shrink: 0 },
+					FlexChild{ element: view('after', rect(0, 0, 10, 20), BoxStyle{}, []), shrink: 0 }] })!
+			tree.replace(parent)!
+			resolved := incremental_resolve(mut tree)!
+			assert resolved.children[0].frame == rect(0, 0, 40, 80)
+			assert resolved.children[0].children[0].frame == rect(0, 0, 40, 80)
+			assert resolved.children[1].frame.x == 40
+			assert resolved.children[0].children[0].children[2].frame == rect(20, 0, 20, 40)
+			tree.reset_stats()
+			cached := incremental_resolve(mut tree)!
+			assert cached.children[0].frame == resolved.children[0].frame
+			assert cached.children[1].frame == resolved.children[1].frame
+			assert tree.stats().measure_visits == 0
+		}
+	}
+}
+
+fn incremental_long_text_measure(text string, _style TextStyle, width f64) !LayoutSize {
+	natural := if text == 'long' { 600.0 } else { 20.0 }
+	return LayoutSize{
+		width:  if width < 0 { natural } else { math.min(natural, width) }
+		height: if width < 0 { 20.0 } else { 20.0 * math.ceil(natural / math.max(1.0, width)) }
+	}
+}
+
+fn test_mixed_wrapped_container_grows_at_assigned_width_before_following_sibling() {
+	wrapper := stack(StackConfig{ id: 'wrapper', align_x: .stretch,
+		children: [
+			StackChild{ element: incremental_intrinsic_wrapped_columns()! },
+			StackChild{ element: label('long', 'long', Rect{}, TextStyle{ lines: 100 }) },
+		] })!
+	parents := [
+		flex(FlexConfig{ id: 'parent', frame: rect(0, 0, 50, 0),
+			children: [FlexChild{ element: wrapper }] })!,
+		flex(FlexConfig{ id: 'parent', frame: rect(0, 0, 50, 0), orientation: .vertical,
+			children: [FlexChild{ element: wrapper }] })!,
+		grid(GridConfig{ id: 'parent', frame: rect(0, 0, 50, 0), columns: 1,
+			children: [wrapper] })!,
+		stack(StackConfig{ id: 'parent', frame: rect(0, 0, 50, 0), align_x: .stretch,
+			align_y: .stretch, children: [StackChild{ element: wrapper }] })!,
+	]
+	// Synthetic text is600 units wide and20 high per row. At50 units it needs
+	// twelve rows; native macOS's four-unit label inset leaves46, or14 rows.
+	insets := layout_measure_control_insets(incremental_label('', ''))
+	expected_height := if insets.left + insets.right == 4 { 280.0 } else { 240.0 }
+	for parent in parents {
+		mut tree := LayoutTree{}
+		root := incremental_column('root', rect(0, 0, 50, 0), [parent,
+			view('after', rect(0, 0, 20, 20), BoxStyle{}, [])])!
+		tree.replace(root)!
+		for limits in [LayoutConstraints{}, LayoutConstraints{ max_height: 300 }] {
+			resolved := tree.resolve(limits, incremental_long_text_measure, LayoutEnvironment{})!
+			assert resolved.children[0].frame == rect(0, 0, 50, expected_height)
+			assert resolved.children[0].children[0].frame == rect(0, 0, 50, expected_height)
+			assert resolved.children[0].children[0].children[1].frame == rect(0, 0, 50, expected_height)
+			assert resolved.children[1].frame.y == expected_height
+			assert resolved.frame.height == expected_height + 20
+			tree.reset_stats()
+			cached := tree.resolve(limits, incremental_long_text_measure, LayoutEnvironment{})!
+			assert cached.children[0].frame == resolved.children[0].frame
+			assert cached.children[1].frame == resolved.children[1].frame
+			assert tree.stats().measure_visits == 0
+		}
+		tree.patch('long', label('long', 'short', Rect{}, TextStyle{ lines: 100 }))!
+		shortened := tree.resolve(LayoutConstraints{}, incremental_long_text_measure, LayoutEnvironment{})!
+		assert shortened.children[0].frame.height == 120
+		assert shortened.children[1].frame.y == 120
+		assert tree.stats().builds == 0
+		// Actual bounds remain real bounds. Only provisional measurement height
+		// is loose; the resolved parent and stretched child accept80 or zero.
+		mut bounded := LayoutTree{}
+		bounded.replace(parent)!
+		for limits in [LayoutConstraints{ max_height: 80 },
+			LayoutConstraints{ min_height: 80, max_height: 80 }, LayoutConstraints{ max_height: 0 }] {
+			resolved := bounded.resolve(limits, incremental_long_text_measure, LayoutEnvironment{})!
+			assert resolved.frame == rect(0, 0, 50, limits.max_height)
+			assert resolved.children[0].frame == rect(0, 0, 50, limits.max_height)
+		}
+	}
 }
 
 fn incremental_other_measurer(_text string, _style TextStyle, _width f64) !LayoutSize {

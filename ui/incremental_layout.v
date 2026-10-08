@@ -365,17 +365,19 @@ fn (mut tree LayoutTree) measure_node(identity string, constraints LayoutConstra
 			node.text_measures[text_key] = preferred
 		}
 	} else {
-		mut available := rect(0, 0, if input.width > 0 {
-			input.width
-		} else {
-			math.max(0.0, constraints.max_width)
-		},
-			if input.height > 0 { input.height } else { math.max(0.0, constraints.max_height) })
+		// Authored dimensions are preferences. Measure dependent content using
+		// the dimensions accepted by the parent, before deriving intrinsic size.
+		assigned := constraints.constrain(LayoutSize{
+			width:  if input.width > 0 { input.width } else { math.max(0.0, constraints.max_width) }
+			height: if input.height > 0 { input.height } else { math.max(0.0, constraints.max_height) }
+		})!
+		mut available := rect(0, 0, assigned.width, assigned.height)
 		sizes := tree.child_sizes(node, LayoutConstraints{})!
 		if input.width <= 0 && constraints.max_width < 0 {
-			available = rect(0, 0, layout_natural_width(node, sizes)!, available.height)
+			available = rect(0, 0, layout_constrain_axis(layout_natural_width(node, sizes)!,
+				constraints.min_width, constraints.max_width), available.height)
 		}
-		frames, natural := tree.container_geometry(node, available, sizes, true)!
+		frames, natural := tree.container_geometry(node, available, sizes, true, constraints)!
 		_ = frames
 		preferred = constraints.constrain(LayoutSize{
 			width:  if input.width > 0 { input.width } else { natural.width }
@@ -402,7 +404,43 @@ fn (mut tree LayoutTree) child_sizes(node &RetainedLayoutNode, constraints Layou
 	return sizes
 }
 
-fn (mut tree LayoutTree) container_geometry(node &RetainedLayoutNode, available Rect, sizes []Rect, measuring bool) !([]Rect, Rect) {
+fn (tree &LayoutTree) width_depends_on_height(node &RetainedLayoutNode) bool {
+	if node.input.width > 0 || node.declaration.hidden { return false }
+	if node.declaration.layout.kind == .flex && node.declaration.layout.flex.orientation == .vertical
+		&& node.declaration.layout.flex.wrap { return true }
+	if node.declaration.layout.kind in [.flex, .grid, .stack] {
+		for child in node.children {
+			child_node := tree.nodes[child] or { return false }
+			if tree.width_depends_on_height(child_node) { return true }
+		}
+	}
+	return false
+}
+
+fn (mut tree LayoutTree) measure_assigned_height_widths(node &RetainedLayoutNode, assigned []Rect, sizes []Rect) !([]Rect, bool) {
+	mut preferred := []Rect{}
+	mut changed := false
+	for i, child in node.children {
+		child_node := tree.nodes[child] or { return error('missing child') }
+		if !tree.width_depends_on_height(child_node) { continue }
+		// Leave width loose so new columns contribute to the preferred width.
+		// Preserve preferred height: using the allocated height as a new basis
+		// would apply Flex shrink repeatedly on later solver passes.
+		measured := tree.measure_node(child, LayoutConstraints{
+			min_height: assigned[i].height
+			max_height: assigned[i].height
+		})!
+		if measured.width != sizes[i].width {
+			if !changed { preferred = sizes.clone() }
+			preferred[i] = rect(sizes[i].x, sizes[i].y, measured.width, sizes[i].height)
+			changed = true
+		}
+	}
+	if !changed { return sizes, false }
+	return preferred, true
+}
+
+fn (mut tree LayoutTree) container_geometry(node &RetainedLayoutNode, available Rect, sizes []Rect, measuring bool, constraints LayoutConstraints) !([]Rect, Rect) {
 	match node.declaration.layout.kind {
 		.flex {
 			mut items := []FlexChild{cap: sizes.len}
@@ -415,29 +453,48 @@ fn (mut tree LayoutTree) container_geometry(node &RetainedLayoutNode, available 
 				items << FlexChild{ ...rule, element: Element{ frame: size } }
 			}
 			mut config := FlexConfig{ ...node.declaration.layout.flex, frame: available, children: items }
-			// Natural height in an intrinsic column must not shrink its contents.
+			// An unconstrained intrinsic height uses natural content. A bounded
+			// height, including a tight zero, determines vertical wrapping first.
 			initial := flex_preferred_size(config)!
 			if measuring && node.input.height <= 0 {
-				config = FlexConfig{ ...config, frame: rect(0, 0, available.width, initial.height) }
+				config = FlexConfig{ ...config, frame: rect(0, 0, available.width,
+					layout_constrain_axis(initial.height, constraints.min_height, constraints.max_height)) }
 			}
-			first := flex_frames(config)!
+			mut first := flex_frames(config)!
+			widths, width_changed := tree.measure_assigned_height_widths(node, first, sizes)!
+			if width_changed {
+				for i, size in widths { items[i] = FlexChild{ ...items[i], element: Element{ frame: size } } }
+				config = FlexConfig{ ...config, children: items }
+				first = flex_frames(config)!
+			}
 			for i, child in node.children {
 				child_node := tree.nodes[child] or { return error('missing child') }
 				if child_node.input.height > 0 { continue }
-				// Assigned-width measurement is distinct from intrinsic measurement.
+				// Measure natural height at the assigned width. The first frame's
+				// height is provisional, and must not prevent a wrapper's text from
+				// growing or replace a wrapped column's natural main-axis basis.
 				measured := tree.measure_node(child, LayoutConstraints{ min_width: first[i].width, max_width: first[i].width })!
-				items[i] = FlexChild{ ...items[i], element: Element{ frame: rect(0, 0, sizes[i].width, measured.height) } }
+				items[i] = FlexChild{ ...items[i], element: Element{ frame: rect(0, 0, items[i].element.frame.width, measured.height) } }
 			}
 			config = FlexConfig{ ...config, children: items }
 			mut natural := flex_preferred_size(config)!
 			if measuring && node.input.height <= 0 {
-				config = FlexConfig{ ...config, frame: rect(0, 0, available.width, natural.height) }
+				config = FlexConfig{ ...config, frame: rect(0, 0, available.width,
+					layout_constrain_axis(natural.height, constraints.min_height, constraints.max_height)) }
 			}
 			frames := flex_frames(config)!
 			if config.wrap {
-				mut bottom := config.padding.top
-				for frame in frames { bottom = math.max(bottom, frame.y + frame.height) }
-				natural = rect(0, 0, natural.width, bottom + config.padding.bottom)
+				// Wrapping adds rows in horizontal Flex and columns in vertical
+				// Flex. Retain the occupied cross extent, including trailing padding.
+				if config.orientation == .horizontal {
+					mut bottom := config.padding.top
+					for frame in frames { bottom = math.max(bottom, frame.y + frame.height) }
+					natural = rect(0, 0, natural.width, bottom + config.padding.bottom)
+				} else {
+					mut right := config.padding.left
+					for frame in frames { right = math.max(right, frame.x + frame.width) }
+					natural = rect(0, 0, right + config.padding.right, natural.height)
+				}
 			}
 			return frames, natural
 		}
@@ -445,19 +502,22 @@ fn (mut tree LayoutTree) container_geometry(node &RetainedLayoutNode, available 
 			mut config := GridConfig{ ...node.declaration.layout.grid, frame: available }
 			initial := grid_preferred_size(config, sizes)!
 			if measuring && node.input.height <= 0 {
-				config = GridConfig{ ...config, frame: rect(0, 0, available.width, initial.height) }
+				config = GridConfig{ ...config, frame: rect(0, 0, available.width,
+					layout_constrain_axis(initial.height, constraints.min_height, constraints.max_height)) }
 			}
 			first := grid_frames(config, sizes.len)!
-			mut measured_sizes := sizes.clone()
+			preferred, _ := tree.measure_assigned_height_widths(node, first, sizes)!
+			mut measured_sizes := preferred.clone()
 			for i, child in node.children {
 				child_node := tree.nodes[child] or { return error('missing child') }
 				if child_node.input.height > 0 { continue }
 				measured := tree.measure_node(child, LayoutConstraints{ min_width: first[i].width, max_width: first[i].width })!
-				measured_sizes[i] = rect(0, 0, sizes[i].width, measured.height)
+				measured_sizes[i] = rect(0, 0, preferred[i].width, measured.height)
 			}
 			natural := grid_preferred_size(config, measured_sizes)!
 			if measuring && node.input.height <= 0 {
-				config = GridConfig{ ...config, frame: rect(0, 0, available.width, natural.height) }
+				config = GridConfig{ ...config, frame: rect(0, 0, available.width,
+					layout_constrain_axis(natural.height, constraints.min_height, constraints.max_height)) }
 			}
 			return grid_frames(config, sizes.len)!, natural
 		}
@@ -472,15 +532,31 @@ fn (mut tree LayoutTree) container_geometry(node &RetainedLayoutNode, available 
 				children << StackChild{ ...rule, element: Element{ frame: size } }
 			}
 			mut config := StackConfig{ ...node.declaration.layout.stack, frame: available, children: children }
-			first := stack_frames(config)!
+			initial := stack_preferred_size(config)!
+			if measuring && node.input.height <= 0 {
+				config = StackConfig{ ...config, frame: rect(0, 0, available.width,
+					layout_constrain_axis(initial.height, constraints.min_height, constraints.max_height)) }
+			}
+			mut first := stack_frames(config)!
+			preferred, width_changed := tree.measure_assigned_height_widths(node, first, sizes)!
+			if width_changed {
+				for i, size in preferred { children[i] = StackChild{ ...children[i], element: Element{ frame: size } } }
+				config = StackConfig{ ...config, children: children }
+				first = stack_frames(config)!
+			}
 			for i, child in node.children {
 				child_node := tree.nodes[child] or { return error('missing child') }
 				if child_node.input.height > 0 { continue }
 				measured := tree.measure_node(child, LayoutConstraints{ min_width: first[i].width, max_width: first[i].width })!
-				children[i] = StackChild{ ...children[i], element: Element{ frame: rect(0, 0, sizes[i].width, measured.height) } }
+				children[i] = StackChild{ ...children[i], element: Element{ frame: rect(0, 0, children[i].element.frame.width, measured.height) } }
 			}
 			config = StackConfig{ ...config, children: children }
-			return stack_frames(config)!, stack_preferred_size(config)!
+			natural := stack_preferred_size(config)!
+			if measuring && node.input.height <= 0 {
+				config = StackConfig{ ...config, frame: rect(0, 0, available.width,
+					layout_constrain_axis(natural.height, constraints.min_height, constraints.max_height)) }
+			}
+			return stack_frames(config)!, natural
 		}
 		else {
 			mut width := 0.0
@@ -525,7 +601,7 @@ fn (mut tree LayoutTree) place_node(identity string, frame Rect) ! {
 		} else {
 			rect(0, 0, frame.width, frame.height)
 		}
-		computed, _ := tree.container_geometry(node, available, sizes, false)!
+		computed, _ := tree.container_geometry(node, available, sizes, false, LayoutConstraints{})!
 		frames = computed.clone()
 	}
 	node.arrangement_key = arrangement
