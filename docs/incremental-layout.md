@@ -7,6 +7,15 @@ authored dimensions are preferred explicit sizes; zero requests intrinsic sizing
 `LayoutConstraints` distinguishes a tight zero from an unbounded maximum (`-1`).
 Geometry stays fractional in logical units until backend presentation.
 
+An intrinsic container selects its preferred width using the available bounded
+width, then accepts that width within the parent's minimum and maximum. It
+remeasures width-dependent height at the accepted width, including automatic
+Grid columns and nested stretched containers. This reflow does not select a
+second, smaller preferred width. For example, three 20×20 children in an
+automatic Grid with a 100-unit column threshold and maximum width 500 select a
+60-unit preferred width; that accepted width has one column and needs height 60.
+A tight assigned width 200 instead has two columns and needs height 40.
+
 ## Updating a subtree
 
 ```v
@@ -58,6 +67,13 @@ control insets and scroll gutter, measurer identity, and `LayoutEnvironment`.
 Paint values are excluded. Measurement and child disposition caches are separate.
 Each node retains at most 16 constraint results and 16 typography results;
 content changes and unmounts retire obsolete entries. Equal ids in different windows never share a cache.
+
+Placement success is cached only after every visible descendant succeeds. A
+failed `resolve` returns an error and no accepted tree; repeating it must still
+report the error. Previously successful placement keys are invalidated along
+the attempted traversal, while independent measurement, arrangement and subtree
+caches remain reusable. Correcting a declaration with `patch` can then recover
+geometry without replacing surviving identities.
 
 Call `invalidate_layout_environment(LayoutEnvironment{ font_version: revision })`
 when fonts/fallbacks change. This retires CPU measurement and active window

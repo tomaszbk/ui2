@@ -379,9 +379,21 @@ fn (mut tree LayoutTree) measure_node(identity string, constraints LayoutConstra
 		}
 		frames, natural := tree.container_geometry(node, available, sizes, true, constraints)!
 		_ = frames
+		accepted_width := layout_constrain_axis(if input.width > 0 { input.width } else { natural.width },
+			constraints.min_width, constraints.max_width)
+		mut intrinsic_height := natural.height
+		if accepted_width != available.width {
+			// Select intrinsic width once, then measure dependent height there.
+			// A loose maximum can select more automatic Grid columns than the
+			// content's accepted width. Wrappers must reflow at that width too.
+			// Do not feed the reflowed width back into width selection.
+			_, reflowed := tree.container_geometry(node,
+				rect(0, 0, accepted_width, available.height), sizes, true, constraints)!
+			intrinsic_height = reflowed.height
+		}
 		preferred = constraints.constrain(LayoutSize{
-			width:  if input.width > 0 { input.width } else { natural.width }
-			height: if input.height > 0 { input.height } else { natural.height }
+			width:  accepted_width
+			height: if input.height > 0 { input.height } else { intrinsic_height }
 		})!
 	}
 	// Bound memory during arbitrary resize; retired content drops all entries.
@@ -583,6 +595,10 @@ fn (mut tree LayoutTree) place_node(identity string, frame Rect) ! {
 		tree.counters.layout_hits++
 		return
 	}
+	// A failed attempt can already have moved earlier descendants. Neither
+	// the attempted key nor a prior successful key can certify that subtree.
+	// Independent measurement and arrangement results remain reusable.
+	node.placement_key = ''
 	mut dependencies := []string{cap: node.children.len}
 	for child in node.children {
 		child_node := tree.nodes[child] or { return error('missing layout child') }
@@ -606,8 +622,8 @@ fn (mut tree LayoutTree) place_node(identity string, frame Rect) ! {
 	}
 	node.arrangement_key = arrangement
 	node.placed_frames = frames
-	node.placement_key = key
 	for i, child in node.children { tree.place_node(child, frames[i])! }
+	node.placement_key = key
 }
 
 fn (tree &LayoutTree) output(identity string) Element {
