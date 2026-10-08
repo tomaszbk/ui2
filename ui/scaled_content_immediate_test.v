@@ -8,29 +8,29 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
  fn capture_scaled_callback_event(event ElementEvent) { scaled_callback_events << event }
  fn test_scaled_hit_clipping_and_inverse_slider() {
   previous := g_gg_app.ctx
-  g_gg_app.ctx = &DrawContext{content_transform:ContentTransform{scale:0.5,y:60}}
+  g_gg_app.ctx = &DrawContext{content_transform:ContentTransform{xx: 0.5, yy: 0.5,y:60}}
   defer { g_gg_app.ctx = previous; g_hit_targets = []HitTarget{} }
   g_hit_targets = []HitTarget{}
   add_hit_target(HitTarget{id:'inside',x:-20,y:100,w:120,h:40},rect(0,0,1280,720))
   assert hit_test(20,115).id == 'inside'
   assert hit_test(20,30).id == ''
-  target := HitTarget{slider:true,slider_frame:rect(100,100,200,40),slider_spec:SliderSpec{min:0,max:100},content_transform:ContentTransform{scale:0.5,y:60}}
+  target := HitTarget{slider:true,slider_frame:rect(100,100,200,40),slider_spec:SliderSpec{min:0,max:100},content_transform:ContentTransform{xx: 0.5, yy: 0.5,y:60}}
   assert slider_target_value(target,100,120) == 50
   scaled_callback_events = []ElementEvent{}
-  fire_pointer_event(.pointer_drag,HitTarget{id:'move',on_event:capture_scaled_callback_event,content_transform:ContentTransform{scale:0.5,y:60}},36,92)
+  fire_pointer_event(.pointer_drag,HitTarget{id:'move',on_event:capture_scaled_callback_event,content_transform:ContentTransform{xx: 0.5, yy: 0.5,y:60}},36,92)
   assert scaled_callback_events == [ElementEvent{kind:.pointer_drag,id:'move',x:72,y:64}]
  }
 
  fn test_scaled_scroll_keeps_logical_offsets() {
   previous := g_gg_app.ctx
-  g_gg_app.ctx = &DrawContext{content_transform:ContentTransform{scale:0.5,y:60}}
+  g_gg_app.ctx = &DrawContext{content_transform:ContentTransform{xx: 0.5, yy: 0.5,y:60}}
   defer { g_gg_app.ctx = previous; reset_scroll_frame(); g_scroll_offsets.clear() }
   reset_scroll_frame()
   g_scroll_offsets.clear()
   register_scroll_view(named_scroll_state_id('pane'),rect(0,0,200,100),rect(0,0,1280,720),300,true,true,false,HitTarget{})
   assert scroll_hit_test(40,80) == named_scroll_state_id('pane')
   assert scroll_hit_test(40,20) == ''
-  apply_scroll_chain([named_scroll_state_id('pane')],25)
+  apply_scroll_vector([named_scroll_state_id('pane')],0,25)
   assert scroll_offset('pane') == 50
   assert scroll_maximum(named_scroll_state_id('pane')) == 200
  }
@@ -58,20 +58,20 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
   second := new_custom_window_state()
   previous := activate_custom_window_state(first)
   defer { activate_custom_window_state(previous); g_gg_app.ctx = original }
-  g_gg_app.ctx = &DrawContext{content_transform:ContentTransform{scale:0.5}}
+  g_gg_app.ctx = &DrawContext{content_transform:ContentTransform{xx: 0.5, yy: 0.5}}
   register_scroll_view(named_scroll_state_id('pane'),rect(0,0,200,100),rect(0,0,200,100),300,true,true,false,HitTarget{})
   activate_custom_window_state(second)
-  g_gg_app.ctx = &DrawContext{content_transform:ContentTransform{scale:2}}
+  g_gg_app.ctx = &DrawContext{content_transform:ContentTransform{xx: 2, yy: 2}}
   register_scroll_view(named_scroll_state_id('pane'),rect(0,0,200,100),rect(0,0,200,100),300,true,true,false,HitTarget{})
-  apply_scroll_chain([named_scroll_state_id('pane')],20)
+  apply_scroll_vector([named_scroll_state_id('pane')],0,20)
   assert scroll_offset('pane') == 10
   activate_custom_window_state(first)
-  apply_scroll_chain([named_scroll_state_id('pane')],20)
+  apply_scroll_vector([named_scroll_state_id('pane')],0,20)
   assert scroll_offset('pane') == 40
-  assert g_scroll_transforms[named_scroll_state_id('pane')].scale == 0.5
+  assert g_scroll_transforms[named_scroll_state_id('pane')].xx == 0.5
   activate_custom_window_state(second)
   assert scroll_offset('pane') == 10
-  assert g_scroll_transforms[named_scroll_state_id('pane')].scale == 2
+  assert g_scroll_transforms[named_scroll_state_id('pane')].xx == 2
  }
 }
 
@@ -81,7 +81,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
   previous_touch := g_touch
   previous_focus := g_focused_field
   defer { g_tooltip = previous_tooltip; g_touch = previous_touch; g_focused_field = previous_focus }
-  transform := ContentTransform{scale:0.5,y:60}
+  transform := ContentTransform{xx: 0.5, yy: 0.5,y:60}
   frame := rect(100,100,200,40)
   el := with_interaction_style(button('next','Next',frame,BoxStyle{},TextStyle{}),InteractionStyle{
    hover:BoxStylePatch{bg:u32(0x00ff00)}

@@ -42,11 +42,12 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		assert tooltip_target_at(covered, 10, 10).key == 'label'
 		assert tooltip_target_at(covered, 60, 10).text == ''
 		assert tooltip_target_at(covered, 80, 10).key == 'button'
-		// Neighbours sharing an edge do not both claim it.
+		// Shared inclusive boundaries resolve to the last painted target.
 		row := [tooltip_target('a', 'a', 0, 0, 50, 20), tooltip_target('b', 'b', 50, 0, 50, 20)]
 		assert tooltip_target_at(row, 49.5, 10).key == 'a'
 		assert tooltip_target_at(row, 50, 10).key == 'b'
-		assert tooltip_target_at(row, 100, 10).text == ''
+		assert tooltip_target_at(row, 100, 10).key == 'b'
+		assert tooltip_target_at(row, 100.01, 10).text == ''
 	}
 
 	fn test_tooltip_opens_after_the_pointer_rests_and_stays_put() {

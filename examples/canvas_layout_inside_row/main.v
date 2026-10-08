@@ -134,6 +134,11 @@ fn build_inside_row_screen() ui2.Element {
 }
 
 fn main() {
+	$if (macos || windows) && !ui2_custom_rendering ? {
+		eprintln('This transform example requires -d ui2_custom_rendering')
+		return
+	}
+
 	mut state := unsafe { inside_row_state }
 	unsafe {
 		*state = inside_row_demo()

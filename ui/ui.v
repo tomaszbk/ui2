@@ -424,14 +424,20 @@ pub:
 	keyboard                  int
 	long_press                bool
 	swipe_left                bool
-	readonly                  bool   // text_area: selectable but not editable
-	disable_scroll            bool   // text_area: hide the internal scroll view scroller
-	persistent_scrollbars     bool   // scroll: keep a legacy always-visible scroller instead of the auto-fading overlay one
-	secure                    bool   // text_field: native password entry
-	clickable                 bool   // view/image: emit pointer down/up events
-	button_behavior           bool   // view: invoke its callback when released like a button
-	draggable                 bool   // view/image: emit pointer drag events
-	rotation                  f64    // image: clockwise degrees
+	readonly                  bool // text_area: selectable but not editable
+	disable_scroll            bool // text_area: hide the internal scroll view scroller
+	persistent_scrollbars     bool // scroll: keep a legacy always-visible scroller instead of the auto-fading overlay one
+	secure                    bool // text_field: native password entry
+	clickable                 bool // view/image: emit pointer down/up events
+	button_behavior           bool // view: invoke its callback when released like a button
+	draggable                 bool // view/image: emit pointer drag events
+	rotation                  f64  // custom: clockwise visual rotation, for every element
+	translate_x               f64
+	translate_y               f64
+	scale_x                   f64 = 1
+	scale_y                   f64 = 1
+	origin_x                  f64
+	origin_y                  f64
 	cursor                    string // view/image: hover cursor hint
 	menu                      []MenuEntry
 	children                  []Element
@@ -508,6 +514,15 @@ pub fn validate_element_tree(root Element) ! {
 }
 
 fn validate_element_node(el Element, path string, mut ids map[string]bool) ! {
+	el.visual_transform().matrix(el.frame)!
+	if el.visual_transform() != VisualTransform{} {
+		$if !( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headless ? {
+			return error('visual transforms require the custom renderer at ${path}')
+		}
+		$if android {
+			return error('visual transforms require the desktop custom text renderer at ${path}')
+		}
+	}
 	if el.content_size.width != 0 || el.content_size.height != 0 {
 		if el.kind != .view { return error('scaled content must be a view at ${path}') }
 		contain_content(el.frame, el.content_size.width, el.content_size.height)!
@@ -758,29 +773,6 @@ pub fn image(id string, path string, frame Rect) Element {
 		id:         id
 		image_path: path
 		frame:      frame
-	}
-}
-
-pub fn transformed_image(id string, path string, frame Rect, rotation f64, clickable bool) Element {
-	return Element{
-		kind:       .image
-		id:         id
-		image_path: path
-		frame:      frame
-		rotation:   rotation
-		clickable:  clickable
-	}
-}
-
-pub fn transformed_image_with_cursor(id string, path string, frame Rect, rotation f64, clickable bool, cursor string) Element {
-	return Element{
-		kind:       .image
-		id:         id
-		image_path: path
-		frame:      frame
-		rotation:   rotation
-		clickable:  clickable
-		cursor:     cursor
 	}
 }
 

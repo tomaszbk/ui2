@@ -4,7 +4,6 @@ module ui2
 $if !ui2_custom_rendering ? {
 
 import macos
-import math
 
 fn test_macos_v_objc_rich_text_bridge_round_trips_attributes() {
 	pool := macos.autorelease_pool_new()
@@ -110,23 +109,14 @@ fn test_macos_v_objc_accessibility_state_restores_native_values() {
 	assert macos.utf8_string(macos.msg_id(field, 'accessibilityRole')) == original_role
 }
 
-fn test_macos_v_objc_rotation_bridge_updates_layer_transform() {
-	pool := macos.autorelease_pool_new()
-	defer {
-		macos.release(pool)
+fn test_macos_native_rejects_image_visual_rotation() {
+	el := with_transform(image('image', 'unused.png', rect(10, 20, 100, 40)),
+		VisualTransform{ rotation: 45, origin_x: 50, origin_y: 20 })
+	if _ := validate_element_tree(el) {
+		assert false
+	} else {
+		assert err.msg().contains('visual transforms require the custom renderer')
 	}
-	view := macos.msg_id_rect(macos.alloc('NSView'), 'initWithFrame:', macos.rect(10, 20, 100, 40))
-	defer {
-		macos.release(view)
-	}
-
-	native_view_set_rotation(view, 45)
-	layer := macos.msg_id(view, 'layer')
-	rotation := macos.msg_id1(layer, 'valueForKeyPath:', macos.nsstring('transform.rotation'))
-	assert math.abs(macos.msg_f64(rotation, 'doubleValue') - math.pi / 4.0) < 0.000001
-	native_view_clear_rotation(view)
-	cleared := macos.msg_id1(layer, 'valueForKeyPath:', macos.nsstring('transform.rotation'))
-	assert math.abs(macos.msg_f64(cleared, 'doubleValue')) < 0.000001
 }
 
 }

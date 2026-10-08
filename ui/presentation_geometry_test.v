@@ -84,7 +84,7 @@ fn test_programmatic_vnode_units_property_is_rejected() {
 }
 
 fn test_border_tessellation_frame_matches_fractional_fill_presentation() {
-	transform := ContentTransform{ scale: 0.5, y: 60 }
+	transform := ContentTransform{ xx: 0.5, yy: 0.5, y: 60 }
 	original := rect(72.5, 64.5, 368.5, 200.5)
 	// At DPI2 the fill begins on pixel (73,185), ending on (441,385).
 	local := transform.rounded_local_rect(original, 2)

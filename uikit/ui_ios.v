@@ -692,17 +692,15 @@ fn apply_label_valign(lbl View, frame Rect, lines int, valign VAlign, boxed bool
 	}))
 }
 
-fn new_image_view(frame Rect, path string, rotation f64) View {
+fn new_image_view(frame Rect, path string) View {
 	image_view := macos.msg_id_rect(macos.alloc('UIImageView'), 'initWithFrame:', native_rect(frame))
-	update_image_view(image_view, frame, path, rotation)
+	update_image_view(image_view, frame, path)
 	return image_view
 }
 
-fn update_image_view(image_view View, frame Rect, path string, rotation f64) {
-	native_set_view_rotation(image_view, 0)
+fn update_image_view(image_view View, frame Rect, path string) {
 	macos.msg_void_rect(image_view, 'setFrame:', native_rect(frame))
 	macos.msg_void_i64(image_view, 'setContentMode:', 1)
-	native_set_view_rotation(image_view, rotation)
 	image := if path.trim_space().len == 0 {
 		View(unsafe { nil })
 	} else {
@@ -1079,7 +1077,7 @@ fn native_create_element(el Element) View {
 		.label {
 			new_label_view(el.frame, el.text, el.text_style.color, el.text_style.size, el.text_style.bold, align_value(el.text_style.align), el.text_style.lines, el.text_style.valign, label_needs_container(el))
 		}
-		.image { new_image_view(el.frame, el.image_path, el.rotation) }
+		.image { new_image_view(el.frame, el.image_path) }
 		.button {
 			new_button_view(el.frame, el.text, el.box, el.text_style.color, el.text_style.size, el.text_style.bold, el.text_style.lines)
 		}
@@ -1113,7 +1111,7 @@ fn native_update_element(native View, el Element, declared_text_changed bool) {
 		.label {
 			update_label_view(native, el.frame, el.text, el.text_style.color, el.text_style.size, el.text_style.bold, align_value(el.text_style.align), el.text_style.lines, el.text_style.valign, label_needs_container(el))
 		}
-		.image { update_image_view(native, el.frame, el.image_path, el.rotation) }
+		.image { update_image_view(native, el.frame, el.image_path) }
 		.button {
 			update_button_view(native, el.frame, el.text, el.box, el.text_style.color, el.text_style.size, el.text_style.bold, el.text_style.lines)
 		}

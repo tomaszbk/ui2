@@ -4,7 +4,7 @@
 @[has_globals]
 module ui2
 
-$if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
+$if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headless ? {
 	import gg
 	import math
 	import os
@@ -13,39 +13,42 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	import time
 
 	struct HitTarget {
-		identity string
-		kind Kind = .view
-		content_transform ContentTransform
-		id             string
-		on_event       ElementCallback = unsafe { nil }
-		x              f64
-		y              f64
-		w              f64
-		h              f64
-		long_press     bool
-		swipe_left     bool
-		text_field     bool
-		text_area      bool
-		checkbox       bool
-		checkbox_state bool
-		dropdown       bool
-		slider         bool
-		switch_control bool
-		switch_state   bool
-		toggle_button  bool
-		toggle_group   string
+		identity                  string
+		kind                      Kind = .view
+		content_transform         ContentTransform
+		local_frame               Rect
+		clip_region               ClipRegion
+		has_geometry              bool
+		id                        string
+		on_event                  ElementCallback = unsafe { nil }
+		x                         f64
+		y                         f64
+		w                         f64
+		h                         f64
+		long_press                bool
+		swipe_left                bool
+		text_field                bool
+		text_area                 bool
+		checkbox                  bool
+		checkbox_state            bool
+		dropdown                  bool
+		slider                    bool
+		switch_control            bool
+		switch_state              bool
+		toggle_button             bool
+		toggle_group              string
 		toggle_allow_no_selection bool
-		slider_frame   Rect
-		slider_padding f64
-		slider_spec    SliderSpec
-		options        []string
+		slider_frame              Rect
+		slider_padding            f64
+		slider_spec               SliderSpec
+		options                   []string
 		// dropdown_option marks one row of the open dropdown list; id names the
 		// owning dropdown and option_index the value the row selects.
 		dropdown_option bool
 		option_index    int
-		clickable      bool
+		clickable       bool
 		button_behavior bool
-		draggable      bool
+		draggable       bool
 	}
 
 	struct TouchState {
@@ -72,23 +75,25 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	@[heap]
 	struct GgApp {
 	mut:
-		ctx &DrawContext = unsafe { nil }
-		scheduler &FrameCoordinator = new_frame_coordinator()
-		declared_root Element
-		has_root bool
-		iconified bool
-		suspended bool
-		dpi_scale f32
-		draining_tasks bool
-		window_state &CustomWindowState = unsafe { nil }
-		native_window voidptr
-		last_frame i64 = -1
-		surface_retry_at i64 = -1
-		callback_depth int
-		cleanup_pending bool
-		composition TextComposition
-		text_caret Rect
-		editable_fields map[string]bool
+		ctx                   &DrawContext      = unsafe { nil }
+		scheduler             &FrameCoordinator = new_frame_coordinator()
+		declared_root         Element
+		has_root              bool
+		iconified             bool
+		suspended             bool
+		dpi_scale             f32
+		draining_tasks        bool
+		window_state          &CustomWindowState = unsafe { nil }
+		native_window         voidptr
+		last_frame            i64 = -1
+		surface_retry_at      i64 = -1
+		callback_depth        int
+		cleanup_pending       bool
+		composition           TextComposition
+		text_caret            Rect
+		editable_fields       map[string]bool
+		presentation_revision u64
+		visual_geometries     map[string]VisualGeometry
 	}
 
 	// DropdownPopup caches the geometry of the open dropdown list. The list is
@@ -123,9 +128,13 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	struct TooltipTarget {
 		// key tells the pointer resting on one target apart from moving on to
 		// another, across frames that rebuild every target from scratch.
-		key   string
-		text  string
-		frame Rect
+		key               string
+		text              string
+		frame             Rect
+		local_frame       Rect
+		content_transform ContentTransform
+		clip_region       ClipRegion
+		has_geometry      bool
 	}
 
 	// TooltipState follows the pointer. Its cancelable deadline belongs to the
@@ -781,7 +790,9 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		now := renderer_now_ms()
 		work := app.scheduler.begin_frame(now) or { return }
 		defer { app.scheduler.finish_frame(work) }
-		$if android { ensure_symbol_fallbacks(ctx) }
+		$if android {
+			ensure_symbol_fallbacks(ctx)
+		}
 		if work.build && voidptr(g_build_screen) != unsafe { nil } {
 			app.scheduler.record_build()
 			declared := g_build_screen()
@@ -825,6 +836,10 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		g_active_images = map[string]bool{}
 		// Image resources must be available before starting the GPU pass.
 		preload_images(root)
+		app.visual_geometries.clear()
+		ctx.content_transform = ContentTransform{}
+		ctx.clip_base = ClipRegion{}
+		ctx.clip_region = ClipRegion{}
 		ctx.begin()
 		if app.has_root {
 			g_dropdown_popup.mounted = false
@@ -861,9 +876,11 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			return
 		}
 		mut state := unsafe { app }
-		// All input can affect local interaction or invoke application handlers.
-		// Legacy builds remain complete; paint-only setters/deadlines reuse root.
-		state.scheduler.invalidate(.build)
+		// Preserve automatic refresh for ordinary input/model callbacks. A callback
+		// that patches presentation already requests paint and needs no layout build.
+		revision := state.presentation_revision
+		state.scheduler.invalidate(.paint)
+		defer { if revision == state.presentation_revision { state.scheduler.invalidate(.build) } }
 		match e.typ {
 			.mouse_down {
 				g_tooltip.dismiss()
@@ -897,7 +914,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 				if menu_bar_open() {
 					return
 				}
-				handle_mouse_scroll(f64(e.mouse_x), f64(e.mouse_y), f64(e.scroll_y))
+				handle_mouse_scroll_vector(f64(e.mouse_x), f64(e.mouse_y), f64(e.scroll_x), f64(e.scroll_y))
 			}
 			.mouse_leave {
 				g_tooltip.pointer_left()
@@ -983,7 +1000,8 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	// ── Touch handling ─────────────────────────────────────────────────
 
 	fn fire_pointer_event(kind ElementEventKind, target HitTarget, x f64, y f64) {
-		logical_x, logical_y := target.content_transform.inverse(x, y)
+		current := current_pointer_target(target) or { target }
+		logical_x, logical_y := current.content_transform.inverse(x, y)
 		fire_target_event(target, ElementEvent{ kind: kind, id: target.id, x: logical_x, y: logical_y })
 	}
 
@@ -1031,6 +1049,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		if !g_touch.down {
 			return
 		}
+		previous_x := g_touch.current_x
 		previous_y := g_touch.current_y
 		dx := x - g_touch.start_x
 		dy := y - g_touch.start_y
@@ -1044,28 +1063,30 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		} else {
 			hit_test(g_touch.start_x, g_touch.start_y)
 		}
-		if g_touch.pointer_captured && !target.clickable && !target.draggable && current_pointer_target(target) == none { return }
+		if g_touch.pointer_captured && !target.clickable && !target.draggable && current_pointer_target(target) == none {
+			return
+		}
 		if target.slider {
 			commit_slider(target, x, y)
 			return
 		}
 		if target.switch_control {
-			commit_switch(target, x >= target.x + target.w / 2)
+			commit_switch(target, switch_pointer_right(target, x, y))
 			return
 		}
 		if g_touch.scrollbar_drag {
-			drag_scrollbar(y)
+			drag_scrollbar_at(x, y)
 			return
 		}
-		if g_touch.scroll_chain.len > 0 {
-			apply_scroll_chain(g_touch.scroll_chain, previous_y - y)
+		if g_touch.scroll_chain.len > 0 && !target.draggable {
+			apply_scroll_vector(g_touch.scroll_chain, previous_x - x, previous_y - y)
 		}
 		if voidptr(target.on_event) != unsafe { nil } && target.draggable {
 			fire_pointer_event(.pointer_drag, target, x, y)
 		}
 	}
 
-	fn handle_mouse_scroll(x f64, y f64, delta_y f64) {
+	fn handle_mouse_scroll_vector(x f64, y f64, delta_x f64, delta_y f64) {
 		if g_open_dropdown.len > 0 {
 			g_dropdown_scroll = clamped_dropdown_scroll(g_dropdown_scroll - delta_y * 24)
 			update_dropdown_hover(x, y)
@@ -1075,7 +1096,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		if id.len == 0 {
 			return
 		}
-		apply_scroll_chain(scroll_ancestor_chain(id), -delta_y * 48)
+		apply_scroll_vector(scroll_ancestor_chain(id), -delta_x * 48, -delta_y * 48)
 	}
 
 	fn set_scroll_offset(id string, requested f64, maximum f64) {
@@ -1117,14 +1138,16 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		} else {
 			hit_test(g_touch.start_x, g_touch.start_y)
 		}
-		if was_captured && !captured.clickable && !captured.draggable && current_pointer_target(captured) == none { return }
+		if was_captured && !captured.clickable && !captured.draggable && current_pointer_target(captured) == none {
+			return
+		}
 		if slider_target.slider {
 			commit_slider(slider_target, x, y)
 			return
 		}
 		if slider_target.switch_control {
 			if g_touch.moved {
-				commit_switch(slider_target, x >= slider_target.x + slider_target.w / 2)
+				commit_switch(slider_target, switch_pointer_right(slider_target, x, y))
 			} else {
 				current := if slider_target.id.len > 0 {
 					switch_active(slider_target.id)
@@ -1182,7 +1205,9 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		if was_captured {
 			current := current_pointer_target(target) or { return }
 			if !hit_target_contains(current, x, y) { return }
-		} else { target = hit_test(x, y) }
+		} else {
+			target = hit_test(x, y)
+		}
 		if target.checkbox {
 			commit_checkbox(target)
 			return
@@ -1253,7 +1278,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	fn hit_test(x f64, y f64) HitTarget {
 		for i := g_hit_targets.len - 1; i >= 0; i-- {
 			t := g_hit_targets[i]
-			if x >= t.x && x <= t.x + t.w && y >= t.y && y <= t.y + t.h {
+			if hit_target_contains(t, x, y) {
 				return t
 			}
 		}
@@ -1261,8 +1286,8 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	}
 
 	fn hit_target_contains(target HitTarget, x f64, y f64) bool {
-		return x >= target.x && x <= target.x + target.w && y >= target.y
-			&& y <= target.y + target.h
+		broad := presentation_bounds_contains(rect(target.x,target.y,target.w,target.h),x,y)
+		return broad && (!target.has_geometry || transformed_contains(target.local_frame, target.content_transform, target.clip_region, x, y))
 	}
 
 	// A semantic press keeps the action chosen on pointer-down, but the surface
@@ -1293,17 +1318,19 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 
 	fn fire_target_event(target HitTarget, event ElementEvent) {
 		if voidptr(target.on_event) != unsafe { nil } {
-			refresh()
+			revision := g_gg_app.presentation_revision
 			target.on_event(event)
+			// A presentation setter already requested a paint; pure visual callbacks
+			// do not rebuild their retained layout. Mixed model changes call refresh().
+			if revision == g_gg_app.presentation_revision { refresh() }
 		}
 	}
 
 	fn slider_target_value(target HitTarget, x f64, y f64) f64 {
-		logical_x, logical_y := target.content_transform.inverse(x,y)
-		normalized := slider_normalized_from_point(target.slider_frame,
-			target.slider_spec.orientation, target.slider_padding, logical_x, logical_y)
-		return slider_value_from_normalized(normalized, target.slider_spec.min,
-			target.slider_spec.max, target.slider_spec.step)
+		current := current_pointer_target(target) or { target }
+		logical_x, logical_y := current.content_transform.inverse(x, y)
+		normalized := slider_normalized_from_point(current.slider_frame, current.slider_spec.orientation, current.slider_padding, logical_x, logical_y)
+		return slider_value_from_normalized(normalized, current.slider_spec.min, current.slider_spec.max, current.slider_spec.step)
 	}
 
 	fn commit_slider(target HitTarget, x f64, y f64) {
@@ -1610,8 +1637,8 @@ fn text_navigation_word_modifier(ctrl bool, alt bool) bool {
 		}
 }
 
-// text_navigation_boundary_modifier maps Command+Arrow to line boundaries on
-// macOS. On other platforms Ctrl+Arrow must remain word navigation.
+	// text_navigation_boundary_modifier maps Command+Arrow to line boundaries on
+	// macOS. On other platforms Ctrl+Arrow must remain word navigation.
 fn text_navigation_boundary_modifier(super_ bool) bool {
 	$if macos {
 		return super_
@@ -1726,7 +1753,7 @@ fn page_focused_text_area(direction int) {
 			if !target.dropdown_option || target.id != g_open_dropdown {
 				continue
 			}
-			if x >= target.x && x <= target.x + target.w && y >= target.y && y <= target.y + target.h {
+			if hit_target_contains(target, x, y) {
 				hover = target.option_index
 			}
 		}
@@ -1819,7 +1846,7 @@ fn page_focused_text_area(direction int) {
 				break
 			}
 		}
-		row_height := dropdown_row_height(el.text_style) * ctx.content_transform.scale
+		row_height := dropdown_row_height(el.text_style) * ctx.content_transform.footprint_scale()
 		anchor := ctx.content_transform.project(rect(x, y, el.frame.width, el.frame.height))
 		window := rect(0, 0, f64(ctx.width), f64(ctx.height))
 		frame := dropdown_popup_frame(anchor, options.len, row_height, window)
@@ -1827,19 +1854,23 @@ fn page_focused_text_area(direction int) {
 		view_height := frame.height - dropdown_popup_padding * 2
 		opening := g_dropdown_popup.id != el.id
 		g_dropdown_popup = DropdownPopup{
-			id: el.id
-			on_event: el.on_event
-			x: frame.x
-			y: frame.y
-			width: frame.width
-			height: frame.height
+			id:         el.id
+			on_event:   el.on_event
+			x:          frame.x
+			y:          frame.y
+			width:      frame.width
+			height:     frame.height
 			row_height: row_height
-			options: options
-			selected: selected_index
-			text_style: scaled_overlay_text_style(el.text_style, ctx.content_transform.scale)
-			radius: el.box.radius * ctx.content_transform.scale
-			max_scroll: if content_height > view_height { content_height - view_height } else { 0.0 }
-			mounted: true
+			options:    options
+			selected:   selected_index
+			text_style: scaled_overlay_text_style(el.text_style, ctx.content_transform.footprint_scale())
+			radius:     el.box.radius * ctx.content_transform.footprint_scale()
+			max_scroll: if content_height > view_height {
+				content_height - view_height
+			} else {
+				0.0
+			}
+			mounted:    true
 		}
 		if opening {
 			g_dropdown_scroll = 0.0
@@ -1984,8 +2015,9 @@ fn page_focused_text_area(direction int) {
 	fn tooltip_target_at(targets []TooltipTarget, x f64, y f64) TooltipTarget {
 		for i := targets.len - 1; i >= 0; i-- {
 			frame := targets[i].frame
-			if x >= frame.x && x < frame.x + frame.width && y >= frame.y
-				&& y < frame.y + frame.height {
+			target := targets[i]
+			if presentation_bounds_contains(frame,x,y)
+				&& (!target.has_geometry || transformed_contains(target.local_frame, target.content_transform, target.clip_region, x, y)) {
 				return targets[i]
 			}
 		}
@@ -2006,14 +2038,19 @@ fn page_focused_text_area(direction int) {
 	// the clip it was drawn with, so a control scrolled out of its viewport
 	// cannot answer for the pointer.
 	fn add_tooltip_target(key string, text string, area Rect, clip Rect) {
-		visible := current_presentation_rect(intersect_rect(area, clip))
+		region := current_clip_region(clip)
+		visible := region.intersect(transformed_clip(area, current_content_transform())).bounds()
 		if visible.width <= 0 || visible.height <= 0 {
 			return
 		}
 		g_tooltip_targets << TooltipTarget{
-			key: key
-			text: text
-			frame: visible
+			key:               key
+			text:              text
+			frame:             visible
+			local_frame:       area
+			content_transform: current_content_transform()
+			clip_region:       region
+			has_geometry:      true
 		}
 	}
 
@@ -2226,15 +2263,14 @@ fn page_focused_text_area(direction int) {
 	// ── Rendering ──────────────────────────────────────────────────────
 
 	fn resolve_custom_visual_style(declared Element, area Rect, clip Rect, transform ContentTransform) Element {
-		pointer_x, pointer_y := transform.inverse(g_tooltip.pointer_x, g_tooltip.pointer_y)
-		press_x, press_y := transform.inverse(g_touch.current_x, g_touch.current_y)
-		hovered := g_tooltip.pointer_in && box_contains_point(intersect_rect(area, clip), pointer_x, pointer_y)
+		region := current_clip_region(clip)
+		hovered := g_tooltip.pointer_in && transformed_contains(area,transform,region,g_tooltip.pointer_x,g_tooltip.pointer_y)
 		focused := declared.focused || (declared.id.len > 0 && declared.id == g_focused_field)
 		style_pressed := g_touch.down && declared.id.len > 0
 			&& (declared.id == g_touch.pressed_id || declared.id == g_touch.pointer_target.id)
 			&& (!g_touch.pointer_captured || declared.kind == g_touch.pointer_target.kind)
 			&& !g_touch.moved && !g_touch.scrollbar_drag
-			&& box_contains_point(intersect_rect(area, clip), press_x, press_y)
+			&& transformed_contains(area,transform,region,g_touch.current_x,g_touch.current_y)
 		return Element{...declared,
 			box: interaction_box(declared, hovered, focused, style_pressed)
 			text_style: interaction_text_style(declared, hovered, focused, style_pressed)}
@@ -2242,27 +2278,72 @@ fn page_focused_text_area(direction int) {
 
 	fn render_scaled_content(ctx &DrawContext, el Element, off_x f64, off_y f64, clip Rect, scroll_parent_id string, path string) {
 		if el.hidden { return }
-		viewport := rect(el.frame.x+off_x,el.frame.y+off_y,el.frame.width,el.frame.height)
-		local := contain_content(viewport,el.content_size.width,el.content_size.height) or { return }
+		viewport := rect(el.frame.x + off_x, el.frame.y + off_y, el.frame.width, el.frame.height)
+		local := contain_content(viewport, el.content_size.width, el.content_size.height) or { return }
+		render_element_body(ctx, Element{ ...el, children: [], content_size: LayoutSize{} }, off_x, off_y, clip, scroll_parent_id, path)
 		outer := ctx.content_transform
-		window_clip := outer.project(intersect_rect(viewport,clip))
-		// Draw the viewport's fill/interaction at its normal size before entering content.
-		render_element(ctx, Element{...el, children:[], content_size:LayoutSize{}}, off_x, off_y, clip, scroll_parent_id, path)
-		transform := outer.compose(local)
-		unsafe { ctx.content_transform = transform }
-		defer { unsafe { ctx.content_transform = outer } }
-		content_clip := intersect_rect(rect(0,0,el.content_size.width,el.content_size.height), transform.inverse_rect(window_clip))
-		if content_clip.width <= 0 || content_clip.height <= 0 { return }
-		for index, child in el.children { render_element(ctx,child,0,0,content_clip,scroll_parent_id,reconciliation_child_key(path,index,child)) }
+		base := ctx.clip_base
+		region := ctx.clip_region
+		exact := base.intersect(transformed_clip(viewport, outer))
+		unsafe {
+			ctx.content_transform = outer.compose(local)
+			ctx.clip_base = exact
+			ctx.clip_region = exact
+		}
+		defer { unsafe {
+			ctx.content_transform = outer
+			ctx.clip_base = base
+			ctx.clip_region = region
+		}
+		ctx.sync_scissor()
+		 }
+		// Fixed composition clips in its own coordinates. Never inverse an AABB to
+		// recover an ancestor clip; exact window polygons survive nested transforms.
+		content_clip := rect(0, 0, el.content_size.width, el.content_size.height)
+		apply_clip(ctx, content_clip)
+		for index, child in el.children {
+			render_element(ctx, child, 0, 0, content_clip, scroll_parent_id, reconciliation_child_key(path, index, child))
+		}
 	}
 
 	fn render_element(ctx &DrawContext, declared_el Element, off_x f64, off_y f64, clip Rect, scroll_parent_id string, path string) {
+		if declared_el.hidden { return }
+		outer := ctx.content_transform
+		base := ctx.clip_base
+		region := ctx.clip_region
+		enabled := ctx.interaction_enabled
+		parent_clip := base.intersect(transformed_clip(clip, outer))
+		area := element_area(ctx, declared_el, off_x, off_y)
+		visual := declared_el.visual_transform().matrix(area) or { return }
+		inv := visual.inverted() or { return }
+		local_clip := inv.project(clip)
+		unsafe {
+			ctx.content_transform = outer.compose(visual)
+			ctx.clip_base = parent_clip
+			ctx.clip_region = parent_clip
+			ctx.interaction_enabled = enabled && declared_el.enabled
+		}
+		defer { unsafe {
+			ctx.content_transform = outer
+			ctx.clip_base = base
+			ctx.clip_region = region
+			ctx.interaction_enabled = enabled
+		}
+		ctx.sync_scissor()
+		 }
+		el := Element{ ...declared_el, enabled: enabled && declared_el.enabled }
+		if el.id.len > 0 {
+			g_gg_app.visual_geometries[el.id] = VisualGeometry{ frame: area, transform: ctx.content_transform, parent_transform: outer, clip: parent_clip }
+		}
+		render_element_body(ctx, el, off_x, off_y, local_clip, scroll_parent_id, path)
+	}
+
+	fn render_element_body(ctx &DrawContext, declared_el Element, off_x f64, off_y f64, clip Rect, scroll_parent_id string, path string) {
 		if declared_el.content_size.width > 0 || declared_el.content_size.height > 0 {
 			render_scaled_content(ctx, declared_el, off_x, off_y, clip, scroll_parent_id, path)
 			return
 		}
 		if declared_el.hidden {
-
 			return
 		}
 		apply_clip(ctx, clip)
@@ -2298,7 +2379,7 @@ fn page_focused_text_area(direction int) {
 				}
 				draw_box_borders(ctx, off_x, off_y, w - off_x, h - off_y, el.box)
 				for index, child in el.children {
-					render_element(ctx, child, off_x, off_y, clip, scroll_parent_id, reconciliation_child_key(path,index,child))
+					render_element(ctx, child, off_x, off_y, clip, scroll_parent_id, reconciliation_child_key(path, index, child))
 				}
 			}
 			.view {
@@ -2310,25 +2391,25 @@ fn page_focused_text_area(direction int) {
 				draw_box_borders(ctx, x, y, el.frame.width, el.frame.height, el.box)
 				if el.enabled && voidptr(el.on_event) != unsafe { nil }
 					&& (el.clickable || el.button_behavior || el.draggable || el.long_press
-					|| el.swipe_left) {
+						|| el.swipe_left) {
 					add_hit_target(HitTarget{
-						identity: path
-						kind: el.kind
-						id: el.id
-						on_event: el.on_event
-						x: x
-						y: y
-						w: el.frame.width
-						h: el.frame.height
-						long_press: el.long_press
-						swipe_left: el.swipe_left
-						clickable: el.clickable
+						identity:        path
+						kind:            el.kind
+						id:              el.id
+						on_event:        el.on_event
+						x:               x
+						y:               y
+						w:               el.frame.width
+						h:               el.frame.height
+						long_press:      el.long_press
+						swipe_left:      el.swipe_left
+						clickable:       el.clickable
 						button_behavior: el.button_behavior
-						draggable: el.draggable
+						draggable:       el.draggable
 					}, clip)
 				}
 				for index, child in el.children {
-					render_element(ctx, child, x, y, clip, scroll_parent_id, reconciliation_child_key(path,index,child))
+					render_element(ctx, child, x, y, clip, scroll_parent_id, reconciliation_child_key(path, index, child))
 				}
 			}
 			.scroll {
@@ -2354,11 +2435,11 @@ fn page_focused_text_area(direction int) {
 				child_clip := intersect_rect(frame, clip)
 				for index, child in el.children {
 					child_screen_y := child.frame.y - scroll_y
-					if child_screen_y + child.frame.height < 0 || child_screen_y > el.frame.height {
+					if !subtree_has_visual_transform(child) && (child_screen_y + child.frame.height < 0 || child_screen_y > el.frame.height) {
 						retain_culled_scroll_state(child, reconciliation_child_key(path, index, child))
 						continue
 					}
-					 render_element(ctx, child, x, y - scroll_y, child_clip, child_scroll_parent_id, reconciliation_child_key(path,index,child))
+					render_element(ctx, child, x, y - scroll_y, child_clip, child_scroll_parent_id, reconciliation_child_key(path, index, child))
 				}
 				if child_clip.width > 0 && child_clip.height > 0 {
 					apply_clip(ctx, child_clip)
@@ -2378,21 +2459,20 @@ fn page_focused_text_area(direction int) {
 				x := el.frame.x + off_x
 				y := el.frame.y + off_y
 				if el.image_path.trim_space().len > 0
-					&& !draw_cached_image(ctx, el.image_path, x, y, el.frame.width, el.frame.height,
-					el.rotation) {
+					&& !draw_cached_image(ctx, el.image_path, x, y, el.frame.width, el.frame.height) {
 					draw_rect(ctx, x, y, el.frame.width, el.frame.height, 0xe8ecef, 0)
 				}
 				if el.enabled && voidptr(el.on_event) != unsafe { nil }
 					&& (el.clickable || el.draggable) {
 					add_hit_target(HitTarget{
-						identity: path
-						kind: el.kind
-						id: el.id
-						on_event: el.on_event
-						x: x
-						y: y
-						w: el.frame.width
-						h: el.frame.height
+						identity:  path
+						kind:      el.kind
+						id:        el.id
+						on_event:  el.on_event
+						x:         x
+						y:         y
+						w:         el.frame.width
+						h:         el.frame.height
 						clickable: el.clickable
 						draggable: el.draggable
 					}, clip)
@@ -2423,14 +2503,14 @@ fn page_focused_text_area(direction int) {
 				}
 				if el.enabled {
 					add_hit_target(HitTarget{
-						identity: path
-						kind: el.kind
-						id: el.id
-						on_event: el.on_event
-						x: x
-						y: y
-						w: el.frame.width
-						h: el.frame.height
+						identity:   path
+						kind:       el.kind
+						id:         el.id
+						on_event:   el.on_event
+						x:          x
+						y:          y
+						w:          el.frame.width
+						h:          el.frame.height
 						long_press: el.long_press
 					}, clip)
 				}
@@ -2469,16 +2549,16 @@ fn page_focused_text_area(direction int) {
 				add_full_text_tooltip(el, area, clip, el.text, shortened)
 				if el.enabled {
 					add_hit_target(HitTarget{
-						identity: path
-						kind: el.kind
-						id: el.id
-						on_event: el.on_event
-						x: x
-						y: y
-						w: el.frame.width
-						h: el.frame.height
-						toggle_button: true
-						toggle_group: el.toggle_group
+						identity:                  path
+						kind:                      el.kind
+						id:                        el.id
+						on_event:                  el.on_event
+						x:                         x
+						y:                         y
+						w:                         el.frame.width
+						h:                         el.frame.height
+						toggle_button:             true
+						toggle_group:              el.toggle_group
 						toggle_allow_no_selection: el.toggle_allow_no_selection
 					}, clip)
 				}
@@ -2515,22 +2595,26 @@ fn page_focused_text_area(direction int) {
 				draw_rect(ctx, x, box_y, box_size, box_size, fill, 4)
 				draw_outline(ctx, x, box_y, box_size, box_size, border, 4)
 				if checked {
-					draw_check_mark(ctx, x, box_y, box_size, if el.enabled { u32(0xffffff) } else { u32(0xf8fafc) })
+					draw_check_mark(ctx, x, box_y, box_size, if el.enabled {
+						u32(0xffffff)
+					} else {
+						u32(0xf8fafc)
+					})
 				}
 				shortened := draw_text(ctx, el.text, x + box_size + 8, y, el.frame.width - box_size - 8,
 					el.frame.height, el.text_style)
 				add_full_text_tooltip(el, area, clip, el.text, shortened)
 				if el.enabled {
 					add_hit_target(HitTarget{
-						identity: path
-						kind: el.kind
-						id: el.id
-						on_event: el.on_event
-						x: x
-						y: y
-						w: el.frame.width
-						h: el.frame.height
-						checkbox: true
+						identity:       path
+						kind:           el.kind
+						id:             el.id
+						on_event:       el.on_event
+						x:              x
+						y:              y
+						w:              el.frame.width
+						h:              el.frame.height
+						checkbox:       true
 						checkbox_state: checked
 					}, clip)
 				}
@@ -2553,7 +2637,11 @@ fn page_focused_text_area(direction int) {
 				draw_control_surface(ctx, x, y, el.frame.width, el.frame.height, el.box,
 					list_open, el.enabled)
 				padding := if el.padding_left > 0 { el.padding_left } else { 12.0 }
-				text_width := if el.frame.width > padding + 32 { el.frame.width - padding - 32 } else { 0.0 }
+				text_width := if el.frame.width > padding + 32 {
+					el.frame.width - padding - 32
+				} else {
+					0.0
+				}
 				shortened := draw_text(ctx, selected, x + padding, y, text_width, el.frame.height,
 					el.text_style)
 				add_full_text_tooltip(el, area, clip, selected, shortened)
@@ -2566,15 +2654,15 @@ fn page_focused_text_area(direction int) {
 					}
 					add_hit_target(HitTarget{
 						identity: path
-						kind: el.kind
-						id: el.id
+						kind:     el.kind
+						id:       el.id
 						on_event: el.on_event
-						x: x
-						y: y
-						w: el.frame.width
-						h: el.frame.height
+						x:        x
+						y:        y
+						w:        el.frame.width
+						h:        el.frame.height
 						dropdown: true
-						options: options
+						options:  options
 					}, clip)
 					if list_open {
 						visible := intersect_rect(rect(x, y, el.frame.width, el.frame.height),
@@ -2592,7 +2680,9 @@ fn page_focused_text_area(direction int) {
 			.text_field {
 				g_gg_app.editable_fields[el.id] = el.enabled && !el.readonly
 				if !el.enabled || el.readonly {
-					if g_gg_app.composition.field_id == el.id { g_gg_app.composition = TextComposition{} }
+					if g_gg_app.composition.field_id == el.id {
+						g_gg_app.composition = TextComposition{}
+					}
 				}
 				x := el.frame.x + off_x
 				y := el.frame.y + off_y
@@ -2605,7 +2695,9 @@ fn page_focused_text_area(direction int) {
 				previous_prop := g_text_props[el.id] or { el.text }
 				kind_changed := el.id in g_text_kinds && (g_text_kinds[el.id] or { el.kind }) != el.kind
 				if kind_changed || el.id !in g_text_values || (el.text != previous_prop && (g_text_values[el.id] or { '' }) != el.text) {
-					if g_gg_app.composition.field_id == el.id { g_gg_app.composition = TextComposition{} }
+					if g_gg_app.composition.field_id == el.id {
+						g_gg_app.composition = TextComposition{}
+					}
 					replace_text_value(el.id, el.text)
 					replace_text_editor(el.id, text_editor(el.text.clone()))
 				}
@@ -2677,14 +2769,14 @@ fn page_focused_text_area(direction int) {
 				}
 				if el.enabled && !el.readonly {
 					add_hit_target(HitTarget{
-						identity: path
-						kind: el.kind
-						id: el.id
-						on_event: el.on_event
-						x: x
-						y: y
-						w: el.frame.width
-						h: el.frame.height
+						identity:   path
+						kind:       el.kind
+						id:         el.id
+						on_event:   el.on_event
+						x:          x
+						y:          y
+						w:          el.frame.width
+						h:          el.frame.height
 						text_field: true
 					}, clip)
 				}
@@ -2692,14 +2784,18 @@ fn page_focused_text_area(direction int) {
 			.text_area {
 				g_gg_app.editable_fields[el.id] = el.enabled && !el.readonly
 				if !el.enabled || el.readonly {
-					if g_gg_app.composition.field_id == el.id { g_gg_app.composition = TextComposition{} }
+					if g_gg_app.composition.field_id == el.id {
+						g_gg_app.composition = TextComposition{}
+					}
 				}
 				x := el.frame.x + off_x
 				y := el.frame.y + off_y
 				previous_prop := g_text_props[el.id] or { el.text }
 				kind_changed := el.id in g_text_kinds && (g_text_kinds[el.id] or { el.kind }) != el.kind
 				if kind_changed || el.id !in g_text_values || (el.text != previous_prop && (g_text_values[el.id] or { '' }) != el.text) {
-					if g_gg_app.composition.field_id == el.id { g_gg_app.composition = TextComposition{} }
+					if g_gg_app.composition.field_id == el.id {
+						g_gg_app.composition = TextComposition{}
+					}
 					replace_text_value(el.id, el.text)
 					replace_text_editor(el.id, text_editor(el.text.clone()))
 				}
@@ -2714,14 +2810,14 @@ fn page_focused_text_area(direction int) {
 				draw_text_area_content(ctx, el, current_text, x, y, clip, scroll_parent_id)
 				if el.enabled && !el.readonly {
 					add_hit_target(HitTarget{
-						identity: path
-						kind: el.kind
-						id: el.id
-						on_event: el.on_event
-						x: x
-						y: y
-						w: el.frame.width
-						h: el.frame.height
+						identity:  path
+						kind:      el.kind
+						id:        el.id
+						on_event:  el.on_event
+						x:         x
+						y:         y
+						w:         el.frame.width
+						h:         el.frame.height
 						text_area: true
 					}, clip)
 				}
@@ -2797,18 +2893,18 @@ fn page_focused_text_area(direction int) {
 				}
 				if el.enabled {
 					add_hit_target(HitTarget{
-						identity: path
-						kind: el.kind
-						id: el.id
-						on_event: el.on_event
-						x: frame.x
-						y: frame.y
-						w: frame.width
-						h: frame.height
-						slider: true
-						slider_frame: frame
+						identity:       path
+						kind:           el.kind
+						id:             el.id
+						on_event:       el.on_event
+						x:              frame.x
+						y:              frame.y
+						w:              frame.width
+						h:              frame.height
+						slider:         true
+						slider_frame:   frame
 						slider_padding: el.padding
-						slider_spec: spec
+						slider_spec:    spec
 					}, clip)
 				}
 			}
@@ -2849,16 +2945,16 @@ fn page_focused_text_area(direction int) {
 					thumb.height / 2)
 				if el.enabled {
 					add_hit_target(HitTarget{
-						identity: path
-						kind: el.kind
-						id: el.id
-						on_event: el.on_event
-						x: frame.x
-						y: frame.y
-						w: frame.width
-						h: frame.height
+						identity:       path
+						kind:           el.kind
+						id:             el.id
+						on_event:       el.on_event
+						x:              frame.x
+						y:              frame.y
+						w:              frame.width
+						h:              frame.height
 						switch_control: true
-						switch_state: active
+						switch_state:   active
 					}, clip)
 				}
 			}
@@ -2874,32 +2970,45 @@ fn page_focused_text_area(direction int) {
 	}
 
 	fn current_presentation_rect(area Rect) Rect {
-  projected := current_content_transform().project(area)
-  return if g_gg_app.ctx != unsafe { nil } { presentation_rect(projected,f64(g_gg_app.ctx.scale)) } else { projected }
- }
-
-	fn add_hit_target(target HitTarget, clip Rect) {
-		visible := intersect_rect(Rect{
-			x: target.x
-			y: target.y
-			width: target.w
-			height: target.h
-		}, clip)
-		if visible.width <= 0 || visible.height <= 0 {
-			return
+		transform := current_content_transform()
+		region := if g_gg_app.ctx != unsafe { nil } {
+			g_gg_app.ctx.clip_region
+		} else {
+			ClipRegion{}
 		}
-		projected := current_presentation_rect(visible)
-		g_hit_targets << HitTarget{
-			...target
-			content_transform:current_content_transform()
-			x: projected.x
-			y: projected.y
-			w: projected.width
-			h: projected.height
+		projected := region.intersect(transformed_clip(area, transform)).bounds()
+		return if g_gg_app.ctx != unsafe { nil } {
+			presentation_rect(projected, f64(g_gg_app.ctx.scale))
+		} else {
+			projected
 		}
 	}
 
-	fn draw_cached_image(ctx &DrawContext, path string, x f64, y f64, width f64, height f64, rotation f64) bool {
+	fn current_clip_region(clip Rect) ClipRegion {
+		base := if g_gg_app.ctx != unsafe { nil } { g_gg_app.ctx.clip_base } else { ClipRegion{} }
+		return base.intersect(transformed_clip(clip, current_content_transform()))
+	}
+	fn add_hit_target(target HitTarget, clip Rect) {
+		frame := rect(target.x, target.y, target.w, target.h)
+		transform := current_content_transform()
+		region := current_clip_region(clip)
+		visible := region.intersect(transformed_clip(frame, transform)).bounds()
+		// A clipped owner remains mounted for capture, with its current matrix.
+		// Empty bounds reject fresh hits without losing terminal/drag coordinates.
+		g_hit_targets << HitTarget{
+			...target
+			content_transform: transform
+			local_frame:       frame
+			clip_region:       region
+			has_geometry:      true
+			x:                 visible.x
+			y:                 visible.y
+			w:                 visible.width
+			h:                 visible.height
+		}
+	}
+
+	fn draw_cached_image(ctx &DrawContext, path string, x f64, y f64, width f64, height f64) bool {
 		if !cache_image(path) { return false }
 		image_id := g_image_ids[path] or { return false }
 		mut image_ctx := g_gg_app.ctx
@@ -2908,14 +3017,13 @@ fn page_focused_text_area(direction int) {
 			return false
 		}
 		ctx.draw_image_with_config(
-			img: cached_image
+			img:      cached_image
 			img_rect: gg.Rect{
-				x: f32(x)
-				y: f32(y)
-				width: f32(width)
+				x:      f32(x)
+				y:      f32(y)
+				width:  f32(width)
 				height: f32(height)
 			}
-			rotation: f32(-rotation)
 		)
 		return true
 	}
@@ -2981,7 +3089,7 @@ fn page_focused_text_area(direction int) {
 			})
 			return
 		}
-		if !draw_cached_image(ctx, image_path, x, y, width, height, 0) {
+		if !draw_cached_image(ctx, image_path, x, y, width, height) {
 			draw_outline(ctx, x, y, width, height, 0x94a3b8, 2)
 		}
 	}
@@ -3210,10 +3318,11 @@ fn page_focused_text_area(direction int) {
 		if !g_touch.down {
 			return false
 		}
-		inside_start := g_touch.start_x >= x && g_touch.start_x <= x + w && g_touch.start_y >= y
-			&& g_touch.start_y <= y + h
-		inside_now := g_touch.current_x >= x && g_touch.current_x <= x + w
-			&& g_touch.current_y >= y && g_touch.current_y <= y + h
+		sx, sy := current_content_transform().inverse(g_touch.start_x, g_touch.start_y)
+		nx, ny := current_content_transform().inverse(g_touch.current_x, g_touch.current_y)
+		inside_start := sx >= x && sx <= x + w && sy >= y
+			&& sy <= y + h
+		inside_now := nx >= x && nx <= x + w && ny >= y && ny <= y + h
 		return inside_start && inside_now
 	}
 
@@ -3268,8 +3377,15 @@ fn page_focused_text_area(direction int) {
 	fn draw_rich_label_text(ctx &DrawContext, el Element, x f64, y f64, clip Rect) bool {
 		$if !android {
 			if el.text_runs.len > 0 {
-				shaped := ctx.shape_runs(el.text_runs, el.text_style, math.max(0.0, el.frame.width), math.max(1, el.text_style.lines), true) or { eprintln('ui2: rich label: ${err}'); return false }
-				inside := if clip.width > 0 && clip.height > 0 { intersect_rect(rect(x, y, el.frame.width, el.frame.height), clip) } else { rect(x, y, el.frame.width, el.frame.height) }
+				shaped := ctx.shape_runs(el.text_runs, el.text_style, math.max(0.0, el.frame.width), math.max(1, el.text_style.lines), true) or {
+					eprintln('ui2: rich label: ${err}')
+					return false
+				}
+				inside := if clip.width > 0 && clip.height > 0 {
+					intersect_rect(rect(x, y, el.frame.width, el.frame.height), clip)
+				} else {
+					rect(x, y, el.frame.width, el.frame.height)
+				}
 				if inside.width <= 0 || inside.height <= 0 { return false }
 				// Culling whole runs is insufficient for partial glyphs and baseline
 				// rises: install the label's physical scissor as well.

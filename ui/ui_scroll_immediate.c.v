@@ -3,7 +3,7 @@
 @[has_globals]
 module ui2
 
-$if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
+$if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headless ? {
 	import math
 
 	const text_area_vertical_padding = 8.0
@@ -40,7 +40,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			return 0.0
 		}
 		g_active_scrolls[id] = true
-		g_scroll_targets[id] = target
+		g_scroll_targets[id] = HitTarget{ ...target, local_frame: frame, content_transform: current_content_transform(), clip_region: current_clip_region(clip), has_geometry: true }
 		g_scroll_viewports[id] = frame
 		g_scroll_transforms[id] = current_content_transform()
 		g_scroll_content_h[id] = content_height
@@ -58,14 +58,13 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		}
 		set_scroll_offset(id, requested, scroll_maximum(id))
 		offset := scroll_state_offset(id)
-		area := intersect_rect(frame, clip)
+		area := current_clip_region(clip).intersect(transformed_clip(frame, current_content_transform())).bounds()
 		if enabled && area.width > 0 && area.height > 0 {
-			g_scroll_areas[id] = current_content_transform().project(area)
+			g_scroll_areas[id] = area
 			g_scroll_order << id
 			if show_scrollbar {
 				bar := scrollbar_geometry(frame, content_height, offset, persistent)
-				transform := current_content_transform()
-				g_scrollbar_geometries[id] = ScrollbarGeometry{track:transform.project(bar.track),thumb:transform.project(bar.thumb)}
+				g_scrollbar_geometries[id] = bar
 			}
 		}
 		return offset
@@ -74,6 +73,17 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	// Rendering skips subtrees outside a scroll viewport, but those elements are
 	// still mounted. Keep their scroll-backed state active so unmount cleanup
 	// does not discard positions that must be restored when they re-enter view.
+	// Layout bounds cannot cull a subtree whose presentation can move descendants
+	// back into the viewport. Keep ordinary rows cheap; transformed subtrees use
+	// the common exact clipper when they are submitted.
+	fn subtree_has_visual_transform(el Element) bool {
+		if el.visual_transform() != VisualTransform{} { return true }
+		for child in el.children {
+			if subtree_has_visual_transform(child) { return true }
+		}
+		return false
+	}
+
 	fn retain_culled_scroll_state(el Element, path string) {
 		if el.hidden {
 			return
@@ -106,7 +116,8 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			area := g_scroll_areas[id] or { continue }
 			// A fitted child has nowhere to scroll. Let its scrollable parent
 			// receive the wheel or drag instead of trapping the gesture here.
-			if scroll_maximum(id) > 0 && scroll_rect_contains(area, x, y) {
+			if scroll_maximum(id) > 0 && presentation_bounds_contains(area, x, y)
+				&& transformed_contains(g_scroll_viewports[id], g_scroll_transforms[id], g_scroll_targets[id].clip_region, x, y) {
 				return id
 			}
 		}
@@ -129,19 +140,19 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	// Apply a scroll delta to the innermost available pane first, then pass any
 	// distance left at its boundary to each available ancestor. Touch input
 	// captures this chain on pointer-down so frame culling cannot sever it.
-	fn apply_scroll_chain(chain []string, delta f64) {
-		mut remaining := delta
+	// Wheel/drag vectors are window-logical. Consume each pane's local vertical
+	// component and pass the remaining window vector to its ancestors.
+	fn apply_scroll_vector(chain []string, dx f64, dy f64) {
+		mut remaining := Point{dx, dy}
 		for id in chain {
-			if math.abs(remaining) < 0.000001 {
-				return
-			}
-			if id !in g_scroll_areas {
-				continue
-			}
+			if id !in g_scroll_areas { continue }
+			transform := g_scroll_transforms[id] or { ContentTransform{} }
+			local := transform.inverse_vector(remaining.x, remaining.y)
 			before := scroll_state_offset(id)
-			scale := (g_scroll_transforms[id] or { ContentTransform{} }).scale
-			set_scroll_offset(id, before + remaining / scale, scroll_maximum(id))
-			remaining -= (scroll_state_offset(id) - before) * scale
+			set_scroll_offset(id, before + local.y, scroll_maximum(id))
+			consumed := transform.vector(0, scroll_state_offset(id) - before)
+			remaining = Point{remaining.x - consumed.x, remaining.y - consumed.y}
+			if math.abs(remaining.x) + math.abs(remaining.y) < 1e-6 { return }
 		}
 	}
 
@@ -167,23 +178,31 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	fn begin_scrollbar_drag(x f64, y f64) bool {
 		id := g_touch.scroll_id
 		bar := g_scrollbar_geometries[id] or { return false }
+		transform := g_scroll_transforms[id] or { ContentTransform{} }
+		if !(g_scroll_targets[id] or { HitTarget{} }).clip_region.contains(x, y) { return false }
+		lx, ly := transform.inverse(x, y)
 		// Give the narrow drawn track a slightly wider pointer target.
 		target := rect(bar.track.x - 3, bar.track.y, 12, bar.track.height)
-		if !scroll_rect_contains(target, x, y) || scroll_maximum(id) <= 0
+		if !scroll_rect_contains(target, lx, ly) || scroll_maximum(id) <= 0
 			|| bar.track.height <= bar.thumb.height {
 			return false
 		}
 		g_touch.scrollbar_drag = true
-		if y >= bar.thumb.y && y < bar.thumb.y + bar.thumb.height {
-			g_touch.scrollbar_grab_y = y - bar.thumb.y
+		if ly >= bar.thumb.y && ly < bar.thumb.y + bar.thumb.height {
+			g_touch.scrollbar_grab_y = ly - bar.thumb.y
 		} else {
 			g_touch.scrollbar_grab_y = bar.thumb.height / 2
-			drag_scrollbar(y)
+			drag_scrollbar_at(x, y)
 		}
 		return true
 	}
 
-	fn drag_scrollbar(y f64) {
+	fn drag_scrollbar_at(x f64, y f64) {
+		transform := g_scroll_transforms[g_touch.scroll_id] or { ContentTransform{} }
+		_, ly := transform.inverse(x, y)
+		drag_scrollbar_local(ly)
+	}
+	fn drag_scrollbar_local(y f64) {
 		id := g_touch.scroll_id
 		bar := g_scrollbar_geometries[id] or { return }
 		travel := bar.track.height - bar.thumb.height
@@ -257,7 +276,10 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			free_owned_string(previous.text)
 			free_owned_string(previous.style.font_family)
 			for line in previous.lines { free_owned_string(line) }
-			unsafe { previous.lines.free(); previous.ranges.free() }
+			unsafe {
+				previous.lines.free()
+				previous.ranges.free()
+			}
 		}
 		g_text_area_layouts.delete(id)
 	}
@@ -265,8 +287,6 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	fn clear_text_area_layouts() {
 		for id in g_text_area_layouts.keys() { forget_text_area_layout(id) }
 	}
-
-
 
 	fn focused_text_area_line_index(ranges []TextAreaLineRange, caret int) int {
 		for index, line in ranges {
@@ -344,7 +364,9 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		fn draw_shaped_text_area(ctx &DrawContext, el Element, value string, x f64, y f64, clip Rect,
 			scroll_parent_id string) {
 			mut editor := g_text_editors[el.id] or { text_editor(value.clone()) }
-			$if macos && ui2_embedder ? { editor = custom_composition_editor(el.id, editor) }
+			$if macos && ui2_embedder ? {
+				editor = custom_composition_editor(el.id, editor)
+			}
 			frame := rect(x, y, el.frame.width, el.frame.height)
 			content := text_area_content_rect(frame, el.padding_left, !el.disable_scroll)
 			style := el.text_style
@@ -367,7 +389,9 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 					start, end := editor.selection.ordered()
 					for selected in shaped.selection(start, end) {
 						if top + selected.y + selected.height <= text_clip.y
-							|| top + selected.y >= text_clip.y + text_clip.height { continue }
+							|| top + selected.y >= text_clip.y + text_clip.height {
+							continue
+						}
 						draw_rect(ctx, content.x + selected.x, top + selected.y, selected.width,
 							selected.height, 0xb8d7ff, 0)
 					}
@@ -376,17 +400,19 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 				if g_focused_field == el.id {
 					cursor := shaped.cursor(editor.selection.caret)
 					g_gg_app.text_caret = current_presentation_rect(rect(content.x + cursor.x, top + cursor.y, 2, cursor.height))
+					caret := rect(content.x + cursor.x, top + cursor.y, 2, cursor.height)
+					if caret.y + caret.height > text_clip.y && caret.y < text_clip.y + text_clip.height {
+						draw_rect(ctx, caret.x, caret.y, caret.width, caret.height, style.color, 0)
+					}
 					$if macos && ui2_embedder ? {
-						caret := rect(content.x + cursor.x, top + cursor.y, 2, cursor.height)
-						if caret.y + caret.height > text_clip.y && caret.y < text_clip.y + text_clip.height {
-							draw_rect(ctx, caret.x, caret.y, caret.width, caret.height, style.color, 0)
-						}
 						composition := g_gg_app.composition
 						if composition.field_id == el.id {
 							start := composition.start + composition.mark_start
 							for marked in shaped.selection(start, start + composition.mark_length) {
 								if top + marked.y + marked.height <= text_clip.y
-									|| top + marked.y >= text_clip.y + text_clip.height { continue }
+									|| top + marked.y >= text_clip.y + text_clip.height {
+									continue
+								}
 								draw_rect(ctx, content.x + marked.x, top + marked.y + marked.height - 1,
 									marked.width, 1, style.color, 0)
 							}
@@ -403,5 +429,4 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			apply_clip(ctx, clip)
 		}
 	}
-
 }
