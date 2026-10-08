@@ -12,12 +12,15 @@ pub fn focus_next() bool { return traverse_focus(false) }
 pub fn focus_previous() bool { return traverse_focus(true) }
 
 fn traverse_focus(backwards bool) bool {
+	dispatch := $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? { custom_input_dispatch(g_gg_app) } $else { false }
+	$if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? { if !dispatch.valid() { return false } }
 	sync_focus_navigation()
 	mut manager := focus_manager()
 	manager.current = focused_id()
 	if !manager.traverse(backwards) { return false }
 	destination := manager.current
 	focus(destination)
+	$if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? { if !dispatch.valid() { return false } }
 	manager.current = focused_id()
 	return manager.current == destination
 }
@@ -25,23 +28,29 @@ fn traverse_focus(backwards bool) bool {
 // Explicit direction calls also work from editors; automatic arrows leave
 // editor, dropdown and slider navigation to the existing control backend.
 pub fn focus_direction(direction FocusDirection) bool {
+	dispatch := $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? { custom_input_dispatch(g_gg_app) } $else { false }
+	$if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? { if !dispatch.valid() { return false } }
 	sync_focus_navigation()
 	mut manager := focus_manager()
 	manager.current = focused_id()
 	if !manager.directional(direction) { return false }
 	destination := manager.current
 	focus(destination)
+	$if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? { if !dispatch.valid() { return false } }
 	manager.current = focused_id()
 	return manager.current == destination
 }
 
 pub fn enter_focus_scope(id string) bool {
+	dispatch := $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? { custom_input_dispatch(g_gg_app) } $else { false }
+	$if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? { if !dispatch.valid() { return false } }
 	sync_focus_navigation()
 	mut manager := focus_manager()
 	manager.current = focused_id()
 	if !manager.enter_scope(id) { return false }
 	destination := manager.current
 	focus(destination)
+	$if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? { if !dispatch.valid() { return false } }
 	manager.current = focused_id()
 	if manager.current != destination {
 		if manager.scopes.len > 0 && manager.scopes.last().id == id { manager.scopes.delete_last() }
@@ -51,10 +60,13 @@ pub fn enter_focus_scope(id string) bool {
 }
 
 pub fn leave_focus_scope() bool {
+	dispatch := $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? { custom_input_dispatch(g_gg_app) } $else { false }
+	$if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? { if !dispatch.valid() { return false } }
 	sync_focus_navigation()
 	mut manager := focus_manager()
 	if !manager.leave_scope() { return false }
 	if manager.current.len == 0 { dismiss_keyboard() } else { focus(manager.current) }
+	$if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? { if !dispatch.valid() { return false } }
 	return true
 }
 
@@ -78,10 +90,13 @@ pub fn semantic_node(id string) ?SemanticNode {
 }
 
 pub fn perform_semantic_action(id string, action SemanticAction) bool {
+	dispatch := $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? { custom_input_dispatch(g_gg_app) } $else { false }
+	$if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? { if !dispatch.valid() { return false } }
 	node := semantic_node(id) or { return false }
 	if action !in node.actions { return false }
 	if action == .focus {
 		focus(id)
+		$if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? { if !dispatch.valid() { return false } }
 		return focused_id() == id
 	}
 	return activate_semantic_control(id, action)

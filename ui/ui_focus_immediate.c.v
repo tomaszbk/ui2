@@ -32,6 +32,8 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 	}
 
 	fn reveal_custom_focus(id string) {
+		dispatch := custom_input_dispatch(g_gg_app)
+		if !dispatch.valid() { return }
 		for request in g_focus_navigation.reveals(id) {
 			pane := g_focus_navigation.path_node(request.path) or { continue }
 			state_id := scroll_view_state_id(pane.el, pane.path)
@@ -40,6 +42,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 			next := focus_reveal_offset(before, pane.el.frame.height, request.rect)
 			maximum := focus_scroll_maximum(pane.el)
 			set_scroll_offset(state_id, next, maximum)
+			if !dispatch.valid() { return }
 		}
 		sync_focus_navigation()
 	}
@@ -94,6 +97,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 			.toggle_button { commit_toggle_button(target) }
 			.dropdown {
 				focus(id)
+				if !dispatch.valid() { return true }
 				open_dropdown(target)
 			}
 			else { fire_target_event(target, ElementEvent{ kind: .tap, id: id }) }

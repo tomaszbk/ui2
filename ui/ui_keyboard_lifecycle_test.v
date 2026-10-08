@@ -285,6 +285,58 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 }
 
 $if macos && ui2_custom_rendering ? && ui2_embedder ? && !ui2_headless ? {
+	__global lifecycle_reveal_mode int
+	__global lifecycle_reveal_posted bool
+	__global lifecycle_reveal_calls = []string{}
+
+	fn lifecycle_reveal_scroll(event ElementEvent) {
+		lifecycle_reveal_calls << event.id
+		if event.id != 'inner' { return }
+		match lifecycle_reveal_mode {
+			0 { quit() }
+			1 { on_event(&gg.Event{typ: .unfocused}, g_gg_app) }
+			2 {
+				previous := activate_custom_window_state(new_custom_window_state())
+				activate_custom_window_state(previous)
+			}
+			else { on_event(&gg.Event{typ: .key_down, key_code: .n}, g_gg_app) }
+		}
+	}
+
+	fn lifecycle_reveal_root() Element {
+		if !lifecycle_reveal_posted {
+			lifecycle_reveal_posted = true
+			assert ui_dispatcher().post(fn () {
+				defer { quit() }
+				focus('origin')
+				on_event(&gg.Event{typ: .key_down, key_code: .tab}, g_gg_app)
+				assert lifecycle_reveal_calls == ['inner'], 'invalid reveal must not invoke outer scroll callback'
+				assert scroll_offset('outer') == 0
+				assert g_custom_keyboard.pending == .invalid
+			})
+		}
+		return screen(0xffffff, [
+			Element{kind: .button, id: 'origin', frame: rect(170, 0, 50, 30)},
+			Element{kind: .scroll, id: 'outer', frame: rect(0, 0, 160, 100), on_event: lifecycle_reveal_scroll,
+				children: [Element{kind: .scroll, id: 'inner', frame: rect(0, 0, 140, 300), on_event: lifecycle_reveal_scroll,
+					children: [Element{kind: .button, id: 'below', frame: rect(0, 500, 80, 30)}]}]},
+		])
+	}
+
+	fn test_embedder_tab_reveal_stops_after_each_nested_scroll_lifecycle_callback() {
+		previous_app := g_gg_app
+		previous := activate_custom_window_state(new_custom_window_state())
+		defer { activate_custom_window_state(previous); g_gg_app = previous_app }
+		for mode in 0 .. 4 {
+			lifecycle_reveal_mode = mode
+			lifecycle_reveal_posted = false
+			lifecycle_reveal_calls = []string{}
+			window := open_window('Nested keyboard focus reveal', 240, 180, lifecycle_reveal_root) or { panic(err) }
+			defer { window.close() }
+			run_windows()
+		}
+	}
+
 	fn lifecycle_embedder_blur(_event ElementEvent) {
 		lifecycle_actions++
 		focus('editor')

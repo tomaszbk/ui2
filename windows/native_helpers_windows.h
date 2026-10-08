@@ -1837,3 +1837,7 @@ static inline int ui2_win_control_available(void *pointer) {
 static inline void ui2_win_open_dropdown(void *hwnd) {
     SendMessageW((HWND)hwnd, CB_SHOWDROPDOWN, TRUE, 0);
 }
+
+static inline int ui2_win_dropdown_is_open(void *hwnd) {
+    return SendMessageW((HWND)hwnd, CB_GETDROPPEDSTATE, 0, 0) != 0;
+}

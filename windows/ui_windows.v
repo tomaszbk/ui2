@@ -86,6 +86,8 @@ fn C.ui2_win_focus(hwnd voidptr)
 
 fn C.ui2_win_open_dropdown(hwnd voidptr)
 
+fn C.ui2_win_dropdown_is_open(hwnd voidptr) int
+
 fn C.ui2_win_draw_focus_rect(hwnd voidptr)
 
 fn C.ui2_win_focus_handle() voidptr
@@ -1796,6 +1798,16 @@ fn windows_dispatch_control_key(hwnd voidptr, virtual_key u32, repeated bool, sc
 	if owned || observed || st.keyboard_generation != generation { return true }
 	if virtual_key == 0x0d && windows_edit_submit(hwnd) { return true }
 	key := windows_key_event(virtual_key)
+	if key.code in [.enter, .kp_enter] {
+		control := st.handle_keys[windows_handle_id(hwnd)] or { '' }
+		if (st.node_kinds[control] or { Kind.view }) == .dropdown
+			&& C.ui2_win_dropdown_is_open(hwnd) != 0 {
+			// An open native popup owns confirmation/close. Owned activation
+			// repeats were consumed above; this key must reach DefSubclassProc
+			// without claiming another generic activation or suppressing CHAR.
+			return false
+		}
+	}
 	if !repeated && scan_code != 0 && !key.ctrl && !key.cmd && !key.alt && !key.shift
 		&& key.code in [.enter, .kp_enter, .space] {
 		if node := st.navigation.node(focused_id()) {

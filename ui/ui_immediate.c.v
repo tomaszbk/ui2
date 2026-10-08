@@ -514,12 +514,15 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	}
 
 	pub fn focus(id string) {
+		dispatch := custom_input_dispatch(g_gg_app)
+		if !dispatch.valid() { return }
 		sync_focus_navigation()
 		if !g_focus_navigation.set_focus(id) { return }
 		if g_focused_field != id { g_gg_app.composition = TextComposition{} }
 		g_focused_field = id
 		if g_open_dropdown.len > 0 && g_open_dropdown != id { close_dropdown() }
 		reveal_custom_focus(id)
+		if !dispatch.valid() { return }
 		invalidate_custom_paint()
 	}
 
