@@ -178,52 +178,64 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	}
 
 	fn test_tooltip_follows_window_events() {
+		previous_app := g_gg_app
+		window_state := new_custom_window_state()
+		previous := activate_custom_window_state(window_state)
+		defer { activate_custom_window_state(previous); g_gg_app = previous_app }
+		app := &GgApp{window_state: window_state}
+		g_gg_app = app
 		reset_tooltip_test()
 		g_tooltip_targets = [tooltip_target('button', 'Save', 0, 0, 100, 20),
 			tooltip_target('label', 'Full label text', 0, 40, 100, 20)]
-		on_event(&gg.Event{typ: .mouse_move, mouse_x: 10, mouse_y: 10}, &GgApp{})
+		on_event(&gg.Event{typ: .mouse_move, mouse_x: 10, mouse_y: 10}, app)
 		settle_tooltip()
 		assert !g_tooltip.visible
 		rest_tooltip()
 		assert g_tooltip.visible && g_tooltip.text == 'Save'
 		// A key press closes it until the pointer moves to another target.
-		on_event(&gg.Event{typ: .key_down, key_code: .a}, &GgApp{})
+		on_event(&gg.Event{typ: .key_down, key_code: .a}, app)
 		assert !g_tooltip.visible
 		update_tooltip(renderer_now_ms() + 10 * tooltip_delay_ms)
 		assert !g_tooltip.visible
-		on_event(&gg.Event{typ: .mouse_move, mouse_x: 10, mouse_y: 50}, &GgApp{})
+		on_event(&gg.Event{typ: .mouse_move, mouse_x: 10, mouse_y: 50}, app)
 		settle_tooltip()
 		rest_tooltip()
 		assert g_tooltip.visible && g_tooltip.text == 'Full label text'
 		// So does a press, and nothing opens while one is held.
-		on_event(&gg.Event{typ: .mouse_down, mouse_x: 10, mouse_y: 50}, &GgApp{})
+		on_event(&gg.Event{typ: .mouse_down, mouse_x: 10, mouse_y: 50}, app)
 		assert !g_tooltip.visible && g_touch.down
-		on_event(&gg.Event{typ: .mouse_move, mouse_x: 10, mouse_y: 10}, &GgApp{})
+		on_event(&gg.Event{typ: .mouse_move, mouse_x: 10, mouse_y: 10}, app)
 		settle_tooltip()
 		assert !g_tooltip.visible
-		on_event(&gg.Event{typ: .mouse_up, mouse_x: 10, mouse_y: 10}, &GgApp{})
+		on_event(&gg.Event{typ: .mouse_up, mouse_x: 10, mouse_y: 10}, app)
 		assert !g_touch.down
 		rest_tooltip()
 		assert g_tooltip.visible && g_tooltip.text == 'Save'
 		// A scroll hides it until the pointer rests again.
-		on_event(&gg.Event{typ: .mouse_scroll, mouse_x: 10, mouse_y: 10, scroll_y: 1}, &GgApp{})
+		on_event(&gg.Event{typ: .mouse_scroll, mouse_x: 10, mouse_y: 10, scroll_y: 1}, app)
 		assert !g_tooltip.visible
 		settle_tooltip()
 		assert !g_tooltip.visible
 		rest_tooltip()
 		assert g_tooltip.visible
 		// Leaving the window hides it.
-		on_event(&gg.Event{typ: .mouse_leave}, &GgApp{})
+		on_event(&gg.Event{typ: .mouse_leave}, app)
 		update_tooltip(renderer_now_ms() + 10 * tooltip_delay_ms)
 		assert !g_tooltip.visible
 		reset_tooltip_test()
 	}
 
 	fn test_tooltip_is_held_back_while_a_dropdown_list_is_open() {
+		previous_app := g_gg_app
+		window_state := new_custom_window_state()
+		previous := activate_custom_window_state(window_state)
+		defer { activate_custom_window_state(previous); g_gg_app = previous_app }
+		app := &GgApp{window_state: window_state}
+		g_gg_app = app
 		reset_tooltip_test()
 		g_tooltip_targets = [tooltip_target('button', 'Save', 0, 0, 100, 20)]
 		mut clock := renderer_now_ms()
-		on_event(&gg.Event{typ: .mouse_move, mouse_x: 10, mouse_y: 10}, &GgApp{})
+		on_event(&gg.Event{typ: .mouse_move, mouse_x: 10, mouse_y: 10}, app)
 		g_open_dropdown = 'country'
 		update_tooltip(clock)
 		clock += 10 * tooltip_delay_ms
