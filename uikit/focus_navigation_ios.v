@@ -35,6 +35,10 @@ fn live_semantic_nodes(nodes []SemanticNode) []SemanticNode {
 		}
 		mut value := node.value
 		mut checked := node.state.checked
+		mut actions := node.actions.clone()
+		if el.el.kind == .dropdown && !ios_can_activate_dropdown(native) {
+			actions = actions.filter(it != .activate)
+		}
 		if el.el.kind in [.text_field, .text_area, .dropdown] && !el.el.secure && el.el.accessibility_value.len == 0 {
 			value = text(node.id)
 		}
@@ -48,6 +52,7 @@ fn live_semantic_nodes(nodes []SemanticNode) []SemanticNode {
 		}
 		result << SemanticNode{
 			...node
+			actions: actions
 			value: value
 			state: SemanticState{
 				...node.state
@@ -63,6 +68,7 @@ fn activate_semantic_control(id string, action SemanticAction) bool {
 	node := g_ios_navigation.node(id) or { return false }
 	if node.hidden || !node.enabled || !g_ios_navigation.in_scope(node) { return false }
 	native := g_views[id] or { return false }
+	if !ios_interaction_available(native) { return false }
 	if action in [.increment, .decrement] && node.el.kind == .slider {
 		before := slider_value(id)
 		value := semantic_slider_step(before, slider_spec(node.el), action)
@@ -76,8 +82,27 @@ fn activate_semantic_control(id string, action SemanticAction) bool {
 	if node.el.kind == .view {
 		return ios_emit_callback(ios_binding(node.el, .tap), ElementEvent{ kind: .tap })
 	}
+	if node.el.kind == .dropdown {
+		if !ios_can_activate_dropdown(native) { return false }
+		// Menu selection is a later UICommand, not a pointer release. A stale
+		// touch capture must not redirect that command to an old callback.
+		g_control_captures.delete(u64(native))
+		macos.msg_void(native, 'performPrimaryAction')
+		return true
+	}
 	if node.el.kind == .switch_control { set_switch_active(id, !switch_active(id)) }
-	if node.el.kind == .toggle_button { set_toggle_button_pressed(id, !toggle_button_pressed(id)) }
-	vui_button_tap(unsafe { nil }, unsafe { nil }, native)
+	commit_ios_button_activation(native, node.el.kind)
+	// Semantic actions commit live state once, then emit the current optional
+	// callback. Pointer input keeps its independent captured-release binding.
+	binding := ios_binding(node.el, if node.el.kind == .button { .tap } else { .change })
+	ios_emit_callback(binding, ios_control_event(native, binding))
 	return true
+}
+
+fn ios_can_activate_dropdown(native View) bool {
+	// UIControl.performPrimaryAction is public since iOS 17.4 and presents a
+	// UIButton's menu when showsMenuAsPrimaryAction is enabled.
+	return macos.responds_to(native, 'performPrimaryAction')
+		&& macos.msg_bool(native, 'showsMenuAsPrimaryAction')
+		&& !objc_is_nil(macos.msg_id(native, 'menu'))
 }

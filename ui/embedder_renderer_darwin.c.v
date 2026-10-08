@@ -250,10 +250,10 @@ $if macos && ui2_embedder ? && ui2_custom_rendering ? && !ui2_headless ? {
 		if event.typ == .key_down {
 			app.scheduler.invalidate(.build)
 			g_tooltip.dismiss()
-			if !native.skip_dispatch {
-				if menu_bar_handle_key(&event) { return true }
-				if g_open_dropdown.len > 0 && handle_dropdown_key(event.key_code) { return true }
-				if dispatch_key_event(&event) { return true }
+			if custom_key_down(&event, native.skip_dispatch,
+				native.text_input && app.composition.field_id.len > 0) {
+				if !app.scheduler.is_closed() { sync_embedder_text(app) }
+				return true
 			}
 			if !native.text_input && (g_focused_field.len == 0 || app.editable_fields[g_focused_field]) {
 				handle_key_down(event.key_code, event.modifiers)
@@ -289,6 +289,9 @@ $if macos && ui2_embedder ? && ui2_custom_rendering ? && !ui2_headless ? {
 			g_gg_app = previous_app
 		}
 		id := g_focused_field
+		// NSTextInputClient text/IME deliveries have their own provenance and
+		// must never inherit a pending Sokol character from a physical key.
+		g_custom_keyboard.pending = .invalid
 		if id.len == 0 || id !in g_active_fields || !app.editable_fields[id] { return }
 		mut editor := g_text_editors[id] or { text_editor((g_text_values[id] or { '' }).clone()) }
 		value := if native.text == unsafe { nil } { '' } else { unsafe { cstring_to_vstring(native.text) } }

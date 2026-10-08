@@ -114,7 +114,6 @@ __global g_text_change_callbacks = map[u64]IosCallbackBinding{}
 __global g_text_submit_callbacks = map[u64]IosCallbackBinding{}
 __global g_text_area_callbacks = map[u64]IosCallbackBinding{}
 __global g_slider_specs = map[u64]SliderSpec{}
-__global g_toggle_controls = map[u64]bool{}
 __global g_toggle_groups = map[u64]string{}
 __global g_toggle_allow_no_selection = map[u64]bool{}
 __global g_toggle_ids = map[u64]string{}
@@ -1021,7 +1020,6 @@ fn render_root(declared Element) {
 	g_text_submit_callbacks = map[u64]IosCallbackBinding{}
 	g_text_area_callbacks = map[u64]IosCallbackBinding{}
 	g_slider_specs = map[u64]SliderSpec{}
-	g_toggle_controls = map[u64]bool{}
 	g_toggle_groups = map[u64]string{}
 	g_toggle_allow_no_selection = map[u64]bool{}
 	g_toggle_ids = map[u64]string{}
@@ -1168,7 +1166,6 @@ fn forget_descendant_nodes(key string) {
 		g_text_area_callbacks.delete(u64(child))
 		g_scroll_callbacks.delete(u64(child))
 		g_slider_specs.delete(u64(child))
-		g_toggle_controls.delete(u64(child))
 		g_toggle_groups.delete(u64(child))
 		g_toggle_allow_no_selection.delete(u64(child))
 		g_toggle_ids.delete(u64(child))
@@ -1233,7 +1230,6 @@ fn register_native_handlers(native View, el Element) {
 	} else if el.kind in [.button, .checkbox, .toggle_button] {
 		remove_control_target_action(native, g_button_handler, 'handleTap:', 64)
 		if el.kind == .toggle_button {
-			g_toggle_controls[pointer] = true
 			g_toggle_groups[pointer] = el.toggle_group
 			g_toggle_allow_no_selection[pointer] = el.toggle_allow_no_selection
 			g_toggle_ids[pointer] = el.id
@@ -1242,14 +1238,8 @@ fn register_native_handlers(native View, el Element) {
 				release_ios_toggle_group(pointer)
 			}
 		}
-		if has_callback || el.kind == .toggle_button {
-			if has_callback {
-				g_action_callbacks[pointer] = ios_binding(el, if el.kind in [.view, .button] {
-					.tap
-				} else {
-					.change
-				})
-			}
+		if has_callback || el.kind in [.checkbox, .toggle_button] {
+			g_action_callbacks[pointer] = ios_binding(el, if el.kind == .button { .tap } else { .change })
 			add_button_target(native, g_button_handler)
 			macos.set_associated_object(native, assoc_handler_key(), g_button_handler, macos.assoc_retain_nonatomic)
 		} else {
@@ -1257,17 +1247,10 @@ fn register_native_handlers(native View, el Element) {
 		}
 	} else if el.kind == .dropdown {
 		remove_control_target_action(native, g_button_handler, 'handleTap:', 64)
-		if has_callback {
-			g_action_callbacks[pointer] = ios_binding(el, if el.kind in [.view, .button] {
-				.tap
-			} else {
-				.change
-			})
-			add_button_target(native, g_button_handler)
-			macos.set_associated_object(native, assoc_handler_key(), g_button_handler, macos.assoc_retain_nonatomic)
-		} else {
-			macos.set_associated_object(native, assoc_handler_key(), View(unsafe { nil }), macos.assoc_retain_nonatomic)
-		}
+		// Opening a UIMenu is not a value change. UICommand selection owns the
+		// state commit and optional callback, including controls without one.
+		g_action_callbacks[pointer] = ios_binding(el, .change)
+		macos.set_associated_object(native, assoc_handler_key(), View(unsafe { nil }), macos.assoc_retain_nonatomic)
 	} else if el.kind == .text_field {
 		remove_control_target_action(native, g_button_handler, 'handleTextChange:', 131072)
 		remove_control_target_action(native, g_button_handler, 'handleTextSubmit:', 524288)
@@ -1412,7 +1395,6 @@ fn remove_stale_nodes(active map[string]bool) {
 		g_text_area_callbacks.delete(u64(native))
 		g_scroll_callbacks.delete(u64(native))
 		g_slider_specs.delete(u64(native))
-		g_toggle_controls.delete(u64(native))
 		g_toggle_groups.delete(u64(native))
 		g_toggle_allow_no_selection.delete(u64(native))
 		g_toggle_ids.delete(u64(native))
@@ -1476,11 +1458,15 @@ fn clear_ios_gesture_captures(owner u64) {
 }
 
 fn ios_control_release_binding(captured IosCallbackBinding, current IosCallbackBinding, available bool) ?IosCallbackBinding {
-	if !available || !ios_callback_present(captured) || !ios_callback_present(current)
-		|| captured.kind != current.kind {
+	if !available || captured.kind != current.kind {
 		return none
 	}
-	return captured
+	if ios_callback_present(captured) && ios_callback_present(current) { return captured }
+	// Stateful controls also commit with no handler. Installing or removing a
+	// handler during a physical press still cancels that captured activation.
+	if !ios_callback_present(captured) && !ios_callback_present(current)
+		&& captured.kind in [.checkbox, .toggle_button, .dropdown] { return captured }
+	return none
 }
 
 fn ios_interaction_available(native View) bool {
@@ -1497,6 +1483,7 @@ fn ios_interaction_available(native View) bool {
 }
 
 fn ios_control_action_binding(native View, current IosCallbackBinding) ?IosCallbackBinding {
+	if !ios_interaction_available(native) { return none }
 	if captured := g_control_captures[u64(native)] {
 		return ios_control_release_binding(captured, current,
 			ios_interaction_available(native))
@@ -1549,17 +1536,23 @@ fn vui_button_tap(_self voidptr, _cmd voidptr, sender voidptr) {
 	pointer := u64(sender)
 	native := View(sender)
 	current := g_action_callbacks[pointer] or { return }
+	if current.kind == .dropdown { return }
 	binding := ios_control_action_binding(native, current) or { return }
-	if g_toggle_controls[pointer] or { false } { commit_ios_toggle_button(pointer, native) }
+	commit_ios_button_activation(native, current.kind)
+	ios_emit_callback(binding, ios_control_event(native, binding))
+}
+
+fn commit_ios_button_activation(native View, kind Kind) {
+	pointer := u64(native)
+	if kind == .toggle_button { commit_ios_toggle_button(pointer, native) }
 	if spec := g_slider_specs[pointer] { native_snap_slider_value(native, spec) }
-	if binding.kind == .checkbox {
+	if kind == .checkbox {
 		checked := !macos.msg_bool(native, 'isSelected')
 		macos.msg_void_bool(native, 'setSelected:', checked)
 		caption := objc_string(macos.msg_id(native, 'currentTitle')).all_after('  ')
 		title := '${if checked { '☑' } else { '☐' }}  ${caption}'
 		macos.msg_void2(native, 'setTitle:forState:', macos.nsstring(title), macos.Id(usize(0)))
 	}
-	ios_emit_callback(binding, ios_control_event(native, binding))
 }
 
 fn ios_button_behavior_release_available(captured IosCallbackBinding, current IosCallbackBinding, registered bool, enabled bool, hidden bool, inside bool) bool {

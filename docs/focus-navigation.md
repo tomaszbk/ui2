@@ -115,3 +115,10 @@ backend fixtures. Windows and Linux backend checks are distinct from runtime
 acceptance on those operating systems. UIKit keeps its existing responder/IME
 bridges and exposes the shared programmatic hooks where its controls accept
 first responder; this change does not introduce a mobile hardware-key host.
+UIKit dropdown activation uses the public `UIControl.performPrimaryAction`
+API (iOS 17.4 or later) to present its native menu. On systems without that API,
+the dropdown snapshot omits `.activate` and `perform_semantic_action` returns
+`false` without a change event. Opening the menu does not change its value;
+choosing a native menu command commits the title and emits the optional callback.
+Stateful UIKit semantic actions commit once even without a handler and respect
+toggle groups, while real pointer releases retain their captured callbacks.

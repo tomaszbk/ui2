@@ -33,6 +33,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		key_event_handler KeyEventFn = unsafe { nil }
 		drop_handler DropFn = unsafe { nil }
 		key_consumed bool
+		keyboard CustomKeyboardState
 		text_values map[string]string
 		text_props map[string]string
 		text_editors map[string]TextEditor
@@ -161,6 +162,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		state.key_event_handler = g_key_event_handler
 		state.drop_handler = g_drop_handler
 		state.key_consumed = g_key_consumed
+		state.keyboard = g_custom_keyboard
 		state.text_values = g_text_values
 		state.text_props = g_text_props
 		state.text_editors = g_text_editors
@@ -232,6 +234,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		g_key_event_handler = state.key_event_handler
 		g_drop_handler = state.drop_handler
 		g_key_consumed = state.key_consumed
+		g_custom_keyboard = state.keyboard
 		g_text_values = state.text_values
 		g_text_props = state.text_props
 		g_text_editors = state.text_editors

@@ -710,6 +710,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		g_touch = TouchState{}
 		g_focus_navigation = &FocusManager{}
 		g_focused_field = ''
+		g_custom_keyboard = CustomKeyboardState{}
 		state.composition = TextComposition{}
 	}
 
@@ -928,6 +929,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 				}
 			}
 			.iconified, .suspended {
+				g_custom_keyboard = CustomKeyboardState{}
 				if e.typ == .iconified {
 					state.iconified = true
 				} else {
@@ -951,26 +953,20 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 				state.scheduler.invalidate(.surface)
 			}
 			.touches_cancelled, .unfocused {
+				if e.typ == .unfocused { g_custom_keyboard = CustomKeyboardState{} }
 				g_tooltip.dismiss()
 				cancel_touch()
 			}
 			.char {
-				handle_char_input(e.char_code)
+				if !custom_consumed_character(e.char_code) { handle_char_input(e.char_code) }
 			}
 			.key_down {
 				g_tooltip.dismiss()
-				if menu_bar_handle_key(e) {
-					return
-				}
-				if g_open_dropdown.len > 0 {
-					if handle_dropdown_key(e.key_code) {
-						return
-					}
-				}
-				if !dispatch_key_event(e) && !handle_focus_key(immediate_key_event(e), e.key_repeat) {
+				if !custom_key_down(e, false, state.composition.field_id.len > 0) {
 					handle_key_down(e.key_code, e.modifiers)
 				}
 			}
+			.key_up { custom_key_up(e.key_code) }
 			.files_dropped {
 				handle_files_dropped(e)
 			}

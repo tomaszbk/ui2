@@ -4,9 +4,200 @@ module ui2
 
 $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headless ? {
 	import gg
+	import sokol.sapp
 
 	__global focus_input_events = []ElementEvent{}
 	fn focus_input_event(event ElementEvent) { focus_input_events << event }
+	fn focus_input_move_to_editor(event ElementEvent) {
+		focus_input_events << event
+		focus('edit')
+	}
+
+	fn activation_editor_root() Element {
+		return screen(0xffffff, [
+			Element{ kind: .button, id: 'button', on_event: focus_input_move_to_editor, frame: rect(0, 0, 100, 30) },
+			Element{ kind: .text_area, id: 'edit', text: 'seed', frame: rect(0, 40, 180, 60) },
+		])
+	}
+
+	fn test_custom_consumed_activation_and_repeats_do_not_edit_callback_destination() {
+		previous_app := g_gg_app
+		previous := activate_custom_window_state(new_custom_window_state())
+		defer { activate_custom_window_state(previous); g_gg_app = previous_app }
+		mut app := &GgApp{}
+		g_gg_app = app
+		for key in [gg.KeyCode.space, .enter, .kp_enter] {
+			root := activation_editor_root()
+			mount_focus_fixture(root)
+			set_text('edit', 'seed')
+			focus('button')
+			focus_input_events = []ElementEvent{}
+			character := if key == .space { u32(` `) } else { u32(`\r`) }
+			on_event(&gg.Event{ typ: .key_down, key_code: key }, app)
+			assert focused_id() == 'edit'
+			on_event(&gg.Event{ typ: .char, char_code: character }, app)
+			assert text('edit') == 'seed'
+			// Unrelated reconciliation preserves physical press ownership.
+			mount_focus_fixture(Element{ ...root, box: BoxStyle{ bg: 0xeeeeee } })
+			for _ in 0 .. 3 {
+				on_event(&gg.Event{ typ: .key_down, key_code: key, key_repeat: true }, app)
+				on_event(&gg.Event{ typ: .char, char_code: character, key_repeat: true }, app)
+				assert text('edit') == 'seed'
+			}
+			assert focus_input_events == [ElementEvent{ kind: .tap, id: 'button' }]
+			// Another physical key and scan-less UTF-8 text remain editable while
+			// the activation key is still held.
+			on_event(&gg.Event{ typ: .key_down, key_code: .n }, app)
+			on_event(&gg.Event{ typ: .char, char_code: `ñ` }, app)
+			on_event(&gg.Event{ typ: .char, char_code: `é` }, app)
+			assert text('edit') == 'seedñé'
+			on_event(&gg.Event{ typ: .key_up, key_code: .n }, app)
+			on_event(&gg.Event{ typ: .key_down, key_code: key, key_repeat: true }, app)
+			on_event(&gg.Event{ typ: .char, char_code: character, key_repeat: true }, app)
+			assert text('edit') == 'seedñé'
+			on_event(&gg.Event{ typ: .key_up, key_code: key }, app)
+			// A new press now belongs to the editor, including normal newline.
+			on_event(&gg.Event{ typ: .key_down, key_code: key }, app)
+			on_event(&gg.Event{ typ: .char, char_code: character }, app)
+			assert text('edit') == 'seedñé' + if key == .space { ' ' } else { '\n' }
+			on_event(&gg.Event{ typ: .key_up, key_code: key }, app)
+			assert focus_input_events.len == 1
+		}
+	}
+
+	fn test_custom_character_consumption_is_one_delivery_and_window_owned() {
+		previous_app := g_gg_app
+		first := new_custom_window_state()
+		second := new_custom_window_state()
+		previous := activate_custom_window_state(first)
+		defer { activate_custom_window_state(previous); g_gg_app = previous_app }
+		mut app := &GgApp{}
+		g_gg_app = app
+		mount_focus_fixture(activation_editor_root())
+		focus('button')
+		on_event(&gg.Event{ typ: .key_down, key_code: .space }, app)
+		activate_custom_window_state(second)
+		mount_focus_fixture(activation_editor_root())
+		focus('edit')
+		on_event(&gg.Event{ typ: .char, char_code: ` ` }, app)
+		assert text('edit') == 'seed '
+		activate_custom_window_state(first)
+		on_event(&gg.Event{ typ: .char, char_code: ` ` }, app)
+		assert text('edit') == 'seed'
+		// Consuming the associated CHAR cannot swallow a later synthesized one.
+		on_event(&gg.Event{ typ: .char, char_code: ` ` }, app)
+		assert text('edit') == 'seed '
+		for lifecycle in [sapp.EventType.unfocused, .suspended, .iconified] {
+			focus('button')
+			on_event(&gg.Event{ typ: .key_down, key_code: .space }, app)
+			on_event(&gg.Event{ typ: lifecycle }, app)
+			on_event(&gg.Event{ typ: .char, char_code: ` ` }, app)
+			on_event(&gg.Event{ typ: .key_down, key_code: .space, key_repeat: true }, app)
+			on_event(&gg.Event{ typ: .char, char_code: ` `, key_repeat: true }, app)
+		}
+		assert text('edit') == 'seed       '
+		focus('button')
+		on_event(&gg.Event{ typ: .key_down, key_code: .space }, app)
+		discard_custom_window_state(first)
+		mount_focus_fixture(activation_editor_root())
+		focus('edit')
+		on_event(&gg.Event{ typ: .char, char_code: ` ` }, app)
+		assert text('edit') == 'seed '
+		activate_custom_window_state(second)
+		assert text('edit') == 'seed '
+		focus('button')
+		on_event(&gg.Event{ typ: .key_down, key_code: .space }, app)
+		on_cleanup(app)
+		mut replacement_app := &GgApp{}
+		g_gg_app = replacement_app
+		mount_focus_fixture(activation_editor_root())
+		focus('edit')
+		on_event(&gg.Event{ typ: .char, char_code: ` ` }, replacement_app)
+		assert text('edit') == 'seed  '
+		on_event(&gg.Event{ typ: .key_down, key_code: .space, key_repeat: true }, replacement_app)
+		on_event(&gg.Event{ typ: .char, char_code: ` `, key_repeat: true }, replacement_app)
+		assert text('edit') == 'seed   '
+	}
+
+	fn test_public_stateful_semantic_actions_commit_once_and_respect_group_policy() {
+		previous_app := g_gg_app
+		previous := activate_custom_window_state(new_custom_window_state())
+		defer { activate_custom_window_state(previous); g_gg_app = previous_app }
+		g_gg_app = &GgApp{}
+		for kind in [Kind.checkbox, .toggle_button, .switch_control] {
+			for has_handler in [true, false] {
+				callback := if has_handler { ElementCallback(focus_input_event) } else { ElementCallback(unsafe { nil }) }
+				mount_focus_fixture(screen(0xffffff, [Element{ kind: kind, id: 'control', on_event: callback }]))
+				focus_input_events = []ElementEvent{}
+				for expected in [true, false] {
+					assert perform_semantic_action('control', .activate)
+					node := semantic_node('control') or { panic('missing control') }
+					assert node.state.checked == expected
+					assert node.state.selected == (kind == .toggle_button && expected)
+					assert node.value == if expected { 'checked' } else { 'unchecked' }
+				}
+				assert focus_input_events == if has_handler {
+					[ElementEvent{ kind: .change, id: 'control', checked: true }, ElementEvent{ kind: .change, id: 'control', checked: false }]
+				} else { []ElementEvent{} }
+				mount_focus_fixture(screen(0xffffff, []))
+			}
+		}
+		for allow_empty in [true, false] {
+			for has_handler in [true, false] {
+				callback := if has_handler { ElementCallback(focus_input_event) } else { ElementCallback(unsafe { nil }) }
+				root := screen(0xffffff, [
+					Element{ kind: .toggle_button, id: 'a', checked: true, toggle_group: 'group', toggle_allow_no_selection: allow_empty, on_event: callback },
+					Element{ kind: .toggle_button, id: 'b', toggle_group: 'group', toggle_allow_no_selection: allow_empty, on_event: callback },
+				])
+				mount_focus_fixture(root)
+				focus_input_events = []ElementEvent{}
+				assert perform_semantic_action('a', .activate)
+				assert toggle_button_pressed('a') == !allow_empty
+				assert perform_semantic_action('b', .activate)
+				assert !toggle_button_pressed('a') && toggle_button_pressed('b')
+				assert perform_semantic_action('b', .activate)
+				assert toggle_button_pressed('b') == !allow_empty
+				assert focus_input_events == if has_handler {
+					[ElementEvent{ kind: .change, id: 'a', checked: !allow_empty }, ElementEvent{ kind: .change, id: 'b', checked: true }, ElementEvent{ kind: .change, id: 'b', checked: !allow_empty }]
+				} else { []ElementEvent{} }
+				for hidden in [true, false] {
+					mount_focus_fixture(screen(0xffffff, [Element{ kind: .view, hidden: hidden, enabled: hidden, children: root.children }]))
+					before := focus_input_events.len
+					assert !perform_semantic_action('a', .activate)
+					assert focus_input_events.len == before
+				}
+				mount_focus_fixture(screen(0xffffff, []))
+				assert !perform_semantic_action('a', .activate)
+			}
+		}
+	}
+
+	fn test_custom_dropdown_activation_repeat_does_not_select_the_new_menu() {
+		previous_app := g_gg_app
+		previous := activate_custom_window_state(new_custom_window_state())
+		defer { activate_custom_window_state(previous); g_gg_app = previous_app }
+		mut app := &GgApp{}
+		g_gg_app = app
+		app.ctx = &DrawContext{ width: 320, height: 240 }
+		control := Element{ kind: .dropdown, id: 'choice', text: 'A', on_event: focus_input_event, menu: [MenuEntry{ title: 'A' }, MenuEntry{ title: 'B' }], frame: rect(0, 0, 140, 32) }
+		mount_focus_fixture(screen(0xffffff, [control]))
+		focus_input_events = []ElementEvent{}
+		focus('choice')
+		on_event(&gg.Event{ typ: .key_down, key_code: .enter }, app)
+		// Run the actual painter's popup projection/cache step between native
+		// events, without opening a GPU surface or inventing a popup snapshot.
+		track_dropdown_popup(control, 0, 0, ['A', 'B'], text('choice'))
+		assert (semantic_node('choice') or { panic('missing dropdown') }).state.expanded
+		for _ in 0 .. 3 { on_event(&gg.Event{ typ: .key_down, key_code: .enter, key_repeat: true }, app) }
+		assert (semantic_node('choice') or { panic('missing dropdown') }).state.expanded
+		assert text('choice') == 'A' && focus_input_events.len == 0
+		on_event(&gg.Event{ typ: .key_up, key_code: .enter }, app)
+		on_event(&gg.Event{ typ: .key_down, key_code: .down }, app)
+		on_event(&gg.Event{ typ: .key_down, key_code: .enter }, app)
+		assert !(semantic_node('choice') or { panic('missing dropdown') }).state.expanded
+		assert text('choice') == 'B'
+		assert focus_input_events == [ElementEvent{ kind: .change, id: 'choice', text: 'B' }]
+	}
 
 	fn mount_focus_fixture(root Element) {
 		g_active_fields.clear()
