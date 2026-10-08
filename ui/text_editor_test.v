@@ -1,4 +1,11 @@
+@[has_globals]
 module ui2
+
+__global text_editor_submit_events = []ElementEvent{}
+
+fn capture_text_editor_submit(event ElementEvent) {
+	if event.kind == .submit { text_editor_submit_events << event }
+}
 
 fn test_text_editor_insert_and_replace_selection() {
 	mut editor := text_editor('Hello world')
@@ -105,26 +112,26 @@ fn test_text_editor_navigation_extends_and_collapses_selection() {
 	assert apply_text_editor_navigation(mut editor, 'left', false, false)
 	assert editor.selection == TextSelection{
 		anchor: 1
-		caret: 1
+		caret:  1
 	}
 
 	editor.set_selection(1, 5)
 	assert apply_text_editor_navigation(mut editor, 'right', false, false)
 	assert editor.selection == TextSelection{
 		anchor: 5
-		caret: 5
+		caret:  5
 	}
 
 	editor.set_caret(3)
 	assert apply_text_editor_navigation(mut editor, 'left', true, false)
 	assert editor.selection == TextSelection{
 		anchor: 3
-		caret: 2
+		caret:  2
 	}
 	assert apply_text_editor_navigation(mut editor, 'end', true, false)
 	assert editor.selection == TextSelection{
 		anchor: 3
-		caret: 6
+		caret:  6
 	}
 	assert apply_text_editor_navigation(mut editor, 'home', false, false)
 	assert editor.selection == TextSelection{}
@@ -144,7 +151,7 @@ fn test_text_editor_navigation_moves_by_unicode_words_and_page_boundaries() {
 	assert apply_text_editor_navigation(mut editor, 'right', true, true)
 	assert editor.selection == TextSelection{
 		anchor: 5
-		caret: 12
+		caret:  12
 	}
 
 	assert apply_text_editor_navigation(mut editor, 'page_down', false, false)
@@ -152,7 +159,7 @@ fn test_text_editor_navigation_moves_by_unicode_words_and_page_boundaries() {
 	assert apply_text_editor_navigation(mut editor, 'page_up', true, false)
 	assert editor.selection == TextSelection{
 		anchor: rune_len(editor.text)
-		caret: 0
+		caret:  0
 	}
 	assert apply_text_editor_navigation(mut editor, 'a', false, true)
 	start, end := editor.selection.ordered()
@@ -195,19 +202,27 @@ fn test_text_editor_word_navigation_keeps_indic_and_arabic_marks_in_words() {
 fn test_rich_text_area_keeps_runs() {
 	runs := [
 		TextRun{
-			text: 'Hello '
+			text:  'Hello '
 			style: TextStyle{}
 		},
 		TextRun{
-			text: 'world'
+			text:  'world'
 			style: TextStyle{
-				bold: true
-				italic: true
+				bold:      true
+				italic:    true
 				underline: true
 			}
 		},
 	]
-	el := rich_text_area('body', 'Hello world', runs, rect(0, 0, 200, 80), BoxStyle{}, TextStyle{})
+	el := text_input(
+		id:         'body'
+		text:       'Hello world'
+		text_runs:  runs
+		frame:      rect(0, 0, 200, 80)
+		box:        BoxStyle{}
+		text_style: TextStyle{}
+		multiline:  true
+	) or { panic(err) }
 	assert el.kind == .text_area
 	assert el.text == 'Hello world'
 	assert el.text_runs.len == 2
@@ -217,11 +232,28 @@ fn test_rich_text_area_keeps_runs() {
 }
 
 fn test_text_area_without_scroll_sets_disable_scroll() {
-	el := text_area_without_scroll('body', 'Hello', rect(0, 0, 200, 80), BoxStyle{}, TextStyle{})
+	el := text_input(
+		id:             'body'
+		text:           'Hello'
+		frame:          rect(0, 0, 200, 80)
+		box:            BoxStyle{}
+		text_style:     TextStyle{}
+		multiline:      true
+		disable_scroll: true
+	) or { panic(err) }
 	assert el.kind == .text_area
 	assert el.disable_scroll
 	rich :=
-		rich_text_area_without_scroll('rich', 'Hello', []TextRun{}, rect(0, 0, 200, 80), BoxStyle{}, TextStyle{})
+		text_input(
+			id:             'rich'
+			text:           'Hello'
+			text_runs:      []TextRun{}
+			frame:          rect(0, 0, 200, 80)
+			box:            BoxStyle{}
+			text_style:     TextStyle{}
+			multiline:      true
+			disable_scroll: true
+		) or { panic(err) }
 	assert rich.kind == .text_area
 	assert rich.disable_scroll
 }
@@ -252,11 +284,24 @@ fn test_portable_text_area_range_uses_utf16_and_keeps_selection_length() {
 	assert portable_text_area_selection('portable-editor') == TextAreaSelectionRange{}
 }
 
-fn test_submit_only_text_field_and_secure_display_text() {
-	el := text_field_with_submit('message', 'send_message', 'Message', 'Привет🙂', rect(0, 0, 200, 40), BoxStyle{}, TextStyle{}, keyboard_default)
+fn test_submit_callback_filters_changes_and_preserves_secure_display_text() {
+	el := text_input(
+		id:          'message'
+		on_event:    capture_text_editor_submit
+		placeholder: 'Message'
+		text:        'Привет🙂'
+		frame:       rect(0, 0, 200, 40)
+		box:         BoxStyle{}
+		text_style:  TextStyle{}
+		keyboard:    keyboard_default
+		multiline:   false
+	) or { panic(err) }
 	assert el.kind == .text_field
-	assert el.submit_id == 'send_message'
-	assert !el.emit_change
+	assert voidptr(el.on_event) != unsafe { nil }
+	text_editor_submit_events = []ElementEvent{}
+	el.on_event(ElementEvent{ kind: .change, id: el.id, text: 'draft' })
+	el.on_event(ElementEvent{ kind: .submit, id: el.id, text: el.text })
+	assert text_editor_submit_events == [ElementEvent{ kind: .submit, id: 'message', text: 'Привет🙂' }]
 	assert text_field_display_text(el.text, false) == 'Привет🙂'
 	assert text_field_display_text(el.text, true) == '•••••••'
 }

@@ -38,9 +38,9 @@ fn test_dynamic_layout_vml_builds_keyed_native_buttons() {
 	ui2.validate_element_tree(root) or { panic(err) }
 
 	list := find_dynamic_element(root, 'item_list') or { panic('missing generated list') }
-	assert list.children.len == 3
-	assert list.children[0].key == '1'
-	assert list.children[0].native_style
+	assert list.children[0].children.len == 3
+	assert list.children[0].children[0].key == '1'
+	assert list.children[0].children[0].native_style
 	assert (find_dynamic_element(root, 'add_last') or { panic('missing add button') }).native_style
 	assert (find_dynamic_element(root, 'remove_second') or { panic('missing remove button') }).enabled
 

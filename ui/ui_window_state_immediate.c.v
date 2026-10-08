@@ -29,10 +29,8 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	struct CustomWindowState {
 	mut:
 		build_screen BuildFn = unsafe { nil }
-		event_handler EventFn = unsafe { nil }
 		key_handler KeyFn = unsafe { nil }
 		key_event_handler KeyEventFn = unsafe { nil }
-		scroll_handler ScrollFn = unsafe { nil }
 		drop_handler DropFn = unsafe { nil }
 		key_consumed bool
 		text_values map[string]string
@@ -53,6 +51,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		toggle_groups map[string]string
 		toggle_allow_no_selection map[string]bool
 		focused_field string
+		scroll_targets map[string]HitTarget
 		scroll_offsets map[string]f64
 		scroll_content_h map[string]f64
 		scroll_areas map[string]Rect
@@ -157,10 +156,8 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 
 	fn (mut state CustomWindowState) capture() {
 		state.build_screen = g_build_screen
-		state.event_handler = g_event_handler
 		state.key_handler = g_key_handler
 		state.key_event_handler = g_key_event_handler
-		state.scroll_handler = g_scroll_handler
 		state.drop_handler = g_drop_handler
 		state.key_consumed = g_key_consumed
 		state.text_values = g_text_values
@@ -181,6 +178,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		state.toggle_groups = g_toggle_groups
 		state.toggle_allow_no_selection = g_toggle_allow_no_selection
 		state.focused_field = g_focused_field
+		state.scroll_targets = g_scroll_targets
 		state.scroll_offsets = g_scroll_offsets
 		state.scroll_content_h = g_scroll_content_h
 		state.scroll_areas = g_scroll_areas
@@ -228,10 +226,8 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 
 	fn (state &CustomWindowState) restore() {
 		g_build_screen = state.build_screen
-		g_event_handler = state.event_handler
 		g_key_handler = state.key_handler
 		g_key_event_handler = state.key_event_handler
-		g_scroll_handler = state.scroll_handler
 		g_drop_handler = state.drop_handler
 		g_key_consumed = state.key_consumed
 		g_text_values = state.text_values
@@ -252,6 +248,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		g_toggle_groups = state.toggle_groups
 		g_toggle_allow_no_selection = state.toggle_allow_no_selection
 		g_focused_field = state.focused_field
+		g_scroll_targets = state.scroll_targets
 		g_scroll_offsets = state.scroll_offsets
 		g_scroll_content_h = state.scroll_content_h
 		g_scroll_areas = state.scroll_areas
@@ -292,7 +289,6 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		menu.menus = state.menu_context.menus
 		menu.tray = state.menu_context.tray
 		menu.tray_visible = state.menu_context.tray_visible
-		menu.dispatch = state.menu_context.dispatch
 		menu.app_name = state.menu_context.app_name
 		menu.window = state.menu_context.window
 		g_menu_open_path = state.menu_open_path

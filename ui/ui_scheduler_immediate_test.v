@@ -6,9 +6,10 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 	import gg
 
 	__global g_scheduler_immediate_events = []string{}
+	__global g_scheduler_element_events = []ElementEvent{}
 
-	fn scheduler_immediate_event(id string) {
-		g_scheduler_immediate_events << id
+	fn scheduler_immediate_event(event ElementEvent) {
+		g_scheduler_element_events << event
 	}
 
 	fn scheduler_immediate_animation_event(event AnimationEvent) {
@@ -27,26 +28,25 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		previous_app := g_gg_app
 		previous_touch := g_touch
 		previous_tooltip := g_tooltip
-		previous_handler := g_event_handler
 		previous_events := g_scheduler_immediate_events.clone()
 		defer {
 			g_gg_app = previous_app
 			g_touch = previous_touch
 			g_tooltip = previous_tooltip
-			g_event_handler = previous_handler
 			g_scheduler_immediate_events = previous_events.clone()
 		}
-		mut app := &GgApp{ scheduler: new_frame_coordinator(.on_demand) }
+		mut app := &GgApp{ scheduler: new_frame_coordinator() }
 		g_gg_app = app
-		g_event_handler = scheduler_immediate_event
 		g_scheduler_immediate_events = []string{}
+		g_scheduler_element_events = []ElementEvent{}
 		scheduler_immediate_finish(mut app, 0)
 		g_tooltip = TooltipState{ pointer_in: true, visible: true, key: 'hover' }
 		g_touch = TouchState{
-			down:           true
-			current_x:      20
-			current_y:      30
-			pointer_target: HitTarget{ action_id: 'drag', draggable: true }
+			down:             true
+			current_x:        20
+			current_y:        30
+			pointer_captured: true
+			pointer_target:   HitTarget{ id: 'drag', on_event: scheduler_immediate_event, draggable: true }
 		}
 		app.scheduler.set_deadline(500)
 		on_event(&gg.Event{ typ: .iconified }, app)
@@ -54,7 +54,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		assert app.scheduler.stats().next_deadline == -1
 		assert !g_tooltip.pointer_in && !g_tooltip.visible
 		assert !g_touch.down
-		assert g_scheduler_immediate_events == [pointer_event_id('up', 'drag', 20, 30)]
+		assert g_scheduler_element_events == [ElementEvent{ kind: .pointer_up, id: 'drag', x: 20, y: 30 }]
 		on_event(&gg.Event{ typ: .suspended }, app)
 		on_event(&gg.Event{ typ: .restored }, app)
 		assert app.scheduler.stats().suspended
@@ -90,7 +90,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 			g_open_dropdown = previous_dropdown
 			g_menu_open_path = previous_menu.clone()
 		}
-		mut app := &GgApp{ scheduler: new_frame_coordinator(.on_demand) }
+		mut app := &GgApp{ scheduler: new_frame_coordinator() }
 		g_gg_app = app
 		g_tooltip = TooltipState{}
 		g_touch = TouchState{}
@@ -141,23 +141,22 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		previous_touch := g_touch
 		previous_tooltip := g_tooltip
 		previous_targets := g_hit_targets.clone()
-		previous_handler := g_event_handler
 		previous_events := g_scheduler_immediate_events.clone()
 		defer {
 			g_gg_app = previous_app
 			g_touch = previous_touch
 			g_tooltip = previous_tooltip
 			g_hit_targets = previous_targets.clone()
-			g_event_handler = previous_handler
 			g_scheduler_immediate_events = previous_events.clone()
 		}
-		mut app := &GgApp{ scheduler: new_frame_coordinator(.on_demand) }
+		mut app := &GgApp{ scheduler: new_frame_coordinator() }
 		g_gg_app = app
 		g_tooltip = TooltipState{}
-		g_event_handler = scheduler_immediate_event
 		g_scheduler_immediate_events = []string{}
+		g_scheduler_element_events = []ElementEvent{}
 		g_hit_targets = [HitTarget{
-			action_id:  'hold'
+			id:         'hold'
+			on_event:   scheduler_immediate_event
 			long_press: true
 			x:          0
 			y:          0
@@ -177,7 +176,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		assert timer.reasons == [.timer]
 		check_long_press()
 		check_long_press()
-		assert g_scheduler_immediate_events == ['long:hold']
+		assert g_scheduler_element_events == [ElementEvent{ kind: .long_press, id: 'hold' }]
 		assert custom_visual_deadline() == -1
 		app.scheduler.set_deadline(custom_visual_deadline())
 		app.scheduler.finish_frame(timer)
@@ -199,7 +198,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		on_event(&gg.Event{ typ: .touches_cancelled }, app)
 		assert !g_touch.down
 		assert custom_visual_deadline() == -1
-		assert g_scheduler_immediate_events == ['long:hold']
+		assert g_scheduler_element_events == [ElementEvent{ kind: .long_press, id: 'hold' }]
 	}
 
 	fn test_custom_scheduler_setters_only_paint_and_preserve_editor_state() {
@@ -225,7 +224,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 			g_slider_specs = previous_specs.clone()
 			g_active_sliders = previous_active_sliders.clone()
 		}
-		mut app := &GgApp{ scheduler: new_frame_coordinator(.on_demand) }
+		mut app := &GgApp{ scheduler: new_frame_coordinator() }
 		g_gg_app = app
 		g_text_values = map[string]string{}
 		g_text_editors = map[string]TextEditor{}
@@ -234,7 +233,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		}
 		g_focused_field = 'editor'
 		g_scroll_offsets = {
-			'editor': 42.0
+			named_scroll_state_id('editor'): 42.0
 		}
 		g_slider_values = {
 			'volume': 0.0
@@ -289,9 +288,10 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 			g_scheduler_immediate_events = previous_events.clone()
 		}
 		reset_widget_animations()
-		mut app := &GgApp{ scheduler: new_frame_coordinator(.on_demand) }
+		mut app := &GgApp{ scheduler: new_frame_coordinator() }
 		g_gg_app = app
 		g_scheduler_immediate_events = []string{}
+		g_scheduler_element_events = []ElementEvent{}
 		configure_animation_driver(request_refresh, false)
 		root := screen(0xffffff, [view('animated', rect(0, 0, 40, 40), BoxStyle{}, [])])
 		start_widget_animation_at('animated', animation(AnimationConfig{
@@ -339,9 +339,10 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 			g_scheduler_immediate_events = previous_events.clone()
 		}
 		reset_widget_animations()
-		mut app := &GgApp{ scheduler: new_frame_coordinator(.on_demand) }
+		mut app := &GgApp{ scheduler: new_frame_coordinator() }
 		g_gg_app = app
 		g_scheduler_immediate_events = []string{}
+		g_scheduler_element_events = []ElementEvent{}
 		configure_animation_driver(request_refresh, false)
 		root := screen(0xffffff, [view('animated', rect(0, 0, 40, 40), BoxStyle{}, [])])
 		start_widget_animation_at('animated', animation(AnimationConfig{

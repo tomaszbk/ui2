@@ -39,12 +39,12 @@ fn test_layout_constraints_distinguish_zero_from_unbounded_and_validate() {
 	}
 	tight := LayoutConstraints{ min_width: 100, max_width: 100, min_height: 40, max_height: 40 }
 	assert tight.loosen() == LayoutConstraints{ max_width: 100, max_height: 40 }
-	assert tight.deflate(BoxPadding{ left: 20, right: 30, top: 50 })! == LayoutConstraints{
+	assert tight.deflate(LayoutPadding{ left: 20, right: 30, top: 50 })! == LayoutConstraints{
 		min_width:  50
 		max_width:  50
 		max_height: 0
 	}
-	if _ := tight.deflate(BoxPadding{ left: -1 }) {
+	if _ := tight.deflate(LayoutPadding{ left: -1 }) {
 		assert false, 'negative padding must be rejected'
 	}
 }
@@ -127,7 +127,14 @@ fn test_custom_intrinsic_editor_matches_wrapping_content_width_before_window_cre
 		for padding_left in [0.0, 12.0] {
 			for scrolling in [true, false] {
 				area := Element{
-					...text_area('notes', 'MMMMM\r\n\r\nM\n', Rect{}, BoxStyle{}, style)
+					...text_input(
+						id:         'notes'
+						text:       'MMMMM\r\n\r\nM\n'
+						frame:      Rect{}
+						box:        BoxStyle{}
+						text_style: style
+						multiline:  true
+					) or { panic(err) }
 					padding_left:   padding_left
 					disable_scroll: !scrolling
 				}
@@ -179,7 +186,7 @@ fn fractional_content_measure(_text string, _style TextStyle, width f64) !Layout
 }
 
 fn test_fractional_constraints_and_control_content_measurement() {
-	assert (LayoutConstraints{ min_width: 12.75, max_width: 24.75, min_height: 10.5, max_height: 20.5 }).deflate(BoxPadding{ left: 1.25, right: 2.0, top: 0.25 })! == LayoutConstraints{ min_width: 9.5, max_width: 21.5, min_height: 10.25, max_height: 20.25 }
+	assert (LayoutConstraints{ min_width: 12.75, max_width: 24.75, min_height: 10.5, max_height: 20.5 }).deflate(LayoutPadding{ left: 1.25, right: 2.0, top: 0.25 })! == LayoutConstraints{ min_width: 9.5, max_width: 21.5, min_height: 10.25, max_height: 20.25 }
 	field := Element{ kind: .text_field, text: 'fraction', padding_left: 2.25 }
 	assert measure_layout_element(field, LayoutConstraints{ max_width: 31 }, fractional_content_measure)! == LayoutSize{ width: 31, height: 30.75 }
 	check := Element{ kind: .checkbox, text: 'fraction' }

@@ -122,7 +122,7 @@ the C package versions follow the runner's package repositories.
 
 `measure_layout_text(text, style, max_width)` works before opening a custom
 desktop window. It uses a CPU vglyph context with the same font resolution,
-shaping, wrapping and the selected unit profile as drawing. CPU measurement
+shaping, wrapping and the same logical em sizes as drawing. CPU measurement
 does not create an atlas texture, window or Sokol device.
 Wrapping preserves the existing line spacing and does not insert automatic
 hyphens.
@@ -133,10 +133,9 @@ from minimum and maximum content. Internal results include the baseline.
 `measure_layout_text` keeps its existing public signature and `LayoutSize`
 result; the adapter's request/result types are internal.
 
-The default `UnitProfile.legacy` retains point sizes: one point becomes one
-logical em pixel on Apple platforms and `96/72` on Linux and Windows. The explicit
-[logical profile](logical-units.md) gives typography the same unit as geometry.
-Device DPI applies separately, when glyphs are rasterized and presented; it does
+Typography uses the same [logical units](logical-units.md) as geometry on every
+platform. A size of 18 means an 18-unit em square; there is no platform point
+conversion or selectable profile. Device DPI applies separately, when glyphs are rasterized and presented; it does
 not change logical line breaks. [Fixed composition scaling](scaled-content.md)
 also preserves the original layout. [VML typography](vml-typography.md) documents
 numeric weights, tracking, line height and styled label runs.

@@ -16,7 +16,7 @@ fn measure_cache_nested(depth int) string {
 	mut source := 'Label { text: "content that wraps at a narrow width" lines: 3 }'
 	for level in 0 .. depth {
 		orientation := if level % 2 == 0 { 'horizontal' } else { 'vertical' }
-		source = 'FlexLayout { orientation: ${orientation} gap: 4\n Label { text: "level ${level}" }\n ${source} }'
+		source = 'Flex { orientation: ${orientation} gap: 4\n Label { text: "level ${level}" }\n ${source} }'
 	}
 	return source
 }
@@ -50,14 +50,14 @@ fn test_nested_flex_measurement_grows_polynomially_with_depth() {
 // Repeated items share a source node and path but resolve to different text.
 // Each must be measured as its own content inside an outer measurement.
 fn test_nested_measurement_keeps_repeated_items_distinct() {
-	source := 'FlexLayout {
+	source := 'Flex {
 		orientation: vertical align_items: start
-		FlexLayout {
+		Flex {
 			id: row gap: 4 align_items: start width: 300
 			Repeater {
 				model: app.items
 				key: item.id
-				FlexLayout {
+				Flex {
 					orientation: vertical flex_basis: 0 flex_grow: 1
 					Label { text: item.text lines: 8 }
 				}

@@ -1,6 +1,13 @@
+@[has_globals]
 module ui2
 
 import math
+
+__global slider_test_events = []ElementEvent{}
+
+fn capture_slider_test_event(event ElementEvent) {
+	slider_test_events << event
+}
 
 fn test_slider_clamps_and_normalizes_ranges() {
 	assert slider_clamped_value(-20, 0, 100) == 0
@@ -35,26 +42,31 @@ fn test_slider_maps_horizontal_and_vertical_pointer_coordinates() {
 
 fn test_slider_constructor_exposes_state_style_and_accessibility() {
 	el := slider(
-		id: 'volume'
-		action_id: 'volume_changed'
-		frame: rect(4, 8, 240, 32)
-		min: -20
-		max: 100
-		value: 140
-		step: 5
+		id:          'volume'
+		on_event:    capture_slider_test_event
+		frame:       rect(4, 8, 240, 32)
+		min:         -20
+		max:         100
+		value:       140
+		step:        5
 		value_track: true
-		style: SliderStyle{
-			track_color: 0x111827
+		style:       SliderStyle{
+			track_color:       0x111827
 			value_track_color: 0x22c55e
-			thumb_color: 0xf8fafc
-			track_width: 6
-			thumb_size: 24
+			thumb_color:       0xf8fafc
+			track_width:       6
+			thumb_size:        24
 		}
 	)
 
 	assert el.kind == .slider
 	assert el.id == 'volume'
-	assert el.action_id == 'volume_changed'
+	slider_test_events = []ElementEvent{}
+	el.on_event(ElementEvent{ kind: .change, id: el.id, value: el.value })
+	assert slider_test_events.len == 1
+	assert slider_test_events[0].id == el.id
+	assert slider_test_events[0].kind == .change
+	assert slider_test_events[0].value == 100
 	assert el.value == 100
 	assert el.min_value == -20
 	assert el.max_value == 100

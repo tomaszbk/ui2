@@ -39,12 +39,12 @@ const win_menu_command_base = u32(0x1000)
 @[heap]
 struct WindowsMenuState {
 mut:
-	bar_commands map[u32]string
+	bar_commands map[u32]MenuItem
 	tray_active  bool
 }
 
 const windows_menu_state_singleton = &WindowsMenuState{
-	bar_commands: map[u32]string{}
+	bar_commands: map[u32]MenuItem{}
 }
 
 fn windows_menu_state() &WindowsMenuState {
@@ -53,7 +53,7 @@ fn windows_menu_state() &WindowsMenuState {
 
 fn menu_win32_set_menu_bar(menus []Menu) {
 	mut st := windows_menu_state()
-	st.bar_commands = map[u32]string{}
+	st.bar_commands = map[u32]MenuItem{}
 	root := menu_window()
 	if root == unsafe { nil } {
 		// Declared before the window exists; run_window installs it again once
@@ -70,7 +70,7 @@ fn menu_win32_set_menu_bar(menus []Menu) {
 	if menubar == unsafe { nil } {
 		return
 	}
-	mut commands := map[u32]string{}
+	mut commands := map[u32]MenuItem{}
 	mut next := win_menu_command_base
 	for m in menus {
 		popup_menu := C.ui2_win_menu_create()
@@ -119,7 +119,7 @@ fn menu_win32_remove_tray() {
 // into `commands`. Only the menu bar registers accelerators; a notification
 // area menu is tracked with TPM_RETURNCMD and its commands never reach the
 // window, so binding keys to them would be a lie.
-fn windows_fill_menu(menu voidptr, items []MenuItem, register_accelerators bool, mut commands map[u32]string, first_command u32) u32 {
+fn windows_fill_menu(menu voidptr, items []MenuItem, register_accelerators bool, mut commands map[u32]MenuItem, first_command u32) u32 {
 	mut next := first_command
 	for item in items {
 		if item.separator {
@@ -139,7 +139,7 @@ fn windows_fill_menu(menu voidptr, items []MenuItem, register_accelerators bool,
 		}
 		command := next
 		next++
-		commands[command] = item.id
+		commands[command] = item
 		shortcut := parse_menu_shortcut(item.shortcut)
 		// Win32 draws whatever follows a tab right-aligned in the row, which
 		// is how a menu shows its accelerator.
@@ -167,7 +167,8 @@ fn windows_fill_menu(menu voidptr, items []MenuItem, register_accelerators bool,
 // handle, which is what a menu bar row and an accelerator both send.
 fn windows_handle_menu_command(command u32) {
 	st := windows_menu_state()
-	emit_menu_event(st.bar_commands[command] or { return })
+	item := st.bar_commands[command] or { return }
+	emit_menu_callback(item.on_select, item.id)
 }
 
 // windows_handle_tray_message answers a click on the notification area icon.
@@ -179,7 +180,7 @@ fn windows_handle_tray_message(mouse_message u32) {
 	}
 	if cfg.menu.len == 0 {
 		if mouse_message == win_wm_lbutton_up {
-			emit_menu_event(cfg.id)
+			emit_menu_callback(cfg.on_event, cfg.id)
 		}
 		return
 	}
@@ -193,11 +194,11 @@ fn windows_handle_tray_message(mouse_message u32) {
 	}
 	// The tray rows are numbered into their own table, so building the menu
 	// cannot renumber the menu bar's.
-	mut commands := map[u32]string{}
+	mut commands := map[u32]MenuItem{}
 	_ := windows_fill_menu(menu, cfg.menu, false, mut commands, win_menu_command_base)
-	chosen := commands[C.ui2_win_tray_popup(root, menu)] or { '' }
+	chosen := commands[C.ui2_win_tray_popup(root, menu)] or { MenuItem{} }
 	C.ui2_win_menu_destroy(menu)
-	emit_menu_event(chosen)
+	emit_menu_callback(chosen.on_select, chosen.id)
 }
 
 // windows_virtual_key maps a shortcut key onto the VK_ code an accelerator

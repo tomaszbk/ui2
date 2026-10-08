@@ -72,15 +72,15 @@ fn test_grid2_vml_scrolls_the_body_and_repeats_sortable_headers() {
 	root := ui2.element_from_vml_model(grid2_vml_source, app, frame) or { panic(err) }
 	ui2.validate_element_tree(root) or { panic(err) }
 	header := find_grid2_element(root, 'header') or { panic('missing header') }
-	assert header.children.len == 6
-	assert header.children[1].text == 'v1'
+	assert header.children[0].children.len == 6
+	assert header.children[0].children[1].text == 'v1'
 	body := find_grid2_element(root, 'body') or { panic('missing body') }
 	assert body.persistent_scrollbars
-	assert body.children.len == grid2_row_count
-	first := body.children[0]
+	assert body.children[0].children.len == grid2_row_count
+	first := body.children[0].children[0]
 	assert first.key == 'row-1'
 	assert first.frame.y == 0
-	assert body.children[1].frame.y == 32
+	assert body.children[0].children[1].frame.y == 32
 	// The rows are taller than the viewport, which is what makes the body scroll.
 	assert f64(grid2_row_count) * 32 > body.frame.height
 	csp := find_grid2_element(root, 'edit_csp') or { panic('missing csp dropdown') }

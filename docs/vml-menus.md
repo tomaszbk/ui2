@@ -1,80 +1,46 @@
 # Menus in VML
 
-`menu_bar_from_vml` loads a **standalone menu document** and returns `[]Menu`.
-Install that declaration with the existing `set_menu_bar` API:
+`menu_bar_from_vml_with_callbacks` converts a standalone menu document to
+`[]Menu`. Supply callbacks for explicit `on_tap` names, then install it with
+`set_menu_bar`:
 
 ```v
-menus := ui2.menu_bar_from_vml($embed_file('menus.vml').to_string())!
+menus := ui2.menu_bar_from_vml_with_callbacks($embed_file('menus.vml').to_string(), {
+    'file_new': ui2.ElementCallback(fn (event ui2.ElementEvent) { println('New') })
+})!
 ui2.set_menu_bar(menus)
 ```
 
-The document may contain one `Menu`, or a `MenuBar` containing several menus:
-
-```qml
+```vml
 MenuBar {
     Menu {
         title: "File"
-        MenuItem { id: file_new text: "New" shortcut: "cmd+n" }
-        MenuItem { text: "Open" on_tap: file_open shortcut: "cmd+o" }
+        MenuItem { id: new_row text: "New" on_tap: file_new shortcut: "cmd+n" }
         MenuSeparator {}
-        MenuItem { id: file_revert text: "Revert" enabled: false }
-        Menu {
-            title: "Export"
-            MenuItem { id: export_pdf text: "PDF" }
-        }
-    }
-    Menu {
-        title: "View"
-        MenuItem { id: word_wrap text: "Word Wrap" checked: true }
+        Menu { title: "Export" MenuItem { id: export_pdf text: "PDF" } }
     }
 }
 ```
 
-A menu and its rows accept `title` or `text`; `title` takes precedence when both
-are present. A leaf `MenuItem` emits its `on_tap` action id, falling back to `id`
-when `on_tap` is absent. The id reaches the event handler passed to `run_window`,
-just like an ordinary menu declared in V. Quote ids containing dots, for example
-`on_tap: "file.open"`.
+`id` is source identity. It never supplies an implicit action; rows with no
+callback remain inert. The callback receives `.tap` and the declared source id.
+V declarations use `MenuItem.on_select`; a menu-less tray uses `TrayConfig.on_event`.
 
-A nested `Menu` is a submenu. A `MenuItem` with children is also a submenu and
-must not emit an action itself. `MenuSeparator {}` and
-`MenuItem { separator: true }` declare a separator. Separators cannot carry
-an action, title, shortcut, checked/disabled state, or child rows.
+A document contains one Menu or a MenuBar. Titles accept `title` or `text`.
+Nested Menu/MenuItem nodes form submenus. Separators and submenus cannot carry
+a leaf callback. Check marks and enabled state are declarations: update the
+menu after handling an action. `cmd` names Command on macOS and Control on
+Windows/Linux.
 
-`checked` defaults to `false`; `enabled` defaults to `true`. Check marks are
-**declarations, not automatic toggles**. Handle the action in V and install a new
-menu declaration to change its state. Shortcuts use the same syntax and platform
-behavior as `menu_item_with_shortcut`: `cmd` means Command on macOS and Control
-on Windows/Linux.
+The loader accepts literal values and explicit callback names. It rejects app
+expressions, calls, assignments, interpolation, bindings and property declarations.
+`menu_bar_from_vml` and `menu_bar_from_vnode` remain useful for inert declarations.
+Conversion validates
+menus and does not install native UI. An empty MenuBar clears the menu declaration.
 
-For repeated updates, parse the source once with `parse_vml`, change the relevant
-node's `props` in V, and call `menu_bar_from_vnode` followed by `set_menu_bar`.
-Both conversion functions validate the menu and are side-effect-free. Neither
-changes the input tree nor installs native UI. An empty `MenuBar {}` returns an
-empty list, which can be passed to `set_menu_bar` to clear the declared menus.
+Keep menu documents separate from visual Screen documents. Flat context menu
+rows on visual controls use the same per-row callbacks. Compiler lowering of
+menu documents is separate work.
 
-## Scope
-
-This loader uses **literal values and action ids**. It rejects app expressions,
-method calls, assignments, interpolation, two-way bindings, and property
-declarations rather than silently treating them as strings. Unknown properties,
-unexpected child tags, invalid booleans, missing titles/actions, duplicate action
-ids, and submenus that also emit an action are errors.
-
-Keep this file separate from the visual `Screen` document. This API does **not**
-add application-menu nodes to `run_vml`, `VmlApp`, `element_from_vml`, or the
-compiler's `$vml` lowering. Existing flat `MenuItem` context menus on visual
-widgets are unchanged. The existing native/custom menu backends and mobile
-capability checks are also unchanged.
-
-Run the complete example from the repository root:
-
-```sh
-v run examples/vml_menu
-```
-
-Run the focused tests:
-
-```sh
-v test ui/vml_menu_test.v
-```
+Run `v run examples/vml_menu` and `v test ui/vml_menu_test.v` for the example and
+focused fixtures. Cross-target checks only compile backend integrations.

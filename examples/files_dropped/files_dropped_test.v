@@ -32,9 +32,9 @@ fn test_files_dropped_vml_builds_keyed_scroll_rows() {
 	root := ui2.element_from_vml_model(files_dropped_vml_source, app, ui2.rect(0, 0, files_dropped_width, files_dropped_height)) or { panic(err) }
 	ui2.validate_element_tree(root) or { panic(err) }
 	list := find_files_dropped_element(root, 'file_list') or { panic('missing file list') }
-	assert list.children.len == 3
-	assert list.children[0].key == '1'
-	assert list.children[1].children[0].text == 'two.txt'
+	assert list.children[0].children.len == 3
+	assert list.children[0].children[0].key == '1'
+	assert list.children[0].children[1].children[0].children[0].text == 'two.txt'
 	assert (find_files_dropped_element(root, 'empty_hint') or {
 		panic('missing empty hint')
 	}).hidden

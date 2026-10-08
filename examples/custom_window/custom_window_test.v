@@ -31,9 +31,9 @@ fn test_custom_window_counter_never_becomes_negative() {
 fn test_custom_window_vml_exposes_clear_space_and_custom_chrome() {
 	app := CustomWindowDemo{
 		transparent_screen: true
-		screen_background: '#010203'
+		screen_background:  '#010203'
 	}
-	root := ui2.element_from_vml_model(custom_window_vml_source, app, ui2.rect(0, 0, custom_window_width, custom_window_height)) or { panic(err) }
+	root := ui2.element_from_vml_model_with_callbacks(custom_window_vml_source, app, ui2.rect(0, 0, custom_window_width, custom_window_height), custom_window_callbacks()) or { panic(err) }
 	ui2.validate_element_tree(root) or { panic(err) }
 	assert root.box.transparent
 	drag := find_custom_window_element(root, 'window_drag') or { panic('missing drag surface') }
@@ -43,5 +43,5 @@ fn test_custom_window_vml_exposes_clear_space_and_custom_chrome() {
 	actions := find_custom_window_element(root, 'actions') or { panic('missing action island') }
 	assert card.frame.y + card.frame.height < actions.frame.y
 	assert card.box.radius == 22
-	assert (find_custom_window_element(root, 'close') or { panic('missing close control') }).action_id == 'close'
+	assert (find_custom_window_element(root, 'close') or { panic('missing close control') }).id == 'close' && voidptr((find_custom_window_element(root, 'close') or { panic('missing close control') }).on_event) != unsafe { nil }
 }

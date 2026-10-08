@@ -2,12 +2,12 @@
 //
 // set_tray docks an icon in the menu bar's status area on macOS and in the
 // notification area on Windows; clicking it opens the declared menu, whose
-// rows emit through the same event handler run_window was given. remove_tray
+// rows invoke their declared typed callbacks. remove_tray
 // takes it away again.
 //
 // The custom renderer draws inside its own window and owns nothing outside it,
 // so tray_supported is false there. This example keeps working: the same rows
-// are offered as buttons in the window, bound to the very same action ids.
+// are offered as buttons in the window with the same explicit callbacks.
 module main
 
 import ui2
@@ -21,9 +21,9 @@ const tray_statuses = ['Available', 'Busy', 'Away']
 @[heap]
 pub struct TrayDemo {
 pub mut:
-	docked        bool = true
+	docked        bool   = true
 	status        string = 'Available'
-	notifications bool = true
+	notifications bool   = true
 	last_action   string = 'Open the tray menu from the status area.'
 	log           string
 	opened        int
@@ -39,23 +39,24 @@ const tray_demo_state = &TrayDemo{}
 pub fn (app &TrayDemo) tray_config() ui2.TrayConfig {
 	mut statuses := []ui2.MenuItem{cap: tray_statuses.len}
 	for status in tray_statuses {
-		statuses << ui2.menu_check_item('status_${status.to_lower()}', status, app.status == status)
+		statuses << ui2.MenuItem{ ...ui2.menu_check_item('status_${status.to_lower()}', status, app.status == status), on_select: tray_callback('status_${status.to_lower()}') }
 	}
 	return ui2.TrayConfig{
 		// The title keeps the item visible even where the icon cannot be
 		// resolved; the id is only reached by a tray with no menu at all.
-		id: 'tray_clicked'
-		title: 'ui2'
-		icon: 'symbol:cup.and.saucer.fill'
-		tooltip: 'ui2 tray demo — ${app.status}'
-		menu: [
-			ui2.menu_item('tray_status', 'Show current status'),
+		id:       'tray_clicked'
+		on_event: tray_callback('tray_clicked')
+		title:    'ui2'
+		icon:     'symbol:cup.and.saucer.fill'
+		tooltip:  'ui2 tray demo — ${app.status}'
+		menu:     [
+			ui2.MenuItem{ ...ui2.menu_item('tray_status', 'Show current status'), on_select: tray_callback('tray_status') },
 			ui2.menu_separator(),
 			ui2.submenu('Set status', statuses),
-			ui2.menu_check_item('tray_notifications', 'Notifications', app.notifications),
+			ui2.MenuItem{ ...ui2.menu_check_item('tray_notifications', 'Notifications', app.notifications), on_select: tray_callback('tray_notifications') },
 			ui2.menu_separator(),
-			ui2.menu_item('tray_hide', 'Hide tray icon'),
-			ui2.menu_item('tray_quit', 'Quit'),
+			ui2.MenuItem{ ...ui2.menu_item('tray_hide', 'Hide tray icon'), on_select: tray_callback('tray_hide') },
+			ui2.MenuItem{ ...ui2.menu_item('tray_quit', 'Quit'), on_select: tray_callback('tray_quit') },
 		]
 	}
 }
@@ -135,7 +136,7 @@ fn on_off(value bool) string {
 
 fn build_tray_icon_screen() ui2.Element {
 	state := unsafe { tray_demo_state }
-	return ui2.element_from_vml_model(tray_icon_vml_source, *state, ui2.bounds()) or {
+	return ui2.element_from_vml_model_with_callbacks(tray_icon_vml_source, *state, ui2.bounds(), tray_icon_callbacks()) or {
 		eprintln('tray VML failed: ${err}')
 		ui2.screen(0xf1f5f9, [])
 	}
@@ -178,6 +179,24 @@ fn main() {
 	if state.docked {
 		ui2.set_tray(state.tray_config())
 	}
-	ui2.run_window('Tray Icon', tray_icon_width, tray_icon_height, build_tray_icon_screen,
-		handle_tray_icon_event)
+	ui2.run_window('Tray Icon', tray_icon_width, tray_icon_height, build_tray_icon_screen)
+}
+
+fn tray_callback(action string) ui2.ElementCallback {
+	return fn [action] (_event ui2.ElementEvent) {
+		handle_tray_icon_event(action)
+	}
+}
+
+fn tray_icon_callbacks() map[string]ui2.ElementCallback {
+	return {
+		'tray_status':        tray_callback('tray_status')
+		'status_available':   tray_callback('status_available')
+		'status_busy':        tray_callback('status_busy')
+		'status_away':        tray_callback('status_away')
+		'tray_notifications': tray_callback('tray_notifications')
+		'tray_hide':          tray_callback('tray_hide')
+		'tray_show':          tray_callback('tray_show')
+		'tray_quit':          tray_callback('tray_quit')
+	}
 }

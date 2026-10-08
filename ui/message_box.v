@@ -110,9 +110,9 @@ fn message_box_result_at(buttons MessageBoxButtons, index int) MessageBoxResult 
 // MessageBoxAction is one button of a custom_message_box.
 pub struct MessageBoxAction {
 pub:
-	id        string // element id, and the emitted event when action_id is empty
-	action_id string
-	title     string
+	id       string // lookup identity; callbacks choose behavior
+	on_event ElementCallback = unsafe { nil }
+	title    string
 }
 
 pub struct CustomMessageBoxConfig {
@@ -151,13 +151,13 @@ pub fn custom_message_box(cfg CustomMessageBoxConfig) Element {
 		label('${cfg.id}_title', cfg.title, rect(custom_message_box_padding, custom_message_box_padding,
 			label_width, 28), TextStyle{
 			color: custom_message_box_title_color
-			size: 18
-			bold: true
+			size:  18
+			bold:  true
 		}),
 		label('${cfg.id}_text', cfg.text, rect(custom_message_box_padding, custom_message_box_padding + 34,
 			label_width, 22), TextStyle{
 			color: custom_message_box_text_color
-			size: 12
+			size:  12
 		}),
 	]
 	// Lay the buttons out right to left so the affirmative action stays in the
@@ -169,12 +169,12 @@ pub fn custom_message_box(cfg CustomMessageBoxConfig) Element {
 		children << Element{
 			...with_native_style(button(id, action.title, rect(x, button_y, custom_message_box_button_width,
 				custom_message_box_button_height), BoxStyle{}, TextStyle{}))
-			action_id: action.action_id
+			on_event: action.on_event
 		}
 		x -= custom_message_box_button_width + custom_message_box_button_gap
 	}
 	dialog := view('${cfg.id}_dialog', dialog_frame, BoxStyle{
-		bg: custom_message_box_dialog_bg
+		bg:     custom_message_box_dialog_bg
 		radius: 12
 	}, children)
 	return Element{

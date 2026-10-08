@@ -23,6 +23,8 @@ struct C.ui2_macos_rect {
 	height f64
 }
 
+fn C.ui2_macos_control_mouse_down(control voidptr, event voidptr)
+
 fn C.ui2_macos_msg_rect_rect(obj voidptr, sel voidptr, rect C.ui2_macos_rect) C.ui2_macos_rect
 
 const ns_window_style_titled = u64(1)
@@ -66,16 +68,45 @@ mut:
 	other_update_ns  u64
 }
 
+struct AppkitCallbackBinding {
+	id       string
+	on_event ElementCallback = unsafe { nil }
+	kind     Kind
+	event    ElementEventKind
+	clickable bool
+	button_behavior bool
+	draggable bool
+}
+
+fn appkit_binding(el Element, event ElementEventKind) AppkitCallbackBinding {
+	return AppkitCallbackBinding{ id: el.id, on_event: el.on_event, kind: el.kind, event: event, clickable: el.clickable, button_behavior: el.kind == .view && el.button_behavior, draggable: el.draggable }
+}
+
+fn appkit_callback_present(binding AppkitCallbackBinding) bool {
+	return binding.on_event != unsafe { nil }
+}
+
+fn appkit_pointer_release_binding(captured AppkitCallbackBinding, current AppkitCallbackBinding) ?AppkitCallbackBinding {
+	if !appkit_callback_present(captured) || !appkit_callback_present(current) { return none }
+	return captured
+}
+
+fn appkit_emit_callback(binding AppkitCallbackBinding, event ElementEvent) bool {
+	if !appkit_callback_present(binding) {
+		return false
+	}
+	binding.on_event(ElementEvent{ ...event, id: binding.id })
+	return true
+}
+
 @[heap]
 struct RuntimeState {
 mut:
 	build_screen        BuildFn = BuildFn(unsafe { nil })
-	event_handler       EventFn = EventFn(unsafe { nil })
 	key_handler         KeyFn = KeyFn(unsafe { nil })
 	key_event_handler   KeyEventFn = KeyEventFn(unsafe { nil })
 	key_consumed        bool
 	text_key_consumed   bool
-	scroll_handler      ScrollFn = ScrollFn(unsafe { nil })
 	drop_handler        DropFn = DropFn(unsafe { nil })
 	window              NativeView
 	root_view           NativeView
@@ -99,9 +130,9 @@ mut:
 	node_menu_sig       map[string]string
 	node_menu_items     map[string][]u64
 	textview_ids        map[u64]string // NSTextView pointer -> lookup id (no tag on NSView)
-	textview_action_ids map[u64]string // NSTextView pointer -> change event id
-	scroll_ids          map[u64]string // NSClipView pointer -> Scroll element id
-	pointer_ids         map[u64]string // NSView pointer -> element id
+	textview_callbacks map[u64]AppkitCallbackBinding // NSTextView pointer -> typed callback
+	scroll_callbacks          map[u64]AppkitCallbackBinding // NSClipView pointer -> Scroll callback
+	pointer_callbacks         map[u64]AppkitCallbackBinding // NSView pointer -> typed callback
 	pointer_clickable   map[u64]bool
 	pointer_buttons     map[u64]bool
 	pointer_draggable   map[u64]bool
@@ -109,16 +140,17 @@ mut:
 	pointer_button_x    f64
 	pointer_button_y    f64
 	pointer_button_moved bool
-	pointer_button_id   string
+	pointer_button_binding AppkitCallbackBinding
 	cursor_ids          map[u64]string // NSView pointer -> cursor name
-	control_ids         map[u64]string // NSControl pointer -> action event id
+	control_callbacks         map[u64]AppkitCallbackBinding // NSControl pointer -> typed callback
+	control_captures          map[u64]AppkitCallbackBinding // Native tracking loop press snapshot
 	checkbox_controls   map[u64]bool // NSButton pointers whose state is persistent
 	toggle_groups       map[u64]string
 	toggle_allow_no_selection map[u64]bool
 	toggle_ids          map[u64]string
 	toggle_views        map[u64]NativeView
 	slider_specs        map[u64]SliderSpec // NSSlider pointer -> range behavior
-	control_change_ids  map[u64]string // NSTextField pointer -> change event id
+	control_change_callbacks  map[u64]AppkitCallbackBinding // NSTextField pointer -> typed callback
 	observed            map[u64]bool // clip views we already observe for scroll changes
 	pending_scroll      map[string]f64 // Scroll element id -> offset to apply once it exists
 	run_config          RunConfig
@@ -146,22 +178,22 @@ const runtime_state_singleton = &RuntimeState{
 	node_menu_sig: map[string]string{}
 	node_menu_items: map[string][]u64{}
 	textview_ids: map[u64]string{}
-	textview_action_ids: map[u64]string{}
-	scroll_ids: map[u64]string{}
+	textview_callbacks: map[u64]AppkitCallbackBinding{}
+	scroll_callbacks: map[u64]AppkitCallbackBinding{}
 	pending_scroll: map[string]f64{}
-	pointer_ids: map[u64]string{}
+	pointer_callbacks: map[u64]AppkitCallbackBinding{}
 	pointer_clickable: map[u64]bool{}
 	pointer_buttons: map[u64]bool{}
 	pointer_draggable: map[u64]bool{}
 	cursor_ids: map[u64]string{}
-	control_ids: map[u64]string{}
+	control_callbacks: map[u64]AppkitCallbackBinding{}
 	checkbox_controls: map[u64]bool{}
 	toggle_groups: map[u64]string{}
 	toggle_allow_no_selection: map[u64]bool{}
 	toggle_ids: map[u64]string{}
 	toggle_views: map[u64]NativeView{}
 	slider_specs: map[u64]SliderSpec{}
-	control_change_ids: map[u64]string{}
+	control_change_callbacks: map[u64]AppkitCallbackBinding{}
 	observed: map[u64]bool{}
 }
 
@@ -186,18 +218,17 @@ pub fn bounds() Rect {
 	}
 }
 
-pub fn run(build_fn BuildFn, event_fn EventFn) {
-	run_window('App', 400, 800, build_fn, event_fn)
+pub fn run(build_fn BuildFn) {
+	run_window('App', 400, 800, build_fn)
 }
 
-pub fn run_window(title string, width int, height int, build_fn BuildFn, event_fn EventFn) {
-	run_window_with_min_size(title, width, height, 0, 0, build_fn, event_fn)
+pub fn run_window(title string, width int, height int, build_fn BuildFn) {
+	run_window_with_min_size(title, width, height, 0, 0, build_fn)
 }
 
-fn run_window_with_min_size(title string, width int, height int, min_width int, min_height int, build_fn BuildFn, event_fn EventFn) {
+fn run_window_with_min_size(title string, width int, height int, min_width int, min_height int, build_fn BuildFn) {
 	mut st := state()
 	st.build_screen = build_fn
-	st.event_handler = event_fn
 	configure_animation_driver(request_refresh, true)
 	st.run_config = RunConfig{
 		title: title
@@ -206,7 +237,7 @@ fn run_window_with_min_size(title string, width int, height int, min_width int, 
 		min_width: min_width
 		min_height: min_height
 	}
-	publish_menu_context(event_fn, title, unsafe { nil })
+	publish_menu_context(title, unsafe { nil })
 	ensure_runtime_classes()
 	native_set_activation_policy_regular()
 	delegate := native_new_object('UI2AppDelegate')
@@ -300,13 +331,6 @@ pub fn on_key(handler KeyFn) {
 pub fn on_key_event(handler KeyEventFn) {
 	mut st := state()
 	st.key_event_handler = handler
-}
-
-// on_scroll registers a handler called with a Scroll element's id whenever
-// its scroll position changes (used for list virtualization).
-pub fn on_scroll(handler ScrollFn) {
-	mut st := state()
-	st.scroll_handler = handler
 }
 
 // on_drop registers a handler for files or plain text dropped on the window.
@@ -630,10 +654,9 @@ pub fn safe_area_top() f64 {
 	return 0
 }
 
-pub fn start_barcode_scan() {
-	st := state()
-	if voidptr(st.event_handler) != unsafe { nil } {
-		st.event_handler('scan_error:barcode scanner unavailable')
+pub fn start_barcode_scan(on_result ScanCallback) {
+	if on_result != unsafe { nil } {
+		on_result(ScanResult{ kind: .error, text: 'barcode scanner unavailable' })
 	}
 }
 
@@ -831,6 +854,15 @@ fn text_area_text_view(native NativeView, direct bool) NativeView {
 }
 
 fn ensure_runtime_classes() {
+	for native_class in ['NSButton', 'NSSlider', 'NSPopUpButton', 'NSSwitch'] {
+		if macos.get_class(native_class) == unsafe { nil } { continue }
+		tracking_class := 'UI2Tracking' + native_class
+		if macos.get_class(tracking_class) == unsafe { nil } {
+			cls := macos.allocate_class_pair(macos.get_class(native_class), tracking_class)
+			macos.add_method(cls, 'mouseDown:', voidptr(ui2_control_mouse_down), 'v@:@')
+			macos.register_class_pair(cls)
+		}
+	}
 	if macos.get_class('UI2FlippedView') == unsafe { nil } {
 		cls := macos.allocate_class_pair(macos.get_class('NSView'), 'UI2FlippedView')
 		macos.add_method(cls, 'isFlipped', voidptr(ui2_view_is_flipped), 'B@:')
@@ -926,22 +958,22 @@ fn render_root(declared Element) {
 	st.label_places = map[string]LabelPlacement{}
 	st.view_kinds = map[string]Kind{}
 	st.text_area_direct = map[string]bool{}
-	st.pointer_ids = map[u64]string{}
+	st.pointer_callbacks = map[u64]AppkitCallbackBinding{}
 	st.pointer_clickable = map[u64]bool{}
 	st.pointer_buttons = map[u64]bool{}
 	st.pointer_draggable = map[u64]bool{}
 	st.cursor_ids = map[u64]string{}
-	st.control_ids = map[u64]string{}
+	st.control_callbacks = map[u64]AppkitCallbackBinding{}
 	st.checkbox_controls = map[u64]bool{}
 	st.toggle_groups = map[u64]string{}
 	st.toggle_allow_no_selection = map[u64]bool{}
 	st.toggle_ids = map[u64]string{}
 	st.toggle_views = map[u64]NativeView{}
 	st.slider_specs = map[u64]SliderSpec{}
-	st.control_change_ids = map[u64]string{}
+	st.control_change_callbacks = map[u64]AppkitCallbackBinding{}
 	st.textview_ids = map[u64]string{}
-	st.textview_action_ids = map[u64]string{}
-	st.scroll_ids = map[u64]string{}
+	st.textview_callbacks = map[u64]AppkitCallbackBinding{}
+	st.scroll_callbacks = map[u64]AppkitCallbackBinding{}
 	native_set_box_background(st.root_view, root.box)
 	mut active := map[string]bool{}
 	render_children(st.root_view, root.children, '', mut active)
@@ -1102,9 +1134,7 @@ fn render_element(parent NativeView, el Element, key string, mut active map[stri
 		.scroll {
 			// Observe scroll position changes for virtualized lists
 			clip := macos.msg_id(native, 'contentView')
-			if el.id.len > 0 {
-				st.scroll_ids[u64(voidptr(clip))] = el.id
-			}
+			st.scroll_callbacks[u64(voidptr(clip))] = appkit_binding(el, .scroll)
 			if u64(voidptr(clip)) !in st.observed {
 				st.observed[u64(voidptr(clip))] = true
 				macos.msg_void_bool(clip, 'setPostsBoundsChangedNotifications:', true)
@@ -1127,25 +1157,25 @@ fn render_element(parent NativeView, el Element, key string, mut active map[stri
 			render_children(doc, el.children, doc_key, mut active)
 		}
 		.button {
-			register_button(native, element_action_id(el))
+			register_button(native, appkit_binding(el, .tap))
 		}
 		.checkbox {
-			register_checkbox(native, element_action_id(el))
+			register_checkbox(native, appkit_binding(el, .change))
 		}
 		.switch_control {
-			register_checkbox(native, element_action_id(el))
+			register_checkbox(native, appkit_binding(el, .change))
 		}
 		.toggle_button {
 			register_toggle_button(native, el)
 		}
 		.dropdown {
-			register_action_control(native, element_action_id(el))
+			register_action_control(native, appkit_binding(el, .change))
 		}
 		.slider {
 			register_slider(native, el)
 		}
 		.text_field {
-			register_control(native, element_action_id(el), el.submit_id, el.emit_change)
+			register_control(native, el)
 		}
 		.text_area {
 			tv := text_area_text_view(native, el.disable_scroll)
@@ -1153,8 +1183,8 @@ fn render_element(parent NativeView, el Element, key string, mut active map[stri
 				st.textview_ids[u64(voidptr(tv))] = el.id
 				st.text_area_direct[el.id] = el.disable_scroll
 			}
-			if element_action_id(el).len > 0 {
-				st.textview_action_ids[u64(voidptr(tv))] = element_action_id(el)
+			if el.on_event != unsafe { nil } {
+				st.textview_callbacks[u64(voidptr(tv))] = appkit_binding(el, .change)
 			}
 		}
 		.label {
@@ -1224,7 +1254,7 @@ fn menu_signature(entries []MenuEntry) string {
 fn clear_menu(key string, native NativeView) {
 	mut st := state()
 	for pointer in st.node_menu_items[key] or { []u64{} } {
-		st.control_ids.delete(pointer)
+		st.control_callbacks.delete(pointer)
 	}
 	st.node_menu_items.delete(key)
 	st.node_menu_sig.delete(key)
@@ -1238,7 +1268,7 @@ fn reconcile_menu(key string, native NativeView, entries []MenuEntry) {
 		pointers := st.node_menu_items[key] or { []u64{} }
 		for index, pointer in pointers {
 			if index < entries.len {
-				st.control_ids[pointer] = entries[index].id
+				st.control_callbacks[pointer] = AppkitCallbackBinding{ id: entries[index].id, on_event: entries[index].on_select }
 			}
 		}
 		return
@@ -1260,7 +1290,7 @@ fn attach_menu(key string, native NativeView, entries []MenuEntry, signature str
 		item := macos.msg_id3(macos.alloc('NSMenuItem'), 'initWithTitle:action:keyEquivalent:', macos.nsstring(e.title), macos.Id(voidptr(macos.sel('handleTap:'))), macos.nsstring(''))
 		macos.msg_void1(item, 'setTarget:', st.button_handler)
 		pointer := u64(voidptr(item))
-		st.control_ids[pointer] = e.id
+		st.control_callbacks[pointer] = AppkitCallbackBinding{ id: e.id, on_event: e.on_select }
 		pointers << pointer
 		macos.msg_void1(menu, 'addItem:', item)
 		macos.release(item)
@@ -1283,13 +1313,13 @@ fn native_create_element(el Element) NativeView {
 			native_new_scroll(element_rect(el.frame), el.box, el.persistent_scrollbars)
 		}
 		.label {
-			native_new_label(element_rect(el.frame), el.text, el.text_style.color, native_font_points(el.text_style), el.text_style.bold, el.text_style.italic, el.text_style.underline, align_value(el.text_style.align), el.text_style.lines, el.text_style.valign, label_needs_container(el))
+			native_new_label(element_rect(el.frame), el.text, el.text_style.color, el.text_style.size, el.text_style.bold, el.text_style.italic, el.text_style.underline, align_value(el.text_style.align), el.text_style.lines, el.text_style.valign, label_needs_container(el))
 		}
 		.image {
 			native_new_image(element_rect(el.frame), el.image_path, el.rotation)
 		}
 		.button {
-			native_new_button(element_rect(el.frame), el.text, el.box, el.text_style.color, native_font_points(el.text_style), el.text_style.bold, el.text_style.italic, el.text_style.underline, el.text_style.lines, el.image_path, el.native_style)
+			native_new_button(element_rect(el.frame), el.text, el.box, el.text_style.color, el.text_style.size, el.text_style.bold, el.text_style.italic, el.text_style.underline, el.text_style.lines, el.image_path, el.native_style)
 		}
 		.checkbox {
 			native_new_checkbox(el)
@@ -1329,13 +1359,13 @@ fn native_update_element(native NativeView, el Element, declared_text_changed bo
 			native_set_scrollbar_mode(native, el.persistent_scrollbars)
 		}
 		.label {
-			native_update_label(native, element_rect(el.frame), el.text, el.text_style.color, native_font_points(el.text_style), el.text_style.bold, el.text_style.italic, el.text_style.underline, align_value(el.text_style.align), el.text_style.lines, el.text_style.valign, label_needs_container(el))
+			native_update_label(native, element_rect(el.frame), el.text, el.text_style.color, el.text_style.size, el.text_style.bold, el.text_style.italic, el.text_style.underline, align_value(el.text_style.align), el.text_style.lines, el.text_style.valign, label_needs_container(el))
 		}
 		.image {
 			native_update_image(native, element_rect(el.frame), el.image_path, el.rotation)
 		}
 		.button {
-			native_update_button(native, element_rect(el.frame), el.text, el.box, el.text_style.color, native_font_points(el.text_style), el.text_style.bold, el.text_style.italic, el.text_style.underline, el.text_style.lines, el.image_path, el.native_style)
+			native_update_button(native, element_rect(el.frame), el.text, el.box, el.text_style.color, el.text_style.size, el.text_style.bold, el.text_style.italic, el.text_style.underline, el.text_style.lines, el.image_path, el.native_style)
 		}
 		.checkbox {
 			native_update_checkbox(native, el)
@@ -1351,7 +1381,7 @@ fn native_update_element(native NativeView, el Element, declared_text_changed bo
 		}
 		.text_field {
 			native_update_text_field(native, element_rect(el.frame), el.placeholder, el.text,
-				el.box, el.text_style.color, native_font_points(el.text_style),
+				el.box, el.text_style.color, el.text_style.size,
 				declared_text_changed, el.readonly, el.enabled)
 		}
 		.text_area {
@@ -1371,14 +1401,14 @@ fn element_interactive(el Element) bool {
 fn register_pointer(native NativeView, el Element) {
 	mut st := state()
 	key := u64(voidptr(native))
-	st.pointer_ids.delete(key)
+	st.pointer_callbacks.delete(key)
 	st.pointer_clickable.delete(key)
 	st.pointer_buttons.delete(key)
 	st.pointer_draggable.delete(key)
 	st.cursor_ids.delete(key)
-	if el.enabled && !el.hidden && element_action_id(el).len > 0
+	if el.enabled && !el.hidden && el.on_event != unsafe { nil }
 		&& (el.clickable || (el.kind == .view && el.button_behavior) || el.draggable) {
-		st.pointer_ids[key] = element_action_id(el)
+		st.pointer_callbacks[key] = appkit_binding(el, .tap)
 		st.pointer_clickable[key] = el.clickable
 		st.pointer_buttons[key] = el.kind == .view && el.button_behavior
 		st.pointer_draggable[key] = el.draggable
@@ -1391,26 +1421,26 @@ fn register_pointer(native NativeView, el Element) {
 	}
 }
 
-fn register_button(native NativeView, id string) {
+fn register_button(native NativeView, binding AppkitCallbackBinding) {
 	mut st := state()
 	pointer := u64(voidptr(native))
-	st.control_ids[pointer] = id
+	st.control_callbacks[pointer] = binding
 	st.checkbox_controls.delete(pointer)
 	native_set_button_target(native, st.button_handler)
 	native_set_associated_object(native, assoc_handler_key(), st.button_handler)
 }
 
-fn register_checkbox(native NativeView, id string) {
+fn register_checkbox(native NativeView, binding AppkitCallbackBinding) {
 	mut st := state()
 	pointer := u64(voidptr(native))
-	st.control_ids[pointer] = id
+	st.control_callbacks[pointer] = binding
 	st.checkbox_controls[pointer] = true
 	native_set_button_target(native, st.button_handler)
 	native_set_associated_object(native, assoc_handler_key(), st.button_handler)
 }
 
 fn register_toggle_button(native NativeView, el Element) {
-	register_checkbox(native, element_action_id(el))
+	register_checkbox(native, appkit_binding(el, .change))
 	mut st := state()
 	pointer := u64(voidptr(native))
 	st.toggle_groups[pointer] = el.toggle_group
@@ -1450,10 +1480,10 @@ fn commit_macos_toggle_button(pointer u64, native NativeView) {
 	}
 }
 
-fn register_action_control(native NativeView, id string) {
+fn register_action_control(native NativeView, binding AppkitCallbackBinding) {
 	mut st := state()
 	pointer := u64(voidptr(native))
-	st.control_ids[pointer] = id
+	st.control_callbacks[pointer] = binding
 	native_set_control_target(native, st.button_handler)
 	native_set_associated_object(native, assoc_handler_key(), st.button_handler)
 }
@@ -1462,35 +1492,23 @@ fn register_slider(native NativeView, el Element) {
 	mut st := state()
 	pointer := u64(voidptr(native))
 	st.slider_specs[pointer] = slider_spec(el)
-	register_action_control(native, element_action_id(el))
+	register_action_control(native, appkit_binding(el, .change))
 }
 
-fn register_control(native NativeView, id string, submit_id string, emit_change bool) {
+fn register_control(native NativeView, el Element) {
 	mut st := state()
 	pointer := u64(voidptr(native))
-	st.control_ids.delete(pointer)
-	st.control_change_ids.delete(pointer)
-	native_set_associated_object(native, assoc_handler_key(), native_nil_view())
-	if submit_id.len > 0 {
-		st.control_ids[pointer] = submit_id
-	}
-	if emit_change {
-		st.control_change_ids[pointer] = id
-	}
-	if submit_id.len > 0 {
+	st.control_callbacks.delete(pointer)
+	st.control_change_callbacks.delete(pointer)
+	if el.on_event != unsafe { nil } {
+		st.control_callbacks[pointer] = appkit_binding(el, .submit)
+		st.control_change_callbacks[pointer] = appkit_binding(el, .change)
 		native_set_control_target(native, st.button_handler)
-	} else {
-		native_clear_control_target(native)
-	}
-	if emit_change {
-		// Delegate delivers controlTextDidChange: for per-keystroke events.
 		macos.msg_void1(native, 'setDelegate:', st.button_handler)
-	} else {
-		macos.msg_void1(native, 'setDelegate:', native_nil_view())
-	}
-	if emit_change || submit_id.len > 0 {
 		native_set_associated_object(native, assoc_handler_key(), st.button_handler)
 	} else {
+		native_clear_control_target(native)
+		macos.msg_void1(native, 'setDelegate:', native_nil_view())
 		native_set_associated_object(native, assoc_handler_key(), native_nil_view())
 	}
 }
@@ -1501,21 +1519,24 @@ fn unregister_node(key string, native NativeView, kind Kind, text_direct bool) {
 	if st.pointer_button_down == pointer {
 		st.pointer_button_down = 0
 		st.pointer_button_moved = false
-		st.pointer_button_id = ''
+		st.pointer_button_binding = AppkitCallbackBinding{}
 	}
-	st.pointer_ids.delete(pointer)
+	st.pointer_callbacks.delete(pointer)
 	st.pointer_clickable.delete(pointer)
 	st.pointer_buttons.delete(pointer)
 	st.pointer_draggable.delete(pointer)
 	st.cursor_ids.delete(pointer)
-	st.control_ids.delete(pointer)
+	st.control_callbacks.delete(pointer)
+	// Keep a cancelled snapshot until the native tracking loop exits. Reusing an
+	// id (or installing a callback during the press) cannot redirect that action.
+	if pointer in st.control_captures { st.control_captures[pointer] = AppkitCallbackBinding{} }
 	st.checkbox_controls.delete(pointer)
 	st.toggle_groups.delete(pointer)
 	st.toggle_allow_no_selection.delete(pointer)
 	st.toggle_ids.delete(pointer)
 	st.toggle_views.delete(pointer)
 	st.slider_specs.delete(pointer)
-	st.control_change_ids.delete(pointer)
+	st.control_change_callbacks.delete(pointer)
 	if kind == .text_field {
 		native_clear_control_target(native)
 		macos.msg_void1(native, 'setDelegate:', native_nil_view())
@@ -1524,14 +1545,14 @@ fn unregister_node(key string, native NativeView, kind Kind, text_direct bool) {
 		tv := text_area_text_view(native, text_direct)
 		if !native_is_nil(tv) {
 			st.textview_ids.delete(u64(voidptr(tv)))
-			st.textview_action_ids.delete(u64(voidptr(tv)))
+			st.textview_callbacks.delete(u64(voidptr(tv)))
 			macos.msg_void1(tv, 'setDelegate:', native_nil_view())
 		}
 	}
 	if kind == .scroll {
 		clip := macos.msg_id(native, 'contentView')
 		clip_pointer := u64(voidptr(clip))
-		st.scroll_ids.delete(clip_pointer)
+		st.scroll_callbacks.delete(clip_pointer)
 		if clip_pointer in st.observed {
 			native_unobserve_bounds(st.button_handler, clip)
 			st.observed.delete(clip_pointer)
@@ -2105,7 +2126,7 @@ fn native_hover_text(key string, native NativeView, el Element) string {
 	mut st := state()
 	if cached := st.node_shortened[key] {
 		if cached.text == full_text && cached.width == el.frame.width
-			&& cached.height == el.frame.height && cached.size == native_font_points(el.text_style)
+			&& cached.height == el.frame.height && cached.size == el.text_style.size
 			&& cached.bold == el.text_style.bold && cached.italic == el.text_style.italic
 			&& cached.image == el.image_path {
 			return if cached.shortened { full_text } else { '' }
@@ -2116,7 +2137,7 @@ fn native_hover_text(key string, native NativeView, el Element) string {
 		text:      full_text
 		width:     el.frame.width
 		height:    el.frame.height
-		size:      native_font_points(el.text_style)
+		size:      el.text_style.size
 		bold:      el.text_style.bold
 		italic:    el.text_style.italic
 		image:     el.image_path
@@ -2146,7 +2167,7 @@ fn shortenable_text(el Element) string {
 // with every character that wide, beside whatever the control draws next to it, needs
 // no measuring. Most labels in a grid are short numbers and stop here.
 fn text_surely_fits(text string, el Element) bool {
-	size := if native_font_points(el.text_style) > 0 { native_font_points(el.text_style) } else { 13.0 }
+	size := if el.text_style.size > 0 { el.text_style.size } else { 13.0 }
 	reserve := match el.kind {
 		.label { 6.0 }
 		.checkbox { 28.0 }
@@ -2187,7 +2208,8 @@ fn native_text_shortened(native NativeView, el Element) bool {
 }
 
 fn native_new_button(frame NativeRect, title string, box BoxStyle, text_hex u32, size f64, bold bool, italic bool, underline bool, lines int, image_name string, native_style bool) NativeView {
-	native_button := macos.msg_id_rect(macos.alloc('NSButton'), 'initWithFrame:', appkit_rect(frame))
+	ensure_runtime_classes()
+	native_button := macos.msg_id_rect(macos.alloc('UI2TrackingNSButton'), 'initWithFrame:', appkit_rect(frame))
 	native_update_button(native_button, frame, title, box, text_hex, size, bold, italic, underline,
 		lines, image_name, native_style)
 	return native_button
@@ -2215,7 +2237,8 @@ fn native_update_button(button_view NativeView, frame NativeRect, title string, 
 }
 
 fn native_new_checkbox(el Element) NativeView {
-	checkbox_view := macos.msg_id_rect(macos.alloc('NSButton'), 'initWithFrame:', appkit_rect(element_rect(el.frame)))
+	ensure_runtime_classes()
+	checkbox_view := macos.msg_id_rect(macos.alloc('UI2TrackingNSButton'), 'initWithFrame:', appkit_rect(element_rect(el.frame)))
 	native_update_checkbox(checkbox_view, el)
 	return checkbox_view
 }
@@ -2226,11 +2249,12 @@ fn native_update_checkbox(checkbox_view NativeView, el Element) {
 	macos.msg_void1(checkbox_view, 'setTitle:', macos.nsstring(el.text))
 	macos.msg_void_i64(checkbox_view, 'setState:', if el.checked { i64(1) } else { i64(0) })
 	macos.msg_void_bool(checkbox_view, 'setAllowsMixedState:', false)
-	macos.msg_void1(checkbox_view, 'setFont:', native_font(native_font_points(el.text_style), el.text_style.bold, el.text_style.italic))
+	macos.msg_void1(checkbox_view, 'setFont:', native_font(el.text_style.size, el.text_style.bold, el.text_style.italic))
 }
 
 fn native_new_switch_control(el Element) NativeView {
-	class_name := if macos.get_class('NSSwitch') == unsafe { nil } { 'NSButton' } else { 'NSSwitch' }
+	ensure_runtime_classes()
+	class_name := if macos.get_class('NSSwitch') == unsafe { nil } { 'UI2TrackingNSButton' } else { 'UI2TrackingNSSwitch' }
 	switch_view := macos.msg_id_rect(macos.alloc(class_name), 'initWithFrame:', appkit_rect(element_rect(el.frame)))
 	native_update_switch_control(switch_view, el)
 	return switch_view
@@ -2248,7 +2272,7 @@ fn native_update_switch_control(view NativeView, el Element) {
 
 fn native_new_toggle_button(el Element) NativeView {
 	native := native_new_button(element_rect(el.frame), el.text, el.box, el.text_style.color,
-		native_font_points(el.text_style), el.text_style.bold, el.text_style.italic, el.text_style.underline,
+		el.text_style.size, el.text_style.bold, el.text_style.italic, el.text_style.underline,
 		el.text_style.lines, el.image_path, el.native_style)
 	native_update_toggle_button(native, el)
 	return native
@@ -2265,7 +2289,8 @@ fn native_update_toggle_button(native NativeView, el Element) {
 }
 
 fn native_new_slider(el Element) NativeView {
-	slider_view := macos.msg_id_rect(macos.alloc('NSSlider'), 'initWithFrame:', appkit_rect(element_rect(el.frame)))
+	ensure_runtime_classes()
+	slider_view := macos.msg_id_rect(macos.alloc('UI2TrackingNSSlider'), 'initWithFrame:', appkit_rect(element_rect(el.frame)))
 	native_update_slider(slider_view, el)
 	return slider_view
 }
@@ -2315,7 +2340,8 @@ fn native_update_button_image(button_view NativeView, frame NativeRect, image_na
 }
 
 fn native_new_dropdown(el Element) NativeView {
-	dropdown_view := macos.msg_id_rect(macos.alloc('NSPopUpButton'), 'initWithFrame:', appkit_rect(element_rect(el.frame)))
+	ensure_runtime_classes()
+	dropdown_view := macos.msg_id_rect(macos.alloc('UI2TrackingNSPopUpButton'), 'initWithFrame:', appkit_rect(element_rect(el.frame)))
 	native_update_dropdown(dropdown_view, el)
 	return dropdown_view
 }
@@ -2327,7 +2353,7 @@ fn native_update_dropdown(popup NativeView, el Element) {
 		macos.msg_void1(popup, 'addItemWithTitle:', macos.nsstring(item.title))
 	}
 	native_select_dropdown_item(popup, el.text)
-	macos.msg_void1(popup, 'setFont:', native_font(native_font_points(el.text_style), el.text_style.bold, el.text_style.italic))
+	macos.msg_void1(popup, 'setFont:', native_font(el.text_style.size, el.text_style.bold, el.text_style.italic))
 	macos.msg_void_bool(popup, 'setBordered:', box_draws_fill(el.box))
 	macos.msg_void_u64(popup, 'setBezelStyle:', 1)
 }
@@ -2337,7 +2363,7 @@ fn native_new_text_field(el Element) NativeView {
 	cls := if el.secure { 'NSSecureTextField' } else { 'NSTextField' }
 	field := macos.msg_id_rect(macos.alloc(cls), 'initWithFrame:', appkit_rect(frame))
 	native_update_text_field(field, frame, el.placeholder, el.text, el.box, el.text_style.color,
-		native_font_points(el.text_style), true, el.readonly, el.enabled)
+		el.text_style.size, true, el.readonly, el.enabled)
 	return field
 }
 
@@ -2446,7 +2472,7 @@ fn native_set_text_area_content(tv NativeView, el Element) {
 		return
 	}
 	macos.msg_void_bool(tv, 'setRichText:', true)
-	native_text_view_set_attributed_string(tv, el.text, el.text_style.color, el.text_style.background_color, native_font_points(el.text_style), el.text_style.font_family, el.text_style.bold, el.text_style.italic, el.text_style.underline, el.text_style.strikethrough, el.text_style.vertical_align)
+	native_text_view_set_attributed_string(tv, el.text, el.text_style.color, el.text_style.background_color, el.text_style.size, el.text_style.font_family, el.text_style.bold, el.text_style.italic, el.text_style.underline, el.text_style.strikethrough, el.text_style.vertical_align)
 	base_length := native_utf16_length(el.text)
 	if base_length > 0 {
 		native_text_view_add_effect(tv, 0, base_length, text_style_effect_value(el.text_style))
@@ -2672,99 +2698,86 @@ fn ui2_app_did_finish_launching(_self voidptr, _cmd voidptr, _notification voidp
 	refresh()
 }
 
-fn fire_pointer_event(native NativeView, phase string, event voidptr) {
+fn fire_pointer_event(native NativeView, phase ElementEventKind, event voidptr) {
 	mut st := state()
 	pressed := st.pointer_button_down
 	button_moved := st.pointer_button_moved
-	pressed_id := st.pointer_button_id
-	if phase == 'up' {
+	pressed_binding := st.pointer_button_binding
+	if phase == .pointer_up {
 		st.pointer_button_down = 0
 		st.pointer_button_moved = false
-		st.pointer_button_id = ''
+		st.pointer_button_binding = AppkitCallbackBinding{}
 	}
-	// A non-interactive child (e.g. a label or icon image) sits on top of its pointer
-	// view and receives the click first. Walk up the view hierarchy to the
-	// nearest registered pointer target so the enclosing button still fires.
 	mut target := NativeView(usize(native))
-	mut id := st.pointer_ids[u64(voidptr(target))] or { '' }
-	for id.len == 0 {
-		target = NativeView(macos.msg_id(target, 'superview'))
-		if native_is_nil(target) {
-			return
+	mut binding := AppkitCallbackBinding{}
+	if phase == .pointer_down {
+		// Non-interactive labels/images forward to their enclosing pointer surface.
+		binding = st.pointer_callbacks[u64(voidptr(target))] or { AppkitCallbackBinding{} }
+		for !appkit_callback_present(binding) {
+			target = NativeView(macos.msg_id(target, 'superview'))
+			if native_is_nil(target) { return }
+			binding = st.pointer_callbacks[u64(voidptr(target))] or { AppkitCallbackBinding{} }
 		}
-		id = st.pointer_ids[u64(voidptr(target))] or { '' }
+	} else {
+		// Release uses the pressed callback, provided that surface is still available.
+		if pressed == 0 || !appkit_callback_present(pressed_binding) { return }
+		target = NativeView(voidptr(usize(pressed)))
+		current := st.pointer_callbacks[pressed] or { return }
+		binding = appkit_pointer_release_binding(pressed_binding, current) or { return }
 	}
 	target_key := u64(voidptr(target))
 	button_behavior := st.pointer_buttons[target_key] or { false }
-	if phase == 'down' {
-		st.pointer_button_down = if button_behavior { target_key } else { 0 }
+	if phase == .pointer_down {
+		st.pointer_button_down = target_key
 		st.pointer_button_moved = false
-		st.pointer_button_id = if button_behavior { id } else { '' }
-		if button_behavior {
-			start := native_event_point(st.root_view, event)
-			st.pointer_button_x = start.x
-			st.pointer_button_y = start.y
-		}
+		st.pointer_button_binding = binding
+		start := native_event_point(st.root_view, event)
+		st.pointer_button_x = start.x
+		st.pointer_button_y = start.y
 	}
-	if phase == 'drag' && button_behavior && pressed == target_key {
+	if phase == .pointer_drag {
 		current := native_event_point(st.root_view, event)
 		dx := current.x - st.pointer_button_x
 		dy := current.y - st.pointer_button_y
-		if dx * dx + dy * dy > 100 {
-			st.pointer_button_moved = true
-		}
-	}
-	if phase == 'drag' && !(st.pointer_draggable[target_key] or { false }) {
-		return
-	}
-	if voidptr(st.event_handler) == unsafe { nil } {
-		return
+		if dx * dx + dy * dy > 100 { st.pointer_button_moved = true }
+		if !binding.draggable { return }
 	}
 	mut should_activate := false
-	if phase == 'up' && button_behavior && pressed == target_key && !button_moved {
+	if phase == .pointer_up && binding.button_behavior && button_behavior && !button_moved {
 		point := native_event_point(target, event)
 		target_bounds := macos.msg_rect(target, 'bounds')
-		should_activate = point.x >= target_bounds.x
-			&& point.x <= target_bounds.x + target_bounds.width && point.y >= target_bounds.y
-			&& point.y <= target_bounds.y + target_bounds.height
+		should_activate = point.x >= target_bounds.x && point.x <= target_bounds.x + target_bounds.width
+			&& point.y >= target_bounds.y && point.y <= target_bounds.y + target_bounds.height
 	}
-	handler := st.event_handler
-	emit_pointer := (st.pointer_clickable[target_key] or { false })
-		|| (st.pointer_draggable[target_key] or { false })
-	if emit_pointer {
+	if binding.clickable || binding.draggable {
 		point := native_event_point(st.root_view, event)
-		handler('pointer:${phase}:${id}:${point.x}:${point.y}')
+		appkit_emit_callback(binding, ElementEvent{ kind: phase, x: point.x, y: point.y })
 	}
-	if should_activate && pressed_id.len > 0 {
-		handler(pressed_id)
-	}
+	if should_activate { appkit_emit_callback(binding, ElementEvent{ kind: .tap }) }
 }
 
 @[export: 'ui2_pointer_mouse_down']
 fn ui2_pointer_mouse_down(self voidptr, _cmd voidptr, event voidptr) {
-	fire_pointer_event(NativeView(self), 'down', event)
+	fire_pointer_event(NativeView(self), .pointer_down, event)
 }
 
 @[export: 'ui2_pointer_mouse_dragged']
 fn ui2_pointer_mouse_dragged(self voidptr, _cmd voidptr, event voidptr) {
-	fire_pointer_event(NativeView(self), 'drag', event)
+	fire_pointer_event(NativeView(self), .pointer_drag, event)
 }
 
 @[export: 'ui2_pointer_mouse_up']
 fn ui2_pointer_mouse_up(self voidptr, _cmd voidptr, event voidptr) {
-	fire_pointer_event(NativeView(self), 'up', event)
+	fire_pointer_event(NativeView(self), .pointer_up, event)
 }
 
 @[export: 'ui2_pointer_accessibility_press']
 fn ui2_pointer_accessibility_press(self voidptr, _cmd voidptr) bool {
 	st := state()
 	pointer := u64(self)
-	if !(st.pointer_buttons[pointer] or { false }) || voidptr(st.event_handler) == unsafe { nil } {
-		return false
-	}
-	id := st.pointer_ids[pointer] or { return false }
-	st.event_handler(id)
-	return true
+	if !(st.pointer_buttons[pointer] or { false }) { return false }
+	binding := st.pointer_callbacks[pointer] or { return false }
+	return appkit_emit_callback(binding, ElementEvent{ kind: .tap })
 }
 
 @[export: 'ui2_pointer_reset_cursor_rects']
@@ -2801,44 +2814,72 @@ fn ui2_perform_drag_operation(self voidptr, _cmd voidptr, dragging_info voidptr)
 	return paths.len > 0 || dropped_text.len > 0
 }
 
+// Text change/submit registration is intentionally independent of mouse
+// tracking: keyboard edits always read committed text and the current callback.
+fn appkit_control_release_binding(captured AppkitCallbackBinding, current AppkitCallbackBinding, available bool) ?AppkitCallbackBinding {
+	if !available || !appkit_callback_present(current) || !appkit_callback_present(captured)
+		|| current.kind != captured.kind { return none }
+	return captured
+}
+
+@[export: 'ui2_appkit_control_tracking_begin']
+fn ui2_appkit_control_tracking_begin(control voidptr) {
+	mut st := state()
+	pointer := u64(control)
+	st.control_captures[pointer] = st.control_callbacks[pointer] or { AppkitCallbackBinding{} }
+}
+
+@[export: 'ui2_appkit_control_tracking_end']
+fn ui2_appkit_control_tracking_end(control voidptr) {
+	mut st := state()
+	st.control_captures.delete(u64(control))
+}
+
+fn ui2_control_mouse_down(self voidptr, _cmd voidptr, event voidptr) {
+	C.ui2_macos_control_mouse_down(self, event)
+}
+
+fn appkit_control_event(native NativeView, binding AppkitCallbackBinding) ElementEvent {
+	return match binding.kind {
+		.text_field { ElementEvent{ kind: binding.event, text: macos.utf8_string(macos.msg_id(native, 'stringValue')) } }
+		.text_area { ElementEvent{ kind: binding.event, text: macos.utf8_string(macos.msg_id(native, 'string')) } }
+		.dropdown { ElementEvent{ kind: .change, text: macos.utf8_string(macos.msg_id(native, 'titleOfSelectedItem')) } }
+		.slider { ElementEvent{ kind: .change, value: macos.msg_f64(native, 'doubleValue') } }
+		.checkbox, .switch_control, .toggle_button { ElementEvent{ kind: .change, checked: macos.msg_i64(native, 'state') != 0 } }
+		else { ElementEvent{ kind: binding.event } }
+	}
+}
+
 @[export: 'ui2_button_tap']
 fn ui2_button_tap(_self voidptr, _cmd voidptr, sender voidptr) {
 	st := state()
 	native := NativeView(sender)
 	pointer := u64(voidptr(native))
+	current := st.control_callbacks[pointer] or { return }
+	mut binding := current
+	if captured := st.control_captures[pointer] {
+		binding = appkit_control_release_binding(captured, current,
+			macos.msg_bool(native, 'isEnabled') && !macos.msg_bool(native, 'isHiddenOrHasHiddenAncestor')) or { return }
+	}
 	commit_macos_toggle_button(pointer, native)
-	if voidptr(st.event_handler) == unsafe { nil } {
-		return
-	}
-	id := st.control_ids[pointer] or { '' }
-	if id.len > 0 {
-		if spec := st.slider_specs[pointer] {
-			native_snap_slider_value(native, spec)
-		}
-		native_finish_button_action(native, st.checkbox_controls[pointer] or { false })
-		st.event_handler(id)
-		return
-	}
+	if spec := st.slider_specs[pointer] { native_snap_slider_value(native, spec) }
+	native_finish_button_action(native, st.checkbox_controls[pointer] or { false })
+	appkit_emit_callback(binding, appkit_control_event(native, binding))
 }
 
 @[export: 'ui2_control_text_changed']
 fn ui2_control_text_changed(_self voidptr, _cmd voidptr, notification voidptr) {
 	st := state()
-	if voidptr(st.event_handler) == unsafe { nil } {
-		return
-	}
 	field := macos.msg_id(macos.Id(notification), 'object')
-	id := st.control_change_ids[u64(voidptr(field))] or { '' }
-	if id.len > 0 {
-		st.event_handler(id)
-	}
+	binding := st.control_change_callbacks[u64(voidptr(field))] or { return }
+	appkit_emit_callback(binding, appkit_control_event(field, binding))
 }
 
 @[export: 'ui2_control_do_command']
 fn ui2_control_do_command(_self voidptr, _cmd voidptr, control voidptr, _text_view voidptr, command voidptr) bool {
 	mut st := state()
 	if voidptr(st.key_handler) == unsafe { nil }
-		|| u64(control) !in st.control_change_ids {
+		|| u64(control) !in st.control_change_callbacks {
 		return false
 	}
 	key := text_command_key(command, native_current_event_modifier_flags()) or { return false }
@@ -2855,12 +2896,9 @@ fn ui2_control_do_command(_self voidptr, _cmd voidptr, control voidptr, _text_vi
 @[export: 'ui2_text_view_changed']
 fn ui2_text_view_changed(_self voidptr, _cmd voidptr, notification voidptr) {
 	st := state()
-	if voidptr(st.event_handler) == unsafe { nil } {
-		return
-	}
 	tv := macos.msg_id(macos.Id(notification), 'object')
-	id := st.textview_action_ids[u64(voidptr(tv))] or { return }
-	st.event_handler(id)
+	binding := st.textview_callbacks[u64(voidptr(tv))] or { return }
+	appkit_emit_callback(binding, appkit_control_event(tv, binding))
 }
 
 @[export: 'ui2_text_view_do_command']
@@ -2882,16 +2920,10 @@ fn ui2_text_view_do_command(_self voidptr, _cmd voidptr, text_view voidptr, comm
 @[export: 'ui2_text_view_clicked_on_link']
 fn ui2_text_view_clicked_on_link(_self voidptr, _cmd voidptr, text_view voidptr, link voidptr, _char_index u64) bool {
 	st := state()
-	if voidptr(st.event_handler) == unsafe { nil } {
-		return false
-	}
-	id := st.textview_ids[u64(text_view)] or { return false }
+	binding := st.textview_callbacks[u64(text_view)] or { return false }
 	target := macos.utf8_string(macos.msg_id(macos.Id(link), 'description'))
-	if target.len == 0 {
-		return false
-	}
-	st.event_handler('link:${id}:${base64.encode_str(target)}')
-	return true
+	if target.len == 0 { return false }
+	return appkit_emit_callback(binding, ElementEvent{ kind: .link, target: target })
 }
 
 fn text_command_key(command voidptr, modifiers u64) ?string {
@@ -2934,12 +2966,9 @@ fn text_command_boundary_noop(text_view voidptr, key string) bool {
 @[export: 'ui2_bounds_changed']
 fn ui2_bounds_changed(_self voidptr, _cmd voidptr, notification voidptr) {
 	st := state()
-	if voidptr(st.scroll_handler) == unsafe { nil } {
-		return
-	}
 	clip := macos.msg_id(macos.Id(notification), 'object')
-	id := st.scroll_ids[u64(voidptr(clip))] or { return }
-	st.scroll_handler(id)
+	binding := st.scroll_callbacks[u64(voidptr(clip))] or { return }
+	appkit_emit_callback(binding, ElementEvent{ kind: .scroll, value: native_bounds(clip).y })
 }
 
 @[export: 'ui2_window_did_resize']

@@ -9,84 +9,77 @@ pub mut:
 	source    string
 }
 
-fn test_compiled_vml_event_resolves_app_argument_when_dispatched() {
-	mut model := CompiledVmlTestModel{ source: 'current value' }
-	event := compiled_vml_event_arg_path('', '', '', 'select', 'app.source')
-	_ := handle_compiled_vml_event[CompiledVmlTestModel](mut model, event) or { panic(err) }
-	assert model.selected == 'current value'
+pub fn (mut model CompiledVmlTestModel) select(value string) { model.selected = value }
+
+fn test_compiled_callback_reads_argument_after_binding_write() {
+	mut model := CompiledVmlTestModel{ source: 'before' }
+	callback := compiled_vml_callback(mut model, CompiledVmlCallbackConfig{
+		binding_property: 'text'
+		binding_target:   'app.source'
+		action_name:      'select'
+		argument_path:    'app.source'
+	})
+	callback(ElementEvent{ kind: .change, text: 'after' })
+	assert model.source == 'after'
+	assert model.selected == 'after'
 }
 
-pub fn (mut model CompiledVmlTestModel) select(value string) {
-	model.selected = value
-}
-
-fn test_compiled_vml_event_applies_binding_and_typed_action() {
+fn test_compiled_callback_carries_typed_action_data() {
 	mut model := CompiledVmlTestModel{}
-	event := compiled_vml_event_arg('accept', 'checked', 'app.checked', 'select', 'Привет')
-	handled := handle_compiled_vml_event[CompiledVmlTestModel](mut model, event) or { panic(err) }
-	assert handled
+	callback := compiled_vml_callback(mut model, CompiledVmlCallbackConfig{
+		binding_property: 'checked'
+		binding_target:   'app.checked'
+		action_name:      'select'
+		arguments:        [CompiledVmlArgument('Привет')]
+	})
+	callback(ElementEvent{ kind: .change, checked: true })
 	assert model.checked
 	assert model.selected == 'Привет'
 }
 
-fn test_compiled_vml_event_leaves_regular_actions_for_the_caller() {
-	mut model := CompiledVmlTestModel{}
-	handled := handle_compiled_vml_event[CompiledVmlTestModel](mut model, 'save') or { panic(err) }
-	assert !handled
+fn test_compiled_callback_uses_numeric_and_boolean_payloads() {
+	mut model := CompiledVmlTestModel{ checked: true, level: 12.5 }
+	value := compiled_vml_callback(mut model, CompiledVmlCallbackConfig{
+		binding_property: 'value'
+		binding_target:   'app.level'
+	})
+	value(ElementEvent{ kind: .change, value: 72.5 })
+	assert model.level == 72.5
+	active := compiled_vml_callback(mut model, CompiledVmlCallbackConfig{
+		binding_property: 'active'
+		binding_target:   'app.checked'
+	})
+	active(ElementEvent{ kind: .change, checked: false })
 	assert !model.checked
 }
 
-fn test_compiled_vml_event_applies_numeric_slider_binding() {
-	mut model := CompiledVmlTestModel{ level: 12.5 }
-	event := compiled_vml_event('missing-slider', 'value', 'app.level', '')
-	handled := handle_compiled_vml_event[CompiledVmlTestModel](mut model, event) or { panic(err) }
-	assert handled
-	assert model.level == 0
-}
-
-fn test_compiled_vml_event_applies_active_switch_binding() {
-	mut model := CompiledVmlTestModel{}
-	event := compiled_vml_event('notifications', 'active', 'app.checked', '')
-	handled := handle_compiled_vml_event[CompiledVmlTestModel](mut model, event) or { panic(err) }
-	assert handled
-	assert model.checked
-}
-
-fn test_compiled_vml_event_applies_pressed_toggle_binding() {
+fn test_compiled_callback_captures_explicit_group_targets_without_global_registry() {
 	mut model := CompiledVmlTestModel{ checked: true }
-	event := compiled_vml_event('missing-toggle', 'pressed', 'app.checked', '')
-	handled := handle_compiled_vml_event[CompiledVmlTestModel](mut model, event) or { panic(err) }
-	assert handled
+	select_right := compiled_vml_callback(mut model, CompiledVmlCallbackConfig{
+		binding_property: 'pressed'
+		binding_target:   'app.secondary'
+		group_targets:    ['app.checked', 'app.secondary']
+	})
+	select_right(ElementEvent{ kind: .change, checked: true })
 	assert !model.checked
+	assert model.secondary
 }
 
-fn test_compiled_vml_event_clears_pressed_group_peers() {
-	$if ui2_custom_rendering ? {
-		reset_compiled_vml_bindings()
-		_ = compiled_vml_event('left', 'pressed', 'app.checked', '')
-		event := compiled_vml_event('right', 'pressed', 'app.secondary', '')
-		g_toggle_values = map[string]bool{
-			'left':  false
-			'right': true
-		}
-		g_toggle_groups = map[string]string{
-			'left':  'choice'
-			'right': 'choice'
-		}
-		g_active_toggles = map[string]bool{
-			'left':  true
-			'right': true
-		}
-		mut model := CompiledVmlTestModel{ checked: true }
-		handled := handle_compiled_vml_event[CompiledVmlTestModel](mut model, event) or {
-			panic(err)
-		}
-		assert handled
-		assert !model.checked
-		assert model.secondary
-		g_toggle_values = map[string]bool{}
-		g_toggle_groups = map[string]string{}
-		g_active_toggles = map[string]bool{}
-		reset_compiled_vml_bindings()
-	}
+fn compiled_callback_test_build(mut model CompiledVmlTestModel) Element {
+	return with_event(button('accept', 'Accept', rect(0, 0, 100, 32), BoxStyle{}, TextStyle{}),
+		compiled_vml_callback(mut model, CompiledVmlCallbackConfig{
+			binding_property: 'checked'
+			binding_target:   'app.checked'
+		}))
+}
+
+fn test_compiled_window_builder_callbacks_borrow_the_live_model() {
+	mut controller := &CompiledVmlController[CompiledVmlTestModel]{ build: compiled_callback_test_build }
+	mut runtime := compiled_vml_runtime()
+	previous := runtime.controller
+	runtime.controller = voidptr(controller)
+	defer { runtime.controller = previous }
+	root := compiled_vml_controller_build[CompiledVmlTestModel]()
+	root.on_event(ElementEvent{ kind: .change, checked: true })
+	assert controller.model.checked
 }

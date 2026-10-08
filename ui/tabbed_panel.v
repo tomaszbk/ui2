@@ -17,11 +17,11 @@ pub enum TabPosition {
 
 pub struct TabbedPanelTab {
 pub:
-	id        string
-	title     string
-	action_id string
-	content   Element
-	enabled   bool = true
+	id       string
+	title    string
+	on_event ElementCallback = unsafe { nil }
+	content  Element
+	enabled  bool = true
 }
 
 pub struct TabbedPanelConfig {
@@ -85,7 +85,7 @@ fn tabs_are_horizontal(position TabPosition) bool {
 	return tabs_on_top(position) || tabs_on_bottom(position)
 }
 
-fn tab_strip_alignment(position TabPosition) BoxAlignment {
+fn tab_strip_alignment(position TabPosition) LayoutAlignment {
 	return match position {
 		.top_left, .bottom_left, .left_top, .right_top { .start }
 		.top_mid, .bottom_mid, .left_mid, .right_mid { .center }
@@ -106,7 +106,7 @@ fn tabbed_panel_validate(config TabbedPanelConfig) ! {
 	}
 }
 
-fn tab_strip_start(available f64, occupied f64, alignment BoxAlignment) f64 {
+fn tab_strip_start(available f64, occupied f64, alignment LayoutAlignment) f64 {
 	return match alignment {
 		.start { 0 }
 		.center { (available - occupied) / 2 }
@@ -183,9 +183,9 @@ pub fn tabbed_panel(config TabbedPanelConfig) !Element {
 			} else {
 				config.header_box
 			}, if active { config.active_header_text_style } else { config.header_text_style })
-			action_id: tab.action_id
-			enabled: tab.enabled
-			accessibility_role: 'tab'
+			on_event:            tab.on_event
+			enabled:             tab.enabled
+			accessibility_role:  'tab'
 			accessibility_value: if active { 'selected' } else { 'not selected' }
 		}
 	}

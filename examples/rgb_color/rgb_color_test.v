@@ -31,11 +31,16 @@ fn test_rgb_color_updates_preview_and_rejects_invalid_components() {
 }
 
 fn test_rgb_color_vml_uses_dynamic_preview_and_native_button() {
-	root := ui2.element_from_vml_model(rgb_color_vml_source, RgbColorDemo{}, ui2.rect(0, 0, rgb_color_width, rgb_color_height)) or { panic(err) }
+	root := rgb_color_test_tree(rgb_color_vml_source, RgbColorDemo{}, ui2.rect(0, 0, rgb_color_width, rgb_color_height)) or { panic(err) }
 	ui2.validate_element_tree(root) or { panic(err) }
 
 	assert (find_rgb_element(root, 'preview') or { panic('missing preview') }).box.bg == 0x808080
 	button := find_rgb_element(root, 'show_color') or { panic('missing Show RGB button') }
 	assert button.native_style
-	assert button.action_id.len > 0
+	assert voidptr(button.on_event) != unsafe { nil }
+}
+
+fn rgb_color_test_tree[T](source string, model T, frame ui2.Rect) !ui2.Element {
+	mut app := ui2.new_vml_app(source, model)!
+	return app.build(frame)!
 }

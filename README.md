@@ -20,18 +20,17 @@ macOS and Windows use native widgets by default. Pass the compile-time define
 v -d ui2_custom_rendering run examples/users/main.v
 ```
 
-The custom renderer defaults to continuous rendering. Opt into on-demand work
-with `ui2.set_render_policy(.on_demand)` before `run`/`run_window`, or
-`render_policy: .on_demand` in a VML runner configuration. Model changes outside
-VML handlers require `refresh()`; workers can post changes through a captured
+The custom renderer builds on demand. Model changes outside VML handlers
+require `refresh()` or `request_refresh()`; timers and deadlines must request
+updates when external state changes. Workers can post changes through a captured
 `ui2.ui_dispatcher()`. Idle drawing currently stops on macOS Metal. GL/EGL/D3D
 reuse the declared tree but still repaint because Sokol presents every callback.
 See [scheduling and diagnostics](docs/custom-rendering-scheduler.md).
 
 On macOS, the experimental owned embedder adds native windows, Metal surfaces,
 IME composition and a blocking event loop. Enable it with both
-`-d ui2_custom_rendering -d ui2_embedder`, and select `.on_demand` for idle
-sleep. `open_window`/`run_windows` support independent windows with scoped
+`-d ui2_custom_rendering -d ui2_embedder` for idle sleep.
+`open_window`/`run_windows` support independent windows with scoped
 updates and dispatchers. See [the embedder contract and acceptance tests](docs/custom-embedder.md).
 
 ## Requirements
@@ -65,8 +64,13 @@ ln -s "$(pwd)" ~/.vmodules/ui2
 - `Element.key` identifies a child during reconciliation. Keys must be unique
   among siblings; IDs must be unique in the tree. Renderers validate both before
   changing native state.
-- `Element.action_id` identifies the emitted action and falls back to `id`.
-  VML `on_tap` and `on_change` populate `action_id` without replacing `id`.
+- `Element.on_event` is a typed callback attached to that element.
+  `ElementEvent.id` identifies its source; ids never select a callback.
+  Attach callbacks with `with_event(element, callback)` or a control config.
+
+Callbacks receive the event kind, committed text/value/checked state and logical
+pointer coordinates. Scroll notifications use `.scroll`, with the vertical
+logical offset in `value`; VML declares them with `on_scroll`.
 
 Text inputs use controlled-on-change semantics: changing the declared `text`
 applies that value, while a refresh with the same declaration preserves the
@@ -78,7 +82,7 @@ method composition. Use `set_text` for an explicit imperative replacement.
 Animations target a mounted element by `id` and are applied after each
 declarative build, so they work with both V-built and VML-built trees. The
 native backends schedule redraws for the duration; the custom renderer requests
-frames while visible animations run, including in opt-in on-demand mode.
+frames while visible animations run and returns to idle when they finish.
 
 ```v
 move := ui2.animation(
@@ -156,44 +160,13 @@ ui2.run_vml[App](
 )!
 ```
 
-For VML that ships with the application, the v3 compiler can lower the document
-straight to V expressions that construct `ui2.Element` values. Name the model
-parameter `app`, use `$vml` in a build function, and pass it to
-`run_compiled_vml`:
-
-```v
-fn build(app &App) ui2.Element {
-    return $vml('app.vml')
-}
-
-fn main() {
-    ui2.run_compiled_vml[App](
-        model: App{}
-        build: build
-        title: 'My app'
-        width: 780
-        height: 420
-    )!
-}
-```
-
-`$vml` reads and validates the document during compilation, then emits direct
-element constructors and V loops for repeaters. Refreshes evaluate model
-expressions and build the element tree without parsing VML or interpreting an
-expression AST. Typed actions and `bind.text`/`bind.checked`/`bind.active`/
-`bind.value` are handled by the compiled runner. Keep using `run_vml` when the
-VML source must be loaded or edited at runtime.
-
-The compile-time form currently requires the v3 compiler. The included benchmark
-caches parsing for the runtime-VML baseline, so it compares steady-state tree
-building rather than charging runtime VML for repeatedly parsing the file:
-
-```sh
-/path/to/vnew -nocache -prod \
-    -path "$(dirname "$PWD")|@vlib|@vmodules" \
-    -o /tmp/ui2-vml-build-bench benchmarks/vml_build/main.v
-/tmp/ui2-vml-build-bench
-```
+The compiled runner accepts a builder with signature `fn (mut App) Element`.
+Compiled builders attach typed callbacks with `compiled_vml_callback`; each
+callback captures its declared binding/action record and receives committed
+control values. The pinned compiler's `$vml` lowering still emits the removed
+APIs. Updating that lowering is the next compiler work; the `$vml` case in
+`benchmarks/vml_build` requires it. Runtime VML and direct V builders use the
+current APIs now.
 
 Ordinary properties are one-way expressions. `bind.text` and `bind.checked`
 write control edits back to a public mutable model field, including nested struct
@@ -203,7 +176,7 @@ Public model methods with no arguments, one `int`, or one `string` argument can 
 actions:
 
 ```vml
-TextField { bind.text: app.name }
+TextInput { multiline: false  bind.text: app.name }
 Button {
     text: "Add"
     enabled: app.users.len < app.max_users
@@ -233,8 +206,7 @@ outside event handlers; calls and assignments are restricted to event handlers.
 Unknown model paths, non-writable binding targets, and invalid action signatures
 fail document loading.
 
-Compile-time `$vml` supports typed method actions and two-way bindings, but not
-event assignments; use a public model method for those transitions.
+Runtime VML supports typed method actions, two-way bindings and event assignments.
 Validation traverses every expression branch and repeater item schema without
 executing expressions against the model's initial values.
 
@@ -257,50 +229,58 @@ application should own its colors and shape; `native: true` requests the
 standard native-style appearance instead.
 
 ```vml
-Button {
-    id: save
-    text: "Save"
-    on_tap: app.save()
-    x: 20
-    y: 20
-    width: 120
-    height: 40
-    background: #2563EB
-    border_color: #1D4ED8
-    border_width: 1
-    corner_radius: 8
-    color: #FFFFFF
-    bold: true
+Absolute {
+    transparent: true
+    Button {
+        id: save
+        text: "Save"
+        on_tap: app.save()
+        x: 20
+        y: 20
+        width: 120
+        height: 40
+        background: #2563EB
+        border_color: #1D4ED8
+        border_width: 1
+        corner_radius: 8
+        color: #FFFFFF
+        bold: true
+    }
 }
 ```
 
 When the button needs arbitrary content rather than a single caption, compose
-it from a `Rectangle` (or `View`) and opt the container into button activation
+it from a `View` and opt the container into button activation
 with `button_behavior: true`. The whole rectangle is the activation target;
 noninteractive children such as its `Label` do not block the tap:
 
 ```vml
-Rectangle {
-    id: save_card
-    button_behavior: true
-    on_tap: app.save()
-    x: 20
-    y: 20
-    width: 180
-    height: 56
-    background: #2563EB
-    corner_radius: 8
-    cursor: "pointing_hand"
-
-    Label {
-        text: "Save changes"
-        x: 16
-        y: 16
-        width: 148
-        height: 24
-        align: center
-        color: #FFFFFF
-        bold: true
+Absolute {
+    transparent: true
+    View {
+        id: save_card
+        button_behavior: true
+        on_tap: app.save()
+        x: 20
+        y: 20
+        width: 180
+        height: 56
+        background: #2563EB
+        corner_radius: 8
+        cursor: "pointing_hand"
+        Absolute {
+            transparent: true
+            Label {
+                text: "Save changes"
+                x: 16
+                y: 16
+                width: 148
+                height: 24
+                align: center
+                color: #FFFFFF
+                bold: true
+            }
+        }
     }
 }
 ```
@@ -320,8 +300,8 @@ native keyboard focus treatment. Use `Button` when a platform-drawn bezel and
 pressed state are required.
 
 This is deliberately separate from `clickable: true`. A clickable view is a
-low-level pointer surface that reports `pointer:down:...` and `pointer:up:...`
-events (and can be combined with `draggable`) for code that needs coordinates
+low-level pointer surface that reports typed `.pointer_down`, `.pointer_drag`
+and `.pointer_up` events (and can be combined with `draggable`) for code that needs coordinates
 or gesture phases. Use `button_behavior` for a normal action-bearing composite
 control. If both flags are set, the surface emits the raw pointer phases and
 then its ordinary action after a successful tap.
@@ -351,13 +331,16 @@ Properties on an instance override the module defaults:
 import PrimaryButton
 
 Screen {
-    PrimaryButton {
-        id: save
-        text: "Save"
-        on_tap: app.save()
-        x: 20
-        y: 20
-        width: 120
+    Absolute {
+        transparent: true
+        PrimaryButton {
+            id: save
+            text: "Save"
+            on_tap: app.save()
+            x: 20
+            y: 20
+            width: 120
+        }
     }
 }
 ```
@@ -369,7 +352,7 @@ accept its visible content as instance children. For example,
 ```vml
 module ActionSurface
 
-Rectangle {
+View {
     button_behavior: true
     height: 56
     background: #2563EB
@@ -384,22 +367,27 @@ images, or decorative rectangles:
 import ActionSurface
 
 Screen {
-    ActionSurface {
-        id: save_card
-        on_tap: app.save()
-        x: 20
-        y: 20
-        width: 180
-
-        Label {
-            text: "Save changes"
-            x: 16
-            y: 16
-            width: save_card.width - 32
-            height: 24
-            align: center
-            color: #FFFFFF
-            bold: true
+    Absolute {
+        transparent: true
+        ActionSurface {
+            id: save_card
+            on_tap: app.save()
+            x: 20
+            y: 20
+            width: 180
+            Absolute {
+                transparent: true
+                Label {
+                    text: "Save changes"
+                    x: 16
+                    y: 16
+                    width: save_card.width - 32
+                    height: 24
+                    align: center
+                    color: #FFFFFF
+                    bold: true
+                }
+            }
         }
     }
 }
@@ -449,29 +437,29 @@ fn primary_button(id string, title string, frame ui2.Rect) ui2.Element {
 }
 ```
 
-A button emits its `id` by default. Wrap it with `with_action` when its lookup
-identity and action name should differ; `button_with_image`, `with_tooltip`, and
-`with_native_style` can be composed in the same way.
+A button invokes its attached `ElementCallback`. Use `with_event` to attach a
+callback; `button_with_image`, `with_tooltip`, and `with_native_style` can be
+composed in the same way.
 
 For arbitrary child elements, use `button_view` instead. Child frames are
 relative to the view, just as they are for an ordinary `view`:
 
 ```v
-fn save_card(id string, action string, frame ui2.Rect) ui2.Element {
+fn save_card(id string, on_save ui2.ElementCallback, frame ui2.Rect) ui2.Element {
     caption := ui2.label(
         '${id}_caption',
         'Save changes',
         ui2.rect(16, 16, frame.width - 32, 24),
         ui2.TextStyle{ color: 0xffffff, bold: true, align: .center },
     )
-    return ui2.with_action(
+    return ui2.with_event(
         ui2.button_view(
             id,
             frame,
             ui2.BoxStyle{ bg: 0x2563eb, radius: 8 },
             [caption],
         ),
-        action,
+        on_save,
     )
 }
 ```
@@ -497,13 +485,13 @@ button does not come out as a bare caption. A button the application gave its
 own background keeps it, since the platform styling stops where the
 application's own begins.
 
-Box-backed elements (`Rectangle`/`View`, `Button`, `Scroll`, `Dropdown`,
-`TextField`, and `TextArea`) can draw each border edge independently. Widths use
+Box-backed elements (`View`, `Button`, `Scroll`, `Dropdown`,
+`TextInput`) can draw each border edge independently. Widths use
 the same logical units as frames and corner radii, so native and custom
 renderers scale them with the rest of the element:
 
 ```vml
-Rectangle {
+View {
     background: #10131F
     border_color: #28314A
     border_left: 1
@@ -633,30 +621,20 @@ asynchronous presentation callback.
 For Linux and custom-rendered applications, `FilePicker` provides an in-window
 picker with no `zenity` or `kdialog` dependency. It uses the same
 `FileDialogConfig` for open, save, and folder modes. Keep the picker in app
-state, add `picker.render(ui2.bounds())` as the last screen child, and forward
-events to `picker.handle`. The picker is asynchronous: `done` becomes true when
-the user accepts or cancels, and cancellation returns no paths. Call
-`ui2.refresh()` after opening it or handling an event on native backends.
+state and add `picker.render(ui2.bounds())` as the last screen child. Its
+controls attach callbacks directly. `FilePickerConfig.on_result` receives a
+`FilePickerResult` with `.selected` and absolute paths, or `.cancelled`.
 
 ```v
 mut picker := ui2.new_file_picker(
-	id: 'picker'
-	dialog: ui2.FileDialogConfig{
-		kind: .open
-		directory: '/work/project'
-		multiple: true
-		filters: [ui2.FileDialogFilter{ name: 'V source', extensions: ['v'] }]
-	}
+    id: 'picker'
+    dialog: ui2.FileDialogConfig{ kind: .open directory: '/work/project' multiple: true }
+    on_result: fn (result ui2.FilePickerResult) {
+        if result.kind == .selected { println(result.paths) }
+    }
 )!
 picker.open()!
-// In the window's event callback:
-value := if event == 'picker__go' { ui2.text(picker.path_id()) }
-    else if event == picker.filename_id() { ui2.text(picker.filename_id()) }
-    else { '' }
-result := picker.handle(event, value)
-if result.done {
-	println(result.paths)
-}
+ui2.request_refresh()
 ```
 
 Run `v run examples/custom_file_picker/main.v` for a complete example. The
@@ -668,30 +646,23 @@ absolute path.
 
 `set_menu_bar(...)` installs the application's top level menu bar and
 `set_tray(...)` docks an icon in the status area. Both are plain declarations,
-and both emit through the event handler `run_window` was given — the same
-channel a button tap arrives on, so a menu row and a control can share an
-action id and run the same code:
+and each menu leaf carries `on_select`; a menu-less tray icon carries
+`on_event`. Both receive `ElementEvent` with `.tap` and source identity.
 
 ```v
-ui2.set_menu_bar([
-	ui2.Menu{
-		title: 'File'
-		items: [
-			ui2.menu_item_with_shortcut('file_new', 'New Note', 'cmd+n'),
-			ui2.menu_separator(),
-			ui2.disabled(ui2.menu_item('file_revert', 'Revert')),
-			ui2.submenu('Export', [
-				ui2.menu_item('export_pdf', 'PDF'),
-			]),
-		]
-	},
-])
-
+ui2.set_menu_bar([ui2.Menu{
+    title: 'File'
+    items: [ui2.MenuItem{
+        id: 'file_new'
+        title: 'New Note'
+        shortcut: 'cmd+n'
+        on_select: fn (event ui2.ElementEvent) { println('New note') }
+    }]
+}])
 ui2.set_tray(
-	title:   'ui2'
-	icon:    'symbol:cup.and.saucer.fill'
-	tooltip: 'ui2 tray demo'
-	menu:    [ui2.menu_item('tray_quit', 'Quit')]
+    title: 'ui2'
+    icon: 'symbol:cup.and.saucer.fill'
+    on_event: fn (event ui2.ElementEvent) { println('Tray clicked') }
 )
 ```
 
@@ -712,22 +683,22 @@ window, so `tray_supported()` is `false` there. iOS and Android have neither, so
 both calls are accepted and ignored; check `menu_bar_supported()` and
 `tray_supported()` before offering them in a shared UI.
 
-`validate_menus(...)` rejects an untitled menu, a row that emits nothing, a
-duplicated id, a submenu that also emits, and a decorated separator, so a
+`validate_menus(...)` rejects an untitled menu, an empty leaf declaration, a
+duplicated id, a submenu with a callback, and a decorated separator, so a
 declaration can be checked in a test without a window.
 
 ## Layout and text offsets
 
-VML provides `FlexLayout` for content-sized, growing/shrinking and wrapping
-children, and `GridLayout` for rows/columns, responsive automatic columns and
-cell spans. Both assign parent-local child frames. `BoxLayout` also supports
-weighted sizing and min/max bounds; `StackLayout` wraps fixed-size children.
-Existing fixed frames and `Row`/`Column` documents retain their sizing rules.
+VML provides `Flex` for content-sized, growing/shrinking and wrapping
+children, and `Grid` for rows/columns, responsive automatic columns and
+cell spans. Both assign parent-local child frames. `Stack` overlays aligned
+children; `Absolute` preserves explicit parent-local geometry. `Row` and `Column`
+are Flex conveniences.
+Authored VML x/y and element geometry expressions require a direct Absolute parent.
 
-Responsive layouts can combine these containers with expressions such as
-`root.width < 600`, or use the existing adaptive screen variants. Flex/Grid
-layout is shared by native backends and the custom renderer, including
-`render_policy: .on_demand`. This is a V layout API, not a CSS implementation.
+Responsive layouts can combine wrapping, automatic Grid columns and conditional
+visibility with expressions such as `root.width < 600`. Flex/Grid layout is
+shared by native backends and the custom renderer.
 See [modern layout](docs/modern-layout.md) for properties, intrinsic measurement,
 limits and the executable `examples/responsive_layout` example.
 
@@ -754,15 +725,15 @@ column given a prefix-width function.
 
 ## Fonts and text sizes
 
-`TextStyle.size` is in points. Win32 and the Linux desktops resolve a point at
-96 dpi, AppKit and UIKit at 72, so the custom renderer follows whichever
-platform it draws on and a declared size matches the native controls beside it.
-The default size of 15 is therefore a 20 px em square on Linux and Windows, and
-15 px on macOS and iOS.
+`TextStyle.size` and VML `font_size` are logical em sizes on every platform,
+using the same units as geometry. The default size of 15 means a 15-unit em
+square. Device DPI scales presentation separately; it does not change layout,
+text sizes or line breaks. There is no unit profile or `units` VML property.
+See [logical units](docs/logical-units.md) for migration and rounding rules.
 
 The custom desktop renderer uses vglyph/Pango for layout and shaping and
 FreeType for rasterization. Its CPU measurement works before opening a window
-and uses the same font resolution, wrapping and point conversion as drawing.
+and uses the same font resolution, wrapping and logical sizes as drawing.
 Device DPI is applied separately for each drawing context. See
 [the text backend contract](docs/vglyph-text.md#measurement-and-units).
 

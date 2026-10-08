@@ -1,15 +1,23 @@
+@[has_globals]
 module ui2
+
+__global tree_view_test_events = []ElementEvent{}
+__global tree_view_test_callbacks = []string{}
+
+fn capture_tree_view_test_event(event ElementEvent) {
+	tree_view_test_events << event
+}
 
 fn tree_view_test_nodes(expanded bool) []TreeViewNode {
 	return [
 		TreeViewNode{
-			id: 'docs'
-			text: 'Documentation'
+			id:       'docs'
+			text:     'Documentation'
 			expanded: expanded
 			children: [
 				TreeViewNode{
-					id: 'guide'
-					text: 'Guide'
+					id:       'guide'
+					text:     'Guide'
 					children: [
 						TreeViewNode{ id: 'install', text: 'Install', selected: true },
 					]
@@ -23,19 +31,19 @@ fn tree_view_test_nodes(expanded bool) []TreeViewNode {
 
 fn test_tree_view_rows_flatten_only_expanded_nodes() {
 	collapsed := tree_view_rows(
-		frame: rect(0, 0, 300, 200)
+		frame:      rect(0, 0, 300, 200)
 		row_height: 32
-		spacing: 4
-		nodes: tree_view_test_nodes(false)
+		spacing:    4
+		nodes:      tree_view_test_nodes(false)
 	) or { panic(err) }
 	assert collapsed.len == 2
 	assert collapsed[1].node.id == 'license'
 
 	expanded := tree_view_rows(
-		frame: rect(0, 0, 300, 200)
+		frame:      rect(0, 0, 300, 200)
 		row_height: 32
-		spacing: 4
-		nodes: tree_view_test_nodes(true)
+		spacing:    4
+		nodes:      tree_view_test_nodes(true)
 	) or { panic(err) }
 	assert expanded.len == 4
 	assert expanded[1].node.id == 'guide'
@@ -46,21 +54,21 @@ fn test_tree_view_rows_flatten_only_expanded_nodes() {
 
 fn test_tree_view_nested_expansion_and_content_height() {
 	nodes := [TreeViewNode{
-		id: 'root'
-		text: 'Root'
+		id:       'root'
+		text:     'Root'
 		expanded: true
 		children: [TreeViewNode{
-			id: 'branch'
-			text: 'Branch'
+			id:       'branch'
+			text:     'Branch'
 			expanded: true
 			children: [TreeViewNode{ id: 'leaf', text: 'Leaf' }]
 		}]
 	}]
 	config := TreeViewConfig{
-		frame: rect(0, 0, 240, 200)
+		frame:      rect(0, 0, 240, 200)
 		row_height: 30
-		spacing: 3
-		nodes: nodes
+		spacing:    3
+		nodes:      nodes
 	}
 	rows := tree_view_rows(config) or { panic(err) }
 	assert rows[2].depth == 2
@@ -69,33 +77,46 @@ fn test_tree_view_nested_expansion_and_content_height() {
 
 fn test_tree_view_constructor_builds_disclosure_and_selection_controls() {
 	view_element := tree_view(
-		id: 'navigation'
-		frame: rect(10, 20, 300, 200)
-		row_height: 32
-		spacing: 4
-		indent: 20
+		id:               'navigation'
+		frame:            rect(10, 20, 300, 200)
+		row_height:       32
+		spacing:          4
+		indent:           20
 		disclosure_width: 24
 		selected_row_box: BoxStyle{ bg: 0xdbeafe }
-		nodes: [TreeViewNode{
-			id: 'docs'
-			text: 'Documentation'
-			toggle_action_id: 'toggle_docs'
-			expanded: true
-			children: [TreeViewNode{
-				id: 'guide'
-				text: 'Guide'
-				action_id: 'select_guide'
+		nodes:            [TreeViewNode{
+			id:        'docs'
+			text:      'Documentation'
+			on_toggle: fn (event ElementEvent) {
+				tree_view_test_callbacks << 'toggle'
+				tree_view_test_events << event
+			}
+			expanded:  true
+			children:  [TreeViewNode{
+				id:       'guide'
+				text:     'Guide'
+				on_event: fn (event ElementEvent) {
+					tree_view_test_callbacks << 'select'
+					tree_view_test_events << event
+				}
 				selected: true
 			}]
 		}]
 	) or { panic(err) }
 	assert view_element.accessibility_role == 'tree'
 	assert view_element.children.len == 2
-	assert view_element.children[0].children[0].action_id == 'toggle_docs'
+	tree_view_test_events = []ElementEvent{}
+	tree_view_test_callbacks = []string{}
+	toggle := view_element.children[0].children[0]
+	toggle.on_event(ElementEvent{ kind: .tap, id: toggle.id })
 	assert view_element.children[0].children[0].accessibility_value == 'expanded'
 	assert view_element.children[1].children[1].frame == rect(44, 0, 256, 32)
 	assert view_element.children[1].children[1].box.bg == u32(0xdbeafe)
-	assert view_element.children[1].children[1].action_id == 'select_guide'
+	selection := view_element.children[1].children[1]
+	selection.on_event(ElementEvent{ kind: .tap, id: selection.id })
+	assert tree_view_test_callbacks == ['toggle', 'select']
+	assert tree_view_test_events[0].id == toggle.id
+	assert tree_view_test_events[1].id == selection.id
 	assert view_element.children[1].children[1].accessibility_value == 'selected'
 }
 

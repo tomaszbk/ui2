@@ -14,9 +14,9 @@ fn text_style_line_height(style TextStyle) f64 {
 	return if style.line_height > 0 {
 		style.line_height
 	} else if style.line_height_factor > 0 {
-		font_style_em_pixels(style) * style.line_height_factor
+		style.size * style.line_height_factor
 	} else {
-		font_style_line_height(style)
+		font_line_height(style.size)
 	}
 }
 
@@ -51,10 +51,9 @@ fn text_runs_slice(runs []TextRun, start int, end int, ellipsis bool) []TextRun 
 fn scaled_overlay_text_style(style TextStyle, scale f64) TextStyle {
 	return TextStyle{
 		...style
-		units: .logical
-		size: font_style_em_pixels(style) * scale
-		letter_spacing: style.letter_spacing * scale
-		line_height: style.line_height * scale
+		size:            style.size * scale
+		letter_spacing:  style.letter_spacing * scale
+		line_height:     style.line_height * scale
 		baseline_offset: style.baseline_offset * scale
 	}
 }

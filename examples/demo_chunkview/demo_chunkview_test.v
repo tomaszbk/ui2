@@ -37,9 +37,9 @@ fn test_chunkview_vml_preserves_nested_text_styles() {
 	second := find_chunkview_element(root, 'second_chunk') or { panic('missing second chunk') }
 	assert !first.hidden
 	assert second.hidden
-	assert first.children[0].text_style.bold
-	assert first.children[0].text_style.italic
-	assert second.children[1].text_style.font_family == 'Courier New'
-	assert second.children[2].text_style.underline
+	assert first.children[0].children[0].text_style.bold
+	assert first.children[0].children[0].text_style.italic
+	assert second.children[0].children[1].text_style.font_family == 'Courier New'
+	assert second.children[0].children[2].text_style.underline
 	assert (find_chunkview_element(root, 'reset_chunks') or { panic('missing reset') }).native_style
 }

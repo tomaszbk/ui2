@@ -41,11 +41,10 @@ fn test_repeater_reads_interface_fields_and_dispatches_stable_item_actions() {
 		items: [RepeaterItemContract(RepeaterItemA{
 			id:    7
 			label: 'One'
-		}),
-			RepeaterItemContract(&RepeaterItemB{
-				id:    9
-				label: 'Two'
-			})]
+		}), RepeaterItemContract(&RepeaterItemB{
+			id:    9
+			label: 'Two'
+		})]
 	}
 	template := parse_vml(interface_repeater_source) or { panic(err) }
 	v_validate_template(template, model) or { panic(err) }
@@ -56,13 +55,13 @@ fn test_repeater_reads_interface_fields_and_dispatches_stable_item_actions() {
 	assert root.children[1].text == 'Two'
 	assert root.children[0].key == '7'
 	assert root.children[1].key == '9'
-	event := events[root.children[1].action_id] or { panic('missing event') }
+	event := events[resolved.children[1].prop('on_tap')] or { panic('missing event') }
 	invocation := event.invocation or { panic('missing action') }
 	vml_dispatch(mut model, invocation) or { panic(err) }
 	assert model.selected == 9
 	model.items.reverse_in_place()
 	reordered, _ := v_evaluate_template(template, model, rect(0, 0, 240, 160)) or { panic(err) }
-	assert reordered.children[0].prop('on_tap') == root.children[1].action_id
+	assert reordered.children[0].prop('on_tap') == resolved.children[1].prop('on_tap')
 }
 
 fn test_empty_interface_repeater_validates_without_dereferencing_an_item() {
@@ -83,10 +82,9 @@ fn test_interface_repeater_rejects_duplicate_keys() {
 	model := InterfaceRepeaterApp{
 		items: [RepeaterItemContract(RepeaterItemA{
 			id: 7
-		}),
-			RepeaterItemContract(RepeaterItemB{
-				id: 7
-			})]
+		}), RepeaterItemContract(RepeaterItemB{
+			id: 7
+		})]
 	}
 	if _ := element_from_vml_model(interface_repeater_source, model, rect(0, 0, 240, 160)) {
 		assert false, 'duplicate interface keys must not be accepted'

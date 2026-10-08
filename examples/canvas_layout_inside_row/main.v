@@ -98,49 +98,39 @@ fn inside_row_card_size(frame ui2.Rect) (f64, f64) {
 	return frame.width - 32.0, frame.height - 32.0
 }
 
-fn inside_row_pointer(event string) ?(string, string, f64, f64) {
-	parts := event.split(':')
-	if parts.len < 5 || parts[0] != 'pointer' {
-		return none
-	}
-	return parts[1], parts[2], parts[3].f64(), parts[4].f64()
-}
-
-fn (mut app InsideRowDemo) handle_event(event string, card_width f64, card_height f64) {
-	match event {
-		'return' {
-			app.return_to_tray()
+fn canvas_layout_inside_row_callbacks() map[string]ui2.ElementCallback {
+	return {
+		'return': fn (_event ui2.ElementEvent) {
+			mut state := unsafe { inside_row_state }
+			state.return_to_tray()
+			ui2.refresh()
 		}
-		'rotate' {
-			app.rotate()
+		'rotate': fn (_event ui2.ElementEvent) {
+			mut state := unsafe { inside_row_state }
+			state.rotate()
+			ui2.refresh()
 		}
-		else {
-			phase, id, x, y := inside_row_pointer(event) or { return }
-			if id != 'logo' {
-				return
+		'logo':   fn (event ui2.ElementEvent) {
+			mut state := unsafe { inside_row_state }
+			card_width, card_height := inside_row_card_size(ui2.bounds())
+			match event.kind {
+				.pointer_down { state.grab_logo(event.x, event.y) }
+				.pointer_drag, .pointer_up {
+					state.drag_logo(event.x, event.y, card_width, card_height)
+				}
+				else {}
 			}
-			if phase == 'down' {
-				app.grab_logo(x, y)
-			} else {
-				app.drag_logo(x, y, card_width, card_height)
-			}
+			ui2.refresh()
 		}
 	}
 }
 
 fn build_inside_row_screen() ui2.Element {
 	state := unsafe { inside_row_state }
-	return ui2.element_from_vml_model(inside_row_vml_source, *state, ui2.bounds()) or {
+	return ui2.element_from_vml_model_with_callbacks(inside_row_vml_source, *state, ui2.bounds(), canvas_layout_inside_row_callbacks()) or {
 		eprintln('canvas-layout-inside-row VML failed: ${err}')
 		ui2.screen(0xf1f5f9, [])
 	}
-}
-
-fn handle_inside_row_event(event string) {
-	mut state := unsafe { inside_row_state }
-	card_width, card_height := inside_row_card_size(ui2.bounds())
-	state.handle_event(event, card_width, card_height)
-	ui2.refresh()
 }
 
 fn main() {
@@ -148,5 +138,5 @@ fn main() {
 	unsafe {
 		*state = inside_row_demo()
 	}
-	ui2.run_window('Canvas Layout Inside Row', inside_row_width, inside_row_height, build_inside_row_screen, handle_inside_row_event)
+	ui2.run_window('Canvas Layout Inside Row', inside_row_width, inside_row_height, build_inside_row_screen)
 }

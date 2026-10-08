@@ -11,11 +11,11 @@ pub:
 
 pub struct SwitchConfig {
 pub:
-	id        string
-	action_id string
-	frame     Rect
-	active    bool
-	style     SwitchStyle
+	id       string
+	on_event ElementCallback = unsafe { nil }
+	frame    Rect
+	active   bool
+	style    SwitchStyle
 }
 
 // switch_track_frame centers the switch chrome inside the full interactive
@@ -45,13 +45,13 @@ fn switch_thumb_frame(track Rect, active bool) Rect {
 // live backend value during the action callback.
 pub fn switch_control(config SwitchConfig) Element {
 	return Element{
-		kind: .switch_control
-		id: config.id
-		action_id: config.action_id
-		frame: config.frame
-		checked: config.active
-		switch_style: config.style
-		accessibility_role: 'switch'
+		kind:                .switch_control
+		id:                  config.id
+		on_event:            config.on_event
+		frame:               config.frame
+		checked:             config.active
+		switch_style:        config.style
+		accessibility_role:  'switch'
 		accessibility_label: 'Switch'
 		accessibility_value: if config.active { 'on' } else { 'off' }
 	}

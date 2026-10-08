@@ -2,11 +2,11 @@ module ui2
 
 pub struct AccordionItem {
 pub:
-	id        string
-	title     string
-	action_id string
-	content   Element
-	enabled   bool = true
+	id       string
+	title    string
+	on_event ElementCallback = unsafe { nil }
+	content  Element
+	enabled  bool = true
 }
 
 pub struct AccordionConfig {
@@ -15,7 +15,7 @@ pub:
 	frame                    Rect
 	box                      BoxStyle
 	current                  int
-	orientation              BoxOrientation
+	orientation              LayoutOrientation
 	min_space                f64 = 44.0
 	header_box               BoxStyle
 	active_header_box        BoxStyle
@@ -88,7 +88,7 @@ pub fn accordion_geometry(config AccordionConfig) !AccordionGeometry {
 		cursor += item_length
 	}
 	return AccordionGeometry{
-		items: items
+		items:   items
 		headers: headers
 		content: content
 	}
@@ -112,9 +112,9 @@ pub fn accordion(config AccordionConfig) !Element {
 			} else {
 				config.header_box
 			}, if active { config.active_header_text_style } else { config.header_text_style })
-			action_id: item.action_id
-			enabled: item.enabled
-			accessibility_role: 'button'
+			on_event:            item.on_event
+			enabled:             item.enabled
+			accessibility_role:  'button'
 			accessibility_value: if active { 'expanded' } else { 'collapsed' }
 		}
 	}

@@ -49,19 +49,19 @@ fn test_nested_clipping_vml_swaps_a_scroll_viewport_for_the_spilling_bars() {
 	root := ui2.element_from_vml_model(nested_clipping_vml_source, app, frame) or { panic(err) }
 	ui2.validate_element_tree(root) or { panic(err) }
 	stage := find_clipping_element(root, 'stage') or { panic('missing stage') }
-	assert stage.children.len == 16
-	first := stage.children[0]
+	assert stage.children[0].children.len == 16
+	first := stage.children[0].children[0]
 	assert first.key == 'box-1'
 	// The 4x4 grid has to stay inside the stage it is padded into.
-	last := stage.children[15]
+	last := stage.children[0].children[15]
 	assert last.frame.x + last.frame.width <= stage.frame.width - 10
 	assert last.frame.y + last.frame.height <= stage.frame.height - 10
 	// The first box was unclipped, so its viewport is hidden and the bare bars show.
-	assert first.children[0].hidden
-	assert !first.children[1].hidden
-	assert first.children[1].frame.x == -70
-	second := stage.children[1]
-	assert !second.children[0].hidden
-	assert second.children[1].hidden
+	assert first.children[0].children[0].hidden
+	assert !first.children[0].children[1].hidden
+	assert first.children[0].children[1].frame.x == -70
+	second := stage.children[0].children[1]
+	assert !second.children[0].children[0].hidden
+	assert second.children[0].children[1].hidden
 	assert (find_clipping_element(root, 'quadrant3') or { panic('missing quadrant button') }).native_style
 }

@@ -3,7 +3,7 @@ module ui2
 import math
 
 fn test_grid_layout_requires_a_row_or_column_constraint() {
-	if _ := grid_layout_frames(GridLayoutConfig{}, 1) {
+	if _ := grid_frames(GridConfig{}, 1) {
 		assert false, 'an unconstrained grid must fail'
 	} else {
 		assert err.msg().contains('requires columns or rows')
@@ -11,7 +11,7 @@ fn test_grid_layout_requires_a_row_or_column_constraint() {
 }
 
 fn test_grid_layout_rejects_children_beyond_fixed_capacity() {
-	if _ := grid_layout_frames(GridLayoutConfig{ columns: 2, rows: 2 }, 5) {
+	if _ := grid_frames(GridConfig{ columns: 2, rows: 2 }, 5) {
 		assert false, 'a fixed grid must reject excess children'
 	} else {
 		assert err.msg().contains('only 4 cells')
@@ -19,7 +19,7 @@ fn test_grid_layout_rejects_children_beyond_fixed_capacity() {
 }
 
 fn test_grid_layout_distributes_space_with_padding_spacing_and_minimums() {
-	frames := grid_layout_frames(GridLayoutConfig{
+	frames := grid_frames(GridConfig{
 		frame:              rect(0, 0, 230, 110)
 		columns:            2
 		padding:            GridPadding{ left: 10, top: 8, right: 10, bottom: 8 }
@@ -35,7 +35,7 @@ fn test_grid_layout_distributes_space_with_padding_spacing_and_minimums() {
 }
 
 fn test_grid_layout_can_force_default_axis_sizes() {
-	frames := grid_layout_frames(GridLayoutConfig{
+	frames := grid_frames(GridConfig{
 		frame:                rect(0, 0, 300, 200)
 		columns:              2
 		column_default_width: 60
@@ -50,7 +50,7 @@ fn test_grid_layout_can_force_default_axis_sizes() {
 }
 
 fn test_grid_layout_supports_rows_and_reverse_column_major_flow() {
-	frames := grid_layout_frames(GridLayoutConfig{
+	frames := grid_frames(GridConfig{
 		frame:       rect(0, 0, 200, 100)
 		rows:        2
 		orientation: .bottom_to_top_right_to_left
@@ -80,7 +80,7 @@ fn test_grid_layout_supports_all_fill_orientations() {
 }
 
 fn test_grid_layout_replaces_child_frames_and_preserves_content() {
-	grid := grid_layout(
+	grid := grid(
 		id:       'actions'
 		frame:    rect(20, 30, 200, 80)
 		columns:  2
@@ -97,41 +97,41 @@ fn test_grid_layout_replaces_child_frames_and_preserves_content() {
 }
 
 fn test_grid_automatic_columns_follow_width_thresholds_and_shrink_to_one_column() {
-	config := GridLayoutConfig{
+	config := GridConfig{
 		frame:                  rect(0, 0, 310, 200)
 		auto_columns_min_width: 90
 		padding:                GridPadding{ left: 10, right: 10 }
 		spacing:                GridSpacing{ horizontal: 10 }
 	}
-	wide := grid_layout_frames(config, 6) or { panic(err) }
+	wide := grid_frames(config, 6) or { panic(err) }
 	assert wide[0] == rect(10, 0, 90, 100)
 	assert wide[2] == rect(210, 0, 90, 100)
 	assert wide[3] == rect(10, 100, 90, 100)
-	medium := grid_layout_frames(GridLayoutConfig{ ...config, frame: rect(0, 0, 309, 210) }, 6) or { panic(err) }
+	medium := grid_frames(GridConfig{ ...config, frame: rect(0, 0, 309, 210) }, 6) or { panic(err) }
 	assert medium[0] == rect(10, 0, 139.5, 70)
 	assert medium[2] == rect(10, 70, 139.5, 70)
-	narrow := grid_layout_frames(GridLayoutConfig{ ...config, frame: rect(0, 0, 100, 240) }, 6) or { panic(err) }
+	narrow := grid_frames(GridConfig{ ...config, frame: rect(0, 0, 100, 240) }, 6) or { panic(err) }
 	assert narrow[0] == rect(10, 0, 80, 40)
 	assert narrow[5] == rect(10, 200, 80, 40)
 }
 
 fn test_grid_automatic_columns_are_limited_to_children_and_maximum() {
-	config := GridLayoutConfig{
+	config := GridConfig{
 		frame:                  rect(0, 0, 800, 200)
 		auto_columns_min_width: 100
 	}
-	frames := grid_layout_frames(config, 2) or { panic(err) }
+	frames := grid_frames(config, 2) or { panic(err) }
 	assert frames == [rect(0, 0, 400, 200), rect(400, 0, 400, 200)]
-	capped := grid_layout_frames(GridLayoutConfig{ ...config, max_columns: 2 }, 5) or { panic(err) }
+	capped := grid_frames(GridConfig{ ...config, max_columns: 2 }, 5) or { panic(err) }
 	assert capped[0].width == 400
 	assert capped[2].x == 0
 	assert capped[4].y > capped[2].y
-	empty := grid_layout_frames(config, 0) or { panic(err) }
+	empty := grid_frames(config, 0) or { panic(err) }
 	assert empty == []Rect{}
 }
 
 fn test_grid_explicit_dimensions_take_precedence_over_automatic_columns() {
-	frames := grid_layout_frames(GridLayoutConfig{
+	frames := grid_frames(GridConfig{
 		frame:                  rect(0, 0, 600, 100)
 		columns:                2
 		auto_columns_min_width: 50
@@ -141,7 +141,7 @@ fn test_grid_explicit_dimensions_take_precedence_over_automatic_columns() {
 }
 
 fn test_grid_automatic_layout_fits_even_below_padding_and_gap_sizes() {
-	frames := grid_layout_frames(GridLayoutConfig{
+	frames := grid_frames(GridConfig{
 		frame:                  rect(0, 0, 6, 10)
 		auto_columns_min_width: 100
 		padding:                GridPadding{ left: 10, right: 10 }
@@ -153,7 +153,7 @@ fn test_grid_automatic_layout_fits_even_below_padding_and_gap_sizes() {
 		}
 	}, 3) or { panic(err) }
 	assert frames == [rect(3, 0, 0, 0), rect(3, 5, 0, 0), rect(3, 10, 0, 0)]
-	zero := grid_layout_frames(GridLayoutConfig{
+	zero := grid_frames(GridConfig{
 		frame:                  Rect{}
 		auto_columns_min_width: 100
 		padding:                GridPadding{ left: 10, top: 8, right: 10, bottom: 8 }
@@ -163,7 +163,7 @@ fn test_grid_automatic_layout_fits_even_below_padding_and_gap_sizes() {
 }
 
 fn test_grid_spans_include_gaps_and_fill_available_holes() {
-	frames := grid_layout_frames(GridLayoutConfig{
+	frames := grid_frames(GridConfig{
 		frame:       rect(0, 0, 320, 230)
 		columns:     3
 		spacing:     GridSpacing{ horizontal: 10, vertical: 10 }
@@ -174,7 +174,7 @@ fn test_grid_spans_include_gaps_and_fill_available_holes() {
 }
 
 fn test_grid_spans_grow_rows_until_rectangular_children_fit() {
-	frames := grid_layout_frames(GridLayoutConfig{
+	frames := grid_frames(GridConfig{
 		frame:       rect(0, 0, 300, 200)
 		columns:     3
 		child_spans: [GridSpan{ column_span: 2 }, GridSpan{ column_span: 2 },
@@ -187,7 +187,7 @@ fn test_grid_spans_grow_rows_until_rectangular_children_fit() {
 }
 
 fn test_grid_spans_can_grow_columns_and_reverse_column_major_order() {
-	frames := grid_layout_frames(GridLayoutConfig{
+	frames := grid_frames(GridConfig{
 		frame:       rect(0, 0, 300, 200)
 		rows:        2
 		orientation: .bottom_to_top_right_to_left
@@ -207,7 +207,7 @@ fn test_grid_spans_honor_every_orientation() {
 		rect(200, 100, 100, 100), rect(200, 100, 100, 100), rect(0, 0, 100, 100),
 		rect(0, 100, 100, 100), rect(200, 0, 100, 100)]
 	for index, orientation in orientations {
-		frames := grid_layout_frames(GridLayoutConfig{
+		frames := grid_frames(GridConfig{
 			frame:       rect(0, 0, 300, 200)
 			columns:     3
 			rows:        2
@@ -219,29 +219,29 @@ fn test_grid_spans_honor_every_orientation() {
 }
 
 fn test_grid_automatic_column_spans_contract_on_narrow_windows() {
-	config := GridLayoutConfig{
+	config := GridConfig{
 		frame:                  rect(0, 0, 300, 200)
 		auto_columns_min_width: 100
 		child_spans:            [GridSpan{ column_span: 2 }]
 	}
-	wide := grid_layout_frames(config, 3) or { panic(err) }
+	wide := grid_frames(config, 3) or { panic(err) }
 	assert wide == [rect(0, 0, 200, 100), rect(200, 0, 100, 100), rect(0, 100, 100, 100)]
-	narrow := grid_layout_frames(GridLayoutConfig{ ...config, frame: rect(0, 0, 80, 300) }, 3) or { panic(err) }
+	narrow := grid_frames(GridConfig{ ...config, frame: rect(0, 0, 80, 300) }, 3) or { panic(err) }
 	assert narrow == [rect(0, 0, 80, 100), rect(0, 100, 80, 100), rect(0, 200, 80, 100)]
 }
 
 fn test_grid_rejects_spans_that_cannot_fit_explicit_dimensions() {
 	for config in [
-		GridLayoutConfig{ columns: 2, child_spans: [GridSpan{ column_span: 3 }] },
-		GridLayoutConfig{ rows: 2, child_spans: [GridSpan{ row_span: 3 }] },
-		GridLayoutConfig{
+		GridConfig{ columns: 2, child_spans: [GridSpan{ column_span: 3 }] },
+		GridConfig{ rows: 2, child_spans: [GridSpan{ row_span: 3 }] },
+		GridConfig{
 			columns:     3
 			rows:        2
 			child_spans: [GridSpan{ column_span: 2, row_span: 2 }, GridSpan{ column_span: 2 }]
 		},
 	] {
 		count := config.child_spans.len
-		if _ := grid_layout_frames(config, count) {
+		if _ := grid_frames(config, count) {
 			assert false, 'invalid fixed grid must fail'
 		}
 	}
@@ -249,23 +249,23 @@ fn test_grid_rejects_spans_that_cannot_fit_explicit_dimensions() {
 
 fn test_grid_rejects_non_finite_dimensions_and_invalid_spans() {
 	for config in [
-		GridLayoutConfig{ columns: 1, frame: rect(0, 0, math.inf(1), 100) },
-		GridLayoutConfig{ columns: 1, padding: GridPadding{ left: math.nan() } },
-		GridLayoutConfig{ columns: 1, spacing: GridSpacing{ horizontal: -1 } },
-		GridLayoutConfig{ columns: 1, auto_columns_min_width: math.nan() },
-		GridLayoutConfig{ columns: 1, max_columns: -1 },
-		GridLayoutConfig{ columns: 1, child_spans: [GridSpan{ column_span: 0 }] },
-		GridLayoutConfig{ columns: 1, child_spans: [GridSpan{ row_span: -1 }] },
-		GridLayoutConfig{ columns: 1, child_spans: [GridSpan{}, GridSpan{}] },
+		GridConfig{ columns: 1, frame: rect(0, 0, math.inf(1), 100) },
+		GridConfig{ columns: 1, padding: GridPadding{ left: math.nan() } },
+		GridConfig{ columns: 1, spacing: GridSpacing{ horizontal: -1 } },
+		GridConfig{ columns: 1, auto_columns_min_width: math.nan() },
+		GridConfig{ columns: 1, max_columns: -1 },
+		GridConfig{ columns: 1, child_spans: [GridSpan{ column_span: 0 }] },
+		GridConfig{ columns: 1, child_spans: [GridSpan{ row_span: -1 }] },
+		GridConfig{ columns: 1, child_spans: [GridSpan{}, GridSpan{}] },
 	] {
-		if _ := grid_layout_frames(config, 1) {
+		if _ := grid_frames(config, 1) {
 			assert false, 'invalid grid input must fail'
 		}
 	}
 }
 
 fn test_grid_rejects_span_area_overflow_before_allocating_occupancy() {
-	if _ := grid_layout_frames(GridLayoutConfig{
+	if _ := grid_frames(GridConfig{
 		columns:     50000
 		child_spans: [GridSpan{ column_span: 50000, row_span: 50000 }]
 	}, 1) {
@@ -276,7 +276,7 @@ fn test_grid_rejects_span_area_overflow_before_allocating_occupancy() {
 }
 
 fn test_grid_preferred_size_measures_children_and_spans_at_responsive_width() {
-	config := GridLayoutConfig{
+	config := GridConfig{
 		frame:                  rect(0, 0, 310, 0)
 		auto_columns_min_width: 90
 		padding:                GridPadding{ left: 10, top: 5, right: 10, bottom: 5 }
@@ -284,11 +284,11 @@ fn test_grid_preferred_size_measures_children_and_spans_at_responsive_width() {
 		child_spans:            [GridSpan{ column_span: 2 }]
 	}
 	sizes := [rect(0, 0, 190, 40), rect(0, 0, 90, 20), rect(0, 0, 90, 30)]
-	wide := grid_layout_preferred_size(config, sizes) or { panic(err) }
+	wide := grid_preferred_size(config, sizes) or { panic(err) }
 	assert wide == rect(0, 0, 310, 100)
-	narrow := grid_layout_preferred_size(GridLayoutConfig{ ...config, frame: rect(0, 0, 100, 0) }, sizes) or { panic(err) }
+	narrow := grid_preferred_size(GridConfig{ ...config, frame: rect(0, 0, 100, 0) }, sizes) or { panic(err) }
 	assert narrow == rect(0, 0, 210, 150)
-	placed := grid_layout_frames(GridLayoutConfig{ ...config, frame: wide }, sizes.len) or { panic(err) }
+	placed := grid_frames(GridConfig{ ...config, frame: wide }, sizes.len) or { panic(err) }
 	for index, frame in placed {
 		assert frame.width >= sizes[index].width
 		assert frame.height >= sizes[index].height
@@ -296,7 +296,7 @@ fn test_grid_preferred_size_measures_children_and_spans_at_responsive_width() {
 }
 
 fn test_grid_preferred_size_respects_forced_tracks_and_minimums() {
-	preferred := grid_layout_preferred_size(GridLayoutConfig{
+	preferred := grid_preferred_size(GridConfig{
 		columns:              2
 		column_default_width: 50
 		row_default_height:   20
@@ -314,13 +314,13 @@ fn test_grid_preferred_size_respects_forced_tracks_and_minimums() {
 }
 
 fn test_automatic_grid_preserves_fractional_capacity_and_edges() {
-	frames := grid_layout_frames(GridLayoutConfig{ frame: rect(0, 0, 100.5, 20.5), auto_columns_min_width: 50.25 }, 2)!
+	frames := grid_frames(GridConfig{ frame: rect(0, 0, 100.5, 20.5), auto_columns_min_width: 50.25 }, 2)!
 	assert frames == [rect(0, 0, 50.25, 20.5), rect(50.25, 0, 50.25, 20.5)]
-	tiny := grid_layout_frames(GridLayoutConfig{ frame: rect(0, 0, 0.75, 0.5), auto_columns_min_width: 0.1, spacing: GridSpacing{ horizontal: 0.5 } }, 2)!
+	tiny := grid_frames(GridConfig{ frame: rect(0, 0, 0.75, 0.5), auto_columns_min_width: 0.1, spacing: GridSpacing{ horizontal: 0.5 } }, 2)!
 	assert tiny == [rect(0, 0, 0.125, 0.5), rect(0.625, 0, 0.125, 0.5)]
 }
 
 fn test_grid_intrinsic_spans_keep_fractional_content_size() {
-	preferred := grid_layout_preferred_size(GridLayoutConfig{ columns: 2, child_spans: [GridSpan{ column_span: 2 }] }, [rect(0, 0, 3.5, 2.25)])!
+	preferred := grid_preferred_size(GridConfig{ columns: 2, child_spans: [GridSpan{ column_span: 2 }] }, [rect(0, 0, 3.5, 2.25)])!
 	assert preferred == rect(0, 0, 3.5, 2.25)
 }

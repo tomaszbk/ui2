@@ -42,6 +42,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		h         f64
 		path      []int
 		id        string
+		on_select ElementCallback = unsafe { nil }
 		enabled   bool
 		has_items bool
 		is_title  bool
@@ -110,7 +111,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			ensure_family_fallbacks(ctx, family)
 			ctx.set_text_cfg(gg.TextCfg{
 				color: hex_color(style.color)
-				size: int(font_style_render_size(style, text_font_metrics(family)) + 0.5)
+				size: int(font_render_size(style.size, text_font_metrics(family)) + 0.5)
 				bold: style.bold
 				italic: style.italic
 				family: family
@@ -232,6 +233,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 				h: menubar_row_height
 				path: row_path
 				id: item.id
+				on_select: item.on_select
 				enabled: item.enabled
 				has_items: item.items.len > 0
 			}
@@ -410,7 +412,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		if hit := menu_bar_hit_at(x, y) {
 			if !hit.is_title && hit.enabled && !hit.has_items {
 				close_menu_bar()
-				fire_event(hit.id)
+				emit_menu_callback(hit.on_select, hit.id)
 			}
 			return true
 		}
@@ -436,7 +438,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		for m in menus {
 			item := find_menu_shortcut(m.items, pressed) or { continue }
 			close_menu_bar()
-			fire_event(item.id)
+			emit_menu_callback(item.on_select, item.id)
 			return true
 		}
 		return false

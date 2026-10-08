@@ -74,7 +74,7 @@ fn modern_layout_assert_siblings_fit(element Element) {
 }
 
 fn test_vml_flex_parent_owns_final_frame_with_explicit_preferred_dimensions() {
-	source := 'FlexLayout {
+	source := 'Flex {
 		gap: 10
 		Button { id: first text: "First" width: 100 height: 20 flex_grow: 1 min_width: 80 }
 		Button { id: second text: "Second" width: 200 height: 20 flex_grow: 1 }
@@ -98,14 +98,17 @@ fn test_vml_flex_parent_owns_final_frame_with_explicit_preferred_dimensions() {
 }
 
 fn test_vml_nested_flex_expressions_see_assigned_parent_size() {
-	source := 'FlexLayout {
+	source := 'Flex {
 		gap: 20
-		FlexLayout {
+		Flex {
 			id: content
 			width: 100
 			flex_grow: 1
 			orientation: vertical
-			Label { id: probe text: "width=" + content.width width: content.width height: 20 }
+		    Absolute {
+		        transparent: true
+		        Label { id: probe text: "width=" + content.width width: content.width height: 20 }
+		    }
 		}
 		View { width: 80 flex_shrink: 0 }
 	}'
@@ -123,9 +126,9 @@ fn test_vml_nested_flex_expressions_see_assigned_parent_size() {
 }
 
 fn test_vml_nested_wrapping_flex_measures_height_at_assigned_width() {
-	source := 'FlexLayout {
+	source := 'Flex {
 		gap: 10 align_items: start
-		FlexLayout {
+		Flex {
 			id: wrapped flex_basis: 0 flex_grow: 1 wrap: true gap: 10
 			Button { text: "First" width: 80 height: 30 }
 			Button { text: "Second" width: 80 height: 30 }
@@ -142,7 +145,7 @@ fn test_vml_nested_wrapping_flex_measures_height_at_assigned_width() {
 }
 
 fn test_vml_flex_remeasures_multiline_and_width_dependent_text() {
-	source := 'FlexLayout {
+	source := 'Flex {
 		gap: 10 align_items: start
 		Label { id: caption flex_basis: 0 flex_grow: 1 lines: 10
 			text: caption.width < 200 ? "A longer caption that needs several lines when the allocated width becomes narrow" : "Short"
@@ -159,9 +162,9 @@ fn test_vml_flex_remeasures_multiline_and_width_dependent_text() {
 }
 
 fn test_vml_vertical_flex_measures_height_after_cross_axis_maximum() {
-	source := 'FlexLayout {
+	source := 'Flex {
 		orientation: vertical align_items: start
-		FlexLayout { wrap: true gap: 10 max_width: 150
+		Flex { wrap: true gap: 10 max_width: 150
 			Button { text: "First" width: 80 height: 30 }
 			Button { text: "Second" width: 80 height: 30 }
 		}
@@ -178,8 +181,8 @@ fn test_vml_vertical_flex_measures_height_after_cross_axis_maximum() {
 }
 
 fn test_vml_intrinsic_grid_measures_rows_at_assigned_cell_width() {
-	source := 'FlexLayout { orientation: vertical
-		GridLayout { columns: 2 spacing: 10
+	source := 'Flex { orientation: vertical
+		Grid { columns: 2 spacing: 10
 			Label { text: "A caption long enough to wrap into multiple lines inside its narrow grid cell" lines: 10 }
 			Label { text: "Another caption long enough to wrap into multiple lines inside its grid cell" lines: 10 }
 		}
@@ -202,63 +205,53 @@ fn test_vml_intrinsic_grid_measures_rows_at_assigned_cell_width() {
 	}
 }
 
-fn test_vml_adaptive_screen_reflows_modern_children_after_resizing() {
-	for tag in ['FlexLayout', 'GridLayout'] {
-		source := 'Screen { adaptive: true width: 760 height: 520
-			${tag} { id: body x: 24 y: 20 width: 712 height: 100 layout_x: stretch
-				columns: 2 spacing: 10 gap: 10
-				Button { text: "First" flex_basis: 0 flex_grow: 1 }
-				Button { text: "Second" flex_basis: 0 flex_grow: 1 }
-			}
-		}'
+fn test_vml_responsive_screen_reflows_modern_children_after_resizing() {
+	for tag in ['Flex', 'Grid'] {
+		source := 'Screen { Flex { padding: 24 orientation: vertical
+   ${tag} { id: body height: 100 columns: 2 spacing: 10 gap: 10
+    Button { text: "First" flex_basis: 0 flex_grow: 1 }
+    Button { text: "Second" flex_basis: 0 flex_grow: 1 }
+   }
+  } }'
 		for width in [390.0, 1000.0] {
 			direct := element_from_vml(source, rect(0, 0, width, 780)) or { panic(err) }
 			modeled := element_from_vml_model(source, ModernLayoutApp{}, rect(0, 0, width, 780)) or { panic(err) }
-			body := modeled.children[0]
+			body := modeled.children[0].children[0]
 			assert body.frame.width == width - 48
-			assert body.children.map(it.frame) == direct.children[0].children.map(it.frame), tag
+			assert body.children.map(it.frame) == direct.children[0].children[0].children.map(it.frame), tag
 			modern_layout_assert_siblings_fit(body)
 		}
 	}
 }
 
-fn test_vml_adaptive_repeater_variations_preserve_hidden_state_and_actions() {
-	source := 'Screen { id: root adaptive: true width: 760 height: 520
-		Repeater { model: app.items key: item.id
-			FlexLayout { x: 24 y: index * 120 width: 712 height: 100 layout_x: stretch
-				LayoutVariation { width_class: compact reference_width: 390 reference_height: 780
-					x: 10 y: index * 110 width: 370 height: 100 layout_x: stretch hidden: index == 1 }
-				Button { text: item.title flex_basis: 0 flex_grow: 1 on_tap: app.select(item.id) }
-				Label { text: root.width flex_basis: 0 flex_grow: 1 }
-			}
-		}
-	}'
+fn test_vml_column_repeaters_preserve_hidden_state_keys_and_actions() {
+	source := 'Screen { id: root Column { gap: 10
+  Repeater { model: app.items key: item.id
+   Flex { height: 100 hidden: index == 1
+    Button { text: item.title flex_basis: 0 flex_grow: 1 on_tap: app.select(item.id) }
+    Label { text: root.width flex_basis: 0 flex_grow: 1 }
+   }
+  }
+ } }'
 	mut app := new_vml_app(source, ModernLayoutApp{
-		items: [
-			ModernLayoutItem{ id: 7, title: 'First' },
-			ModernLayoutItem{ id: 9, title: 'Second' },
-		]
+		items: [ModernLayoutItem{ id: 7, title: 'First' }, ModernLayoutItem{ id: 9, title: 'Second' }]
 	}) or { panic(err) }
 	root := app.build(rect(0, 0, 390, 780)) or { panic(err) }
-	assert root.children.len == 2
-	assert root.children[0].frame == rect(10, 0, 370, 100)
-	assert root.children[1].frame == rect(10, 110, 370, 100)
-	assert !root.children[0].hidden
-	assert root.children[1].hidden
-	assert root.children[0].children[0].frame.width == 185
-	assert root.children[0].children[1].text.f64() == 390
-	assert app.events.len == 2
-	app.handle(root.children[0].children[0].action_id) or { panic(err) }
+	column := root.children[0]
+	assert column.children.len == 2
+	assert !column.children[0].hidden
+	assert column.children[1].hidden
+	assert column.children[0].key == '7'
+	assert column.children[1].key == '9'
+	assert column.children[0].children[0].frame.width == 195
+	assert column.children[0].children[1].text.f64() == 390
+	column.children[0].children[0].on_event(ElementEvent{ kind: .tap })
 	assert app.state().selected == 7
 	assert app.state().calls == 1
-	if _ := element_from_vml_model('Screen { adaptive: true width: 0 height: 520 }',
-		ModernLayoutApp{}, rect(0, 0, 390, 780)) {
-		assert false, 'invalid empty adaptive screens must still fail'
-	}
 }
 
 fn test_vml_flex_wrap_uses_intrinsic_text_sizes_without_window() {
-	source := 'FlexLayout {
+	source := 'Flex {
 		wrap: true gap: 9 align_items: start
 		Button { id: first text: "Publish changes" }
 		Button { id: second text: "Publish changes" }
@@ -278,7 +271,7 @@ fn test_vml_flex_wrap_uses_intrinsic_text_sizes_without_window() {
 }
 
 fn test_vml_flex_repeater_resolves_weights_and_preserves_keyed_actions() {
-	source := 'FlexLayout {
+	source := 'Flex {
 		gap: 10
 		Repeater {
 			model: app.items
@@ -296,21 +289,17 @@ fn test_vml_flex_repeater_resolves_weights_and_preserves_keyed_actions() {
 	assert root.children[0].frame == rect(0, 0, 82.5, 50)
 	assert root.children[1].frame == rect(92.5, 0, 207.5, 50)
 	assert root.children.map(it.key) == ['7', '9']
-	assert root.children[0].action_id != root.children[1].action_id
+	assert root.children[0].key != root.children[1].key
 	reordered := element_from_vml_model(source, ModernLayoutApp{ items: model.items.reverse() },
 		rect(0, 0, 300, 50)) or { panic(err) }
 	assert reordered.children[0].key == '9'
-	assert reordered.children[0].action_id == root.children[1].action_id
-	assert reordered.children[1].action_id == root.children[0].action_id
 	mut app := new_vml_app(source, model) or { panic(err) }
 	for width in [300.0, 500.0, 150.0] {
 		built := app.build(rect(0, 0, width, 50)) or { panic(err) }
-		assert built.children.map(it.action_id) == root.children.map(it.action_id)
 		assert app.state().calls == 0
-		assert app.events.len == 2
 		modern_layout_assert_siblings_fit(built)
 	}
-	app.handle(root.children[1].action_id) or { panic(err) }
+	(app.build(rect(0, 0, 300, 50)) or { panic(err) }).children[1].on_event(ElementEvent{ kind: .tap })
 	assert app.state().selected == 9
 	assert app.state().calls == 1
 }
@@ -320,40 +309,34 @@ fn modern_layout_control_text(_ string) string {
 }
 
 fn test_vml_flex_measurement_preserves_binding_and_never_invokes_action() {
-	source := 'FlexLayout {
+	source := 'Flex {
 		gap: 12 align_items: center
 		Button { id: save text: app.caption on_tap: app.expand_caption() }
-		TextField { id: query bind.text: app.query flex_grow: 1 }
+		TextInput { multiline: false  id: query bind.text: app.query flex_grow: 1 }
 	}'
 	mut app := new_vml_app(source, ModernLayoutApp{}) or { panic(err) }
-	app.control_text = modern_layout_control_text
 	first := app.build(rect(0, 0, 700, 80)) or { panic(err) }
 	assert app.state().calls == 0
 	assert app.state().query == 'initial'
-	assert app.events.len == 2
 	assert first.children[0].frame.width > 24
 	assert first.children[1].text == 'initial'
-	app.handle(first.children[1].action_id) or { panic(err) }
+	first.children[1].on_event(ElementEvent{ kind: .change, text: 'edited' })
 	assert app.state().query == 'edited'
-	app.handle(first.children[0].action_id) or { panic(err) }
+	first.children[0].on_event(ElementEvent{ kind: .tap })
 	second := app.build(rect(0, 0, 700, 80)) or { panic(err) }
 	assert app.state().calls == 1
 	assert second.children[0].frame.width > first.children[0].frame.width
 	assert second.children[1].frame.width < first.children[1].frame.width
-	assert second.children[0].action_id == first.children[0].action_id
-	assert second.children[1].action_id == first.children[1].action_id
 	assert second.children[1].text == 'edited'
 	modern_layout_assert_siblings_fit(second)
 }
 
 fn test_vml_grid_auto_columns_spans_nested_flex_and_metadata_resize_together() {
-	source := 'GridLayout {
+	source := 'Grid {
 		auto_columns_min_width: 180 max_columns: 3 spacing: 10
-		LayoutVariation { width_class: compact width: 20 height: 20 }
-		FlexLayout {
+		Flex {
 			id: featured column_span: 2 row_span: 2 gap: 10 width: 1 height: 1
 			Button { id: left text: "Left" width: 60 flex_grow: 1 }
-			LayoutVariation { width_class: compact width: 20 height: 20 }
 			Button { id: right text: "Right" width: 60 flex_grow: 1 }
 		}
 		Button { id: second text: "Second" width: 1 height: 1 }
@@ -386,7 +369,7 @@ fn test_responsive_example_fits_wide_and_compact_windows_and_keeps_actions() {
 		]
 	}
 	mut app := new_vml_app(source, model) or { panic(err) }
-	mut action_id := ''
+	mut action := ElementCallback(unsafe { nil })
 	for width in [1000.0, 390.0, 1000.0] {
 		root := app.build(rect(0, 0, width, 780)) or { panic(err) }
 		validate_element_tree(root) or { panic(err) }
@@ -413,12 +396,9 @@ fn test_responsive_example_fits_wide_and_compact_windows_and_keeps_actions() {
 		for card in projects.children {
 			modern_layout_assert_siblings_fit(card)
 		}
-		if action_id.len > 0 {
-			assert create.action_id == action_id
-		}
-		action_id = create.action_id
+		action = create.on_event
 		assert app.state().created == 0
 	}
-	app.handle(action_id) or { panic(err) }
+	action(ElementEvent{ kind: .tap })
 	assert app.state().created == 1
 }

@@ -4,6 +4,8 @@
 module ui2
 
 $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
+ __global scaled_callback_events = []ElementEvent{}
+ fn capture_scaled_callback_event(event ElementEvent) { scaled_callback_events << event }
  fn test_scaled_hit_clipping_and_inverse_slider() {
   previous := g_gg_app.ctx
   g_gg_app.ctx = &DrawContext{content_transform:ContentTransform{scale:0.5,y:60}}
@@ -14,7 +16,9 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
   assert hit_test(20,30).id == ''
   target := HitTarget{slider:true,slider_frame:rect(100,100,200,40),slider_spec:SliderSpec{min:0,max:100},content_transform:ContentTransform{scale:0.5,y:60}}
   assert slider_target_value(target,100,120) == 50
-  assert target_pointer_event_id('drag',HitTarget{action_id:'move',content_transform:ContentTransform{scale:0.5,y:60}},36,92) == 'pointer:drag:move:72.0:64.0'
+  scaled_callback_events = []ElementEvent{}
+  fire_pointer_event(.pointer_drag,HitTarget{id:'move',on_event:capture_scaled_callback_event,content_transform:ContentTransform{scale:0.5,y:60}},36,92)
+  assert scaled_callback_events == [ElementEvent{kind:.pointer_drag,id:'move',x:72,y:64}]
  }
 
  fn test_scaled_scroll_keeps_logical_offsets() {
@@ -23,12 +27,12 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
   defer { g_gg_app.ctx = previous; reset_scroll_frame(); g_scroll_offsets.clear() }
   reset_scroll_frame()
   g_scroll_offsets.clear()
-  register_scroll_view('pane',rect(0,0,200,100),rect(0,0,1280,720),300,true,true,false)
-  assert scroll_hit_test(40,80) == 'pane'
+  register_scroll_view(named_scroll_state_id('pane'),rect(0,0,200,100),rect(0,0,1280,720),300,true,true,false,HitTarget{})
+  assert scroll_hit_test(40,80) == named_scroll_state_id('pane')
   assert scroll_hit_test(40,20) == ''
-  apply_scroll_chain(['pane'],25)
+  apply_scroll_chain([named_scroll_state_id('pane')],25)
   assert scroll_offset('pane') == 50
-  assert scroll_maximum('pane') == 200
+  assert scroll_maximum(named_scroll_state_id('pane')) == 200
  }
 }
 
@@ -38,7 +42,7 @@ pub:
  title string = 'Fixed title'
  }
  fn test_model_vml_fixed_composition_does_not_reflow() {
-  source := 'Screen { units: "logical" ScaledContent { content_width: 1280 content_height: 720 Column { Label { text: app.title height: 42 } View { height: 100 } } } }'
+  source := 'Screen { ScaledContent { content_width: 1280 content_height: 720 Column { Label { text: app.title height: 42 } View { height: 100 } } } }'
   a := element_from_vml_model(source,ScaledFixtureModel{},rect(0,0,640,360))!
   b := element_from_vml_model(source,ScaledFixtureModel{},rect(0,0,1440,900))!
   assert a.children[0].children[0].frame == b.children[0].children[0].frame
@@ -55,19 +59,19 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
   previous := activate_custom_window_state(first)
   defer { activate_custom_window_state(previous); g_gg_app.ctx = original }
   g_gg_app.ctx = &DrawContext{content_transform:ContentTransform{scale:0.5}}
-  register_scroll_view('pane',rect(0,0,200,100),rect(0,0,200,100),300,true,true,false)
+  register_scroll_view(named_scroll_state_id('pane'),rect(0,0,200,100),rect(0,0,200,100),300,true,true,false,HitTarget{})
   activate_custom_window_state(second)
   g_gg_app.ctx = &DrawContext{content_transform:ContentTransform{scale:2}}
-  register_scroll_view('pane',rect(0,0,200,100),rect(0,0,200,100),300,true,true,false)
-  apply_scroll_chain(['pane'],20)
+  register_scroll_view(named_scroll_state_id('pane'),rect(0,0,200,100),rect(0,0,200,100),300,true,true,false,HitTarget{})
+  apply_scroll_chain([named_scroll_state_id('pane')],20)
   assert scroll_offset('pane') == 10
   activate_custom_window_state(first)
-  apply_scroll_chain(['pane'],20)
+  apply_scroll_chain([named_scroll_state_id('pane')],20)
   assert scroll_offset('pane') == 40
-  assert g_scroll_transforms['pane'].scale == 0.5
+  assert g_scroll_transforms[named_scroll_state_id('pane')].scale == 0.5
   activate_custom_window_state(second)
   assert scroll_offset('pane') == 10
-  assert g_scroll_transforms['pane'].scale == 2
+  assert g_scroll_transforms[named_scroll_state_id('pane')].scale == 2
  }
 }
 
@@ -79,7 +83,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
   defer { g_tooltip = previous_tooltip; g_touch = previous_touch; g_focused_field = previous_focus }
   transform := ContentTransform{scale:0.5,y:60}
   frame := rect(100,100,200,40)
-  el := with_interaction_style(button('next','Next',frame,BoxStyle{},TextStyle{units:.logical}),InteractionStyle{
+  el := with_interaction_style(button('next','Next',frame,BoxStyle{},TextStyle{}),InteractionStyle{
    hover:BoxStylePatch{bg:u32(0x00ff00)}
    focus:BoxStylePatch{outline_width:f64(3),outline_offset:f64(3)}
    pressed:BoxStylePatch{bg:u32(0xff0000)}
@@ -90,7 +94,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
   g_focused_field = ''
   hover := resolve_custom_visual_style(el,frame,rect(0,0,1280,720),transform)
   assert hover.box.bg == 0x00ff00 && hover.text_style.color == 0
-  assert hover.frame == frame && hover.text_style.units == .logical
+  assert hover.frame == frame && hover.text_style.size == 15
   // Letterbox and a parent clip exclude the same inverse pointer.
   assert resolve_custom_visual_style(el,frame,rect(0,0,80,720),transform).box.bg == el.box.bg
   g_tooltip.pointer_y = 30

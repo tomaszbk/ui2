@@ -43,13 +43,18 @@ fn test_cells_edit_recalculates_dependent_formula() {
 
 fn test_cells_vml_builds_keyed_native_spreadsheet_cells() {
 	app := initial_cells()
-	root := ui2.element_from_vml_model(cells_vml_source, app, ui2.rect(0, 0, cells_width, cells_height)) or { panic(err) }
+	root := cells_test_tree(cells_vml_source, app, ui2.rect(0, 0, cells_width, cells_height)) or { panic(err) }
 	ui2.validate_element_tree(root) or { panic(err) }
 	sheet := find_cells_element(root, 'sheet') or { panic('missing sheet') }
-	assert sheet.children.len == 42
-	first_cell := sheet.children[12]
+	assert sheet.children[0].children.len == 42
+	first_cell := sheet.children[0].children[12]
 	assert first_cell.key == 'A1'
 	assert first_cell.native_style
-	assert (find_cells_element(root, 'cell_input') or { panic('missing cell input') }).submit_id.len > 0
+	assert voidptr((find_cells_element(root, 'cell_input') or { panic('missing cell input') }).on_event) != unsafe { nil }
 	assert (find_cells_element(root, 'apply_cell') or { panic('missing apply') }).native_style
+}
+
+fn cells_test_tree[T](source string, model T, frame ui2.Rect) !ui2.Element {
+	mut app := ui2.new_vml_app(source, model)!
+	return app.build(frame)!
 }

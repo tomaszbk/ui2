@@ -1,4 +1,12 @@
+@[has_globals]
 module ui2
+
+__global message_box_test_events = []ElementEvent{}
+__global message_box_test_callbacks = []string{}
+
+fn capture_message_box_test_event(event ElementEvent) {
+	message_box_test_events << event
+}
 
 fn test_every_button_set_maps_titles_onto_results() {
 	sets := [MessageBoxButtons.ok, .ok_cancel, .yes_no, .yes_no_cancel, .retry_cancel]
@@ -25,19 +33,26 @@ fn test_out_of_range_button_index_falls_back_to_dismissal() {
 
 fn test_custom_message_box_centres_the_card_and_stacks_buttons_from_the_right() {
 	overlay := custom_message_box(
-		id: 'confirm'
-		frame: rect(0, 0, 400, 300)
-		title: 'Delete file?'
-		text: 'This cannot be undone.'
+		id:      'confirm'
+		frame:   rect(0, 0, 400, 300)
+		title:   'Delete file?'
+		text:    'This cannot be undone.'
 		actions: [
 			MessageBoxAction{
-				id: 'confirm_delete'
-				title: 'Delete'
+				id:       'confirm_delete'
+				on_event: fn (event ElementEvent) {
+					message_box_test_callbacks << 'confirm'
+					message_box_test_events << event
+				}
+				title:    'Delete'
 			},
 			MessageBoxAction{
-				id: 'confirm_keep'
-				action_id: 'dismiss'
-				title: 'Cancel'
+				id:       'confirm_keep'
+				on_event: fn (event ElementEvent) {
+					message_box_test_callbacks << 'dismiss'
+					message_box_test_events << event
+				}
+				title:    'Cancel'
 			},
 		]
 	)
@@ -60,17 +75,22 @@ fn test_custom_message_box_centres_the_card_and_stacks_buttons_from_the_right() 
 	cancel_button := dialog.children[3]
 	assert delete_button.id == 'confirm_delete'
 	assert delete_button.native_style
-	assert element_action_id(delete_button) == 'confirm_delete'
+	message_box_test_events = []ElementEvent{}
+	message_box_test_callbacks = []string{}
+	delete_button.on_event(ElementEvent{ kind: .tap, id: delete_button.id })
 	assert delete_button.frame == rect(200, 98, 80, 32)
 	assert cancel_button.id == 'confirm_keep'
-	assert element_action_id(cancel_button) == 'dismiss'
+	cancel_button.on_event(ElementEvent{ kind: .tap, id: cancel_button.id })
+	assert message_box_test_callbacks == ['confirm', 'dismiss']
+	assert message_box_test_events[0].id == 'confirm_delete'
+	assert message_box_test_events[1].id == 'confirm_keep'
 	assert cancel_button.frame == rect(108, 98, 80, 32)
 }
 
 fn test_custom_message_box_names_unlabelled_actions_after_the_overlay() {
 	overlay := custom_message_box(
-		frame: rect(0, 0, 200, 200)
-		hidden: true
+		frame:   rect(0, 0, 200, 200)
+		hidden:  true
 		actions: [MessageBoxAction{
 			title: 'OK'
 		}]
@@ -92,7 +112,9 @@ fn test_vml_message_box_turns_button_children_into_dialog_actions() {
 			Button { id: close text: "OK" on_tap: dismiss }
 		}
 	}'
-	root := element_from_vml(source, rect(0, 0, 400, 300)) or { panic(err) }
+	root := element_from_vml_with_callbacks(source, rect(0, 0, 400, 300), {
+		'dismiss': ElementCallback(capture_message_box_test_event)
+	}) or { panic(err) }
 	validate_element_tree(root) or { panic(err) }
 
 	overlay := root.children[0]
@@ -106,6 +128,12 @@ fn test_vml_message_box_turns_button_children_into_dialog_actions() {
 	// The Button child becomes an action, not a free-standing view.
 	assert dialog.children.len == 3
 	assert dialog.children[2].id == 'close'
-	assert element_action_id(dialog.children[2]) == 'dismiss'
+	assert dialog.children[2].on_event != unsafe { nil }
 	assert dialog.children[2].native_style
+	message_box_test_events = []ElementEvent{}
+	action := dialog.children[2]
+	action.on_event(ElementEvent{ kind: .tap, id: action.id })
+	assert message_box_test_events.len == 1
+	assert message_box_test_events[0].kind == .tap
+	assert message_box_test_events[0].id == 'close'
 }

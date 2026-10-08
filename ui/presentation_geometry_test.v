@@ -16,22 +16,70 @@ fn test_shared_edges_fractional_partition() {
 	}
 }
 
-fn test_logical_typography_and_legacy_are_explicit() {
-	assert font_style_em_pixels(TextStyle{ size: 18, units: .logical }) == 18
-	assert font_style_line_height(TextStyle{ size: 18, units: .logical }) == 22.5
-	assert font_style_em_pixels(TextStyle{ size: 18 }) == font_em_pixels(18)
-	assert native_font_points(TextStyle{ size: 18, units: .logical }) * font_pixels_per_point() == 18
+fn test_logical_typography_and_layout_preserve_fractional_sizes() {
+	style := TextStyle{ size: 18.25 }
+	assert style.size == 18.25
+	assert text_style_line_height(style) == 22.8125
+	frame := rect(0.125, 0.375, 100.25, 50.75)
+	el := element_from_vml('Label { text: "fractional" font_size: 18.25 }', frame)!
+	assert el.text_style.size == 18.25
+	assert el.frame == frame
+	for scale in [1.0, 1.25, 1.5, 2.0] {
+		presented := presentation_rect(frame, scale)
+		assert math.abs(presented.x * scale - math.round(presented.x * scale)) < 0.00001
+		assert math.abs(presented.y * scale - math.round(presented.y * scale)) < 0.00001
+		assert el.frame == frame
+		assert el.text_style.size == 18.25
+	}
 }
 
-fn test_vml_units_inherit_with_explicit_legacy_override() {
-	el := element_from_vml('Screen { units: "logical" Label { text: "a" font_size: 18 } View { units: "legacy" Label { text: "b" } } }', rect(0, 0, 400, 300))!
-	assert el.children[0].text_style.units == .logical
-	assert el.children[1].children[0].text_style.units == .legacy
+fn test_logical_text_measurement_has_the_same_em_height_at_every_dpi() {
+	style := TextStyle{ size: 18.25, lines: 1 }
+	$if ( linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headless ? {
+		for dpi in [f32(1), 1.25, 1.5, 2] {
+			mut engine := new_text_engine(dpi)!
+			shaped := engine.shape('fractional', style, -1, 1, false)!
+			assert math.abs(shaped.size.height - 22.8125) < 0.01
+			engine.free()
+		}
+	} $else {
+		// CPU Fontstash receives the fractional metric size, without pixel rounding.
+		measured := layout_measure_cpu_text('fractional', style, -1)!
+		assert math.abs(measured.height - 22.8125) < 0.01
+	}
 }
 
-fn test_unknown_units_are_rejected() {
-	if _ := element_from_vml('Label { units: "pixels" text: "bad" }', rect(0, 0, 100, 100)) {
+fn test_authored_units_property_is_rejected_for_every_profile_and_node() {
+	for source in [
+		'Label { units: "legacy" text: "bad" }',
+		'Screen { units: "logical" Label { text: "bad" } }',
+		'Label { text: "bad" units: "pixels" }',
+		'Label { Run { units: "logical" text: "bad" } }',
+		'Label { units: "" text: "bad" }',
+	] {
+		if _ := parse_vml(source) {
+			assert false, source
+		} else {
+			assert err.msg().contains('units is not a VML property')
+		}
+	}
+}
+
+fn test_programmatic_vnode_units_property_is_rejected() {
+	node := &VNode{
+		tag:      'Label'
+		children: [&VNode{
+			tag:   'Run'
+			props: {
+				'units': 'logical'
+				'text':  'bad'
+			}
+		}]
+	}
+	if _ := element_from_vnode(node, rect(0, 0, 100, 100)) {
 		assert false
+	} else {
+		assert err.msg().contains('units is not a VML property')
 	}
 }
 

@@ -23,13 +23,13 @@ pub:
 @[heap]
 pub struct CanvasLayoutDemo {
 pub mut:
-	tile_x       f64 = 24
-	tile_y       f64 = 24
+	tile_x       f64    = 24
+	tile_y       f64    = 24
 	theme        string = 'Classic'
 	tile_color   string = '#E2E8F0'
 	tile_text    string = '#0F172A'
 	pointer_text string = '(0, 0)'
-	menu_hidden  bool = true
+	menu_hidden  bool   = true
 	menu_label   string = 'Show menu'
 	notes        []CanvasNote
 	text         string = 'A canvas places every child at its own\ncoordinates, so this text area keeps its\nspot while the sheet scrolls.'
@@ -104,13 +104,13 @@ pub fn (mut app CanvasLayoutDemo) reset_tile() {
 pub fn (mut app CanvasLayoutDemo) add_note() {
 	id := app.next_note
 	app.notes << CanvasNote{
-		id: id
-		key: 'note-${id}'
+		id:    id
+		key:   'note-${id}'
 		label: 'Note ${id}'
 		// Notes walk down the sheet in a fixed pattern, so a rebuild puts every
 		// keyed card back where it was.
-		x: 24 + f64((id - 1) % 3) * 150
-		y: 300 + f64((id - 1) / 3) * 90
+		x:     24 + f64((id - 1) % 3) * 150
+		y:     300 + f64((id - 1) / 3) * 90
 	}
 	app.next_note++
 	app.status = 'Added note ${id}; the sheet keeps growing past the viewport.'
@@ -131,62 +131,86 @@ pub fn (mut app CanvasLayoutDemo) choose_menu_item(title string) {
 	app.status = 'Menu item: ${title}.'
 }
 
-fn canvas_pointer(event string) ?(string, string, f64, f64) {
-	parts := event.split(':')
-	if parts.len < 5 || parts[0] != 'pointer' {
-		return none
-	}
-	return parts[1], parts[2], parts[3].f64(), parts[4].f64()
-}
-
-fn (mut app CanvasLayoutDemo) handle_event(event string, sheet_width f64, scroll f64) {
-	match event {
-		'theme_dropdown' { app.apply_theme(ui2.text('theme_dropdown')) }
-		'reset_tile' { app.reset_tile() }
-		'add_note' { app.add_note() }
-		'clear_notes' { app.clear_notes() }
-		'toggle_menu' { app.toggle_menu() }
-		'menu_delete' { app.choose_menu_item('Delete all users') }
-		'menu_export' { app.choose_menu_item('Export users') }
-		'menu_exit' { app.choose_menu_item('Exit') }
-		'about' { ui2.alert('Canvas layout', 'Built with V UI') }
-		else {
-			phase, id, x, y := canvas_pointer(event) or { return }
-			match id {
-				'canvas_tile' {
-					if phase == 'down' {
-						app.grab_tile(x, y, scroll)
-					} else {
-						app.drag_tile(x, y, scroll, sheet_width)
-					}
-				}
-				'canvas_sheet' {
-					app.track_pointer(x, y, scroll)
-				}
-				else {}
-			}
-		}
-	}
-}
-
 fn canvas_sheet_width(frame ui2.Rect) f64 {
 	return frame.width - 68.0
 }
 
+fn canvas_layout_callbacks() map[string]ui2.ElementCallback {
+	return {
+		'theme_dropdown': fn (event ui2.ElementEvent) {
+			mut state := unsafe { canvas_layout_state }
+			state.apply_theme(event.text)
+			ui2.refresh()
+		}
+		'reset_tile':     fn (_event ui2.ElementEvent) {
+			mut state := unsafe { canvas_layout_state }
+			state.reset_tile()
+			ui2.refresh()
+		}
+		'add_note':       fn (_event ui2.ElementEvent) {
+			mut state := unsafe { canvas_layout_state }
+			state.add_note()
+			ui2.refresh()
+		}
+		'clear_notes':    fn (_event ui2.ElementEvent) {
+			mut state := unsafe { canvas_layout_state }
+			state.clear_notes()
+			ui2.refresh()
+		}
+		'toggle_menu':    fn (_event ui2.ElementEvent) {
+			mut state := unsafe { canvas_layout_state }
+			state.toggle_menu()
+			ui2.refresh()
+		}
+		'menu_delete':    fn (_event ui2.ElementEvent) {
+			mut state := unsafe { canvas_layout_state }
+			state.choose_menu_item('Delete all users')
+			ui2.refresh()
+		}
+		'menu_export':    fn (_event ui2.ElementEvent) {
+			mut state := unsafe { canvas_layout_state }
+			state.choose_menu_item('Export users')
+			ui2.refresh()
+		}
+		'menu_exit':      fn (_event ui2.ElementEvent) {
+			mut state := unsafe { canvas_layout_state }
+			state.choose_menu_item('Exit')
+			ui2.refresh()
+		}
+		'about':          fn (_event ui2.ElementEvent) {
+			ui2.alert('Canvas layout', 'Built with V UI')
+			ui2.refresh()
+		}
+		'canvas_tile':    fn (event ui2.ElementEvent) {
+			mut state := unsafe { canvas_layout_state }
+			scroll := ui2.scroll_offset('canvas')
+			match event.kind {
+				.pointer_down { state.grab_tile(event.x, event.y, scroll) }
+				.pointer_drag, .pointer_up {
+					state.drag_tile(event.x, event.y, scroll, canvas_sheet_width(ui2.bounds()))
+				}
+				else {}
+			}
+			ui2.refresh()
+		}
+		'canvas_sheet':   fn (event ui2.ElementEvent) {
+			mut state := unsafe { canvas_layout_state }
+			if event.kind in [.pointer_down, .pointer_drag, .pointer_up] {
+				state.track_pointer(event.x, event.y, ui2.scroll_offset('canvas'))
+			}
+			ui2.refresh()
+		}
+	}
+}
+
 fn build_canvas_layout_screen() ui2.Element {
 	state := unsafe { canvas_layout_state }
-	return ui2.element_from_vml_model(canvas_layout_vml_source, *state, ui2.bounds()) or {
+	return ui2.element_from_vml_model_with_callbacks(canvas_layout_vml_source, *state, ui2.bounds(), canvas_layout_callbacks()) or {
 		eprintln('canvas-layout VML failed: ${err}')
 		ui2.screen(0xf1f5f9, [])
 	}
 }
 
-fn handle_canvas_layout_event(event string) {
-	mut state := unsafe { canvas_layout_state }
-	state.handle_event(event, canvas_sheet_width(ui2.bounds()), ui2.scroll_offset('canvas'))
-	ui2.refresh()
-}
-
 fn main() {
-	ui2.run_window('Canvas Layout', canvas_layout_width, canvas_layout_height, build_canvas_layout_screen, handle_canvas_layout_event)
+	ui2.run_window('Canvas Layout', canvas_layout_width, canvas_layout_height, build_canvas_layout_screen)
 }

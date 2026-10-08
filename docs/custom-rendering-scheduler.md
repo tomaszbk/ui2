@@ -1,30 +1,29 @@
 # Renderizado custom bajo demanda (R0–R2)
 
-El renderer custom permite elegir cuándo reconstruye y pinta la ventana. La
-política predeterminada sigue siendo `continuous`. `on_demand` conserva el build
-declarativo completo, pero sólo lo ejecuta cuando hay una invalidación o trabajo
-visual temporal. En Metal también omite el dibujo en reposo. En los caminos
+El renderer custom reconstruye la ventana sólo cuando hay una invalidación o
+trabajo visual temporal. Conserva el build declarativo completo y el árbol
+retenido; no hay una política de renderizado configurable. En Metal también
+omite el dibujo en reposo. En los caminos
 GL/EGL/D3D vuelve a pintar el árbol conservado por el contrato de presentación
 de Sokol, explicado abajo. No agrega signals, reconciliación incremental, IME
 ni otra unidad de tipografía.
 
 ```v
-ui2.set_render_policy(.on_demand)
-ui2.run_window('Mi app', 800, 600, build, event)
+ui2.run_window('Mi app', 800, 600, build)
 ```
 
-La política pertenece al renderer custom. Los backends nativos conservan sus
-contratos de actualización. Para usar el custom en macOS/Windows, compilar con
+El renderizado bajo demanda pertenece al renderer custom. Los backends nativos
+conservan sus contratos de actualización. Para usar el custom en macOS/Windows, compilar con
 `-d ui2_custom_rendering`; Linux y Android ya lo usan por defecto.
 
 ## Migración y propiedad del estado
 
-En `on_demand`, las acciones y bindings de los runners VML siguen solicitando
-refresh después de actualizar el modelo. Código que modifica el modelo por
-otra vía debe llamar a `refresh()` o `request_refresh()`. Leer el reloj, archivos
+Las acciones y bindings de los runners VML solicitan refresh después de
+actualizar el modelo. Código que modifica el modelo por otra vía debe llamar a `refresh()` o `request_refresh()`. Leer el reloj, archivos
 o variables externas dentro de `build` no suscribe la vista a sus cambios.
-Conservar `continuous` para aplicaciones que dependan de esa lectura por frame
-hasta migrarlas.
+Usar deadlines o timers para cambios periódicos y solicitar actualización
+cuando vence cada plazo. Una lectura dentro de `build` por sí sola no despierta
+la ventana.
 
 En el custom, ambas funciones invalidan una próxima presentación; no ejecutan
 un build recursivo. Se agrupan las solicitudes anteriores al mismo flush. Una
@@ -104,7 +103,7 @@ embedder sea dueño del ciclo de presentación.
 
 No se completa **1B: dejar de despertar el event loop**. El camino `gg`/`sokol_app`
 sigue recibiendo callbacks a la cadencia de plataforma; UI2 los usa para drenar
-la cola segura y comprobar deadlines. Una app estática en `on_demand` debe tener
+la cola segura y comprobar deadlines. Una app estática debe tener
 cero nuevos builds y, en Metal, cero draws, aunque `callbacks` siga creciendo.
 
 Se evaluó `gg.ui_mode` en V `3005dc3`: su callback retorna antes de `update_fn`
@@ -117,14 +116,12 @@ por eventos y deadlines corresponde al embedder propio de F2.
 
 ## Reproducción de aceptación
 
-Compilar una vez y ejecutar la misma escena con ambas políticas, con el GC
-normal. Dejar la ventana visible, el mouse quieto fuera de sus controles y no
-escribir durante el intervalo estático:
+Compilar y ejecutar la escena bajo demanda con el GC normal. Dejar la ventana
+visible, el mouse quieto fuera de sus controles y no escribir durante el intervalo estático:
 
 ```sh
 v -d ui2_custom_rendering -o /tmp/ui2-render-scheduler tests/render_scheduler
 /usr/bin/time -l /tmp/ui2-render-scheduler --seconds 30
-/usr/bin/time -l /tmp/ui2-render-scheduler --on-demand --seconds 30
 ```
 
 En macOS, agregar `--lifecycle` prueba también la ventana real: un helper
@@ -136,7 +133,7 @@ al restaurar y el retorno al reposo. En otras plataformas se informa `SKIP`
 para esta fase adicional.
 
 ```sh
-/tmp/ui2-render-scheduler --on-demand --seconds 2 --lifecycle
+/tmp/ui2-render-scheduler --seconds 2 --lifecycle
 ```
 
 El fixture espera dos segundos de estabilización, mide treinta segundos sin
@@ -152,7 +149,7 @@ actividad; no presentar su CPU total como CPU exclusiva del intervalo estático.
 Para completar los escenarios que necesitan eventos de plataforma:
 
 ```sh
-/tmp/ui2-render-scheduler --on-demand --interactive
+/tmp/ui2-render-scheduler --interactive
 ```
 
 El modo interactivo imprime contadores y el estado `suspended` cada segundo
@@ -180,15 +177,17 @@ de otras plataformas. El problema Boehm `Too many root sets` observado en macOS
 27 se sigue en V-001; `-gc none` puede aislar el scheduler durante diagnóstico,
 pero no es una solución de producción ni prueba de aceptación con GC normal.
 
-## Resultado medido en macOS (2026-09-29)
+## Medición histórica en macOS (2026-09-29)
 
 MacBook Air Apple M4, macOS 27.0 (`26A428`), SDK 27.0, Apple clang 21.0.0;
 V 0.5.2 `3005dc3`, Metal predeterminado, GC predeterminado. Mismo binario
 compilado con `v -d ui2_custom_rendering`, ventana de 640 × 480, dos segundos
 de calentamiento y treinta segundos estáticos. No hubo interacción durante
-los intervalos. El baseline usa la política continua en el mismo renderer.
+los intervalos. Esta comparación histórica se realizó cuando existían ambas
+políticas. La política continua y su configuración fueron eliminadas; el fixture
+actual sólo verifica el renderizado bajo demanda.
 
-| Intervalo estático, 30 s | `continuous` | `on_demand` |
+| Intervalo estático histórico, 30 s | `continuous` (eliminado) | `on_demand` |
 | --- | ---: | ---: |
 | Callbacks | 1.705 | 1.704 |
 | Builds | 1.705 | 0 |

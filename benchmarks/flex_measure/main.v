@@ -42,7 +42,7 @@ fn nested(depth int) string {
 	mut source := 'Label { text: "content that can wrap at a narrow width" lines: 3 }'
 	for level in 0 .. depth {
 		orientation := if level % 2 == 0 { 'horizontal' } else { 'vertical' }
-		source = 'FlexLayout { orientation: ${orientation} gap: 4\n Label { text: "level ${level}" }\n ${source} }'
+		source = 'Flex { orientation: ${orientation} gap: 4\n Label { text: "level ${level}" }\n ${source} }'
 	}
 	return 'Screen {\n ${source} }'
 }
@@ -52,7 +52,7 @@ fn flat(count int) string {
 	for index in 0 .. count {
 		labels << 'Label { text: "item ${index}" }'
 	}
-	return 'Screen {\n FlexLayout { wrap: true gap: 6\n ${labels.join('\n')} } }'
+	return 'Screen {\n Flex { wrap: true gap: 6\n ${labels.join('\n')} } }'
 }
 
 fn model() BenchApp {

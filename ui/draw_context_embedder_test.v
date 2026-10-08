@@ -291,8 +291,17 @@ fn test_scaled_composition_gpu_submission_keeps_caret_and_layout_on_resize() {
 		mut ctx := new_surface_draw_context(gg.Config{ width: 640, height: 480 }, text_gpu_test_environment())!
 		defer { ctx.destroy() }
 		g_gg_app = &GgApp{ ctx: ctx }
-		style := TextStyle{ units: .logical, size: 24, font_family: 'Inter' }
-		field := text_field('field', '', '', rect(72, 570, 500, 60), BoxStyle{ bg: 0xffffff }, style, keyboard_default)
+		style := TextStyle{ size: 24, font_family: 'Inter' }
+		field := text_input(
+			id:          'field'
+			placeholder: ''
+			text:        ''
+			frame:       rect(72, 570, 500, 60)
+			box:         BoxStyle{ bg: 0xffffff }
+			text_style:  style
+			keyboard:    keyboard_default
+			multiline:   false
+		) or { panic(err) }
 		rich := rich_label('rich', [
 			TextRun{ text: 'Baseline ', style: TextStyle{ ...style, size: 48, weight: 800 } },
 			TextRun{ text: 'raised', style: TextStyle{ ...style, size: 26, baseline_offset: 12, color: 0xcc2244 } },
@@ -306,7 +315,7 @@ fn test_scaled_composition_gpu_submission_keeps_caret_and_layout_on_resize() {
 			ctx.begin()
 			// Independent font advances: this bundled Inter face measures 114.890625
 			// logical units. Both paint paths must retain that fractional budget.
-			tight_style := TextStyle{ units: .logical, size: 48, font_family: 'Inter', weight: 900, line_height: 59, valign: .top }
+			tight_style := TextStyle{ size: 48, font_family: 'Inter', weight: 900, line_height: 59, valign: .top }
 			assert !draw_label_text(ctx, '96%', 0, 0, 114.890625, 59, tight_style, viewport)
 			assert draw_label_text(ctx, '96%', 0, 0, 114.0, 59, tight_style, viewport)
 			tight_rich := rich_label('tight', [TextRun{ text: '96%', style: tight_style }], rect(0, 0, 114.890625, 59), tight_style)
@@ -314,7 +323,7 @@ fn test_scaled_composition_gpu_submission_keeps_caret_and_layout_on_resize() {
 			render_element(ctx, scaled_content('slide', viewport, 1280, 720, BoxStyle{ transparent: true }, [
 				rich,
 				field,
-			]), 0, 0, viewport, '')
+			]), 0, 0, viewport, '', 'root')
 			assert sgl.error() == .no_error
 			assert ctx.content_transform == ContentTransform{}
 			assert ctx.shape_runs(rich.text_runs, rich.text_style, 400, 3, true)!.size == reference

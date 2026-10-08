@@ -7,11 +7,13 @@ pub mut:
 	props    map[string]string
 	children []&VNode
 mut:
-	expressions    map[string]&VExpression
-	property_types map[string]string
-	property_order []string
-	line           int
-	path           string
+	callbacks        map[string]VmlCallback
+	expressions      map[string]&VExpression
+	property_types   map[string]string
+	property_order   []string
+	line             int
+	path             string
+	layout_allocated bool
 }
 
 enum VExpressionKind {
@@ -427,6 +429,9 @@ fn (mut p Parser) parse_node() !&VNode {
 				node.children << child
 			} else if p.pos + 1 < p.tokens.len && p.tokens[p.pos + 1].kind == .colon {
 				key := p.eat(.ident)!
+				if key.val == 'units' {
+					return error('units is not a VML property; sizes are logical at line ${key.line}')
+				}
 				p.eat(.colon)!
 				expr := if vml_is_event_property(key.val) {
 					p.parse_event_expression()!
@@ -454,8 +459,7 @@ fn (mut p Parser) parse_node() !&VNode {
 }
 
 fn vml_is_event_property(property string) bool {
-	return property in ['on_tap', 'on_change', 'on_active', 'on_state', 'on_text', 'on_submit',
-		'on_text_validate', 'on_select', 'on_toggle', 'on_dismiss']
+	return property in vml_event_properties
 }
 
 fn expression_text(expr &VExpression) string {
@@ -755,8 +759,11 @@ pub fn parse_vml(source string) !&VNode {
 	}
 	mut node := p.parse_node()!
 	p.eat(.eof)!
+	v_validate_logical_units(node)!
+	validate_layout_vnode(node)!
+	validate_widget_vnode(node)!
+	v_validate_geometry(node, '')!
 	assign_vml_paths(mut node, '0')
-	inherit_vml_units(mut node, 'legacy')
 	return node
 }
 
@@ -773,25 +780,31 @@ pub fn element_from_vml(source string, frame Rect) !Element {
 }
 
 pub fn element_from_vnode(node &VNode, frame Rect) !Element {
+	v_validate_logical_units(node)!
+	validate_layout_vnode(node)!
+	validate_widget_vnode(node)!
+	v_validate_geometry(node, '')!
 	return node_to_element(node, frame)!
 }
 
+fn v_validate_logical_units(node &VNode) ! {
+	if 'units' in node.props {
+		return error('units is not a VML property; sizes are logical at line ${node.line}')
+	}
+	for child in node.children {
+		v_validate_logical_units(child)!
+	}
+}
+
 fn node_to_element(node &VNode, frame Rect) !Element {
-	if node.prop('units').len > 0 && node.prop('units') !in ['legacy', 'logical'] {
-		return error('units must be legacy or logical')
-	}
-	resolved := if node.tag == 'Screen' && node.prop_bool('adaptive') {
-		frame
-	} else {
-		v_frame(node, frame)
-	}
+	resolved := v_frame(node, frame)
 	el := node_to_element_base(node, resolved)!
 	key := node.prop('key')
 	menu := v_menu(node)
 	secure := el.secure || node.prop_bool('secure') || node.prop_bool('password')
 	result := Element{
 		...el
-		action_id:           if el.action_id.len > 0 { el.action_id } else { node.prop('on_tap') }
+		on_event:            v_node_events(node)
 		key:                 key
 		menu:                if menu.len > 0 { menu } else { el.menu }
 		secure:              secure
@@ -824,8 +837,9 @@ fn v_menu(node &VNode) []MenuEntry {
 	for child in node.children {
 		if child.tag == 'MenuItem' {
 			out << MenuEntry{
-				id:    child.prop_or('on_tap', child.id)
-				title: child.prop('text')
+				id:        child.id
+				on_select: v_node_callback(child, 'on_tap')
+				title:     child.prop('text')
 			}
 		}
 	}
@@ -838,7 +852,7 @@ fn node_to_element_base(node &VNode, frame Rect) !Element {
 		'Screen' {
 			return Element{
 				...screen(v_color(node, 'background', 0xffffff), v_children(node, local)!)
-				id: node.id
+				id:  node.id
 				box: v_box(node)
 			}
 		}
@@ -849,32 +863,17 @@ fn node_to_element_base(node &VNode, frame Rect) !Element {
 			return scaled_content(node.id, frame, width, height, v_box(node),
 				v_children(node, rect(0, 0, width, height))!)
 		}
-		'Column' {
-			return v_column(node, frame)!
-		}
-		'Row' {
-			return v_row(node, frame)!
-		}
-		'BoxLayout' {
-			return v_box_layout(node, frame)!
-		}
-		'FlexLayout' {
+		'Flex', 'Row', 'Column' {
 			return v_flex(node, frame)!
 		}
-		'FloatLayout', 'RelativeLayout' {
-			return v_float_layout(node, frame)!
-		}
-		'GridLayout' {
+		'Grid' {
 			return v_grid(node, frame)!
 		}
-		'AnchorLayout' {
-			return v_anchor(node, frame)!
-		}
-		'StackLayout' {
+		'Stack' {
 			return v_stack(node, frame)!
 		}
-		'PageLayout' {
-			return v_page_layout(node, frame)!
+		'Absolute' {
+			return v_absolute(node, frame)!
 		}
 		'TabbedPanel' {
 			return v_tabbed_panel(node, frame)!
@@ -911,7 +910,7 @@ fn node_to_element_base(node &VNode, frame Rect) !Element {
 				box: v_box(node)
 			}
 		}
-		'View', 'Rectangle' {
+		'View' {
 			return view(node.id, frame, v_box(node), v_children(node, local)!)
 		}
 		'Label' {
@@ -932,14 +931,10 @@ fn node_to_element_base(node &VNode, frame Rect) !Element {
 			)
 		}
 		'Slider' {
-			action_id := if node.prop('on_change').len > 0 {
-				node.prop('on_change')
-			} else {
-				node.prop('on_tap')
-			}
+			callback := v_node_events(node)
 			return slider(
 				id:          node.id
-				action_id:   action_id
+				on_event:    callback
 				frame:       frame
 				min:         node.prop_or('min', '0').f64()
 				max:         node.prop_or('max', '100').f64()
@@ -959,19 +954,13 @@ fn node_to_element_base(node &VNode, frame Rect) !Element {
 			)
 		}
 		'Switch' {
-			action_id := if node.prop('on_active').len > 0 {
-				node.prop('on_active')
-			} else if node.prop('on_change').len > 0 {
-				node.prop('on_change')
-			} else {
-				node.prop('on_tap')
-			}
+			callback := v_node_events(node)
 			return switch_control(
-				id:        node.id
-				action_id: action_id
-				frame:     frame
-				active:    node.prop_bool('active')
-				style:     SwitchStyle{
+				id:       node.id
+				on_event: callback
+				frame:    frame
+				active:   node.prop_bool('active')
+				style:    SwitchStyle{
 					inactive_track_color: v_color(node, 'inactive_color', 0xcbd5e1)
 					active_track_color:   v_color(node, 'active_color', v_color(node, 'color',
 						0x22c55e))
@@ -982,15 +971,11 @@ fn node_to_element_base(node &VNode, frame Rect) !Element {
 			)
 		}
 		'ToggleButton' {
-			action_id := if node.prop('on_state').len > 0 {
-				node.prop('on_state')
-			} else {
-				node.prop('on_tap')
-			}
+			callback := v_node_events(node)
 			normal_box := v_box(node)
 			return toggle_button(
 				id:                 node.id
-				action_id:          action_id
+				on_event:           callback
 				title:              node.prop('text')
 				frame:              frame
 				pressed:            node.prop_bool('pressed') || node.prop('state') == 'down'
@@ -1012,7 +997,7 @@ fn node_to_element_base(node &VNode, frame Rect) !Element {
 		'Button' {
 			return Element{
 				...button(node.id, node.prop('text'), frame, v_box(node), v_text_style(node))
-				action_id: node.prop('on_tap')
+				on_event: v_node_callback(node, 'on_tap')
 			}
 		}
 		'MessageBox' {
@@ -1022,20 +1007,14 @@ fn node_to_element_base(node &VNode, frame Rect) !Element {
 			return Element{
 				...checkbox(node.id, node.prop('text'), node.prop_bool('checked'), frame,
 					v_text_style(node))
-				action_id: node.prop('on_tap')
+				on_event: v_node_callback(node, 'on_tap')
 			}
 		}
 		'Spinner' {
-			action_id := if node.prop('on_text').len > 0 {
-				node.prop('on_text')
-			} else if node.prop('on_change').len > 0 {
-				node.prop('on_change')
-			} else {
-				node.prop('on_tap')
-			}
+			callback := v_node_events(node)
 			return spinner(
 				id:              node.id
-				action_id:       action_id
+				on_event:        callback
 				frame:           frame
 				text:            node.prop('text')
 				values:          v_options(node)
@@ -1045,38 +1024,22 @@ fn node_to_element_base(node &VNode, frame Rect) !Element {
 			)
 		}
 		'Dropdown' {
-			action_id := if node.prop('on_change').len > 0 {
-				node.prop('on_change')
-			} else {
-				node.prop('on_tap')
-			}
+			callback := v_node_events(node)
 			return Element{
 				...dropdown(node.id, node.prop('text'), v_options(node), frame, v_box(node),
 					v_text_style(node))
-				action_id: action_id
-			}
-		}
-		'TextArea' {
-			return Element{
-				kind:        .text_area
-				id:          node.id
-				action_id:   node.prop('on_change')
-				text:        node.prop('text')
-				frame:       frame
-				box:         v_box(node)
-				text_style:  v_text_style(node)
-				readonly:    node.prop('editable') == 'false'
-				emit_change: node.prop('on_change').len > 0
+				on_event: callback
 			}
 		}
 		'TextInput' {
+			content, runs := v_text_content(node)!
 			return text_input(
 				id:             node.id
-				action_id:      node.prop_or('on_text', node.prop('on_change'))
-				submit_id:      node.prop_or('on_text_validate', node.prop('on_submit'))
+				on_event:       v_node_events(node)
 				frame:          frame
-				text:           node.prop('text')
-				hint_text:      node.prop_or('hint_text', node.prop('placeholder'))
+				text:           content
+				text_runs:      runs
+				placeholder:    node.prop('placeholder')
 				multiline:      node.prop_or('multiline', 'true') != 'false'
 				password:       node.prop_bool('password') || node.prop_bool('secure')
 				readonly:       node.prop_bool('readonly')
@@ -1088,25 +1051,6 @@ fn node_to_element_base(node &VNode, frame Rect) !Element {
 				box:            v_box(node)
 				text_style:     v_text_style(node)
 			)!
-		}
-		'TextField' {
-			id := node.id
-			change_id := node.prop('on_change')
-			submit_id := node.prop('on_submit')
-			keyboard := v_keyboard(node.prop('keyboard'))
-			if node.prop_bool('emit_change') || node.prop('on_change').len > 0 {
-				return Element{
-					...text_field_with_change_and_submit(id, submit_id, node.prop('placeholder'),
-						node.prop('text'), frame, v_box(node), v_text_style(node), keyboard)
-					action_id: change_id
-				}
-			}
-			if submit_id.len > 0 {
-				return text_field_with_submit(id, submit_id, node.prop('placeholder'),
-					node.prop('text'), frame, v_box(node), v_text_style(node), keyboard)
-			}
-			return text_field(id, node.prop('placeholder'), node.prop('text'), frame, v_box(node),
-				v_text_style(node), keyboard)
 		}
 		else {
 			return view(node.id, frame, v_box(node), v_children(node, local)!)
@@ -1128,9 +1072,9 @@ fn v_message_box(node &VNode, frame Rect) Element {
 			continue
 		}
 		actions << MessageBoxAction{
-			id:        child.id
-			action_id: child.prop('on_tap')
-			title:     child.prop('text')
+			id:       child.id
+			on_event: v_node_callback(child, 'on_tap')
+			title:    child.prop('text')
 		}
 	}
 	return custom_message_box(
@@ -1148,13 +1092,10 @@ fn v_message_box(node &VNode, frame Rect) Element {
 // Layout metadata must be excluded before assigning slots or measuring a
 // container. Dedicated menu/option traversals still consume their own entries.
 fn v_is_layout_metadata(node &VNode) bool {
-	return node.tag in ['MenuItem', 'Option', 'LayoutVariation']
+	return node.tag in ['MenuItem', 'Option']
 }
 
 fn v_children(node &VNode, frame Rect) ![]Element {
-	if node.tag == 'Screen' && node.prop_bool('adaptive') && !node.prop_bool('__adaptive_layout_resolved') {
-		return v_adaptive_children(node, frame)!
-	}
 	mut out := []Element{}
 	for child in node.children {
 		if v_is_layout_metadata(child) {
@@ -1182,172 +1123,10 @@ fn v_keyboard(raw string) int {
 	}
 }
 
-fn v_column(node &VNode, frame Rect) !Element {
-	container := v_frame(node, frame)
+fn v_grid_config(node &VNode, frame Rect) !GridConfig {
 	padding := node.prop_or('padding', '0').f64()
 	spacing := node.prop_or('spacing', '0').f64()
-	mut y := padding
-	mut children := []Element{}
-	for child in node.children {
-		if v_is_layout_metadata(child) {
-			continue
-		}
-		child_h := v_dimension(child, 'height', 32)
-		child_w := v_dimension(child, 'width', container.width - padding * 2)
-		child_frame := rect(padding, y, child_w, child_h)
-		children << node_to_element(child, child_frame)!
-		y += child_h + spacing
-	}
-	return view(node.id, container, v_box(node), children)
-}
-
-fn v_row(node &VNode, frame Rect) !Element {
-	container := v_frame(node, frame)
-	padding := node.prop_or('padding', '0').f64()
-	spacing := node.prop_or('spacing', '0').f64()
-	mut x := padding
-	mut children := []Element{}
-	for child in node.children {
-		if v_is_layout_metadata(child) {
-			continue
-		}
-		child_w := v_dimension(child, 'width', 80)
-		child_h := v_dimension(child, 'height', container.height - padding * 2)
-		child_frame := rect(x, padding, child_w, child_h)
-		children << node_to_element(child, child_frame)!
-		x += child_w + spacing
-	}
-	return view(node.id, container, v_box(node), children)
-}
-
-fn v_box_layout_child(node &VNode) !BoxLayoutChild {
-	return BoxLayoutChild{
-		element:          Element{
-			frame: rect(0, 0, v_dimension(node, 'width', 80), v_dimension(node, 'height', 32))
-		}
-		size_hint_x:      node.prop_or('size_hint_x', '1').f64()
-		size_hint_y:      node.prop_or('size_hint_y', '1').f64()
-		minimum_width:    node.prop_or('size_hint_min_x', '-1').f64()
-		minimum_height:   node.prop_or('size_hint_min_y', '-1').f64()
-		maximum_width:    node.prop_or('size_hint_max_x', '-1').f64()
-		maximum_height:   node.prop_or('size_hint_max_y', '-1').f64()
-		horizontal_align: box_alignment(node.prop_or('align_x', 'start'))!
-		vertical_align:   box_alignment(node.prop_or('align_y', 'start'))!
-	}
-}
-
-fn v_box_layout_config(node &VNode, frame Rect, children []BoxLayoutChild) !BoxLayoutConfig {
-	padding := node.prop_or('padding', '0').f64()
-	return BoxLayoutConfig{
-		id:          node.id
-		frame:       frame
-		box:         v_box(node)
-		orientation: box_orientation(node.prop_or('orientation', 'horizontal'))!
-		padding:     BoxPadding{
-			left:   node.prop_or('padding_left', padding.str()).f64()
-			top:    node.prop_or('padding_top', padding.str()).f64()
-			right:  node.prop_or('padding_right', padding.str()).f64()
-			bottom: node.prop_or('padding_bottom', padding.str()).f64()
-		}
-		spacing:     node.prop_or('spacing', '0').f64()
-		children:    children
-	}
-}
-
-fn v_box_layout(node &VNode, frame Rect) !Element {
-	mut visible := []&VNode{}
-	mut items := []BoxLayoutChild{}
-	for child in node.children {
-		if v_is_layout_metadata(child) {
-			continue
-		}
-		visible << child
-		items << v_box_layout_child(child)!
-	}
-	config := v_box_layout_config(node, rect(0, 0, frame.width, frame.height), items)!
-	frames := box_layout_frames(config)!
-	mut children := []Element{cap: visible.len}
-	for index, child in visible {
-		children << node_to_element(child, frames[index])!
-	}
-	return view(node.id, frame, v_box(node), children)
-}
-
-fn v_float_axis_hint(node &VNode, start_keys []string, center_key string, end_key string) FloatAxisHint {
-	for key in start_keys {
-		if value := node.props[key] {
-			return FloatAxisHint{
-				anchor: .start
-				value:  value.f64()
-			}
-		}
-	}
-	if value := node.props[center_key] {
-		return FloatAxisHint{
-			anchor: .center
-			value:  value.f64()
-		}
-	}
-	if value := node.props[end_key] {
-		return FloatAxisHint{
-			anchor: .end
-			value:  value.f64()
-		}
-	}
-	return FloatAxisHint{}
-}
-
-fn v_float_layout_child(node &VNode) FloatLayoutChild {
-	return FloatLayoutChild{
-		element:        Element{
-			frame: rect(v_dimension(node, 'x', 0), v_dimension(node, 'y', 0), v_dimension(node,
-				'width', 80), v_dimension(node, 'height', 32))
-		}
-		size_hint_x:    node.prop_or('size_hint_x', '1').f64()
-		size_hint_y:    node.prop_or('size_hint_y', '1').f64()
-		minimum_width:  node.prop_or('size_hint_min_x', '-1').f64()
-		minimum_height: node.prop_or('size_hint_min_y', '-1').f64()
-		maximum_width:  node.prop_or('size_hint_max_x', '-1').f64()
-		maximum_height: node.prop_or('size_hint_max_y', '-1').f64()
-		x_hint:         v_float_axis_hint(node, ['pos_hint_x'], 'pos_hint_center_x',
-			'pos_hint_right')
-		y_hint:         v_float_axis_hint(node, ['pos_hint_y', 'pos_hint_top'],
-			'pos_hint_center_y', 'pos_hint_bottom')
-	}
-}
-
-fn v_float_layout_config(node &VNode, frame Rect, children []FloatLayoutChild) FloatLayoutConfig {
-	return FloatLayoutConfig{
-		id:       node.id
-		frame:    frame
-		box:      v_box(node)
-		children: children
-	}
-}
-
-fn v_float_layout(node &VNode, frame Rect) !Element {
-	mut visible := []&VNode{}
-	mut items := []FloatLayoutChild{}
-	for child in node.children {
-		if v_is_layout_metadata(child) {
-			continue
-		}
-		visible << child
-		items << v_float_layout_child(child)
-	}
-	config := v_float_layout_config(node, rect(0, 0, frame.width, frame.height), items)
-	frames := float_layout_frames(config)!
-	mut children := []Element{cap: visible.len}
-	for index, child in visible {
-		children << node_to_element(child, frames[index])!
-	}
-	return view(node.id, frame, v_box(node), children)
-}
-
-fn v_grid_config(node &VNode, frame Rect) !GridLayoutConfig {
-	padding := node.prop_or('padding', '0').f64()
-	spacing := node.prop_or('spacing', '0').f64()
-	return GridLayoutConfig{
+	return GridConfig{
 		id:                     node.id
 		frame:                  frame
 		box:                    v_box(node)
@@ -1386,108 +1165,10 @@ fn v_grid(node &VNode, frame Rect) !Element {
 		}
 	}
 	config := v_grid_config(node, rect(0, 0, frame.width, frame.height))!
-	frames := grid_layout_frames(GridLayoutConfig{ ...config, child_spans: spans }, visible.len)!
+	frames := grid_frames(GridConfig{ ...config, child_spans: spans }, visible.len)!
 	mut children := []Element{cap: visible.len}
 	for index, child in visible {
 		children << node_to_element(v_layout_node_at(child, frames[index]), frames[index])!
-	}
-	return view(node.id, frame, v_box(node), children)
-}
-
-fn v_anchor_config(node &VNode, frame Rect) !AnchorLayoutConfig {
-	padding := node.prop_or('padding', '0').f64()
-	return AnchorLayoutConfig{
-		id:       node.id
-		frame:    frame
-		box:      v_box(node)
-		anchor_x: horizontal_anchor(node.prop_or('anchor_x', 'center'))!
-		anchor_y: vertical_anchor(node.prop_or('anchor_y', 'center'))!
-		padding:  AnchorPadding{
-			left:   node.prop_or('padding_left', padding.str()).f64()
-			top:    node.prop_or('padding_top', padding.str()).f64()
-			right:  node.prop_or('padding_right', padding.str()).f64()
-			bottom: node.prop_or('padding_bottom', padding.str()).f64()
-		}
-	}
-}
-
-fn v_anchor(node &VNode, frame Rect) !Element {
-	config := v_anchor_config(node, rect(0, 0, frame.width, frame.height))!
-	mut children := []Element{}
-	for child in node.children {
-		if v_is_layout_metadata(child) {
-			continue
-		}
-		size := rect(0, 0, v_dimension(child, 'width', 80), v_dimension(child, 'height', 32))
-		children << node_to_element(child, anchor_layout_frame(config, size))!
-	}
-	return view(node.id, frame, v_box(node), children)
-}
-
-fn v_stack_config(node &VNode, frame Rect) !StackLayoutConfig {
-	padding := node.prop_or('padding', '0').f64()
-	spacing := node.prop_or('spacing', '0').f64()
-	return StackLayoutConfig{
-		id:          node.id
-		frame:       frame
-		box:         v_box(node)
-		orientation: stack_orientation(node.prop_or('orientation', 'lr-tb'))!
-		padding:     StackPadding{
-			left:   node.prop_or('padding_left', padding.str()).f64()
-			top:    node.prop_or('padding_top', padding.str()).f64()
-			right:  node.prop_or('padding_right', padding.str()).f64()
-			bottom: node.prop_or('padding_bottom', padding.str()).f64()
-		}
-		spacing:     StackSpacing{
-			horizontal: node.prop_or('spacing_x', spacing.str()).f64()
-			vertical:   node.prop_or('spacing_y', spacing.str()).f64()
-		}
-	}
-}
-
-fn v_stack(node &VNode, frame Rect) !Element {
-	mut visible := []&VNode{}
-	mut sizes := []Rect{}
-	for child in node.children {
-		if v_is_layout_metadata(child) {
-			continue
-		}
-		visible << child
-		sizes << rect(0, 0, v_dimension(child, 'width', 80), v_dimension(child, 'height', 32))
-	}
-	config := v_stack_config(node, rect(0, 0, frame.width, frame.height))!
-	frames := stack_layout_frames(config, sizes)!
-	mut children := []Element{cap: visible.len}
-	for index, child in visible {
-		children << node_to_element(child, frames[index])!
-	}
-	return view(node.id, frame, v_box(node), children)
-}
-
-fn v_page_layout_config(node &VNode, frame Rect, child_count int) PageLayoutConfig {
-	return PageLayoutConfig{
-		id:              node.id
-		frame:           frame
-		box:             v_box(node)
-		page:            node.prop_or('page', '0').int()
-		border:          node.prop_or('border', '50').f64()
-		swipe_threshold: node.prop_or('swipe_threshold', '0.5').f64()
-		children:        []Element{len: child_count}
-	}
-}
-
-fn v_page_layout(node &VNode, frame Rect) !Element {
-	mut visible := []&VNode{}
-	for child in node.children {
-		if !v_is_layout_metadata(child) {
-			visible << child
-		}
-	}
-	config := v_page_layout_config(node, rect(0, 0, frame.width, frame.height), visible.len)
-	frames := page_layout_frames(config)!
-	mut children := []Element{cap: visible.len}
-	for index, child in visible {
-		children << node_to_element(child, frames[index])!
 	}
 	return view(node.id, frame, v_box(node), children)
 }
@@ -1534,10 +1215,10 @@ fn v_tabbed_panel(node &VNode, frame Rect) !Element {
 		}
 		tab_nodes << child
 		dummy_tabs << TabbedPanelTab{
-			id:        child.id
-			title:     child.prop('text')
-			action_id: child.prop('on_select')
-			enabled:   child.prop('enabled') != 'false'
+			id:       child.id
+			title:    child.prop('text')
+			on_event: v_node_callback(child, 'on_select')
+			enabled:  child.prop('enabled') != 'false'
 		}
 	}
 	local := rect(0, 0, frame.width, frame.height)
@@ -1554,11 +1235,11 @@ fn v_tabbed_panel(node &VNode, frame Rect) !Element {
 			Element{}
 		}
 		tabs << TabbedPanelTab{
-			id:        child.id
-			title:     child.prop('text')
-			action_id: child.prop('on_select')
-			content:   content
-			enabled:   child.prop('enabled') != 'false'
+			id:       child.id
+			title:    child.prop('text')
+			on_event: v_node_callback(child, 'on_select')
+			content:  content
+			enabled:  child.prop('enabled') != 'false'
 		}
 	}
 	return tabbed_panel(v_tabbed_panel_config(node, frame, tabs)!)!
@@ -1571,7 +1252,7 @@ fn v_accordion_config(node &VNode, frame Rect, items []AccordionItem) !Accordion
 		frame:                    frame
 		box:                      v_box(node)
 		current:                  node.prop_or('current', '0').int()
-		orientation:              box_orientation(node.prop_or('orientation', 'horizontal'))!
+		orientation:              layout_orientation(node.prop_or('orientation', 'horizontal'))!
 		min_space:                node.prop_or('min_space', '44').f64()
 		header_box:               BoxStyle{
 			bg:     v_color(node, 'title_background', 0xe2e8f0)
@@ -1605,10 +1286,10 @@ fn v_accordion(node &VNode, frame Rect) !Element {
 		}
 		item_nodes << child
 		dummy_items << AccordionItem{
-			id:        child.id
-			title:     child.prop('title')
-			action_id: child.prop('on_select')
-			enabled:   child.prop('enabled') != 'false'
+			id:       child.id
+			title:    child.prop('title')
+			on_event: v_node_callback(child, 'on_select')
+			enabled:  child.prop('enabled') != 'false'
 		}
 	}
 	local := rect(0, 0, frame.width, frame.height)
@@ -1625,11 +1306,11 @@ fn v_accordion(node &VNode, frame Rect) !Element {
 			Element{}
 		}
 		items << AccordionItem{
-			id:        child.id
-			title:     child.prop('title')
-			action_id: child.prop('on_select')
-			content:   content
-			enabled:   child.prop('enabled') != 'false'
+			id:       child.id
+			title:    child.prop('title')
+			on_event: v_node_callback(child, 'on_select')
+			content:  content
+			enabled:  child.prop('enabled') != 'false'
 		}
 	}
 	return accordion(v_accordion_config(node, frame, items)!)!
@@ -1643,14 +1324,14 @@ fn v_tree_view_node(node &VNode) TreeViewNode {
 		}
 	}
 	return TreeViewNode{
-		id:               node.id
-		text:             node.prop_or('text', node.prop('title'))
-		action_id:        node.prop('on_select')
-		toggle_action_id: node.prop('on_toggle')
-		expanded:         node.prop_bool('expanded')
-		selected:         node.prop_bool('selected')
-		enabled:          node.prop('enabled') != 'false'
-		children:         children
+		id:        node.id
+		text:      node.prop_or('text', node.prop('title'))
+		on_event:  v_node_callback(node, 'on_select')
+		on_toggle: v_node_callback(node, 'on_toggle')
+		expanded:  node.prop_bool('expanded')
+		selected:  node.prop_bool('selected')
+		enabled:   node.prop('enabled') != 'false'
+		children:  children
 	}
 }
 
@@ -1776,20 +1457,20 @@ fn v_carousel(node &VNode, frame Rect) !Element {
 
 fn v_modal_view_config(node &VNode, frame Rect, content Element) ModalViewConfig {
 	return ModalViewConfig{
-		id:                node.id
-		frame:             frame
-		open:              node.prop_bool('open')
-		auto_dismiss:      node.prop('auto_dismiss') != 'false'
-		dismiss_action_id: node.prop('on_dismiss')
-		content_width:     node.prop_or('content_width', '-1').f64()
-		content_height:    node.prop_or('content_height', '-1').f64()
-		size_hint_x:       node.prop_or('size_hint_x', '0.8').f64()
-		size_hint_y:       node.prop_or('size_hint_y', '0.8').f64()
-		overlay_box:       BoxStyle{
+		id:             node.id
+		frame:          frame
+		open:           node.prop_bool('open')
+		auto_dismiss:   node.prop('auto_dismiss') != 'false'
+		on_dismiss:     v_node_callback(node, 'on_dismiss')
+		content_width:  node.prop_or('content_width', '-1').f64()
+		content_height: node.prop_or('content_height', '-1').f64()
+		size_hint_x:    node.prop_or('size_hint_x', '0.8').f64()
+		size_hint_y:    node.prop_or('size_hint_y', '0.8').f64()
+		overlay_box:    BoxStyle{
 			bg: v_color(node, 'overlay_background', 0x475569)
 		}
-		content_box:       v_box(node)
-		content:           content
+		content_box:    v_box(node)
+		content:        content
 	}
 }
 
@@ -1805,32 +1486,32 @@ fn v_modal_view(node &VNode, frame Rect) !Element {
 
 fn v_popup_config(node &VNode, frame Rect, content Element) PopupConfig {
 	return PopupConfig{
-		id:                node.id
-		frame:             frame
-		open:              node.prop_bool('open')
-		auto_dismiss:      node.prop('auto_dismiss') != 'false'
-		dismiss_action_id: node.prop('on_dismiss')
-		content_width:     node.prop_or('content_width', '-1').f64()
-		content_height:    node.prop_or('content_height', '-1').f64()
-		size_hint_x:       node.prop_or('size_hint_x', '0.8').f64()
-		size_hint_y:       node.prop_or('size_hint_y', '0.8').f64()
-		overlay_box:       BoxStyle{
+		id:               node.id
+		frame:            frame
+		open:             node.prop_bool('open')
+		auto_dismiss:     node.prop('auto_dismiss') != 'false'
+		on_dismiss:       v_node_callback(node, 'on_dismiss')
+		content_width:    node.prop_or('content_width', '-1').f64()
+		content_height:   node.prop_or('content_height', '-1').f64()
+		size_hint_x:      node.prop_or('size_hint_x', '0.8').f64()
+		size_hint_y:      node.prop_or('size_hint_y', '0.8').f64()
+		overlay_box:      BoxStyle{
 			bg: v_color(node, 'overlay_background', 0x475569)
 		}
-		surface_box:       v_box(node)
-		title:             node.prop('title')
-		title_height:      node.prop_or('title_height', '48').f64()
-		title_style:       TextStyle{
+		surface_box:      v_box(node)
+		title:            node.prop('title')
+		title_height:     node.prop_or('title_height', '48').f64()
+		title_style:      TextStyle{
 			color: v_color(node, 'title_color', 0x0f172a)
 			size:  node.prop_or('title_font_size', '18').f64()
 			bold:  node.prop('title_bold') != 'false'
 			align: .center
 		}
-		separator_height:  node.prop_or('separator_height', '1').f64()
-		separator_box:     BoxStyle{
+		separator_height: node.prop_or('separator_height', '1').f64()
+		separator_box:    BoxStyle{
 			bg: v_color(node, 'separator_color', 0xe2e8f0)
 		}
-		content:           content
+		content:          content
 	}
 }
 
@@ -1862,24 +1543,24 @@ fn v_dimension(node &VNode, key string, fallback f64) f64 {
 fn v_box(node &VNode) BoxStyle {
 	border_width := node.prop_or('border_width', '0')
 	return BoxStyle{
-		bg:            v_color(node, 'background', 0xffffff)
-		radius:        node.prop_or('corner_radius', node.prop_or('radius', '0')).f64()
-		transparent:   node.prop_bool('transparent')
-		border_color:  v_color(node, 'border_color', 0)
-		border_left:   node.prop_or('border_left', border_width).f64()
-		border_top:    node.prop_or('border_top', border_width).f64()
-		border_right:  node.prop_or('border_right', border_width).f64()
-		border_bottom: node.prop_or('border_bottom', border_width).f64()
-		border_left_color: v_optional_color(node, 'border_left_color')
-		border_top_color: v_optional_color(node, 'border_top_color')
-		border_right_color: v_optional_color(node, 'border_right_color')
+		bg:                  v_color(node, 'background', 0xffffff)
+		radius:              node.prop_or('corner_radius', node.prop_or('radius', '0')).f64()
+		transparent:         node.prop_bool('transparent')
+		border_color:        v_color(node, 'border_color', 0)
+		border_left:         node.prop_or('border_left', border_width).f64()
+		border_top:          node.prop_or('border_top', border_width).f64()
+		border_right:        node.prop_or('border_right', border_width).f64()
+		border_bottom:       node.prop_or('border_bottom', border_width).f64()
+		border_left_color:   v_optional_color(node, 'border_left_color')
+		border_top_color:    v_optional_color(node, 'border_top_color')
+		border_right_color:  v_optional_color(node, 'border_right_color')
 		border_bottom_color: v_optional_color(node, 'border_bottom_color')
-		border_pattern: if node.prop('border_pattern') == 'dashed' { .dashed } else { .solid }
-		dash_length: node.prop_or('dash_length', '6').f64()
-		dash_gap: node.prop_or('dash_gap', '4').f64()
-		outline_color: v_color(node, 'outline_color', 0)
-		outline_width: node.prop_or('outline_width', '0').f64()
-		outline_offset: node.prop_or('outline_offset', '0').f64()
+		border_pattern:      if node.prop('border_pattern') == 'dashed' { .dashed } else { .solid }
+		dash_length:         node.prop_or('dash_length', '6').f64()
+		dash_gap:            node.prop_or('dash_gap', '4').f64()
+		outline_color:       v_color(node, 'outline_color', 0)
+		outline_width:       node.prop_or('outline_width', '0').f64()
+		outline_offset:      node.prop_or('outline_offset', '0').f64()
 	}
 }
 
@@ -1906,51 +1587,50 @@ fn v_optional_bool(node &VNode, key string) ?bool {
 fn v_box_patch(node &VNode, prefix string) BoxStylePatch {
 	width := v_optional_number(node, prefix + 'border_width')
 	return BoxStylePatch{
-		bg: v_optional_color(node, prefix + 'background')
-		radius: v_optional_number(node, prefix + 'radius')
-		transparent: v_optional_bool(node, prefix + 'transparent')
-		border_color: v_optional_color(node, prefix + 'border_color')
-		border_left: v_optional_number_or(node, prefix + 'border_left', width)
-		border_top: v_optional_number_or(node, prefix + 'border_top', width)
-		border_right: v_optional_number_or(node, prefix + 'border_right', width)
-		border_bottom: v_optional_number_or(node, prefix + 'border_bottom', width)
-		border_left_color: v_optional_color(node, prefix + 'border_left_color')
-		border_top_color: v_optional_color(node, prefix + 'border_top_color')
-		border_right_color: v_optional_color(node, prefix + 'border_right_color')
+		bg:                  v_optional_color(node, prefix + 'background')
+		radius:              v_optional_number(node, prefix + 'radius')
+		transparent:         v_optional_bool(node, prefix + 'transparent')
+		border_color:        v_optional_color(node, prefix + 'border_color')
+		border_left:         v_optional_number_or(node, prefix + 'border_left', width)
+		border_top:          v_optional_number_or(node, prefix + 'border_top', width)
+		border_right:        v_optional_number_or(node, prefix + 'border_right', width)
+		border_bottom:       v_optional_number_or(node, prefix + 'border_bottom', width)
+		border_left_color:   v_optional_color(node, prefix + 'border_left_color')
+		border_top_color:    v_optional_color(node, prefix + 'border_top_color')
+		border_right_color:  v_optional_color(node, prefix + 'border_right_color')
 		border_bottom_color: v_optional_color(node, prefix + 'border_bottom_color')
-		border_pattern: if node.prop(prefix + 'border_pattern').len > 0 {
-			?BorderPattern(if node.prop(prefix + 'border_pattern') == 'dashed' { .dashed } else { .solid })
-		} else { none }
-		dash_length: v_optional_number(node, prefix + 'dash_length')
-		dash_gap: v_optional_number(node, prefix + 'dash_gap')
-		outline_color: v_optional_color(node, prefix + 'outline_color')
-		outline_width: v_optional_number(node, prefix + 'outline_width')
-		outline_offset: v_optional_number(node, prefix + 'outline_offset')
+		border_pattern:      if node.prop(prefix + 'border_pattern').len > 0 {
+			?BorderPattern(if node.prop(prefix + 'border_pattern') == 'dashed' {
+				.dashed
+			} else {
+				.solid
+			})
+		} else {
+			none
+		}
+		dash_length:         v_optional_number(node, prefix + 'dash_length')
+		dash_gap:            v_optional_number(node, prefix + 'dash_gap')
+		outline_color:       v_optional_color(node, prefix + 'outline_color')
+		outline_width:       v_optional_number(node, prefix + 'outline_width')
+		outline_offset:      v_optional_number(node, prefix + 'outline_offset')
 	}
 }
 
 fn v_interaction_style(node &VNode) InteractionStyle {
 	return InteractionStyle{
-		hover: v_box_patch(node, 'hover_')
-		focus: v_box_patch(node, 'focus_')
-		pressed: v_box_patch(node, 'pressed_')
-		disabled: v_box_patch(node, 'disabled_')
-		hover_text: TextStylePatch{color: v_optional_color(node, 'hover_color')}
-		focus_text: TextStylePatch{color: v_optional_color(node, 'focus_color')}
-		pressed_text: TextStylePatch{color: v_optional_color(node, 'pressed_color')}
-		disabled_text: TextStylePatch{color: v_optional_color(node, 'disabled_color')}
+		hover:         v_box_patch(node, 'hover_')
+		focus:         v_box_patch(node, 'focus_')
+		pressed:       v_box_patch(node, 'pressed_')
+		disabled:      v_box_patch(node, 'disabled_')
+		hover_text:    TextStylePatch{ color: v_optional_color(node, 'hover_color') }
+		focus_text:    TextStylePatch{ color: v_optional_color(node, 'focus_color') }
+		pressed_text:  TextStylePatch{ color: v_optional_color(node, 'pressed_color') }
+		disabled_text: TextStylePatch{ color: v_optional_color(node, 'disabled_color') }
 	}
-}
-
-fn inherit_vml_units(mut node VNode, inherited string) {
-	profile := node.prop_or('units', inherited)
-	if profile == 'logical' || 'units' in node.props { node.props['units'] = profile }
-	for mut child in node.children { inherit_vml_units(mut child, profile) }
 }
 
 fn v_text_style(node &VNode) TextStyle {
 	return TextStyle{
-		units:              if node.prop('units') == 'logical' { .logical } else { .legacy }
 		color:              v_color(node, 'color', 0x111111)
 		background_color:   v_color(node, 'background_color', 0)
 		size:               node.prop_or('font_size', node.prop_or('size', '15')).f64()
@@ -2006,15 +1686,16 @@ fn v_valign(raw string) VAlign {
 }
 
 // Run children inherit only omitted properties; an explicit false/zero wins.
-fn v_rich_label(node &VNode, frame Rect) !Element {
-	style := v_text_style(node)
-	layout_validate_text_measurement(style, -1)!
-	if node.children.len == 0 { return label(node.id, node.prop('text'), frame, style) }
-	if node.prop('text').len > 0 { return error('Label uses either text or Run children') }
+fn v_text_content(node &VNode) !(string, []TextRun) {
+	if node.children.len == 0 { return node.prop('text'), []TextRun{} }
 	mut runs := []TextRun{}
 	mut content := ''
 	for child in node.children {
-		if child.tag != 'Run' { return error('Label children must be Run nodes') }
+		if v_is_layout_metadata(child) { continue }
+		if child.tag != 'Run' { return error('${node.tag} children must be Run nodes') }
+		if node.prop('text').len > 0 {
+			return error('${node.tag} uses either text or Run children')
+		}
 		mut props := node.props.clone()
 		for key, value in child.props { props[key] = value }
 		run_style := v_text_style(&VNode{ props: props })
@@ -2023,5 +1704,41 @@ fn v_rich_label(node &VNode, frame Rect) !Element {
 		runs << TextRun{ text: part, style: run_style }
 		content += part
 	}
+	return if runs.len > 0 { content } else { node.prop('text') }, runs
+}
+
+fn v_rich_label(node &VNode, frame Rect) !Element {
+	style := v_text_style(node)
+	layout_validate_text_measurement(style, -1)!
+	content, runs := v_text_content(node)!
 	return Element{ ...label(node.id, content, frame, style), text_runs: runs }
+}
+
+fn validate_layout_vnode(node &VNode) ! {
+	if node.tag == 'Rectangle' {
+		return error('Rectangle has been removed; use View at line ${node.line}')
+	}
+	if node.tag in ['AnchorLayout', 'BoxLayout', 'FloatLayout', 'RelativeLayout', 'StackLayout',
+		'PageLayout', 'AdaptiveLayout', 'GridLayout', 'FlexLayout', 'LayoutVariation'] {
+		return error('removed layout `${node.tag}`; use Flex, Grid, Stack or Absolute at line ${node.line}')
+	}
+	for key, _ in node.props {
+		if key == 'adaptive' || key.starts_with('layout_') || key.starts_with('size_hint_')
+			|| key.starts_with('pos_hint_') || key in ['anchor_x', 'anchor_y'] {
+			return error('removed layout property `${key}` at line ${node.line}')
+		}
+	}
+	for child in node.children { validate_layout_vnode(child)! }
+}
+
+fn validate_widget_vnode(node &VNode) ! {
+	if node.tag in ['TextField', 'TextArea', 'ScrollView'] {
+		return error('removed widget `${node.tag}`; use TextInput or Scroll at line ${node.line}')
+	}
+	for key, _ in node.props {
+		if key in ['hint_text', 'on_text', 'on_text_validate', 'editable', 'emit_change'] {
+			return error('removed widget property `${key}` at line ${node.line}; use placeholder, on_change, on_submit or readonly')
+		}
+	}
+	for child in node.children { validate_widget_vnode(child)! }
 }

@@ -35,6 +35,20 @@ fn find_element_by_id(element ui2.Element, id string) ?ui2.Element {
 	return none
 }
 
+fn find_element_absolute_frame(element ui2.Element, id string, parent_x f64, parent_y f64) ?ui2.Rect {
+	x := parent_x + element.frame.x
+	y := parent_y + element.frame.y
+	if element.id == id {
+		return ui2.rect(x, y, element.frame.width, element.frame.height)
+	}
+	for child in element.children {
+		if found := find_element_absolute_frame(child, id, x, y) {
+			return found
+		}
+	}
+	return none
+}
+
 fn find_element_by_text(element ui2.Element, text string) ?ui2.Element {
 	if element.text == text {
 		return element
@@ -75,7 +89,7 @@ fn test_users_screen_is_evaluated_from_model_vml() {
 	logo := find_element_by_id(root, 'v_logo') or { panic('missing V logo') }
 	assert logo.image_path == app.logo_path
 	assert os.exists(logo.image_path)
-	assert logo.frame == ui2.rect(window_width - 66, window_height - 66, 50, 50)
+	assert (find_element_absolute_frame(root, 'v_logo', 0, 0) or { panic('missing V logo frame') }) == ui2.rect(window_width - 66, window_height - 66, 50, 50)
 	country := find_element_by_text(root, 'United States') or { panic('missing country dropdown') }
 	assert country.menu.len == 4
 	assert country.menu[1].title == 'Canada'
@@ -95,10 +109,10 @@ fn test_users_screen_keeps_table_beside_form_at_minimum_width() {
 	table := find_element_by_id(page, 'users_table') or { panic('missing users table') }
 	dialog := find_element_by_id(root, 'help_dialog') or { panic('missing help dialog') }
 	assert page.frame == resized
-	assert table.frame.x == 244
-	assert table.frame.y == 16
+	table_frame := find_element_absolute_frame(root, 'users_table', 0, 0) or { panic('missing table frame') }
+	assert table_frame == ui2.rect(244, 16, window_min_width - 260, 270)
 	assert table.frame.width == window_min_width - 260
-	assert dialog.frame == ui2.rect(190, 118, 320, 145)
+	assert dialog.frame == ui2.rect(190, (resized.height - 145) / 2, 320, 145)
 	assert !dialog.hidden
 	assert find_element_by_id(page, 'help_dialog') == none
 }
@@ -117,11 +131,11 @@ fn test_app_add_user_is_only_business_logic() {
 	app.add_user()
 	assert app.users.len == 3
 	assert app.users[2] == User{
-		id: 3
+		id:         3
 		first_name: 'Grace'
-		last_name: 'Hopper'
-		age: 85
-		country: 'United Kingdom'
+		last_name:  'Hopper'
+		age:        85
+		country:    'United Kingdom'
 	}
 	assert app.first_name == ''
 	assert app.age == ''

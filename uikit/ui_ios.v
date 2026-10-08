@@ -3,6 +3,10 @@ module ui2
 import ios
 import macos
 
+#include "@VMODROOT/uikit/ui_tracking_ios.h"
+
+fn C.ui2_ios_install_control_tracking(control voidptr)
+
 fn C.vui_app_did_finish_launching(self voidptr, cmd voidptr, application voidptr, launch_options voidptr) bool
 
 fn C.vui_button_tap(self voidptr, cmd voidptr, sender voidptr)
@@ -11,6 +15,8 @@ fn C.vui_view_tap(self voidptr, cmd voidptr, sender voidptr)
 
 fn C.vui_view_tap_should_receive(self voidptr, cmd voidptr, sender voidptr, touch voidptr) bool
 
+fn C.vui_gesture_should_receive(self voidptr, cmd voidptr, sender voidptr, touch voidptr) bool
+
 fn C.vui_button_behavior_accessibility_activate(self voidptr, cmd voidptr) bool
 
 fn C.vui_text_field_changed(self voidptr, cmd voidptr, sender voidptr)
@@ -18,6 +24,8 @@ fn C.vui_text_field_changed(self voidptr, cmd voidptr, sender voidptr)
 fn C.vui_text_field_submitted(self voidptr, cmd voidptr, sender voidptr)
 
 fn C.vui_text_view_changed(self voidptr, cmd voidptr, sender voidptr)
+
+fn C.vui_scroll_did_scroll(self voidptr, cmd voidptr, sender voidptr)
 
 fn C.vui_button_long_press(self voidptr, cmd voidptr, sender voidptr)
 
@@ -59,8 +67,31 @@ type ObjcVoidPointBoolMsg = fn (voidptr, voidptr, ObjcPoint, bool)
 
 type ObjcVoidBoolIdMsg = fn (voidptr, voidptr, bool, voidptr)
 
+struct IosCallbackBinding {
+	id       string
+	on_event ElementCallback = unsafe { nil }
+	kind     Kind
+	event    ElementEventKind
+}
+
+fn ios_binding(el Element, event ElementEventKind) IosCallbackBinding {
+	return IosCallbackBinding{ id: el.id, on_event: el.on_event, kind: el.kind, event: event }
+}
+
+fn ios_callback_present(binding IosCallbackBinding) bool {
+	return binding.on_event != unsafe { nil }
+}
+
+fn ios_emit_callback(binding IosCallbackBinding, event ElementEvent) bool {
+	if !ios_callback_present(binding) { return false }
+	binding.on_event(ElementEvent{ ...event, id: binding.id })
+	return true
+}
+
+__global g_control_captures = map[u64]IosCallbackBinding{}
+__global g_gesture_captures = map[u64]IosCallbackBinding{}
+__global g_gesture_capture_owners = map[u64]u64{}
 __global g_build_screen = BuildFn(unsafe { nil })
-__global g_event_handler = EventFn(unsafe { nil })
 __global g_window = View(unsafe { nil })
 __global g_root_vc = View(unsafe { nil })
 __global g_root_view = View(unsafe { nil })
@@ -77,17 +108,18 @@ __global g_node_kinds = map[string]Kind{}
 __global g_node_gestures = map[string]string{}
 __global g_node_label_boxed = map[string]bool{}
 __global g_node_declared_text = map[string]string{}
-__global g_action_ids = map[u64]string{}
+__global g_action_callbacks = map[u64]IosCallbackBinding{}
 __global g_button_behavior_views = map[u64]bool{}
-__global g_text_change_ids = map[u64]string{}
-__global g_text_submit_ids = map[u64]string{}
-__global g_text_area_ids = map[u64]string{}
+__global g_text_change_callbacks = map[u64]IosCallbackBinding{}
+__global g_text_submit_callbacks = map[u64]IosCallbackBinding{}
+__global g_text_area_callbacks = map[u64]IosCallbackBinding{}
 __global g_slider_specs = map[u64]SliderSpec{}
 __global g_toggle_controls = map[u64]bool{}
 __global g_toggle_groups = map[u64]string{}
 __global g_toggle_allow_no_selection = map[u64]bool{}
 __global g_toggle_ids = map[u64]string{}
 __global g_toggle_views = map[u64]View{}
+__global g_scroll_callbacks = map[u64]IosCallbackBinding{}
 __global g_scroll_ids = map[string]bool{}
 __global g_scroll_offsets = map[string]f64{}
 __global g_view_translation_x = map[voidptr]f64{}
@@ -97,16 +129,15 @@ __global g_view_translation_x = map[voidptr]f64{}
 pub fn bounds() Rect {
 	b := macos.msg_rect(macos.msg_id(macos.get_class('UIScreen'), 'mainScreen'), 'bounds')
 	return Rect{
-		x: b.x
-		y: b.y
-		width: b.width
+		x:      b.x
+		y:      b.y
+		width:  b.width
 		height: b.height
 	}
 }
 
-pub fn run(build_screen BuildFn, event_handler EventFn) {
+pub fn run(build_screen BuildFn) {
 	g_build_screen = build_screen
-	g_event_handler = event_handler
 	configure_animation_driver(request_refresh, true)
 	ensure_runtime_classes()
 	pool := macos.autorelease_pool_new()
@@ -305,10 +336,14 @@ pub fn safe_area_top() f64 {
 	return insets.x
 }
 
-pub fn start_barcode_scan() {
-	if g_root_vc == unsafe { nil } {
+pub fn start_barcode_scan(on_result ScanCallback) {
+	if g_scanner_vc != unsafe { nil } || g_scan_callback != unsafe { nil } {
+		if on_result != unsafe { nil } {
+			on_result(ScanResult{ kind: .error, text: 'barcode scanner already active' })
+		}
 		return
 	}
+	g_scan_callback = on_result
 	native_present_barcode_scanner(g_root_vc)
 }
 
@@ -416,6 +451,7 @@ fn remove_control_target_action(control View, target View, action string, event_
 fn add_long_press_target(view View, target View) {
 	recognizer := macos.msg_id2(macos.alloc('UILongPressGestureRecognizer'), 'initWithTarget:action:', target, macos.sel('handleLongPress:'))
 	macos.msg_void_f64(recognizer, 'setMinimumPressDuration:', 0.45)
+	macos.msg_void1(recognizer, 'setDelegate:', target)
 	macos.msg_void1(view, 'addGestureRecognizer:', recognizer)
 	macos.release(recognizer)
 }
@@ -685,7 +721,7 @@ fn update_text_area_view(view View, el Element, declared_text_changed bool) {
 	macos.msg_void_rect(view, 'setFrame:', native_rect(el.frame))
 	set_box_background(view, el.box)
 	macos.msg_void1(view, 'setTextColor:', ios.color(el.text_style.color))
-	macos.msg_void1(view, 'setFont:', font(native_font_points(el.text_style), el.text_style.bold))
+	macos.msg_void1(view, 'setFont:', font(el.text_style.size, el.text_style.bold))
 	macos.msg_void_bool(view, 'setEditable:', !el.readonly && el.enabled)
 	macos.msg_void_bool(view, 'setSelectable:', true)
 	macos.msg_void_bool(view, 'setScrollEnabled:', !el.disable_scroll)
@@ -696,7 +732,7 @@ fn update_text_area_view(view View, el Element, declared_text_changed bool) {
 }
 
 fn new_dropdown_view(el Element) View {
-	view := new_button_view(el.frame, el.text, el.box, el.text_style.color, native_font_points(el.text_style), el.text_style.bold, el.text_style.lines)
+	view := new_button_view(el.frame, el.text, el.box, el.text_style.color, el.text_style.size, el.text_style.bold, el.text_style.lines)
 	update_dropdown_view(view, el, true)
 	return view
 }
@@ -739,13 +775,14 @@ fn checkbox_title(el Element) string {
 }
 
 fn new_checkbox_view(el Element) View {
-	view := new_button_view(el.frame, checkbox_title(el), el.box, el.text_style.color, native_font_points(el.text_style), el.text_style.bold, el.text_style.lines)
+	view := new_button_view(el.frame, checkbox_title(el), el.box, el.text_style.color, el.text_style.size, el.text_style.bold, el.text_style.lines)
 	update_checkbox_view(view, el)
 	return view
 }
 
 fn update_checkbox_view(view View, el Element) {
-	update_button_view(view, el.frame, checkbox_title(el), el.box, el.text_style.color, native_font_points(el.text_style), el.text_style.bold, el.text_style.lines)
+	macos.msg_void_bool(view, 'setSelected:', el.checked)
+	update_button_view(view, el.frame, checkbox_title(el), el.box, el.text_style.color, el.text_style.size, el.text_style.bold, el.text_style.lines)
 	macos.msg_void_i64(view, 'setContentHorizontalAlignment:', 1)
 }
 
@@ -764,7 +801,7 @@ fn update_switch_control_view(view View, el Element) {
 }
 
 fn new_toggle_button_view(el Element) View {
-	view := new_button_view(el.frame, el.text, el.box, el.text_style.color, native_font_points(el.text_style), el.text_style.bold, el.text_style.lines)
+	view := new_button_view(el.frame, el.text, el.box, el.text_style.color, el.text_style.size, el.text_style.bold, el.text_style.lines)
 	update_toggle_button_view(view, el)
 	return view
 }
@@ -889,6 +926,8 @@ fn ensure_runtime_classes() {
 		macos.add_method(cls, 'handleTextChange:', voidptr(C.vui_text_field_changed), 'v@:@')
 		macos.add_method(cls, 'handleTextSubmit:', voidptr(C.vui_text_field_submitted), 'v@:@')
 		macos.add_method(cls, 'textViewDidChange:', voidptr(C.vui_text_view_changed), 'v@:@')
+		macos.add_protocol(cls, macos.get_protocol('UIScrollViewDelegate'))
+		macos.add_method(cls, 'scrollViewDidScroll:', voidptr(C.vui_scroll_did_scroll), 'v@:@')
 		macos.add_method(cls, 'vuiPresentScanner:', voidptr(C.vui_scanner_present), 'v@:@')
 		macos.add_method(cls, 'vuiRefresh:', voidptr(C.vui_request_refresh), 'v@:@')
 		macos.register_class_pair(cls)
@@ -901,6 +940,8 @@ fn ensure_runtime_classes() {
 	}
 	if macos.get_class('VuiLongPressHandler') == unsafe { nil } {
 		cls := macos.allocate_class_pair(macos.get_class('NSObject'), 'VuiLongPressHandler')
+		macos.add_protocol(cls, macos.get_protocol('UIGestureRecognizerDelegate'))
+		macos.add_method(cls, 'gestureRecognizer:shouldReceiveTouch:', voidptr(C.vui_gesture_should_receive), 'B@:@@')
 		macos.add_method(cls, 'handleLongPress:', voidptr(C.vui_button_long_press), 'v@:@')
 		macos.register_class_pair(cls)
 	}
@@ -908,6 +949,7 @@ fn ensure_runtime_classes() {
 		cls := macos.allocate_class_pair(macos.get_class('NSObject'), 'VuiSwipeHandler')
 		macos.add_protocol(cls, macos.get_protocol('UIGestureRecognizerDelegate'))
 		macos.add_method(cls, 'handleSwipe:', voidptr(C.vui_swipe_left), 'v@:@')
+		macos.add_method(cls, 'gestureRecognizer:shouldReceiveTouch:', voidptr(C.vui_gesture_should_receive), 'B@:@@')
 		macos.add_method(cls, 'gestureRecognizerShouldBegin:', voidptr(C.vui_swipe_should_begin), 'B@:@')
 		macos.add_method(cls, 'gestureRecognizer:shouldRecognizeSimultaneouslyWithGestureRecognizer:', voidptr(C.vui_swipe_should_recognize_simultaneously), 'B@:@@')
 		macos.register_class_pair(cls)
@@ -922,10 +964,6 @@ fn assoc_window_key() voidptr {
 
 fn assoc_handler_key() voidptr {
 	return voidptr(C.vui_button_tap)
-}
-
-fn assoc_view_tap_action_key() voidptr {
-	return voidptr(C.vui_view_tap_should_receive)
 }
 
 fn assoc_long_handler_key() voidptr {
@@ -969,11 +1007,11 @@ fn render_root(declared Element) {
 	g_views = map[string]View{}
 	g_view_kinds = map[string]Kind{}
 	g_label_places = map[string]LabelPlacement{}
-	g_action_ids = map[u64]string{}
+	g_action_callbacks = map[u64]IosCallbackBinding{}
 	g_button_behavior_views = map[u64]bool{}
-	g_text_change_ids = map[u64]string{}
-	g_text_submit_ids = map[u64]string{}
-	g_text_area_ids = map[u64]string{}
+	g_text_change_callbacks = map[u64]IosCallbackBinding{}
+	g_text_submit_callbacks = map[u64]IosCallbackBinding{}
+	g_text_area_callbacks = map[u64]IosCallbackBinding{}
 	g_slider_specs = map[u64]SliderSpec{}
 	g_toggle_controls = map[u64]bool{}
 	g_toggle_groups = map[u64]string{}
@@ -981,6 +1019,7 @@ fn render_root(declared Element) {
 	g_toggle_ids = map[u64]string{}
 	g_toggle_views = map[u64]View{}
 	g_scroll_ids = map[string]bool{}
+	g_scroll_callbacks = map[u64]IosCallbackBinding{}
 	set_box_background(g_root_view, root.box)
 	mut active := map[string]bool{}
 	render_children(g_root_view, root.children, '', mut active)
@@ -999,14 +1038,12 @@ fn render_root(declared Element) {
 fn gesture_signature(el Element) string {
 	button_behavior := el.kind == .view && el.button_behavior
 	has_gesture := button_behavior || el.long_press || el.swipe_left
-	return '${has_gesture && element_action_id(el).len > 0}:${button_behavior}:${el.long_press}:${el.swipe_left}'
+	return '${has_gesture && el.on_event != unsafe { nil }}:${button_behavior}:${el.long_press}:${el.swipe_left}'
 }
 
-fn attach_view_gestures(native View, id string, button_behavior bool, long_press bool, swipe_left bool) {
-	if id.len == 0 {
-		return
-	}
-	g_action_ids[u64(native)] = id
+fn attach_view_gestures(native View, binding IosCallbackBinding, button_behavior bool, long_press bool, swipe_left bool) {
+	if !ios_callback_present(binding) { return }
+	g_action_callbacks[u64(native)] = binding
 	if button_behavior {
 		g_button_behavior_views[u64(native)] = true
 		add_view_tap_target(native, g_button_handler)
@@ -1040,19 +1077,19 @@ fn native_create_element(el Element) View {
 		.view { new_native_view(el.frame, el.box, el.button_behavior) }
 		.scroll { new_scroll_view(el.frame, el.box) }
 		.label {
-			new_label_view(el.frame, el.text, el.text_style.color, native_font_points(el.text_style), el.text_style.bold, align_value(el.text_style.align), el.text_style.lines, el.text_style.valign, label_needs_container(el))
+			new_label_view(el.frame, el.text, el.text_style.color, el.text_style.size, el.text_style.bold, align_value(el.text_style.align), el.text_style.lines, el.text_style.valign, label_needs_container(el))
 		}
 		.image { new_image_view(el.frame, el.image_path, el.rotation) }
 		.button {
-			new_button_view(el.frame, el.text, el.box, el.text_style.color, native_font_points(el.text_style), el.text_style.bold, el.text_style.lines)
+			new_button_view(el.frame, el.text, el.box, el.text_style.color, el.text_style.size, el.text_style.bold, el.text_style.lines)
 		}
 		.checkbox { new_checkbox_view(el) }
 		.switch_control { new_switch_control_view(el) }
 		.toggle_button { new_toggle_button_view(el) }
 		.dropdown { new_dropdown_view(el) }
 		.text_field {
-			field := new_text_field_view(el.frame, el.placeholder, el.text, el.box, el.text_style.color, native_font_points(el.text_style), el.keyboard, el.secure)
-			update_text_field_view(field, el.frame, el.placeholder, el.text, el.box, el.text_style.color, native_font_points(el.text_style), el.keyboard, el.secure, el.autocorrect, true, el.padding_left, el.readonly, el.enabled)
+			field := new_text_field_view(el.frame, el.placeholder, el.text, el.box, el.text_style.color, el.text_style.size, el.keyboard, el.secure)
+			update_text_field_view(field, el.frame, el.placeholder, el.text, el.box, el.text_style.color, el.text_style.size, el.keyboard, el.secure, el.autocorrect, true, el.padding_left, el.readonly, el.enabled)
 			field
 		}
 		.text_area { new_text_area_view(el) }
@@ -1074,18 +1111,18 @@ fn native_update_element(native View, el Element, declared_text_changed bool) {
 			set_corner_radius(native, el.box.radius)
 		}
 		.label {
-			update_label_view(native, el.frame, el.text, el.text_style.color, native_font_points(el.text_style), el.text_style.bold, align_value(el.text_style.align), el.text_style.lines, el.text_style.valign, label_needs_container(el))
+			update_label_view(native, el.frame, el.text, el.text_style.color, el.text_style.size, el.text_style.bold, align_value(el.text_style.align), el.text_style.lines, el.text_style.valign, label_needs_container(el))
 		}
 		.image { update_image_view(native, el.frame, el.image_path, el.rotation) }
 		.button {
-			update_button_view(native, el.frame, el.text, el.box, el.text_style.color, native_font_points(el.text_style), el.text_style.bold, el.text_style.lines)
+			update_button_view(native, el.frame, el.text, el.box, el.text_style.color, el.text_style.size, el.text_style.bold, el.text_style.lines)
 		}
 		.checkbox { update_checkbox_view(native, el) }
 		.switch_control { update_switch_control_view(native, el) }
 		.toggle_button { update_toggle_button_view(native, el) }
 		.dropdown { update_dropdown_view(native, el, declared_text_changed) }
 		.text_field {
-			update_text_field_view(native, el.frame, el.placeholder, el.text, el.box, el.text_style.color, native_font_points(el.text_style), el.keyboard, el.secure, el.autocorrect, declared_text_changed, el.padding_left, el.readonly, el.enabled)
+			update_text_field_view(native, el.frame, el.placeholder, el.text, el.box, el.text_style.color, el.text_style.size, el.keyboard, el.secure, el.autocorrect, declared_text_changed, el.padding_left, el.readonly, el.enabled)
 		}
 		.text_area { update_text_area_view(native, el, declared_text_changed) }
 		.slider { update_slider_view(native, el) }
@@ -1111,10 +1148,13 @@ fn forget_descendant_nodes(key string) {
 	}
 	for child_key_ in descendants {
 		child := g_nodes[child_key_] or { continue }
-		g_action_ids.delete(u64(child))
-		g_text_change_ids.delete(u64(child))
-		g_text_submit_ids.delete(u64(child))
-		g_text_area_ids.delete(u64(child))
+		clear_ios_gesture_captures(u64(child))
+		g_control_captures.delete(u64(child))
+		g_action_callbacks.delete(u64(child))
+		g_text_change_callbacks.delete(u64(child))
+		g_text_submit_callbacks.delete(u64(child))
+		g_text_area_callbacks.delete(u64(child))
+		g_scroll_callbacks.delete(u64(child))
 		g_slider_specs.delete(u64(child))
 		g_toggle_controls.delete(u64(child))
 		g_toggle_groups.delete(u64(child))
@@ -1131,11 +1171,22 @@ fn forget_descendant_nodes(key string) {
 }
 
 fn register_native_handlers(native View, el Element) {
+	if el.kind in [.button, .checkbox, .toggle_button, .slider, .switch_control, .dropdown] {
+		C.ui2_ios_install_control_tracking(native)
+	}
 	pointer := u64(native)
-	action_id := element_action_id(el)
-	if action_id.len > 0 && el.kind in [.view, .button]
+	if el.kind == .scroll {
+		g_scroll_callbacks[pointer] = ios_binding(el, .scroll)
+		macos.msg_void1(native, 'setDelegate:', g_button_handler)
+	}
+	has_callback := el.on_event != unsafe { nil }
+	if has_callback && el.kind in [.view, .button]
 		&& (el.button_behavior || el.long_press || el.swipe_left) {
-		g_action_ids[pointer] = action_id
+		g_action_callbacks[pointer] = ios_binding(el, if el.kind in [.view, .button] {
+			.tap
+		} else {
+			.change
+		})
 		if el.kind == .view && el.button_behavior {
 			g_button_behavior_views[pointer] = true
 		}
@@ -1143,8 +1194,12 @@ fn register_native_handlers(native View, el Element) {
 	if el.kind == .slider {
 		remove_control_target_action(native, g_button_handler, 'handleTap:', 131072)
 		g_slider_specs[pointer] = slider_spec(el)
-		if action_id.len > 0 {
-			g_action_ids[pointer] = action_id
+		if has_callback {
+			g_action_callbacks[pointer] = ios_binding(el, if el.kind in [.view, .button] {
+				.tap
+			} else {
+				.change
+			})
 			add_control_target_action(native, g_button_handler, 'handleTap:', 131072)
 			macos.set_associated_object(native, assoc_handler_key(), g_button_handler, macos.assoc_retain_nonatomic)
 		} else {
@@ -1152,8 +1207,12 @@ fn register_native_handlers(native View, el Element) {
 		}
 	} else if el.kind == .switch_control {
 		remove_control_target_action(native, g_button_handler, 'handleTap:', 131072)
-		if action_id.len > 0 {
-			g_action_ids[pointer] = action_id
+		if has_callback {
+			g_action_callbacks[pointer] = ios_binding(el, if el.kind in [.view, .button] {
+				.tap
+			} else {
+				.change
+			})
 			add_control_target_action(native, g_button_handler, 'handleTap:', 131072)
 			macos.set_associated_object(native, assoc_handler_key(), g_button_handler, macos.assoc_retain_nonatomic)
 		} else {
@@ -1171,9 +1230,13 @@ fn register_native_handlers(native View, el Element) {
 				release_ios_toggle_group(pointer)
 			}
 		}
-		if action_id.len > 0 || el.kind == .toggle_button {
-			if action_id.len > 0 {
-				g_action_ids[pointer] = action_id
+		if has_callback || el.kind == .toggle_button {
+			if has_callback {
+				g_action_callbacks[pointer] = ios_binding(el, if el.kind in [.view, .button] {
+					.tap
+				} else {
+					.change
+				})
 			}
 			add_button_target(native, g_button_handler)
 			macos.set_associated_object(native, assoc_handler_key(), g_button_handler, macos.assoc_retain_nonatomic)
@@ -1182,8 +1245,12 @@ fn register_native_handlers(native View, el Element) {
 		}
 	} else if el.kind == .dropdown {
 		remove_control_target_action(native, g_button_handler, 'handleTap:', 64)
-		if action_id.len > 0 {
-			g_action_ids[pointer] = action_id
+		if has_callback {
+			g_action_callbacks[pointer] = ios_binding(el, if el.kind in [.view, .button] {
+				.tap
+			} else {
+				.change
+			})
 			add_button_target(native, g_button_handler)
 			macos.set_associated_object(native, assoc_handler_key(), g_button_handler, macos.assoc_retain_nonatomic)
 		} else {
@@ -1192,22 +1259,22 @@ fn register_native_handlers(native View, el Element) {
 	} else if el.kind == .text_field {
 		remove_control_target_action(native, g_button_handler, 'handleTextChange:', 131072)
 		remove_control_target_action(native, g_button_handler, 'handleTextSubmit:', 524288)
-		if el.emit_change && action_id.len > 0 {
-			g_text_change_ids[pointer] = action_id
+		if has_callback {
+			g_text_change_callbacks[pointer] = ios_binding(el, .change)
 			add_control_target_action(native, g_button_handler, 'handleTextChange:', 131072)
 		}
-		if el.submit_id.len > 0 {
-			g_text_submit_ids[pointer] = el.submit_id
+		if has_callback {
+			g_text_submit_callbacks[pointer] = ios_binding(el, .submit)
 			add_control_target_action(native, g_button_handler, 'handleTextSubmit:', 524288)
 		}
-		if (el.emit_change && action_id.len > 0) || el.submit_id.len > 0 {
+		if has_callback {
 			macos.set_associated_object(native, assoc_handler_key(), g_button_handler, macos.assoc_retain_nonatomic)
 		} else {
 			macos.set_associated_object(native, assoc_handler_key(), View(unsafe { nil }), macos.assoc_retain_nonatomic)
 		}
 	} else if el.kind == .text_area {
-		if action_id.len > 0 {
-			g_text_area_ids[pointer] = action_id
+		if has_callback {
+			g_text_area_callbacks[pointer] = ios_binding(el, .change)
 			macos.msg_void1(native, 'setDelegate:', g_button_handler)
 		} else {
 			macos.msg_void1(native, 'setDelegate:', View(unsafe { nil }))
@@ -1257,7 +1324,7 @@ fn render_element(parent View, el Element, key string, mut active map[string]boo
 			macos.msg_void(old_native, 'removeFromSuperview')
 		}
 		if (el.kind == .view && el.button_behavior) || el.long_press || el.swipe_left {
-			attach_view_gestures(native, element_action_id(el), el.kind == .view
+			attach_view_gestures(native, ios_binding(el, .tap), el.kind == .view
 				&& el.button_behavior, el.long_press, el.swipe_left)
 		}
 	} else {
@@ -1325,10 +1392,13 @@ fn remove_stale_nodes(active map[string]bool) {
 		if !node_has_ancestor_in_set(key, stale_set) {
 			macos.msg_void(native, 'removeFromSuperview')
 		}
-		g_action_ids.delete(u64(native))
-		g_text_change_ids.delete(u64(native))
-		g_text_submit_ids.delete(u64(native))
-		g_text_area_ids.delete(u64(native))
+		clear_ios_gesture_captures(u64(native))
+		g_control_captures.delete(u64(native))
+		g_action_callbacks.delete(u64(native))
+		g_text_change_callbacks.delete(u64(native))
+		g_text_submit_callbacks.delete(u64(native))
+		g_text_area_callbacks.delete(u64(native))
+		g_scroll_callbacks.delete(u64(native))
 		g_slider_specs.delete(u64(native))
 		g_toggle_controls.delete(u64(native))
 		g_toggle_groups.delete(u64(native))
@@ -1382,62 +1452,132 @@ fn vui_app_did_finish_launching(self voidptr, _cmd voidptr, _application voidptr
 
 // ── Event handlers ─────────────────────────────────────────────────
 
+fn clear_ios_gesture_captures(owner u64) {
+	mut removed := []u64{}
+	for gesture, captured_owner in g_gesture_capture_owners {
+		if captured_owner == owner { removed << gesture }
+	}
+	for gesture in removed {
+		g_gesture_captures.delete(gesture)
+		g_gesture_capture_owners.delete(gesture)
+	}
+}
+
+fn ios_control_release_binding(captured IosCallbackBinding, current IosCallbackBinding, available bool) ?IosCallbackBinding {
+	if !available || !ios_callback_present(captured) || !ios_callback_present(current)
+		|| captured.kind != current.kind {
+		return none
+	}
+	return captured
+}
+
+fn ios_interaction_available(native View) bool {
+	if objc_is_nil(native) { return false }
+	if objc_is_kind_of(native, 'UIControl') && !macos.msg_bool(native, 'isEnabled') { return false }
+	mut ancestor := native
+	for !objc_is_nil(ancestor) {
+		if macos.msg_bool(ancestor, 'isHidden') || !macos.msg_bool(ancestor, 'isUserInteractionEnabled') {
+			return false
+		}
+		ancestor = macos.msg_id(ancestor, 'superview')
+	}
+	return true
+}
+
+fn ios_control_action_binding(native View, current IosCallbackBinding) ?IosCallbackBinding {
+	if captured := g_control_captures[u64(native)] {
+		return ios_control_release_binding(captured, current,
+			ios_interaction_available(native))
+	}
+	return current
+}
+
+@[export: 'vui_control_tracking_begin']
+fn vui_control_tracking_begin(control voidptr) {
+	pointer := u64(control)
+	captured := g_control_captures[pointer] or { IosCallbackBinding{} }
+	if pointer !in g_control_captures || captured.kind == .dropdown {
+		g_control_captures[pointer] = g_action_callbacks[pointer] or { IosCallbackBinding{} }
+	}
+}
+
+@[export: 'vui_control_tracking_end']
+fn vui_control_tracking_end(control voidptr) {
+	pointer := u64(control)
+	// A dropdown's native menu outlives UIControl tracking. Its command consumes
+	// this snapshot; cancellation or a new press replaces it.
+	binding := g_control_captures[pointer] or { return }
+	if binding.kind != .dropdown { g_control_captures.delete(pointer) }
+}
+
+@[export: 'vui_control_tracking_cancel']
+fn vui_control_tracking_cancel(control voidptr) {
+	g_control_captures.delete(u64(control))
+}
+
+fn ios_control_event(native View, binding IosCallbackBinding) ElementEvent {
+	return match binding.kind {
+		.text_field, .text_area {
+			ElementEvent{ kind: binding.event, text: objc_string(macos.msg_id(native, 'text')) }
+		}
+		.dropdown {
+			ElementEvent{ kind: .change, text: objc_string(macos.msg_id(native, 'currentTitle')) }
+		}
+		.slider { ElementEvent{ kind: .change, value: slider_number_value(native, 'value') } }
+		.switch_control { ElementEvent{ kind: .change, checked: macos.msg_bool(native, 'isOn') } }
+		.checkbox, .toggle_button {
+			ElementEvent{ kind: .change, checked: macos.msg_bool(native, 'isSelected') }
+		}
+		else { ElementEvent{ kind: binding.event } }
+	}
+}
+
 @[export: 'vui_button_tap']
 fn vui_button_tap(_self voidptr, _cmd voidptr, sender voidptr) {
 	pointer := u64(sender)
-	if g_toggle_controls[pointer] or { false } {
-		commit_ios_toggle_button(pointer, View(sender))
+	native := View(sender)
+	current := g_action_callbacks[pointer] or { return }
+	binding := ios_control_action_binding(native, current) or { return }
+	if g_toggle_controls[pointer] or { false } { commit_ios_toggle_button(pointer, native) }
+	if spec := g_slider_specs[pointer] { native_snap_slider_value(native, spec) }
+	if binding.kind == .checkbox {
+		checked := !macos.msg_bool(native, 'isSelected')
+		macos.msg_void_bool(native, 'setSelected:', checked)
+		caption := objc_string(macos.msg_id(native, 'currentTitle')).all_after('  ')
+		title := '${if checked { '☑' } else { '☐' }}  ${caption}'
+		macos.msg_void2(native, 'setTitle:forState:', macos.nsstring(title), macos.Id(usize(0)))
 	}
-	if spec := g_slider_specs[pointer] {
-		native_snap_slider_value(View(sender), spec)
-	}
-	if voidptr(g_event_handler) == unsafe { nil } {
-		return
-	}
-	id := g_action_ids[pointer] or { return }
-	g_event_handler(id)
+	ios_emit_callback(binding, ios_control_event(native, binding))
+}
+
+fn ios_button_behavior_release_available(captured IosCallbackBinding, current IosCallbackBinding, registered bool, enabled bool, hidden bool, inside bool) bool {
+	return ios_callback_present(captured) && ios_callback_present(current) && registered && enabled && !hidden && inside
+}
+
+fn ios_button_behavior_capture_binding(captured IosCallbackBinding, current IosCallbackBinding, active_touches u64, accepted bool) IosCallbackBinding {
+	if active_touches > 0 { return captured }
+	return if accepted { current } else { IosCallbackBinding{} }
 }
 
 @[export: 'vui_view_tap']
 fn vui_view_tap(_self voidptr, _cmd voidptr, sender voidptr) {
 	gesture := View(sender)
-	captured := macos.get_associated_object(gesture, assoc_view_tap_action_key())
-	captured_id := if objc_is_nil(captured) { '' } else { macos.utf8_string(captured) }
-	macos.set_associated_object(gesture, assoc_view_tap_action_key(), objc_nil(),
-		macos.assoc_retain_nonatomic)
-	if gesture_state(gesture) != gesture_state_ended || captured_id.len == 0
-		|| voidptr(g_event_handler) == unsafe { nil } {
-		return
-	}
+	gesture_key := u64(sender)
+	captured := g_gesture_captures[gesture_key] or { IosCallbackBinding{} }
+	g_gesture_captures.delete(gesture_key)
+	g_gesture_capture_owners.delete(gesture_key)
+	if gesture_state(gesture) != gesture_state_ended { return }
 	view := gesture_view(gesture)
 	pointer := u64(view)
-	current_id := g_action_ids[pointer] or { '' }
+	current := g_action_callbacks[pointer] or { IosCallbackBinding{} }
 	view_bounds := macos.msg_rect(view, 'bounds')
 	location := gesture_location(gesture, view)
 	inside := location.x >= view_bounds.x && location.x <= view_bounds.x + view_bounds.width
 		&& location.y >= view_bounds.y && location.y <= view_bounds.y + view_bounds.height
-	action := ios_button_behavior_release_action(captured_id, current_id,
-		g_button_behavior_views[pointer] or { false },
-		macos.msg_bool(view, 'isUserInteractionEnabled'), macos.msg_bool(view, 'isHidden'),
-		inside)
-	if action.len == 0 {
-		return
+	if ios_button_behavior_release_available(captured, current, g_button_behavior_views[pointer] or { false },
+		macos.msg_bool(view, 'isUserInteractionEnabled'), macos.msg_bool(view, 'isHidden'), inside) {
+		ios_emit_callback(captured, ElementEvent{ kind: .tap })
 	}
-	g_event_handler(action)
-}
-
-fn ios_button_behavior_release_action(captured string, current string, registered bool, enabled bool, hidden bool, inside bool) string {
-	if captured.len > 0 && current.len > 0 && registered && enabled && !hidden && inside {
-		return captured
-	}
-	return ''
-}
-
-fn ios_button_behavior_capture_action(captured string, current string, active_touches u64, accepted bool) string {
-	if active_touches > 0 {
-		return captured
-	}
-	return if accepted { current } else { '' }
 }
 
 @[export: 'vui_view_tap_should_receive']
@@ -1457,29 +1597,46 @@ fn vui_view_tap_should_receive(_self voidptr, _cmd voidptr, sender voidptr, touc
 		target = macos.msg_id(target, 'superview')
 	}
 	pointer := u64(owner)
-	id := g_action_ids[pointer] or { '' }
-	if id.len == 0 || !(g_button_behavior_views[pointer] or { false }) {
+	current := g_action_callbacks[pointer] or { IosCallbackBinding{} }
+	if !ios_callback_present(current) || !(g_button_behavior_views[pointer] or { false }) {
 		accepted = false
 	}
-	stored := macos.get_associated_object(gesture, assoc_view_tap_action_key())
-	captured := if objc_is_nil(stored) { '' } else { macos.utf8_string(stored) }
-	next := ios_button_behavior_capture_action(captured, id, active_touches, accepted)
-	value := if next.len == 0 { objc_nil() } else { macos.nsstring(next) }
-	macos.set_associated_object(gesture, assoc_view_tap_action_key(), value,
-		macos.assoc_retain_nonatomic)
+	return ios_capture_gesture_callback(u64(sender), pointer, current, active_touches, accepted)
+}
+
+fn ios_clear_gesture_capture(gesture u64) {
+	g_gesture_captures.delete(gesture)
+	g_gesture_capture_owners.delete(gesture)
+}
+
+fn ios_capture_gesture_callback(gesture u64, owner u64, current IosCallbackBinding, active_touches u64, accepted bool) bool {
+	captured := g_gesture_captures[gesture] or { IosCallbackBinding{} }
+	next := ios_button_behavior_capture_binding(captured, current, active_touches, accepted)
+	if ios_callback_present(next) {
+		g_gesture_captures[gesture] = next
+		g_gesture_capture_owners[gesture] = owner
+	} else {
+		ios_clear_gesture_capture(gesture)
+	}
 	return accepted
+}
+
+@[export: 'vui_gesture_should_receive']
+fn vui_gesture_should_receive(_self voidptr, _cmd voidptr, sender voidptr, _touch voidptr) bool {
+	gesture := View(sender)
+	owner := gesture_view(gesture)
+	current := g_action_callbacks[u64(owner)] or { IosCallbackBinding{} }
+	return ios_capture_gesture_callback(u64(sender), u64(owner), current,
+		macos.msg_u64(gesture, 'numberOfTouches'), ios_callback_present(current) && ios_interaction_available(owner))
 }
 
 @[export: 'vui_button_behavior_accessibility_activate']
 fn vui_button_behavior_accessibility_activate(self voidptr, _cmd voidptr) bool {
-	if voidptr(g_event_handler) == unsafe { nil }
-		|| !macos.msg_bool(View(self), 'isUserInteractionEnabled')
-		|| macos.msg_bool(View(self), 'isHidden') {
+	if !macos.msg_bool(View(self), 'isUserInteractionEnabled') || macos.msg_bool(View(self), 'isHidden') {
 		return false
 	}
-	id := g_action_ids[u64(self)] or { return false }
-	g_event_handler(id)
-	return true
+	binding := g_action_callbacks[u64(self)] or { return false }
+	return ios_emit_callback(binding, ElementEvent{ kind: .tap })
 }
 
 @[export: 'vui_request_refresh']
@@ -1489,78 +1646,81 @@ fn vui_request_refresh(_self voidptr, _cmd voidptr, _sender voidptr) {
 
 @[export: 'vui_text_field_changed']
 fn vui_text_field_changed(_self voidptr, _cmd voidptr, sender voidptr) {
-	if voidptr(g_event_handler) == unsafe { nil } {
-		return
-	}
-	id := g_text_change_ids[u64(sender)] or { return }
-	g_event_handler(id)
+	binding := g_text_change_callbacks[u64(sender)] or { return }
+	ios_emit_callback(binding, ios_control_event(View(sender), binding))
 }
 
 @[export: 'vui_text_field_submitted']
 fn vui_text_field_submitted(_self voidptr, _cmd voidptr, sender voidptr) {
-	if voidptr(g_event_handler) == unsafe { nil } {
-		return
-	}
-	id := g_text_submit_ids[u64(sender)] or { return }
-	g_event_handler(id)
+	binding := g_text_submit_callbacks[u64(sender)] or { return }
+	ios_emit_callback(binding, ios_control_event(View(sender), binding))
+}
+
+fn ios_emit_scroll(native View, offset f64) bool {
+	binding := g_scroll_callbacks[u64(native)] or { return false }
+	return ios_emit_callback(binding, ElementEvent{ kind: .scroll, value: offset })
+}
+
+@[export: 'vui_scroll_did_scroll']
+fn vui_scroll_did_scroll(_self voidptr, _cmd voidptr, sender voidptr) {
+	ios_emit_scroll(View(sender), scroll_content_offset_y(View(sender)))
 }
 
 @[export: 'vui_text_view_changed']
 fn vui_text_view_changed(_self voidptr, _cmd voidptr, sender voidptr) {
-	if voidptr(g_event_handler) == unsafe { nil } {
-		return
-	}
-	id := g_text_area_ids[u64(sender)] or { return }
-	g_event_handler(id)
+	binding := g_text_area_callbacks[u64(sender)] or { return }
+	ios_emit_callback(binding, ios_control_event(View(sender), binding))
 }
 
 @[export: 'vui_button_long_press']
 fn vui_button_long_press(_self voidptr, _cmd voidptr, sender voidptr) {
-	if voidptr(g_event_handler) == unsafe { nil } {
+	gesture := View(sender)
+	gesture_key := u64(sender)
+	status := gesture_state(gesture)
+	if status in [gesture_state_ended, gesture_state_cancelled, gesture_state_failed] {
+		ios_clear_gesture_capture(gesture_key)
 		return
 	}
-	if gesture_state(View(sender)) != gesture_state_began {
-		return
-	}
-	view := gesture_view(View(sender))
-	id := g_action_ids[u64(view)] or { return }
-	g_event_handler('long:' + id)
+	if status != gesture_state_began { return }
+	view := gesture_view(gesture)
+	current := g_action_callbacks[u64(view)] or { IosCallbackBinding{} }
+	captured := g_gesture_captures[gesture_key] or { IosCallbackBinding{} }
+	binding := ios_control_release_binding(captured, current, ios_interaction_available(view)) or { return }
+	ios_emit_callback(binding, ElementEvent{ kind: .long_press })
 }
 
 @[export: 'vui_swipe_left']
 fn vui_swipe_left(_self voidptr, _cmd voidptr, sender voidptr) {
-	if voidptr(g_event_handler) == unsafe { nil } {
-		return
-	}
 	gesture := View(sender)
 	view := gesture_view(gesture)
-	id := g_action_ids[u64(view)] or { return }
+	gesture_key := u64(sender)
+	current := g_action_callbacks[u64(view)] or { IosCallbackBinding{} }
+	captured := g_gesture_captures[gesture_key] or { IosCallbackBinding{} }
+	binding := ios_control_release_binding(captured, current, ios_interaction_available(view)) or {
+		ios_clear_gesture_capture(gesture_key)
+		if !objc_is_nil(view) { set_view_translation_x(view, 0) }
+		return
+	}
 	state := gesture_state(gesture)
 	x := pan_translation_x(gesture, view)
 	if state == gesture_state_began || state == gesture_state_changed {
 		mut shift := x
-		if shift > 0 {
-			shift = 0
-		}
-		if shift < -swipe_max_translation {
-			shift = -swipe_max_translation
-		}
+		if shift > 0 { shift = 0 }
+		if shift < -swipe_max_translation { shift = -swipe_max_translation }
 		set_view_translation_x(view, shift)
 		return
 	}
 	if state == gesture_state_ended {
+		ios_clear_gesture_capture(gesture_key)
 		if x < -swipe_delete_threshold {
 			set_view_translation_x(view, -swipe_max_translation)
-			g_event_handler('swipe_left:' + id)
+			ios_emit_callback(binding, ElementEvent{ kind: .swipe_left })
 		} else {
 			set_view_translation_x(view, 0)
 		}
 		return
 	}
-	if state == gesture_state_cancelled || state == gesture_state_failed {
-		set_view_translation_x(view, 0)
-		return
-	}
+	ios_clear_gesture_capture(gesture_key)
 	set_view_translation_x(view, 0)
 }
 

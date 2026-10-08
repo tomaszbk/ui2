@@ -671,155 +671,66 @@ fn v_repeat_identity(parent string, key string) string {
 
 enum VChildLayoutKind {
 	overlay
-	column
-	row
-	box
 	flex
-	float
 	grid
-	anchor
 	stack
-	page
+	absolute
 	tabs
 	accordion
 }
 
 struct VLayoutChildMetrics {
-	frame            Rect
-	flex             FlexLayoutChild
-	span             GridSpan
-	source           &VNode = unsafe { nil }
-	scope            map[string]VValue
-	size_hint_x      f64 = 1.0
-	size_hint_y      f64 = 1.0
-	minimum_width    f64 = -1.0
-	minimum_height   f64 = -1.0
-	maximum_width    f64 = -1.0
-	maximum_height   f64 = -1.0
-	horizontal_align BoxAlignment
-	vertical_align   BoxAlignment
-	x_hint           FloatAxisHint
-	y_hint           FloatAxisHint
+	frame  Rect
+	flex   FlexChild
+	stack  StackChild
+	span   GridSpan
+	source &VNode = unsafe { nil }
+	scope  map[string]VValue
 }
 
 struct VChildLayout {
-	kind            VChildLayoutKind
-	frame           Rect
-	padding         f64
-	spacing         f64
-	cells           []Rect
-	anchor          AnchorLayoutConfig
-	adaptive_parent &VNode = unsafe { nil }
+	kind  VChildLayoutKind
+	frame Rect
+	cells []Rect
 mut:
-	cursor f64
-	index  int
+	index int
 }
 
 fn v_child_layout(node &VNode, actual Rect, metrics []VLayoutChildMetrics, mut cache VLayoutMeasureCache) !VChildLayout {
 	kind := match node.tag {
-		'Column' { VChildLayoutKind.column }
-		'Row' { VChildLayoutKind.row }
-		'BoxLayout' { VChildLayoutKind.box }
-		'FlexLayout' { VChildLayoutKind.flex }
-		'FloatLayout', 'RelativeLayout' { VChildLayoutKind.float }
-		'GridLayout' { VChildLayoutKind.grid }
-		'AnchorLayout' { VChildLayoutKind.anchor }
-		'StackLayout' { VChildLayoutKind.stack }
-		'PageLayout' { VChildLayoutKind.page }
+		'Flex', 'Row', 'Column' { VChildLayoutKind.flex }
+		'Grid' { VChildLayoutKind.grid }
+		'Stack' { VChildLayoutKind.stack }
+		'Absolute' { VChildLayoutKind.absolute }
 		'TabbedPanel' { VChildLayoutKind.tabs }
 		'Accordion' { VChildLayoutKind.accordion }
 		else { VChildLayoutKind.overlay }
 	}
-
-	padding := node.prop_or('padding', '0').f64()
 	local := rect(0, 0, actual.width, actual.height)
-	mut child_sizes := []Rect{cap: metrics.len}
-	mut box_children := []BoxLayoutChild{cap: metrics.len}
-	mut flex_children := []FlexLayoutChild{cap: metrics.len}
-	mut spans := []GridSpan{cap: metrics.len}
-	mut float_children := []FloatLayoutChild{cap: metrics.len}
-	mut panel_tabs := []TabbedPanelTab{cap: metrics.len}
-	mut accordion_items := []AccordionItem{cap: metrics.len}
-	for metric in metrics {
-		child_sizes << metric.frame
-		flex_children << metric.flex
-		spans << metric.span
-		if kind == .box {
-			box_children << BoxLayoutChild{
-				element:          Element{
-					frame: metric.frame
-				}
-				size_hint_x:      metric.size_hint_x
-				size_hint_y:      metric.size_hint_y
-				minimum_width:    metric.minimum_width
-				minimum_height:   metric.minimum_height
-				maximum_width:    metric.maximum_width
-				maximum_height:   metric.maximum_height
-				horizontal_align: metric.horizontal_align
-				vertical_align:   metric.vertical_align
-			}
-		} else if kind == .float {
-			float_children << FloatLayoutChild{
-				element:        Element{
-					frame: metric.frame
-				}
-				size_hint_x:    metric.size_hint_x
-				size_hint_y:    metric.size_hint_y
-				minimum_width:  metric.minimum_width
-				minimum_height: metric.minimum_height
-				maximum_width:  metric.maximum_width
-				maximum_height: metric.maximum_height
-				x_hint:         metric.x_hint
-				y_hint:         metric.y_hint
-			}
-		} else if kind == .tabs {
-			panel_tabs << TabbedPanelTab{}
-		} else if kind == .accordion {
-			accordion_items << AccordionItem{}
-		}
-	}
 	mut cells := []Rect{}
-	if kind == .grid {
-		config := v_grid_config(node, local)!
-		cells = grid_layout_frames(GridLayoutConfig{ ...config, child_spans: spans }, child_sizes.len)!
-	} else if kind == .flex {
-		config := v_flex_config(node, local, flex_children)!
-		first := flex_layout_frames(config)!
-		children := v_flex_remeasure_metrics(config, metrics, first, mut cache)!
-		cells = flex_layout_frames(FlexLayoutConfig{ ...config, children: children })!
-	} else if kind == .box {
-		cells = box_layout_frames(v_box_layout_config(node, local, box_children)!)!
-	} else if kind == .float {
-		cells = float_layout_frames(v_float_layout_config(node, local, float_children))!
-	} else if kind == .stack {
-		cells = stack_layout_frames(v_stack_config(node, local)!, child_sizes)!
-	} else if kind == .page {
-		cells = page_layout_frames(v_page_layout_config(node, local, child_sizes.len))!
-	} else if kind == .tabs {
-		geometry := tabbed_panel_geometry(v_tabbed_panel_config(node, local, panel_tabs)!)!
-		cells = []Rect{len: panel_tabs.len, init: geometry.content}
-	} else if kind == .accordion {
-		geometry := accordion_geometry(v_accordion_config(node, local, accordion_items)!)!
-		cells = []Rect{len: accordion_items.len, init: geometry.content}
-	}
-	return VChildLayout{
-		kind:            kind
-		frame:           local
-		padding:         padding
-		spacing:         node.prop_or('spacing', '0').f64()
-		cursor:          padding
-		cells:           cells
-		adaptive_parent: if node.tag == 'Screen' && node.prop_bool('adaptive') {
-			&VNode{ ...node }
-		} else {
-			unsafe { nil }
+	match kind {
+		.grid {
+			config := v_grid_config(node, local)!
+			cells = grid_frames(GridConfig{ ...config, child_spans: metrics.map(it.span) }, metrics.len)!
 		}
-		anchor:          if kind == .anchor {
-			v_anchor_config(node, local)!
-		} else {
-			AnchorLayoutConfig{}
+		.flex {
+			config := v_flex_config(node, local, metrics.map(it.flex))!
+			first := flex_frames(config)!
+			children := v_flex_remeasure_metrics(config, metrics, first, mut cache)!
+			cells = flex_frames(FlexConfig{ ...config, children: children })!
 		}
+		.stack { cells = stack_frames(v_stack_config(node, local, metrics.map(it.stack))!)! }
+		.tabs {
+			geometry := tabbed_panel_geometry(v_tabbed_panel_config(node, local, []TabbedPanelTab{len: metrics.len})!)!
+			cells = []Rect{len: metrics.len, init: geometry.content}
+		}
+		.accordion {
+			geometry := accordion_geometry(v_accordion_config(node, local, []AccordionItem{len: metrics.len})!)!
+			cells = []Rect{len: metrics.len, init: geometry.content}
+		}
+		else {}
 	}
+	return VChildLayout{ kind: kind, frame: local, cells: cells }
 }
 
 fn v_layout_dimension(node &VNode, key string, scope map[string]VValue, fallback f64) !f64 {
@@ -829,182 +740,17 @@ fn v_layout_dimension(node &VNode, key string, scope map[string]VValue, fallback
 	return v_dimension(node, key, fallback)
 }
 
-fn (layout &VChildLayout) fallback(child &VNode, scope map[string]VValue) !Rect {
-	return match layout.kind {
-		.overlay {
-			layout.frame
-		}
-		.column {
-			rect(layout.padding, layout.cursor, layout.frame.width - layout.padding * 2, 32)
-		}
-		.row {
-			rect(layout.cursor, layout.padding, 80, layout.frame.height - layout.padding * 2)
-		}
-		.box, .flex {
-			if layout.index < layout.cells.len {
-				layout.cells[layout.index]
-			} else {
-				layout.frame
-			}
-		}
-		.float {
-			if layout.index < layout.cells.len {
-				layout.cells[layout.index]
-			} else {
-				layout.frame
-			}
-		}
-		.grid {
-			if layout.index < layout.cells.len {
-				layout.cells[layout.index]
-			} else {
-				layout.frame
-			}
-		}
-		.anchor {
-			anchor_layout_frame(layout.anchor, rect(0, 0, v_layout_dimension(child, 'width', scope,
-				80)!, v_layout_dimension(child, 'height', scope, 32)!))
-		}
-		.stack {
-			if layout.index < layout.cells.len {
-				layout.cells[layout.index]
-			} else {
-				layout.frame
-			}
-		}
-		.page {
-			if layout.index < layout.cells.len {
-				layout.cells[layout.index]
-			} else {
-				layout.frame
-			}
-		}
-		.tabs {
-			if layout.index < layout.cells.len {
-				layout.cells[layout.index]
-			} else {
-				layout.frame
-			}
-		}
-		.accordion {
-			if layout.index < layout.cells.len {
-				layout.cells[layout.index]
-			} else {
-				layout.frame
-			}
-		}
-	}
+fn (layout &VChildLayout) fallback() Rect {
+	if layout.index < layout.cells.len { return layout.cells[layout.index] }
+	return layout.frame
 }
 
 fn (mut layout VChildLayout) advance(child &VNode) {
-	if v_is_layout_metadata(child) || child.tag == 'Option' {
-		return
-	}
-	match layout.kind {
-		.column {
-			layout.cursor += v_dimension(child, 'height', 32) + layout.spacing
-		}
-		.row {
-			layout.cursor += v_dimension(child, 'width', 80) + layout.spacing
-		}
-		.box, .flex {
-			layout.index++
-		}
-		.float {
-			layout.index++
-		}
-		.grid {
-			layout.index++
-		}
-		.anchor {}
-		.stack {
-			layout.index++
-		}
-		.page {
-			layout.index++
-		}
-		.tabs {
-			layout.index++
-		}
-		.accordion {
-			layout.index++
-		}
-		.overlay {}
-	}
-}
-
-fn v_layout_alignment(node &VNode, key string, scope map[string]VValue) !BoxAlignment {
-	if expr := node.expressions[key] {
-		return box_alignment(v_eval(expr, scope)!.string_value())!
-	}
-	return box_alignment(node.prop_or(key, 'start'))!
-}
-
-fn v_layout_float_axis_hint(node &VNode, scope map[string]VValue, start_keys []string, center_key string, end_key string) !FloatAxisHint {
-	for key in start_keys {
-		if expr := node.expressions[key] {
-			return FloatAxisHint{
-				anchor: .start
-				value:  v_eval(expr, scope)!.numeric(expr.line)!
-			}
-		}
-	}
-	if expr := node.expressions[center_key] {
-		return FloatAxisHint{
-			anchor: .center
-			value:  v_eval(expr, scope)!.numeric(expr.line)!
-		}
-	}
-	if expr := node.expressions[end_key] {
-		return FloatAxisHint{
-			anchor: .end
-			value:  v_eval(expr, scope)!.numeric(expr.line)!
-		}
-	}
-	return FloatAxisHint{}
-}
-
-fn v_layout_child_metric(node &VNode, scope map[string]VValue, box bool, floating bool) !VLayoutChildMetrics {
-	if !box && !floating {
-		return VLayoutChildMetrics{
-			frame: rect(0, 0, v_layout_dimension(node, 'width', scope, 80)!, v_layout_dimension(node,
-				'height', scope, 32)!)
-		}
-	}
-	return VLayoutChildMetrics{
-		frame:            rect(if floating { v_layout_dimension(node, 'x', scope, 0)! } else { 0.0 }, if floating {
-			v_layout_dimension(node, 'y', scope, 0)!
-		} else {
-			0.0
-		}, v_layout_dimension(node, 'width', scope, 80)!, v_layout_dimension(node, 'height', scope,
-			32)!)
-		size_hint_x:      v_layout_dimension(node, 'size_hint_x', scope, 1)!
-		size_hint_y:      v_layout_dimension(node, 'size_hint_y', scope, 1)!
-		minimum_width:    v_layout_dimension(node, 'size_hint_min_x', scope, -1)!
-		minimum_height:   v_layout_dimension(node, 'size_hint_min_y', scope, -1)!
-		maximum_width:    v_layout_dimension(node, 'size_hint_max_x', scope, -1)!
-		maximum_height:   v_layout_dimension(node, 'size_hint_max_y', scope, -1)!
-		horizontal_align: v_layout_alignment(node, 'align_x', scope)!
-		vertical_align:   v_layout_alignment(node, 'align_y', scope)!
-		x_hint:           if floating {
-			v_layout_float_axis_hint(node, scope, ['pos_hint_x'], 'pos_hint_center_x',
-				'pos_hint_right')!
-		} else {
-			FloatAxisHint{}
-		}
-		y_hint:           if floating {
-			v_layout_float_axis_hint(node, scope, ['pos_hint_y', 'pos_hint_top'],
-				'pos_hint_center_y', 'pos_hint_bottom')!
-		} else {
-			FloatAxisHint{}
-		}
-	}
+	if !v_is_layout_metadata(child) { layout.index++ }
 }
 
 fn v_layout_child_metrics(node &VNode, scope map[string]VValue, actual Rect, mut cache VLayoutMeasureCache) ![]VLayoutChildMetrics {
 	mut metrics := []VLayoutChildMetrics{}
-	box := node.tag == 'BoxLayout'
-	floating := node.tag in ['FloatLayout', 'RelativeLayout']
 	for child in node.children {
 		if v_is_layout_metadata(child) || child.tag == 'Option' {
 			continue
@@ -1016,7 +762,7 @@ fn v_layout_child_metrics(node &VNode, scope map[string]VValue, actual Rect, mut
 			continue
 		}
 		if child.tag != 'Repeater' {
-			metrics << v_modern_child_metric(node, child, scope, actual, box, floating, mut
+			metrics << v_modern_child_metric(node, child, scope, actual, mut
 				cache)!
 			continue
 		}
@@ -1035,7 +781,7 @@ fn v_layout_child_metrics(node &VNode, scope map[string]VValue, actual Rect, mut
 				if v_is_layout_metadata(repeated) || repeated.tag == 'Option' {
 					continue
 				}
-				metrics << v_modern_child_metric(node, repeated, item_scope, actual, box, floating, mut
+				metrics << v_modern_child_metric(node, repeated, item_scope, actual, mut
 					cache)!
 			}
 		}
@@ -1043,16 +789,34 @@ fn v_layout_child_metrics(node &VNode, scope map[string]VValue, actual Rect, mut
 	return metrics
 }
 
+// A control change selects one declared action. Its two-way write belongs to
+// the same declaration so aliases cannot shadow the binding or run it twice.
+fn v_binding_event_property(node &VNode, property string) !string {
+	canonical, aliases := match property {
+		'checked' { 'on_tap', ['on_change', 'on_tap'] }
+		'active' { 'on_active', ['on_active', 'on_change', 'on_tap'] }
+		'pressed' { 'on_state', ['on_state', 'on_change', 'on_tap'] }
+		'text', 'value' { 'on_change', ['on_change'] }
+		else {
+			return error('two-way binding is not supported for `${property}` at line ${node.line}')
+		}
+	}
+	for alias in aliases {
+		if alias in node.expressions { return alias }
+	}
+	return canonical
+}
+
 fn v_eval_node(node &VNode, incoming_scope map[string]VValue, frame Rect, mut evaluation VmlEvaluation) !&VNode {
 	mut scope := incoming_scope.clone()
 	mut resolved := &VNode{
-		tag:  node.tag
-		id:   node.id
-		// Normalization can introduce static inherited properties (units)
-		// without expressions. Preserve them; evaluation overwrites expressions.
-		props: node.props.clone()
-		line: node.line
-		path: node.path
+		layout_allocated: node.layout_allocated
+		tag:              node.tag
+		id:               node.id
+		// Preserve static properties; evaluation overwrites expressions.
+		props:            node.props.clone()
+		line:             node.line
+		path:             node.path
 	}
 
 	// Root ids are available while evaluating root-level declared properties.
@@ -1083,8 +847,7 @@ fn v_eval_node(node &VNode, incoming_scope map[string]VValue, frame Rect, mut ev
 	mut binding := ?VmlBinding(none)
 	for key, expr in node.expressions {
 		if key == 'id' || key in node.property_types || key.starts_with('bind.')
-			|| key in ['on_tap', 'on_change', 'on_active', 'on_state', 'on_text', 'on_submit',
-				'on_text_validate', 'on_select', 'on_toggle', 'on_dismiss'] {
+			|| key in vml_event_properties {
 			continue
 		}
 		resolved.props[key] = v_eval(expr, scope)!.string_value()
@@ -1124,11 +887,7 @@ fn v_eval_node(node &VNode, incoming_scope map[string]VValue, frame Rect, mut ev
 			evaluation.toggle_group_bindings[resolved_binding.group] = group_bindings
 		}
 	}
-	actual := if node.tag == 'Screen' && resolved.prop_bool('adaptive') {
-		frame
-	} else {
-		v_frame(resolved, frame)
-	}
+	actual := v_frame(resolved, frame)
 	if node.id.len > 0 {
 		mut object := scope[node.id] or {
 			return error('internal VML scope error for `${node.id}` at line ${node.line}')
@@ -1142,26 +901,7 @@ fn v_eval_node(node &VNode, incoming_scope map[string]VValue, frame Rect, mut ev
 
 	mut binding_event_property := ''
 	if b := binding {
-		binding_event_property = match b.property {
-			'checked' {
-				'on_tap'
-			}
-			'active' {
-				'on_active'
-			}
-			'pressed' {
-				'on_state'
-			}
-			'text' {
-				if node.tag == 'Spinner' { 'on_text' } else { 'on_change' }
-			}
-			'value' {
-				'on_change'
-			}
-			else {
-				return error('two-way binding is not supported for `${b.property}` at line ${node.line}')
-			}
-		}
+		binding_event_property = v_binding_event_property(node, b.property)!
 
 		event_id := v_event_id(node, scope, binding_event_property)
 		resolved.props[binding_event_property] = event_id
@@ -1169,8 +909,7 @@ fn v_eval_node(node &VNode, incoming_scope map[string]VValue, frame Rect, mut ev
 			binding: binding
 		}
 	}
-	for property in ['on_tap', 'on_change', 'on_active', 'on_state', 'on_text', 'on_submit',
-		'on_text_validate', 'on_select', 'on_toggle', 'on_dismiss'] {
+	for property in vml_event_properties {
 		expr := node.expressions[property] or { continue }
 		if expr.kind == .call || expr.kind == .assignment {
 			event_id := v_event_id(node, scope, property)
@@ -1195,9 +934,6 @@ fn v_eval_node(node &VNode, incoming_scope map[string]VValue, frame Rect, mut ev
 		}
 	}
 
-	if node.tag == 'Screen' && resolved.prop_bool('adaptive') {
-		v_validate_adaptive_screen(resolved)!
-	}
 	layout_actual := if node.tag == 'ScaledContent' {
 		rect(0, 0, resolved.prop_or('content_width', '0').f64(), resolved.prop_or('content_height', '0').f64())
 	} else {
@@ -1212,21 +948,14 @@ fn v_eval_node(node &VNode, incoming_scope map[string]VValue, frame Rect, mut ev
 		if child.tag == 'Repeater' {
 			v_expand_repeater(child, scope, mut resolved.children, mut evaluation, mut layout)!
 		} else {
-			resolved_child := if node.tag == 'Screen' && resolved.prop_bool('adaptive') {
-				v_eval_adaptive_child(resolved, child, scope, actual, mut evaluation)!
-			} else {
-				v_eval_layout_child(child, scope, layout.fallback(child, scope)!,
-					layout.kind, mut evaluation)!
-			}
+			resolved_child := v_eval_layout_child(child, scope, layout.fallback(), layout.kind, mut evaluation)!
 			resolved.children << resolved_child
 			layout.advance(resolved_child)
 		}
 	}
-	if layout.kind in [.flex, .grid] {
+	if node.tag == 'Absolute' { v_absolute_resolve_extent(mut resolved, actual)! }
+	if layout.kind in [.flex, .grid, .stack] {
 		resolved.props['__layout_resolved'] = 'true'
-	}
-	if node.tag == 'Screen' && resolved.prop_bool('adaptive') {
-		resolved.props['__adaptive_layout_resolved'] = 'true'
 	}
 	return resolved
 }
@@ -1258,12 +987,7 @@ fn v_expand_repeater(node &VNode, scope map[string]VValue, mut output []&VNode, 
 		parent_key := (scope['__repeat_key'] or { v_string('') }).string_value()
 		item_scope['__repeat_key'] = v_string(v_repeat_identity(parent_key, key))
 		for child_index, child in node.children {
-			mut repeated := if layout.adaptive_parent != unsafe { nil } {
-				v_eval_adaptive_child(layout.adaptive_parent, child, item_scope, layout.frame, mut evaluation)!
-			} else {
-				v_eval_layout_child(child, item_scope, layout.fallback(child, item_scope)!,
-					layout.kind, mut evaluation)!
-			}
+			mut repeated := v_eval_layout_child(child, item_scope, layout.fallback(), layout.kind, mut evaluation)!
 			if repeated.props['key'].len == 0 {
 				repeated.props['key'] = if node.children.len == 1 {
 					key
@@ -1384,8 +1108,7 @@ fn v_validate_node_schema[T](node &VNode, incoming_scope map[string]VSchema) ! {
 	}
 	for key, expr in node.expressions {
 		if key == 'id' || key in node.property_types || key.starts_with('bind.')
-			|| key in ['on_tap', 'on_change', 'on_active', 'on_state', 'on_text', 'on_submit',
-				'on_text_validate', 'on_select', 'on_toggle', 'on_dismiss'] {
+			|| key in vml_event_properties {
 			continue
 		}
 		v_schema_expression(expr, scope)!
@@ -1411,8 +1134,7 @@ fn v_validate_node_schema[T](node &VNode, incoming_scope map[string]VSchema) ! {
 			return error('bind.value requires a numeric field, got `${target}` (${type_name})')
 		}
 	}
-	for property in ['on_tap', 'on_change', 'on_active', 'on_state', 'on_text', 'on_submit',
-		'on_text_validate', 'on_select', 'on_toggle', 'on_dismiss'] {
+	for property in vml_event_properties {
 		expr := node.expressions[property] or { continue }
 		if expr.kind == .call {
 			v_validate_action[T](expr, scope)!
@@ -1456,15 +1178,16 @@ fn v_normalize_toggle_groups(node &VNode, mut selected map[string]bool) &VNode {
 		children << v_normalize_toggle_groups(child, mut selected)
 	}
 	return &VNode{
-		tag:            node.tag
-		id:             node.id
-		props:          props
-		children:       children
-		expressions:    node.expressions
-		property_types: node.property_types
-		property_order: node.property_order
-		line:           node.line
-		path:           node.path
+		layout_allocated: node.layout_allocated
+		tag:              node.tag
+		id:               node.id
+		props:            props
+		children:         children
+		expressions:      node.expressions
+		property_types:   node.property_types
+		property_order:   node.property_order
+		line:             node.line
+		path:             node.path
 	}
 }
 
@@ -1577,7 +1300,6 @@ fn vml_apply_assignment[T](mut model T, assignment VmlAssignment) ! {
 
 pub struct VmlRunConfig[T] {
 pub:
-	units      UnitProfile = .legacy
 	source     string
 	model      T
 	title      string = 'App'
@@ -1585,16 +1307,6 @@ pub:
 	height     int    = 800
 	min_width  int
 	min_height int
-	// Custom renderer only; native backends keep their refresh contract.
-	render_policy RenderPolicy = .continuous
-}
-
-@[heap]
-struct VmlController[T] {
-	template &VNode
-mut:
-	model  T
-	events map[string]VmlEvent
 }
 
 @[heap]
@@ -1611,110 +1323,32 @@ fn vml_runtime() &VmlRuntime {
 
 fn vml_controller_build[T]() Element {
 	runtime := vml_runtime()
-	mut controller := unsafe { &VmlController[T](runtime.controller) }
-	return controller.build()
-}
-
-fn vml_controller_handle[T](event_id string) {
-	runtime := vml_runtime()
-	mut controller := unsafe { &VmlController[T](runtime.controller) }
-	controller.handle(event_id)
-}
-
-fn (mut controller VmlController[T]) build() Element {
+	mut app := unsafe { &VmlApp[T](runtime.controller) }
 	frame := bounds()
-	resolved, events := v_evaluate_template(controller.template, controller.model, rect(0, 0,
-		frame.width, frame.height)) or {
-		eprintln('ui2 VML evaluation failed: ${err}')
-		return screen(0xffffff, [])
-	}
-	controller.events = events.clone()
-	return element_from_vnode(resolved, rect(0, 0, frame.width, frame.height)) or {
-		eprintln('ui2 VML element conversion failed: ${err}')
+	return app.build(rect(0, 0, frame.width, frame.height)) or {
+		eprintln('ui2 VML build failed: ${err}')
 		screen(0xffffff, [])
 	}
-}
-
-fn (mut controller VmlController[T]) handle(event_id string) {
-	event := controller.events[event_id] or { return }
-	if binding := event.binding {
-		field_name := binding.target.all_after('app.')
-		value := match binding.property {
-			'checked', 'active' {
-				current := v_lookup({
-					'app': v_value_from(controller.model)
-				}, binding.target, 0) or {
-					eprintln('ui2 VML binding failed: ${err}')
-					return
-				}
-				v_bool(!current.truthy())
-			}
-			'pressed' {
-				v_bool(toggle_button_pressed(binding.control))
-			}
-			'value' {
-				live := slider_value(binding.control)
-				v_number(live, slider_number(live))
-			}
-			else {
-				v_string(text(binding.control))
-			}
-		}
-
-		vml_set_field[T](mut controller.model, field_name, value) or {
-			eprintln('ui2 VML binding failed: ${err}')
-			return
-		}
-		if binding.property == 'pressed' && value.truthy() {
-			for peer in event.group_bindings {
-				if peer.control == binding.control || peer.target == binding.target {
-					continue
-				}
-				vml_set_field[T](mut controller.model, peer.target.all_after('app.'), v_bool(false)) or {
-					eprintln('ui2 VML group binding failed: ${err}')
-					return
-				}
-			}
-		}
-	}
-	if invocation := event.invocation {
-		vml_dispatch[T](mut controller.model, invocation) or {
-			eprintln('ui2 VML action failed: ${err}')
-			return
-		}
-	}
-	if assignment := event.assignment {
-		vml_apply_assignment[T](mut controller.model, assignment) or {
-			eprintln('ui2 VML assignment failed: ${err}')
-			return
-		}
-	}
-	refresh()
 }
 
 // run_vml owns one typed model for the window, exposes it to VML as `app`, and
 // reconciles the cached document after each binding write or app action.
 pub fn run_vml[T](config VmlRunConfig[T]) ! {
 	mut template := parse_vml(config.source)!
-	inherit_vml_units(mut template, config.units.str())
 	v_validate_template[T](template, config.model)!
 	initial_frame := rect(0, 0, f64(config.width), f64(config.height))
-	resolved, events := v_evaluate_template(template, config.model, initial_frame)!
+	resolved, _ := v_evaluate_template(template, config.model, initial_frame)!
 	validate_element_tree(element_from_vnode(resolved, initial_frame)!)!
-	mut controller := &VmlController[T]{
+	mut controller := &VmlApp[T]{
 		template: template
 		model:    config.model
-		events:   events
 	}
 	mut runtime := vml_runtime()
 	runtime.controller = voidptr(controller)
-	$if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headless ? {
-		set_render_policy(config.render_policy)
-	}
 	$if macos || windows || linux {
 		run_window_with_min_size(config.title, config.width, config.height, config.min_width,
-			config.min_height, vml_controller_build[T], vml_controller_handle[T])
+			config.min_height, vml_controller_build[T])
 	} $else {
-		run(vml_controller_build[T], vml_controller_handle[T])
+		run(vml_controller_build[T])
 	}
 }

@@ -41,10 +41,10 @@ fn test_double_listbox_vml_builds_keyed_native_rows() {
 	selected := find_double_list_element(root, 'selected_list') or {
 		panic('missing selected list')
 	}
-	assert available.children.len == 4
-	assert selected.children.len == 1
-	assert selected.children[0].key == '3'
-	assert selected.children[0].native_style
+	assert available.children[0].children.len == 4
+	assert selected.children[0].children.len == 1
+	assert selected.children[0].children[0].key == '3'
+	assert selected.children[0].children[0].native_style
 	assert (find_double_list_element(root, 'reset_lists') or {
 		panic('missing reset button')
 	}).native_style

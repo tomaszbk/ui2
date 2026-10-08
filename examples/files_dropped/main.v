@@ -17,7 +17,7 @@ pub:
 pub struct FilesDroppedDemo {
 pub mut:
 	files   []DroppedFile
-	next_id int = 1
+	next_id int    = 1
 	status  string = 'Drop files anywhere in this window.'
 }
 
@@ -31,7 +31,7 @@ fn dropped_name(path string) string {
 fn (mut app FilesDroppedDemo) receive(paths []string, dropped_text string) {
 	for path in paths {
 		app.files << DroppedFile{
-			id: app.next_id
+			id:   app.next_id
 			name: dropped_name(path)
 			path: path
 		}
@@ -39,7 +39,7 @@ fn (mut app FilesDroppedDemo) receive(paths []string, dropped_text string) {
 	}
 	if paths.len == 0 && dropped_text.len > 0 {
 		app.files << DroppedFile{
-			id: app.next_id
+			id:   app.next_id
 			name: 'Dropped text'
 			path: dropped_text
 		}
@@ -60,8 +60,6 @@ fn build_files_dropped_screen() ui2.Element {
 	}
 }
 
-fn handle_files_dropped_event(_event string) {}
-
 fn handle_files_drop(event ui2.DropEvent) {
 	mut state := unsafe { files_dropped_state }
 	state.receive(event.paths, event.text)
@@ -70,5 +68,5 @@ fn handle_files_drop(event ui2.DropEvent) {
 
 fn main() {
 	ui2.on_drop(handle_files_drop)
-	ui2.run_window('Dropped Files', files_dropped_width, files_dropped_height, build_files_dropped_screen, handle_files_dropped_event)
+	ui2.run_window('Dropped Files', files_dropped_width, files_dropped_height, build_files_dropped_screen)
 }

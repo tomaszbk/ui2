@@ -14,7 +14,7 @@ v run examples/custom_window
 - Linux and opt-in custom-rendered desktop builds show the same layout in a
   normal window as a portable fallback.
 
-The header is an ordinary draggable ui2 `Rectangle`. Its pointer-down event is
+The header is an ordinary draggable ui2 `View`. Its pointer-down event is
 handed to `performWindowDragWithEvent:` or `WM_NCLBUTTONDOWN`, so the operating
 system still performs the move. The close button calls `ui2.quit()`. Everything
 else—including the separated rounded surfaces and the clear space between

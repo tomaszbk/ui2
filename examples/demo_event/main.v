@@ -26,49 +26,39 @@ fn (mut app DemoEvent) append_history(line string) {
 	app.history = lines.join('\n')
 }
 
-fn (mut app DemoEvent) record_event(event string) {
-	if event == 'clear' {
-		app.last_event = 'Event log cleared.'
-		app.history = ''
-		app.pointer_events = 0
-		app.key_events = 0
-		return
-	}
-	if event == 'sample_button' {
-		app.last_event = 'Native button tapped.'
-		app.append_history(app.last_event)
-		return
-	}
-	if event.starts_with('pointer:') {
-		parts := event.split(':')
-		if parts.len >= 5 {
-			app.last_event = 'Pointer ${parts[1]} at (${parts[3]}, ${parts[4]}).'
-		} else {
-			app.last_event = event
-		}
-		app.pointer_events++
-		app.append_history(app.last_event)
-	}
-}
-
 fn (mut app DemoEvent) record_key(key string) {
 	app.last_event = 'Key: ${key}'
 	app.key_events++
 	app.append_history(app.last_event)
 }
 
-fn build_demo_event_screen() ui2.Element {
-	state := unsafe { demo_event_state }
-	return ui2.element_from_vml_model(demo_event_vml_source, *state, ui2.bounds()) or {
-		eprintln('event-demo VML failed: ${err}')
-		ui2.screen(0xf1f5f9, [])
+fn demo_event_callbacks() map[string]ui2.ElementCallback {
+	return {
+		'clear':         fn (_event ui2.ElementEvent) {
+			mut state := unsafe { demo_event_state }
+			state.clear_events()
+			ui2.refresh()
+		}
+		'sample_button': fn (_event ui2.ElementEvent) {
+			mut state := unsafe { demo_event_state }
+			state.last_event = 'Native button tapped.'
+			state.append_history(state.last_event)
+			ui2.refresh()
+		}
+		'event_surface': fn (event ui2.ElementEvent) {
+			mut state := unsafe { demo_event_state }
+			state.record_pointer(event)
+			ui2.refresh()
+		}
 	}
 }
 
-fn handle_demo_event(event string) {
-	mut state := unsafe { demo_event_state }
-	state.record_event(event)
-	ui2.refresh()
+fn build_demo_event_screen() ui2.Element {
+	state := unsafe { demo_event_state }
+	return ui2.element_from_vml_model_with_callbacks(demo_event_vml_source, *state, ui2.bounds(), demo_event_callbacks()) or {
+		eprintln('event-demo VML failed: ${err}')
+		ui2.screen(0xf1f5f9, [])
+	}
 }
 
 fn handle_demo_key(key string) {
@@ -79,5 +69,24 @@ fn handle_demo_key(key string) {
 
 fn main() {
 	ui2.on_key(handle_demo_key)
-	ui2.run_window('Event Inspector', demo_event_width, demo_event_height, build_demo_event_screen, handle_demo_event)
+	ui2.run_window('Event Inspector', demo_event_width, demo_event_height, build_demo_event_screen)
+}
+
+fn (mut app DemoEvent) clear_events() {
+	app.last_event = 'Event log cleared.'
+	app.history = ''
+	app.pointer_events = 0
+	app.key_events = 0
+}
+
+fn (mut app DemoEvent) record_pointer(event ui2.ElementEvent) {
+	if event.kind !in [.pointer_down, .pointer_drag, .pointer_up] { return }
+	phase := match event.kind {
+		.pointer_down { 'down' }
+		.pointer_drag { 'drag' }
+		else { 'up' }
+	}
+	app.last_event = 'Pointer ${phase} at (${event.x:g}, ${event.y:g}).'
+	app.pointer_events++
+	app.append_history(app.last_event)
 }

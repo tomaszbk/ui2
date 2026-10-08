@@ -13,7 +13,7 @@ fn finish_scheduler_test_frame(mut coordinator FrameCoordinator, now i64) FrameW
 }
 
 fn test_frame_scheduler_on_demand_idle_and_coalescing() {
-	mut coordinator := new_frame_coordinator(.on_demand)
+	mut coordinator := new_frame_coordinator()
 	initial := finish_scheduler_test_frame(mut coordinator, 0)
 	assert initial.build && initial.draw
 	for now in 1 .. 30_001 {
@@ -39,7 +39,7 @@ fn test_frame_scheduler_on_demand_idle_and_coalescing() {
 }
 
 fn test_frame_scheduler_invalidation_during_flush_survives() {
-	mut coordinator := new_frame_coordinator(.on_demand)
+	mut coordinator := new_frame_coordinator()
 	work := coordinator.begin_frame(0) or { panic('expected initial frame') }
 	coordinator.invalidate(.build)
 	if _ := coordinator.begin_frame(1) {
@@ -57,7 +57,7 @@ fn test_frame_scheduler_invalidation_during_flush_survives() {
 }
 
 fn test_frame_scheduler_paint_deadline_and_animation_return_to_idle() {
-	mut coordinator := new_frame_coordinator(.on_demand)
+	mut coordinator := new_frame_coordinator()
 	finish_scheduler_test_frame(mut coordinator, 0)
 	coordinator.invalidate(.paint)
 	paint := finish_scheduler_test_frame(mut coordinator, 10)
@@ -87,7 +87,7 @@ fn test_frame_scheduler_paint_deadline_and_animation_return_to_idle() {
 }
 
 fn test_frame_scheduler_posted_callbacks_are_outside_lock_and_next_drain() {
-	mut coordinator := new_frame_coordinator(.on_demand)
+	mut coordinator := new_frame_coordinator()
 	dispatcher := UiDispatcher{
 		coordinator: coordinator
 	}
@@ -123,7 +123,7 @@ fn test_frame_scheduler_posted_callbacks_are_outside_lock_and_next_drain() {
 }
 
 fn test_frame_scheduler_suspend_resume_preserves_business_tasks_and_restores_surface() {
-	mut coordinator := new_frame_coordinator(.on_demand)
+	mut coordinator := new_frame_coordinator()
 	finish_scheduler_test_frame(mut coordinator, 0)
 	coordinator.set_deadline(500)
 	coordinator.suspend()
@@ -154,7 +154,7 @@ fn test_frame_scheduler_suspend_resume_preserves_business_tasks_and_restores_sur
 }
 
 fn test_frame_scheduler_does_not_deliver_tasks_during_an_active_flush() {
-	mut coordinator := new_frame_coordinator(.on_demand)
+	mut coordinator := new_frame_coordinator()
 	finish_scheduler_test_frame(mut coordinator, 0)
 	coordinator.invalidate(.paint)
 	work := coordinator.begin_frame(1) or { panic('expected paint frame') }
@@ -178,7 +178,7 @@ fn test_frame_scheduler_does_not_deliver_tasks_during_an_active_flush() {
 }
 
 fn test_frame_scheduler_close_cancels_queue_timers_and_rejects_old_handle() {
-	mut coordinator := new_frame_coordinator(.on_demand)
+	mut coordinator := new_frame_coordinator()
 	dispatcher := UiDispatcher{
 		coordinator: coordinator
 	}
@@ -203,27 +203,8 @@ fn test_frame_scheduler_close_cancels_queue_timers_and_rejects_old_handle() {
 	assert !UiDispatcher{}.post(fn () {})
 }
 
-fn test_frame_scheduler_continuous_default_and_policy_change() {
-	mut coordinator := new_frame_coordinator(.continuous)
-	coordinator.set_presentation_required(true)
-	for now in 0 .. 3 {
-		work := finish_scheduler_test_frame(mut coordinator, now)
-		assert work.build && work.draw
-	}
-	coordinator.set_presentation_required(false)
-	coordinator.set_policy(.on_demand)
-	finish_scheduler_test_frame(mut coordinator, 3)
-	if _ := coordinator.begin_frame(4) {
-		assert false, 'on-demand policy must become idle'
-	}
-	coordinator.set_policy(.continuous)
-	finish_scheduler_test_frame(mut coordinator, 5)
-	finish_scheduler_test_frame(mut coordinator, 6)
-	assert coordinator.stats().builds == 6
-}
-
 fn test_frame_scheduler_required_presentation_reuses_tree_and_respects_lifecycle() {
-	mut coordinator := new_frame_coordinator(.on_demand)
+	mut coordinator := new_frame_coordinator()
 	finish_scheduler_test_frame(mut coordinator, 0)
 	coordinator.set_presentation_required(true)
 	assert coordinator.stats().presentation_required
@@ -263,7 +244,7 @@ fn test_frame_scheduler_required_presentation_reuses_tree_and_respects_lifecycle
 }
 
 fn test_frame_scheduler_worker_posts_are_synchronized() {
-	mut coordinator := new_frame_coordinator(.on_demand)
+	mut coordinator := new_frame_coordinator()
 	dispatcher := UiDispatcher{
 		coordinator: coordinator
 	}
@@ -285,8 +266,8 @@ fn test_frame_scheduler_worker_posts_are_synchronized() {
 }
 
 fn test_frame_scheduler_contexts_keep_independent_lifetimes() {
-	mut first := new_frame_coordinator(.on_demand)
-	mut second := new_frame_coordinator(.on_demand)
+	mut first := new_frame_coordinator()
+	mut second := new_frame_coordinator()
 	finish_scheduler_test_frame(mut first, 0)
 	finish_scheduler_test_frame(mut second, 0)
 	first.invalidate(.build)

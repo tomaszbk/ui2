@@ -1,7 +1,7 @@
 module ui2
 
 fn test_embedder_waits_indefinitely_after_flush_and_preserves_reentrant_work() {
-	mut scheduler := new_frame_coordinator(.on_demand)
+	mut scheduler := new_frame_coordinator()
 	assert scheduler.next_wake(100, -1, 8) == 100
 	first := scheduler.begin_frame(100) or { panic('missing mount') }
 	scheduler.invalidate(.build)
@@ -18,7 +18,7 @@ fn test_embedder_waits_indefinitely_after_flush_and_preserves_reentrant_work() {
 }
 
 fn test_embedder_uses_presentation_cadence_and_suspends_visual_deadlines() {
-	mut scheduler := new_frame_coordinator(.on_demand)
+	mut scheduler := new_frame_coordinator()
 	first := scheduler.begin_frame(100) or { panic('missing mount') }
 	scheduler.finish_frame(first)
 	scheduler.set_animation_active(true)
@@ -39,7 +39,7 @@ fn test_embedder_uses_presentation_cadence_and_suspends_visual_deadlines() {
 }
 
 fn test_embedder_wakeup_runs_outside_scheduler_lock_and_coalesces_worker_posts() {
-	mut scheduler := new_frame_coordinator(.on_demand)
+	mut scheduler := new_frame_coordinator()
 	first := scheduler.begin_frame(100) or { panic('missing mount') }
 	scheduler.finish_frame(first)
 	mut signals := &[]bool{}

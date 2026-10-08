@@ -91,57 +91,65 @@ fn clamp_panel(value f64, low f64, high f64) f64 {
 	return if value > high { high } else { value }
 }
 
-fn child_pointer(event string) ?(string, string, f64, f64) {
-	parts := event.split(':')
-	if parts.len < 5 || parts[0] != 'pointer' {
-		return none
-	}
-	return parts[1], parts[2], parts[3].f64(), parts[4].f64()
-}
-
-fn (mut app ChildWindowDemo) handle_event(event string, card_width f64, card_height f64) {
-	match event {
-		'create' { app.create_window() }
-		'close' { app.close_window() }
-		'greet' { app.greet() }
-		'child_name' { app.set_name(ui2.text('child_name')) }
-		'genre' { app.toggle_woman() }
-		'parent_input' {
-			app.parent_text = ui2.text('parent_input')
-		}
-		else {
-			phase, id, x, y := child_pointer(event) or { return }
-			if id != 'child_titlebar' {
-				return
-			}
-			if phase == 'down' {
-				app.grab_panel(x, y)
-			} else {
-				app.drag_panel(x, y, card_width, card_height)
-			}
-		}
-	}
-}
-
 fn child_card_size(frame ui2.Rect) (f64, f64) {
 	return frame.width - 32.0, frame.height - 32.0
 }
 
+fn child_window_callbacks() map[string]ui2.ElementCallback {
+	return {
+		'create':         fn (_event ui2.ElementEvent) {
+			mut state := unsafe { child_window_state }
+			state.create_window()
+			ui2.refresh()
+		}
+		'close':          fn (_event ui2.ElementEvent) {
+			mut state := unsafe { child_window_state }
+			state.close_window()
+			ui2.refresh()
+		}
+		'greet':          fn (_event ui2.ElementEvent) {
+			mut state := unsafe { child_window_state }
+			state.greet()
+			ui2.refresh()
+		}
+		'child_name':     fn (event ui2.ElementEvent) {
+			mut state := unsafe { child_window_state }
+			state.set_name(event.text)
+			ui2.refresh()
+		}
+		'genre':          fn (event ui2.ElementEvent) {
+			mut state := unsafe { child_window_state }
+			state.woman = event.checked
+			ui2.refresh()
+		}
+		'parent_input':   fn (event ui2.ElementEvent) {
+			mut state := unsafe { child_window_state }
+			state.parent_text = event.text
+			ui2.refresh()
+		}
+		'child_titlebar': fn (event ui2.ElementEvent) {
+			mut state := unsafe { child_window_state }
+			card_width, card_height := child_card_size(ui2.bounds())
+			match event.kind {
+				.pointer_down { state.grab_panel(event.x, event.y) }
+				.pointer_drag, .pointer_up {
+					state.drag_panel(event.x, event.y, card_width, card_height)
+				}
+				else {}
+			}
+			ui2.refresh()
+		}
+	}
+}
+
 fn build_child_window_screen() ui2.Element {
 	state := unsafe { child_window_state }
-	return ui2.element_from_vml_model(child_window_vml_source, *state, ui2.bounds()) or {
+	return ui2.element_from_vml_model_with_callbacks(child_window_vml_source, *state, ui2.bounds(), child_window_callbacks()) or {
 		eprintln('child-window VML failed: ${err}')
 		ui2.screen(0xf1f5f9, [])
 	}
 }
 
-fn handle_child_window_event(event string) {
-	mut state := unsafe { child_window_state }
-	card_width, card_height := child_card_size(ui2.bounds())
-	state.handle_event(event, card_width, card_height)
-	ui2.refresh()
-}
-
 fn main() {
-	ui2.run_window('Child Window', child_window_width, child_window_height, build_child_window_screen, handle_child_window_event)
+	ui2.run_window('Child Window', child_window_width, child_window_height, build_child_window_screen)
 }

@@ -3,9 +3,8 @@ module ui2
 // Application menus: the window's top level menu bar and the status area
 // ("system tray") icon with its own menu.
 //
-// Both are declared with the same rows and both emit through the window's
-// event handler — the one passed to run_window — so a menu row and a button
-// can share an action id and run the same code.
+// Menu rows and tray icons carry their own typed callbacks. An id identifies
+// the source and never selects a window-global handler.
 //
 // MenuEntry, further up in ui.v, stays the flat right-click list attached to
 // one element; MenuItem below is the richer row a menu bar and a tray menu are
@@ -15,12 +14,12 @@ module ui2
 //
 // A row with `items` is a submenu and emits nothing itself. A row with
 // `separator` set draws the divider between two groups and carries no title.
-// Every other row emits `id` through the window's event handler when it is
-// chosen.
+// Leaf rows invoke on_select when chosen; ElementEvent.id is source identity.
 pub struct MenuItem {
 pub:
-	id    string
-	title string
+	on_select ElementCallback = unsafe { nil }
+	id        string
+	title     string
 	// shortcut is a normalized accelerator such as 'cmd+n' or 'cmd+shift+s'.
 	// `cmd` names the platform's primary modifier: Command on macOS, Control
 	// on Windows and Linux. Keys are single characters or 'f1'..'f12'.
@@ -45,6 +44,7 @@ pub:
 // it in the menu bar's status area, Windows in the notification area.
 pub struct TrayConfig {
 pub:
+	on_event ElementCallback = unsafe { nil }
 	// id is emitted when the icon is clicked and `menu` is empty. A tray icon
 	// with a menu opens that menu instead.
 	id string
@@ -78,12 +78,7 @@ mut:
 	menus        []Menu
 	tray         TrayConfig
 	tray_visible bool
-	// dispatch, app_name and window are published by the backend's run_window.
-	// Menus hang off the application rather than off the element tree, so this
-	// is how the per-platform menu code reaches the window's event handler, the
-	// name to build a macOS application menu from, and the native handle a
-	// Win32 menu bar attaches to — without depending on one backend's state.
-	dispatch EventFn = EventFn(unsafe { nil })
+	// Platform menus use the published application name and native window.
 	app_name string = 'App'
 	window   voidptr
 }
@@ -96,21 +91,18 @@ fn menu_state() &MenuState {
 
 // publish_menu_context is called by each backend's run_window before the first
 // menu is built.
-fn publish_menu_context(handler EventFn, app_name string, window voidptr) {
+fn publish_menu_context(app_name string, window voidptr) {
 	mut st := menu_state()
-	st.dispatch = handler
 	if app_name.len > 0 {
 		st.app_name = app_name
 	}
 	st.window = window
 }
 
-// emit_menu_event sends a chosen row to the window's event handler, the same
-// channel a button tap arrives on.
-fn emit_menu_event(id string) {
-	st := menu_state()
-	if id.len > 0 && voidptr(st.dispatch) != unsafe { nil } {
-		st.dispatch(id)
+fn emit_menu_callback(callback ElementCallback, id string) {
+	if voidptr(callback) != unsafe { nil } {
+		callback(ElementEvent{ kind: .tap, id: id })
+		request_refresh()
 	}
 }
 
@@ -134,10 +126,10 @@ fn install_declared_menus() {
 	}
 }
 
-// menu_item builds a plain row that emits `id` when chosen.
+// menu_item builds a plain row. Attach on_select to make it actionable.
 pub fn menu_item(id string, title string) MenuItem {
 	return MenuItem{
-		id: id
+		id:    id
 		title: title
 	}
 }
@@ -146,8 +138,8 @@ pub fn menu_item(id string, title string) MenuItem {
 // menu_item_with_shortcut('new', 'New', 'cmd+n').
 pub fn menu_item_with_shortcut(id string, title string, shortcut string) MenuItem {
 	return MenuItem{
-		id: id
-		title: title
+		id:       id
+		title:    title
 		shortcut: shortcut
 	}
 }
@@ -156,8 +148,8 @@ pub fn menu_item_with_shortcut(id string, title string, shortcut string) MenuIte
 // remembered: rebuild the menu bar with the new value after handling the event.
 pub fn menu_check_item(id string, title string, checked bool) MenuItem {
 	return MenuItem{
-		id: id
-		title: title
+		id:      id
+		title:   title
 		checked: checked
 	}
 }
@@ -254,7 +246,7 @@ pub fn validate_menu_items(items []MenuItem, path string, mut ids map[string]boo
 	for index, item in items {
 		here := '${path}/${index}'
 		if item.separator {
-			if item.id.len > 0 || item.title.len > 0 || item.items.len > 0 {
+			if item.id.len > 0 || item.title.len > 0 || item.items.len > 0 || voidptr(item.on_select) != unsafe { nil } {
 				return error('separator at ${here} cannot carry a title, id or submenu')
 			}
 			continue
@@ -263,19 +255,19 @@ pub fn validate_menu_items(items []MenuItem, path string, mut ids map[string]boo
 			return error('menu item at ${here} has no title')
 		}
 		if item.items.len > 0 {
-			if item.id.len > 0 {
+			if item.id.len > 0 || voidptr(item.on_select) != unsafe { nil } {
 				return error('submenu `${item.title}` at ${here} cannot also emit an id')
 			}
 			validate_menu_items(item.items, here, mut ids)!
 			continue
 		}
-		if item.id.len == 0 {
+		if item.id.len == 0 && voidptr(item.on_select) == unsafe { nil } {
 			return error('menu item `${item.title}` at ${here} emits no id')
 		}
-		if item.id in ids {
+		if item.id.len > 0 && item.id in ids {
 			return error('duplicate menu item id `${item.id}` at ${here}')
 		}
-		ids[item.id] = true
+		if item.id.len > 0 { ids[item.id] = true }
 	}
 }
 
@@ -306,11 +298,11 @@ pub fn parse_menu_shortcut(shortcut string) MenuShortcut {
 		}
 	}
 	return MenuShortcut{
-		cmd: cmd
-		ctrl: ctrl
-		alt: alt
+		cmd:   cmd
+		ctrl:  ctrl
+		alt:   alt
 		shift: shift
-		key: key
+		key:   key
 	}
 }
 
@@ -408,7 +400,7 @@ pub fn find_menu_shortcut(items []MenuItem, pressed MenuShortcut) ?MenuItem {
 			}
 			continue
 		}
-		if item.separator || !item.enabled || item.id.len == 0 {
+		if item.separator || !item.enabled {
 			continue
 		}
 		if menu_shortcut_matches(parse_menu_shortcut(item.shortcut), pressed) {

@@ -30,11 +30,11 @@ fn test_accordion_vml_expands_and_offsets_following_sections() {
 	root := ui2.element_from_vml_model(accordion_vml_source, app, ui2.rect(0, 0, accordion_width, accordion_height)) or { panic(err) }
 	ui2.validate_element_tree(root) or { panic(err) }
 	list := find_accordion_element(root, 'section_list') or { panic('missing section list') }
-	assert list.children.len == 5
-	assert list.children[0].frame.height == 40
-	assert list.children[1].frame.height == 160
-	assert list.children[2].frame.y == 224
-	assert list.children[1].children[0].native_style
-	assert !list.children[1].children[1].hidden
-	assert list.children[2].children[1].hidden
+	assert list.children[0].children.len == 5
+	assert list.children[0].children[0].frame.height == 40
+	assert list.children[0].children[1].frame.height == 160
+	assert list.children[0].children[2].frame.y == 224
+	assert list.children[0].children[1].children[0].children[0].native_style
+	assert !list.children[0].children[1].children[0].children[1].hidden
+	assert list.children[0].children[2].children[0].children[1].hidden
 }

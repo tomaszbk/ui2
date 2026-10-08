@@ -3,11 +3,11 @@ module ui2
 pub struct TextInputConfig {
 pub:
 	id             string
-	action_id      string
-	submit_id      string
+	on_event       ElementCallback = unsafe { nil }
 	frame          Rect
 	text           string
-	hint_text      string
+	placeholder    string
+	text_runs      []TextRun
 	multiline      bool = true
 	password       bool
 	readonly       bool
@@ -20,48 +20,33 @@ pub:
 	text_style     TextStyle
 }
 
-// text_input unifies UI2's single-line field and multiline editor. Password
-// masking is currently a single-line behavior because native multiline editors
-// do not expose a secure-entry mode.
+// TextInput is the single entry point for plain and rich editable text.
+// Backend kinds retain the platform's single-line field and multiline editor.
 pub fn text_input(config TextInputConfig) !Element {
 	if config.password && config.multiline {
 		return error('password text input must be single-line')
 	}
-	if config.multiline {
-		return Element{
-			kind: .text_area
-			id: config.id
-			action_id: config.action_id
-			text: config.text
-			placeholder: config.hint_text
-			frame: config.frame
-			box: config.box
-			text_style: config.text_style
-			emit_change: config.action_id.len > 0
-			readonly: config.readonly
-			disable_scroll: config.disable_scroll
-			enabled: config.enabled
-			autocorrect: config.autocorrect
-			padding_left: config.padding_left
-		}
+	if config.text_runs.len > 0 && !config.multiline {
+		return error('rich text input must be multiline')
 	}
-	mut field := if config.action_id.len > 0 {
-		text_field_with_change_and_submit(config.id, config.submit_id, config.hint_text, config.text, config.frame, config.box, config.text_style, config.keyboard)
-	} else if config.submit_id.len > 0 {
-		text_field_with_submit(config.id, config.submit_id, config.hint_text, config.text, config.frame, config.box, config.text_style, config.keyboard)
-	} else {
-		text_field(config.id, config.hint_text, config.text, config.frame, config.box, config.text_style, config.keyboard)
+	return Element{
+		kind:           if config.multiline { .text_area } else { .text_field }
+		id:             config.id
+		on_event:       config.on_event
+		text:           config.text
+		text_runs:      config.text_runs
+		placeholder:    config.placeholder
+		frame:          config.frame
+		box:            config.box
+		text_style:     config.text_style
+		secure:         config.password
+		readonly:       config.readonly
+		disable_scroll: config.disable_scroll
+		enabled:        config.enabled
+		autocorrect:    config.autocorrect
+		keyboard:       config.keyboard
+		padding_left:   config.padding_left
 	}
-	field = Element{
-		...field
-		action_id: config.action_id
-		secure: config.password
-		readonly: config.readonly
-		enabled: config.enabled
-		autocorrect: config.autocorrect
-		padding_left: config.padding_left
-	}
-	return field
 }
 
 // text_field_content_rect is the immediate renderer's single-line viewport.

@@ -32,8 +32,8 @@ fn test_gradient_texture_vml_builds_keyed_tiles_and_native_controls() {
 	root := ui2.element_from_vml_model(gradient_texture_vml_source, app, ui2.rect(0, 0, gradient_texture_width, gradient_texture_height)) or { panic(err) }
 	ui2.validate_element_tree(root) or { panic(err) }
 	gradient := find_gradient_element(root, 'gradient') or { panic('missing gradient') }
-	assert gradient.children.len == gradient_columns * gradient_rows
-	assert gradient.children[0].key == '0'
+	assert gradient.children[0].children.len == gradient_columns * gradient_rows
+	assert gradient.children[0].children[0].key == '0'
 	assert (find_gradient_element(root, 'previous_hue') or { panic('missing previous') }).native_style
 	assert (find_gradient_element(root, 'next_hue') or { panic('missing next') }).native_style
 }

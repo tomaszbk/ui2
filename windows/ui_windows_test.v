@@ -9,14 +9,25 @@ $if !ui2_custom_rendering ? {
 
 	__global windows_accessibility_events = []string{}
 
-	fn capture_windows_accessibility_event(id string) {
-		windows_accessibility_events << id
+	fn capture_windows_accessibility_event(event ElementEvent) {
+		assert event.kind == .tap
+		windows_accessibility_events << event.id
 	}
 
 	fn test_windows_backend_compiles_with_clipboard() {
 		mut system_clipboard := clipboard.new()
 		assert system_clipboard != unsafe { nil }
 		system_clipboard.free()
+	}
+
+	fn test_windows_font_presentation_uses_logical_size_and_device_dpi() {
+		// Independently specified rounded physical em heights for an 18.25-unit font.
+		for index, dpi in [u32(96), 120, 144, 192] {
+			assert C.ui2_win_logical_font_height(18.25, dpi) == [-18, -23, -27, -37][index]
+		}
+		assert C.ui2_win_logical_font_height(0, 96) == -15
+		assert C.ui2_win_logical_font_height(0.25, 96) == -1
+		assert C.ui2_win_logical_font_height(18.25, 0) == -18
 	}
 
 	fn test_windows_virtual_keys_map_to_portable_key_codes() {
@@ -47,7 +58,7 @@ $if !ui2_custom_rendering ? {
 			kind: .text_field
 		}
 		secure := Element{
-			kind: .text_field
+			kind:   .text_field
 			secure: true
 		}
 		assert windows_structural_signature(plain) != windows_structural_signature(secure)
@@ -56,13 +67,13 @@ $if !ui2_custom_rendering ? {
 			kind: .text_area
 		}
 		area_without_scroll := Element{
-			kind: .text_area
+			kind:           .text_area
 			disable_scroll: true
 		}
 		assert windows_structural_signature(area) != windows_structural_signature(area_without_scroll)
 
 		styled_button := Element{
-			kind: .button
+			kind:         .button
 			native_style: true
 		}
 		plain_button := Element{
@@ -74,7 +85,7 @@ $if !ui2_custom_rendering ? {
 			kind: .slider
 		}
 		vertical_slider := Element{
-			kind: .slider
+			kind:        .slider
 			orientation: .vertical
 		}
 		assert windows_structural_signature(horizontal_slider) != windows_structural_signature(vertical_slider)
@@ -83,11 +94,11 @@ $if !ui2_custom_rendering ? {
 	fn test_windows_scroll_content_height_uses_child_extent() {
 		children := [
 			Element{
-				kind: .label
+				kind:  .label
 				frame: rect(0, 10, 50, 20)
 			},
 			Element{
-				kind: .button
+				kind:  .button
 				frame: rect(0, 80, 50, 35)
 			},
 		]
@@ -95,35 +106,29 @@ $if !ui2_custom_rendering ? {
 	}
 
 	fn test_windows_composite_button_release_requires_current_registration() {
-		captured := WindowsPointerBinding{
-			id:              'original'
-			button_behavior: true
-		}
-		current := WindowsPointerBinding{
-			id:              'replacement'
-			button_behavior: true
-		}
-		assert windows_button_behavior_action(captured, current, false, false, true) == 'original'
-		assert windows_button_behavior_action(captured, WindowsPointerBinding{}, false, false,
-			true) == ''
-		assert windows_button_behavior_action(captured, WindowsPointerBinding{
-			id:        'original'
-			clickable: true
-		}, false, false, true) == ''
-		assert windows_button_behavior_action(captured, WindowsPointerBinding{
-			button_behavior: true
-		}, false, false, true) == ''
-		assert windows_button_behavior_action(captured, current, true, false, true) == ''
-		assert windows_button_behavior_action(captured, current, false, true, true) == ''
-		assert windows_button_behavior_action(captured, current, false, false, false) == ''
-		assert windows_button_behavior_accessibility_action(current, true) == 'replacement'
-		assert windows_button_behavior_accessibility_action(WindowsPointerBinding{}, true) == ''
-		assert windows_button_behavior_accessibility_action(WindowsPointerBinding{
-			id:        'replacement'
-			clickable: true
-		}, true) == ''
-		assert windows_button_behavior_accessibility_action(current, false) == ''
+		captured := WindowsPointerBinding{ id: 'original', on_event: capture_windows_accessibility_event, button_behavior: true }
+		current := WindowsPointerBinding{ id: 'replacement', on_event: capture_windows_accessibility_event, button_behavior: true }
+		assert windows_button_behavior_available(captured, current, false, false, true)
+		assert !windows_button_behavior_available(captured, WindowsPointerBinding{}, false, false, true)
+		assert !windows_button_behavior_available(captured, WindowsPointerBinding{ on_event: capture_windows_accessibility_event, clickable: true }, false, false, true)
+		assert !windows_button_behavior_available(captured, WindowsPointerBinding{ button_behavior: true }, false, false, true)
+		assert !windows_button_behavior_available(captured, current, true, false, true)
+		assert !windows_button_behavior_available(captured, current, false, true, true)
+		assert !windows_button_behavior_available(captured, current, false, false, false)
+		assert windows_button_behavior_accessibility_available(current, true)
+		assert !windows_button_behavior_accessibility_available(WindowsPointerBinding{}, true)
+		assert !windows_button_behavior_accessibility_available(WindowsPointerBinding{ on_event: capture_windows_accessibility_event, clickable: true }, true)
+		assert !windows_button_behavior_accessibility_available(current, false)
 		assert windows_button_accessibility_caption('Save & close') == 'Save && close'
+		// Registration, not a nonempty id, makes an anonymous composite actionable.
+		anonymous := WindowsPointerBinding{ on_event: capture_windows_accessibility_event, button_behavior: true }
+		assert windows_button_behavior_available(anonymous, anonymous, false, false, true)
+		windows_accessibility_events = []string{}
+		if windows_button_behavior_available(captured, current, false, false, true) {
+			windows_emit_callback(captured.on_event, ElementEvent{ id: captured.id, kind: .tap })
+		}
+		assert windows_accessibility_events == ['original']
+		windows_accessibility_events = []string{}
 	}
 
 	fn test_windows_composite_button_exposes_native_accessibility_and_invoke() {
@@ -145,10 +150,8 @@ $if !ui2_custom_rendering ? {
 		assert child_label != unsafe { nil }
 
 		mut st := windows_state()
-		old_handler := st.event_handler
 		old_bindings := st.pointer_bindings.clone()
 		defer {
-			st.event_handler = old_handler
 			st.pointer_bindings = old_bindings
 			windows_accessibility_events = []string{}
 			C.ui2_win_destroy(root)
@@ -180,20 +183,23 @@ $if !ui2_custom_rendering ? {
 		C.ui2_win_show(root, 0)
 
 		windows_accessibility_events = []string{}
-		st.event_handler = capture_windows_accessibility_event
 		st.pointer_bindings[windows_handle_id(button)] = WindowsPointerBinding{
 			id:              'save'
 			button_behavior: true
 		}
-		st.event_handler = EventFn(unsafe { nil })
 		assert ui2_windows_accessibility_activate(button) == 0
-		st.event_handler = capture_windows_accessibility_event
+		st.pointer_bindings[windows_handle_id(button)] = WindowsPointerBinding{
+			id:              'save'
+			on_event:        capture_windows_accessibility_event
+			button_behavior: true
+		}
 		assert C.ui2_win_accessible_button_invoke(button) != 0
 		C.ui2_win_dispatch_pending_messages()
 		assert windows_accessibility_events == ['save']
 
 		st.pointer_bindings[windows_handle_id(button)] = WindowsPointerBinding{
 			id:              'replacement'
+			on_event:        capture_windows_accessibility_event
 			button_behavior: true
 		}
 		C.ui2_win_click(button)
@@ -257,8 +263,8 @@ $if !ui2_custom_rendering ? {
 
 	fn test_windows_font_text_covers_every_string_a_control_draws() {
 		field := Element{
-			kind: .text_field
-			text: 'Andr\u00e9'
+			kind:        .text_field
+			text:        'Andr\u00e9'
 			placeholder: 'Name'
 		}
 		assert windows_font_text(field) == 'Andr\u00e9Name'
@@ -267,7 +273,7 @@ $if !ui2_custom_rendering ? {
 			kind: .dropdown
 			text: 'one'
 			menu: [MenuEntry{
-				id: 'two'
+				id:    'two'
 				title: '\u2713 two'
 			}]
 		}
@@ -278,7 +284,7 @@ $if !ui2_custom_rendering ? {
 			kind: .button
 			text: 'Create'
 			menu: [MenuEntry{
-				id: 'copy'
+				id:    'copy'
 				title: 'Copy'
 			}]
 		}
@@ -387,5 +393,101 @@ $if !ui2_custom_rendering ? {
 			free(empty)
 			free(placeholder)
 		}
+	}
+
+	__global windows_control_test_handlers = []string{}
+	__global windows_control_test_events = []ElementEvent{}
+
+	fn capture_windows_control_a(event ElementEvent) {
+		windows_control_test_handlers << 'a'
+		windows_control_test_events << event
+	}
+
+	fn capture_windows_control_b(event ElementEvent) {
+		windows_control_test_handlers << 'b'
+		windows_control_test_events << event
+	}
+
+	fn test_windows_ordinary_control_press_keeps_callback_and_cancels_without_current_registration() {
+		first := WindowsCallbackBinding{ id: 'same', on_event: capture_windows_control_a, kind: .button, event: .tap }
+		second := WindowsCallbackBinding{ ...first, on_event: capture_windows_control_b }
+		windows_control_test_handlers = []string{}
+		windows_control_test_events = []ElementEvent{}
+		selected := windows_control_release_binding(first, second, true) or { panic('eligible native control must activate') }
+		assert windows_emit_callback(selected.on_event, ElementEvent{ id: selected.id, kind: selected.event })
+		assert windows_control_test_handlers == ['a']
+		assert windows_control_test_events[0].id == 'same'
+		if _ := windows_control_release_binding(first, second, false) {
+			assert false, 'disabled/hidden/cancelled native control must cancel'
+		}
+		if _ := windows_control_release_binding(first, WindowsCallbackBinding{}, true) {
+			assert false, 'removed native control must cancel'
+		}
+		if _ := windows_control_release_binding(WindowsCallbackBinding{}, second, true) {
+			assert false, 'callback installed after press cannot take over'
+		}
+	}
+	fn test_windows_cancelled_pointer_does_not_swallow_later_keyboard_activation() {
+		first := WindowsCallbackBinding{ id: 'same', on_event: capture_windows_control_a, kind: .button, event: .tap }
+		current := WindowsCallbackBinding{ ...first, on_event: capture_windows_control_b }
+		cancelled := WindowsControlCapture{ binding: first, cancelled: true }
+		if _ := windows_control_dispatch_binding(current, cancelled, true, true, false) {
+			assert false, 'cancelled pointer action must remain cancelled'
+		}
+		windows_control_test_handlers = []string{}
+		selected := windows_control_dispatch_binding(current, cancelled, true, true, true) or {
+			panic('independent keyboard action must use current callback')
+		}
+		assert windows_emit_callback(selected.on_event, ElementEvent{ id: selected.id, kind: .tap })
+		assert windows_control_test_handlers == ['b']
+		if _ := windows_control_dispatch_binding(current, cancelled, true, false, true) {
+			assert false, 'disabled/deleted control cannot receive a keyboard action'
+		}
+	}
+
+	fn test_windows_control_destruction_releases_capture_and_nested_keyboard_transport_state() {
+		mut st := windows_state()
+		old_captures := st.control_captures.clone()
+		old_activations := st.control_native_activations.clone()
+		defer {
+			st.control_captures = old_captures
+			st.control_native_activations = old_activations
+		}
+		hwnd := voidptr(usize(0x1234))
+		handle := windows_handle_id(hwnd)
+		st.control_captures[handle] = WindowsControlCapture{
+			binding: WindowsCallbackBinding{ on_event: capture_windows_control_a }
+		}
+		ui2_windows_control_tracking(hwnd, 4)
+		ui2_windows_control_tracking(hwnd, 4)
+		assert st.control_native_activations[handle] == 2
+		ui2_windows_control_tracking(hwnd, 5)
+		assert st.control_native_activations[handle] == 1
+		ui2_windows_control_tracking(hwnd, 6)
+		assert handle !in st.control_captures
+		assert handle !in st.control_native_activations
+		ui2_windows_control_tracking(hwnd, 5)
+		assert handle !in st.control_native_activations
+	}
+
+	fn test_windows_scroll_notification_uses_current_element_callback_and_logical_offset() {
+		mut st := windows_state()
+		old_callbacks := st.scroll_callbacks.clone()
+		defer { st.scroll_callbacks = old_callbacks }
+		hwnd := voidptr(usize(0x4567))
+		handle := windows_handle_id(hwnd)
+		st.scroll_callbacks[handle] = WindowsCallbackBinding{ id: 'list', on_event: capture_windows_control_a, kind: .scroll, event: .scroll }
+		windows_control_test_handlers = []string{}
+		windows_control_test_events = []ElementEvent{}
+		assert windows_emit_scroll(hwnd, 63)
+		assert windows_control_test_events[0].kind == .scroll
+		assert windows_control_test_events[0].id == 'list'
+		assert windows_control_test_events[0].value == 63
+		st.scroll_callbacks[handle] = WindowsCallbackBinding{ on_event: capture_windows_control_b, kind: .scroll, event: .scroll }
+		assert windows_emit_scroll(hwnd, 72)
+		assert windows_control_test_handlers == ['a', 'b']
+		assert windows_control_test_events[1].id == ''
+		st.scroll_callbacks.delete(handle)
+		assert !windows_emit_scroll(hwnd, 90)
 	}
 }

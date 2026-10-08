@@ -29,47 +29,48 @@ struct MetadataType {
 
 const scanner_metadata_types = [
 	MetadataType{
-		symbol: 'AVMetadataObjectTypeQRCode'
+		symbol:   'AVMetadataObjectTypeQRCode'
 		fallback: 'org.iso.QRCode'
 	},
 	MetadataType{
-		symbol: 'AVMetadataObjectTypeEAN13Code'
+		symbol:   'AVMetadataObjectTypeEAN13Code'
 		fallback: 'org.gs1.EAN-13'
 	},
 	MetadataType{
-		symbol: 'AVMetadataObjectTypeEAN8Code'
+		symbol:   'AVMetadataObjectTypeEAN8Code'
 		fallback: 'org.gs1.EAN-8'
 	},
 	MetadataType{
-		symbol: 'AVMetadataObjectTypeUPCECode'
+		symbol:   'AVMetadataObjectTypeUPCECode'
 		fallback: 'org.gs1.UPC-E'
 	},
 	MetadataType{
-		symbol: 'AVMetadataObjectTypeCode128Code'
+		symbol:   'AVMetadataObjectTypeCode128Code'
 		fallback: 'org.iso.Code128'
 	},
 	MetadataType{
-		symbol: 'AVMetadataObjectTypeCode39Code'
+		symbol:   'AVMetadataObjectTypeCode39Code'
 		fallback: 'org.iso.Code39'
 	},
 	MetadataType{
-		symbol: 'AVMetadataObjectTypeCode93Code'
+		symbol:   'AVMetadataObjectTypeCode93Code'
 		fallback: 'org.iso.Code93'
 	},
 	MetadataType{
-		symbol: 'AVMetadataObjectTypePDF417Code'
+		symbol:   'AVMetadataObjectTypePDF417Code'
 		fallback: 'org.iso.PDF417'
 	},
 	MetadataType{
-		symbol: 'AVMetadataObjectTypeDataMatrixCode'
+		symbol:   'AVMetadataObjectTypeDataMatrixCode'
 		fallback: 'org.iso.DataMatrix'
 	},
 	MetadataType{
-		symbol: 'AVMetadataObjectTypeITF14Code'
+		symbol:   'AVMetadataObjectTypeITF14Code'
 		fallback: 'org.gs1.ITF14'
 	},
 ]
 
+__global g_scan_callback = ScanCallback(unsafe { nil })
 __global g_scanner_vc = View(unsafe { nil })
 __global g_scanner_session = View(unsafe { nil })
 __global g_scanner_preview = View(unsafe { nil })
@@ -103,6 +104,8 @@ fn native_present_barcode_scanner(root View) {
 	if !macos.msg_bool(macos.get_class('NSThread'), 'isMainThread') {
 		if !objc_is_nil(g_button_handler) {
 			macos.msg_void_sel_id_bool(g_button_handler, 'performSelectorOnMainThread:withObject:waitUntilDone:', macos.sel('vuiPresentScanner:'), root, false)
+		} else {
+			report_scan_error('scanner unavailable')
 		}
 		return
 	}
@@ -301,25 +304,22 @@ fn release_scanner() {
 	g_scanner_vc = View(unsafe { nil })
 }
 
+fn report_scan_result(result ScanResult) {
+	callback := g_scan_callback
+	g_scan_callback = ScanCallback(unsafe { nil })
+	if callback != unsafe { nil } { callback(result) }
+}
+
 fn report_scan_code(code string) {
-	if voidptr(g_event_handler) == unsafe { nil } {
-		return
-	}
-	g_event_handler('scan_code:' + code)
+	report_scan_result(ScanResult{ kind: .code, text: code })
 }
 
 fn report_scan_error(message string) {
-	if voidptr(g_event_handler) == unsafe { nil } {
-		return
-	}
-	g_event_handler('scan_error:' + message)
+	report_scan_result(ScanResult{ kind: .error, text: message })
 }
 
 fn report_scan_cancelled() {
-	if voidptr(g_event_handler) == unsafe { nil } {
-		return
-	}
-	g_event_handler('scan_cancelled')
+	report_scan_result(ScanResult{ kind: .cancelled })
 }
 
 // ── Scanner callbacks ──────────────────────────────────────────────

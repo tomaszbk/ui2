@@ -16,8 +16,8 @@ $if macos && ui2_embedder ? && ui2_custom_rendering ? && !ui2_headless ? {
 	// A shown window owns its app even if callers retain only its dispatcher.
 	__global g_embedder_live_apps = []&GgApp{}
 
-	pub fn open_window(title string, width int, height int, build BuildFn, event EventFn) !CustomWindow {
-		return open_embedder_window(title, width, height, 0, 0, build, event)
+	pub fn open_window(title string, width int, height int, build BuildFn) !CustomWindow {
+		return open_embedder_window(title, width, height, 0, 0, build)
 	}
 
 	pub fn run_windows() {
@@ -63,7 +63,7 @@ $if macos && ui2_embedder ? && ui2_custom_rendering ? && !ui2_headless ? {
 	}
 
 	fn open_embedder_window(title string, width int, height int, min_width int, min_height int,
-		build BuildFn, event EventFn) !CustomWindow {
+		build BuildFn) !CustomWindow {
 		if !C.ui2_embedder_is_main_thread() { return error('windows must be created on the main thread') }
 		if width <= 0 || height <= 0 { return error('window dimensions must be positive') }
 		previous_app := g_gg_app
@@ -71,7 +71,7 @@ $if macos && ui2_embedder ? && ui2_custom_rendering ? && !ui2_headless ? {
 		state := if first { adopt_custom_window_state() } else { new_custom_window_state() }
 		previous_state := activate_custom_window_state(state)
 		mut app := if first { g_gg_app } else { &GgApp{
-			scheduler: new_frame_coordinator(g_gg_app.scheduler.policy)
+			scheduler: new_frame_coordinator()
 		} }
 		app.window_state = state
 		g_gg_app = app
@@ -80,9 +80,8 @@ $if macos && ui2_embedder ? && ui2_custom_rendering ? && !ui2_headless ? {
 			g_gg_app = previous_app
 		}
 		g_build_screen = build
-		g_event_handler = event
 		configure_animation_driver(request_refresh, false)
-		publish_menu_context(event, title, unsafe { nil })
+		publish_menu_context(title, unsafe { nil })
 		font_regular, font_bold := font_paths()
 		device := C.ui2_embedder_metal_device()
 		if device == unsafe { nil } { return error('a main-thread Metal device is required') }

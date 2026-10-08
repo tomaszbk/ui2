@@ -2,11 +2,17 @@ module ui2
 
 // menu_bar_from_vml loads a standalone Menu or MenuBar document. It returns a
 // declaration without installing native menus; pass the result to set_menu_bar.
-// Values are literal, and on_tap names an action id handled by run_window.
+// Values are literal. Named on_tap declarations select explicit callbacks.
 // App expressions, bindings and Screen documents belong to the visual VML
 // runtime and are deliberately not evaluated by this loader.
 pub fn menu_bar_from_vml(source string) ![]Menu {
 	return menu_bar_from_vnode(parse_vml(source)!)!
+}
+
+pub fn menu_bar_from_vml_with_callbacks(source string, callbacks map[string]ElementCallback) ![]Menu {
+	mut node := parse_vml(source)!
+	v_attach_named_callbacks(mut node, callbacks)
+	return menu_bar_from_vnode(node)!
 }
 
 // menu_bar_from_vnode converts a parsed, literal menu document. This is useful
@@ -59,10 +65,11 @@ fn vml_application_menu_items(node &VNode) ![]MenuItem {
 				items << menu_separator()
 			}
 			'MenuItem' {
-				vml_menu_properties(child, ['id', 'title', 'text', 'on_tap', 'shortcut',
-					'checked', 'enabled', 'separator'])!
+				vml_menu_properties(child, ['id', 'title', 'text', 'on_tap', 'shortcut', 'checked',
+					'enabled', 'separator'])!
 				item := MenuItem{
-					id:        child.prop_or('on_tap', child.id)
+					id:        child.id
+					on_select: v_node_callback(child, 'on_tap')
 					title:     child.prop_or('title', child.prop('text'))
 					shortcut:  child.prop('shortcut')
 					separator: child.prop_bool('separator')
@@ -100,7 +107,7 @@ fn vml_menu_properties(node &VNode, allowed []string) ! {
 	for key, expr in node.expressions {
 		if expr.kind !in [.literal, .path]
 			|| (expr.kind == .path && expr.value.contains('.')) {
-			return error('menu VML requires a literal `${key}` at line ${expr.line}; use an action id rather than an app expression')
+			return error('menu VML requires a literal `${key}` at line ${expr.line}; use a callback name rather than an app expression')
 		}
 	}
 }

@@ -3,8 +3,8 @@
 // set_menu_bar hands ui2 a plain declaration; the backend turns it into the
 // system menu bar on macOS, the window's own menu bar on Windows, and a bar
 // the custom renderer draws across the top of the window on Linux. Rows emit
-// through the same event handler run_window was given, so a menu row and a
-// button in the window can run the same code.
+// through their declared typed callbacks, so menu rows and window buttons
+// can share an application operation.
 //
 // Rows with a check mark hold declared state, not remembered state: after
 // toggling one the menu bar is installed again with the new value.
@@ -59,45 +59,45 @@ pub fn (app &MenubarDemo) menus() []ui2.Menu {
 		ui2.Menu{
 			title: 'File'
 			items: [
-				ui2.menu_item_with_shortcut('file_new', 'New Note', 'cmd+n'),
-				ui2.menu_item_with_shortcut('file_open', 'Open…', 'cmd+o'),
+				ui2.MenuItem{ ...ui2.menu_item_with_shortcut('file_new', 'New Note', 'cmd+n'), on_select: menubar_callback('file_new') },
+				ui2.MenuItem{ ...ui2.menu_item_with_shortcut('file_open', 'Open…', 'cmd+o'), on_select: menubar_callback('file_open') },
 				ui2.menu_separator(),
-				ui2.menu_item_with_shortcut('file_save', 'Save', 'cmd+s'),
-				ui2.disabled(ui2.menu_item('file_revert', 'Revert')),
+				ui2.MenuItem{ ...ui2.menu_item_with_shortcut('file_save', 'Save', 'cmd+s'), on_select: menubar_callback('file_save') },
+				ui2.disabled(ui2.MenuItem{ ...ui2.menu_item('file_revert', 'Revert'), on_select: menubar_callback('file_revert') }),
 				ui2.menu_separator(),
-				ui2.menu_item_with_shortcut('file_close', 'Close Window', 'cmd+w'),
+				ui2.MenuItem{ ...ui2.menu_item_with_shortcut('file_close', 'Close Window', 'cmd+w'), on_select: menubar_callback('file_close') },
 			]
 		},
 		ui2.Menu{
 			title: 'Edit'
 			items: [
-				ui2.menu_item_with_shortcut('edit_undo', 'Undo', 'cmd+z'),
-				ui2.menu_item_with_shortcut('edit_redo', 'Redo', 'cmd+shift+z'),
+				ui2.MenuItem{ ...ui2.menu_item_with_shortcut('edit_undo', 'Undo', 'cmd+z'), on_select: menubar_callback('edit_undo') },
+				ui2.MenuItem{ ...ui2.menu_item_with_shortcut('edit_redo', 'Redo', 'cmd+shift+z'), on_select: menubar_callback('edit_redo') },
 				ui2.menu_separator(),
 				ui2.submenu('Find', [
-					ui2.menu_item_with_shortcut('find_open', 'Find…', 'cmd+f'),
-					ui2.menu_item_with_shortcut('find_next', 'Find Next', 'cmd+g'),
-					ui2.menu_item_with_shortcut('find_previous', 'Find Previous', 'cmd+shift+g'),
+					ui2.MenuItem{ ...ui2.menu_item_with_shortcut('find_open', 'Find…', 'cmd+f'), on_select: menubar_callback('find_open') },
+					ui2.MenuItem{ ...ui2.menu_item_with_shortcut('find_next', 'Find Next', 'cmd+g'), on_select: menubar_callback('find_next') },
+					ui2.MenuItem{ ...ui2.menu_item_with_shortcut('find_previous', 'Find Previous', 'cmd+shift+g'), on_select: menubar_callback('find_previous') },
 				]),
 			]
 		},
 		ui2.Menu{
 			title: 'View'
 			items: [
-				ui2.menu_check_item('view_details', 'Show Details', app.show_details),
-				ui2.menu_check_item('view_wrap', 'Word Wrap', app.word_wrap),
+				ui2.MenuItem{ ...ui2.menu_check_item('view_details', 'Show Details', app.show_details), on_select: menubar_callback('view_details') },
+				ui2.MenuItem{ ...ui2.menu_check_item('view_wrap', 'Word Wrap', app.word_wrap), on_select: menubar_callback('view_wrap') },
 				ui2.menu_separator(),
 				ui2.submenu('Zoom', [
-					ui2.menu_item_with_shortcut('zoom_in', 'Zoom In', 'cmd+='),
-					ui2.menu_item_with_shortcut('zoom_out', 'Zoom Out', 'cmd+-'),
-					ui2.menu_item_with_shortcut('zoom_reset', 'Actual Size', 'cmd+0'),
+					ui2.MenuItem{ ...ui2.menu_item_with_shortcut('zoom_in', 'Zoom In', 'cmd+='), on_select: menubar_callback('zoom_in') },
+					ui2.MenuItem{ ...ui2.menu_item_with_shortcut('zoom_out', 'Zoom Out', 'cmd+-'), on_select: menubar_callback('zoom_out') },
+					ui2.MenuItem{ ...ui2.menu_item_with_shortcut('zoom_reset', 'Actual Size', 'cmd+0'), on_select: menubar_callback('zoom_reset') },
 				]),
 			]
 		},
 		ui2.Menu{
 			title: 'Help'
 			items: [
-				ui2.menu_item('help_about', 'About This Demo'),
+				ui2.MenuItem{ ...ui2.menu_item('help_about', 'About This Demo'), on_select: menubar_callback('help_about') },
 			]
 		},
 	]
@@ -164,7 +164,7 @@ fn on_off(value bool) string {
 
 fn build_menubar_screen() ui2.Element {
 	state := unsafe { menubar_state }
-	return ui2.element_from_vml_model(menubar_vml_source, *state, ui2.bounds()) or {
+	return ui2.element_from_vml_model_with_callbacks(menubar_vml_source, *state, ui2.bounds(), menubar_callbacks()) or {
 		eprintln('menubar VML failed: ${err}')
 		ui2.screen(0xf1f5f9, [])
 	}
@@ -191,5 +191,17 @@ fn main() {
 	// Declaring the menu bar before the window exists is fine: it is installed
 	// as soon as there is something to attach it to.
 	ui2.set_menu_bar(state.menus())
-	ui2.run_window('Menu Bar', menubar_width, menubar_height, build_menubar_screen, handle_menubar_event)
+	ui2.run_window('Menu Bar', menubar_width, menubar_height, build_menubar_screen)
+}
+
+fn menubar_callback(action string) ui2.ElementCallback {
+	return fn [action] (_event ui2.ElementEvent) {
+		handle_menubar_event(action)
+	}
+}
+
+fn menubar_callbacks() map[string]ui2.ElementCallback {
+	return {
+		'reset': menubar_callback('reset')
+	}
 }

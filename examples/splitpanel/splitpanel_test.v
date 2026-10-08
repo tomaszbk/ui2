@@ -42,6 +42,6 @@ fn test_splitpanel_vml_reflows_nested_panes() {
 	assert top.frame.height == (stage.frame.height - 10) * app.top_weight
 	assert grid.frame.x == notes.frame.width + 8
 	assert wide_grid.frame.width > grid.frame.width
-	assert grid.children.len == app.rows.len + 1
+	assert grid.children[0].children.len == app.rows.len + 1
 	assert (find_splitpanel_element(root, 'reset_splits') or { panic('missing reset') }).native_style
 }

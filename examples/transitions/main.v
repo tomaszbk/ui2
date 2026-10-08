@@ -62,13 +62,22 @@ fn transition_stage_size(frame ui2.Rect) (f64, f64) {
 	return frame.width - 68.0, frame.height - 178.0
 }
 
+fn transitions_callbacks() map[string]ui2.ElementCallback {
+	return {
+		'slide': fn (_event ui2.ElementEvent) {
+			handle_transitions_event('slide')
+			ui2.refresh()
+		}
+	}
+}
+
 fn build_transitions_screen() ui2.Element {
 	mut state := unsafe { transitions_state }
 	info := ui2.animation_info('moving_tile')
 	if info.status == .running {
 		state.progress = info.progress
 	}
-	return ui2.element_from_vml_model(transitions_vml_source, *state, ui2.bounds()) or {
+	return ui2.element_from_vml_model_with_callbacks(transitions_vml_source, *state, ui2.bounds(), transitions_callbacks()) or {
 		eprintln('transitions VML failed: ${err}')
 		ui2.screen(0xf1f5f9, [])
 	}
@@ -83,15 +92,15 @@ fn handle_transitions_event(event string) {
 	mut state := unsafe { transitions_state }
 	state.select_target(stage_width, stage_height)
 	ui2.animation(
-		duration: 0.75
+		duration:   0.75
 		transition: .in_out_cubic
-		x: state.target_x
-		y: state.target_y
-		on_event: transition_animation_event
+		x:          state.target_x
+		y:          state.target_y
+		on_event:   transition_animation_event
 	).start('moving_tile')
 	ui2.refresh()
 }
 
 fn main() {
-	ui2.run_window('Transitions', transitions_width, transitions_height, build_transitions_screen, handle_transitions_event)
+	ui2.run_window('Transitions', transitions_width, transitions_height, build_transitions_screen)
 }

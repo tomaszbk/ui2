@@ -33,9 +33,9 @@ fn test_treeview_vml_builds_indented_native_rows() {
 	root := ui2.element_from_vml_model(treeview_vml_source, app, ui2.rect(0, 0, treeview_width, treeview_height)) or { panic(err) }
 	ui2.validate_element_tree(root) or { panic(err) }
 	list := find_treeview_element(root, 'tree_list') or { panic('missing tree list') }
-	assert list.children.len == 12
-	assert list.children[0].native_style
-	assert list.children[0].text.starts_with('▾')
-	assert list.children[4].frame.x == 56
-	assert list.children[4].key == '5'
+	assert list.children[0].children.len == 12
+	assert list.children[0].children[0].native_style
+	assert list.children[0].children[0].text.starts_with('▾')
+	assert list.children[0].children[4].frame.x == 56
+	assert list.children[0].children[4].key == '5'
 }

@@ -12,19 +12,19 @@ pub mut:
 }
 
 pub fn (mut app PageLayoutDemo) previous() {
-	app.page = ui2.page_layout_previous(app.page, 3)
+	app.page = (app.page + 2) % 3
 }
 
 pub fn (mut app PageLayoutDemo) next() {
-	app.page = ui2.page_layout_next(app.page, 3)
+	app.page = (app.page + 1) % 3
 }
 
 fn main() {
 	ui2.run_vml[PageLayoutDemo](
 		source: page_vml_source
-		model: PageLayoutDemo{}
-		title: 'Page Layout'
-		width: page_width
+		model:  PageLayoutDemo{}
+		title:  'Page Layout'
+		width:  page_width
 		height: page_height
 	) or { panic(err) }
 }

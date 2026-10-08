@@ -57,7 +57,7 @@ fn test_canvas_layout_vml_builds_a_scrolling_sheet_with_a_draggable_tile() {
 	app.add_note()
 	app.toggle_menu()
 	frame := ui2.rect(0, 0, canvas_layout_width, canvas_layout_height)
-	root := ui2.element_from_vml_model(canvas_layout_vml_source, app, frame) or { panic(err) }
+	root := ui2.element_from_vml_model_with_callbacks(canvas_layout_vml_source, app, frame, canvas_layout_callbacks()) or { panic(err) }
 	ui2.validate_element_tree(root) or { panic(err) }
 	canvas := find_canvas_element(root, 'canvas') or { panic('missing canvas') }
 	assert canvas.frame.x == 18
@@ -66,10 +66,10 @@ fn test_canvas_layout_vml_builds_a_scrolling_sheet_with_a_draggable_tile() {
 	assert sheet.frame.height == canvas_sheet_height
 	assert sheet.frame.height > canvas.frame.height
 	assert sheet.frame.width == canvas_sheet_width(frame)
-	assert sheet.draggable && sheet.action_id == 'canvas_sheet'
+	assert sheet.draggable && sheet.id == 'sheet' && voidptr(sheet.on_event) != unsafe { nil }
 	tile := find_canvas_element(root, 'canvas_tile') or { panic('missing tile') }
 	assert tile.draggable
 	assert tile.cursor == ui2.cursor_pointing_hand
 	assert !(find_canvas_element(root, 'canvas_menu') or { panic('missing menu') }).hidden
-	assert (find_canvas_element(root, 'theme_dropdown') or { panic('missing dropdown') }).action_id == 'theme_dropdown'
+	assert (find_canvas_element(root, 'theme_dropdown') or { panic('missing dropdown') }).id == 'theme_dropdown' && voidptr((find_canvas_element(root, 'theme_dropdown') or { panic('missing dropdown') }).on_event) != unsafe { nil }
 }

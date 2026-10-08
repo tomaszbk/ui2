@@ -29,7 +29,7 @@ fn test_pointer_model_reads_live_values_after_an_action() {
 	}) or { panic(err) }
 	built := app.build(rect(0, 0, 200, 100)) or { panic(err) }
 	assert built.children[0].text == '3'
-	app.handle(built.children[1].action_id) or { panic(err) }
+	built.children[1].on_event(ElementEvent{ kind: .tap })
 	assert counter.count == 4
 	assert (app.build(rect(0, 0, 200, 100)) or { panic(err) }).children[0].text == '4'
 }

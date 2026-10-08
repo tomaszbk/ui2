@@ -117,15 +117,15 @@ fn (mut block GlobalBlock) build(invoke voidptr, signature string) voidptr {
 		return unsafe { nil }
 	}
 	block.descriptor = BlockDescriptor{
-		reserved: 0
-		size: u64(sizeof(BlockLiteral))
+		reserved:  0
+		size:      u64(sizeof(BlockLiteral))
 		signature: voidptr(signature.str)
 	}
 	block.literal = BlockLiteral{
-		isa: isa
-		flags: block_is_global | block_has_signature
-		reserved: 0
-		invoke: invoke
+		isa:        isa
+		flags:      block_is_global | block_has_signature
+		reserved:   0
+		invoke:     invoke
 		descriptor: voidptr(&block.descriptor)
 	}
 	return voidptr(&block.literal)
@@ -311,12 +311,11 @@ fn vui_dropdown_selected(_self voidptr, _cmd voidptr, sender voidptr) {
 	if objc_is_nil(button) || title.len == 0 {
 		return
 	}
+	current := g_action_callbacks[u64(button)] or { return }
+	binding := ios_control_action_binding(button, current) or { return }
+	g_control_captures.delete(u64(button))
 	macos.msg_void2(button, 'setTitle:forState:', macos.nsstring(title), macos.Id(usize(0)))
-	if voidptr(g_event_handler) == unsafe { nil } {
-		return
-	}
-	id := g_action_ids[u64(button)] or { return }
-	g_event_handler(id)
+	ios_emit_callback(binding, ElementEvent{ kind: .change, text: title })
 }
 
 // ── Text view selection ────────────────────────────────────────────

@@ -27,10 +27,15 @@ fn test_change_title_validates_and_applies_trimmed_title() {
 }
 
 fn test_change_title_vml_has_submit_and_native_action() {
-	root := ui2.element_from_vml_model(change_title_vml_source, ChangeTitleDemo{}, ui2.rect(0, 0, change_title_width, change_title_height)) or { panic(err) }
+	root := change_title_test_tree(change_title_vml_source, ChangeTitleDemo{}, ui2.rect(0, 0, change_title_width, change_title_height)) or { panic(err) }
 	ui2.validate_element_tree(root) or { panic(err) }
 	field := find_change_title_element(root, 'title') or { panic('missing title field') }
 	button := find_change_title_element(root, 'apply_title') or { panic('missing title button') }
-	assert field.submit_id.len > 0
+	assert voidptr(field.on_event) != unsafe { nil }
 	assert button.native_style
+}
+
+fn change_title_test_tree[T](source string, model T, frame ui2.Rect) !ui2.Element {
+	mut app := ui2.new_vml_app(source, model)!
+	return app.build(frame)!
 }

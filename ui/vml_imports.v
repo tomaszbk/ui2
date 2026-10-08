@@ -36,8 +36,8 @@ fn (mut p Parser) parse_document() !VmlDocument {
 	p.eat(.eof)!
 	return VmlDocument{
 		module_name: module_name
-		imports: imports
-		root: root
+		imports:     imports
+		root:        root
 	}
 }
 
@@ -46,17 +46,20 @@ fn (mut p Parser) parse_document() !VmlDocument {
 // names, so `import PrimaryScreen` loads `primary_screen.vml`. A module file
 // must start with the matching `module PrimaryScreen` declaration.
 pub fn parse_vml_file(path string) !&VNode {
-	mut stack := []string{}
-	mut node := parse_vml_file_with_stack(path, '', mut stack)!
+	mut import_stack := []string{}
+	mut node := parse_vml_file_with_stack(path, '', mut import_stack)!
+	v_validate_logical_units(node)!
+	validate_layout_vnode(node)!
+	validate_widget_vnode(node)!
+	v_validate_geometry(node, '')!
 	assign_vml_paths(mut node, '0')
-	inherit_vml_units(mut node, 'legacy')
 	return node
 }
 
-fn parse_vml_file_with_stack(path string, expected_module string, mut stack []string) !&VNode {
+fn parse_vml_file_with_stack(path string, expected_module string, mut import_stack []string) !&VNode {
 	file_path := os.abs_path(path)
-	if file_path in stack {
-		mut cycle := stack.clone()
+	if file_path in import_stack {
+		mut cycle := import_stack.clone()
 		cycle << file_path
 		return error('cyclic VML import: ${cycle.join(' -> ')}')
 	}
@@ -75,7 +78,7 @@ fn parse_vml_file_with_stack(path string, expected_module string, mut stack []st
 	if expected_module.len > 0 && document.module_name != expected_module {
 		return error('VML import `${expected_module}` requires `${file_path}` to declare `module ${expected_module}`')
 	}
-	mut next_stack := stack.clone()
+	mut next_stack := import_stack.clone()
 	next_stack << file_path
 	mut components := map[string]&VNode{}
 	for import_name in document.imports {
@@ -153,15 +156,15 @@ fn clone_vml_import_node(node &VNode) &VNode {
 		children << clone_vml_import_node(child)
 	}
 	return &VNode{
-		tag: node.tag
-		id: node.id
-		props: node.props.clone()
-		children: children
-		expressions: node.expressions.clone()
+		tag:            node.tag
+		id:             node.id
+		props:          node.props.clone()
+		children:       children
+		expressions:    node.expressions.clone()
 		property_types: node.property_types.clone()
 		property_order: node.property_order.clone()
-		line: node.line
-		path: node.path
+		line:           node.line
+		path:           node.path
 	}
 }
 
@@ -192,7 +195,7 @@ pub fn new_vml_app_file[T](path string, model T) !&VmlApp[T] {
 	validate_element_tree(element_from_vnode(resolved, probe)!)!
 	return &VmlApp[T]{
 		template: template
-		model: model
+		model:    model
 	}
 }
 
@@ -201,39 +204,30 @@ pub fn new_vml_app_file[T](path string, model T) !&VmlApp[T] {
 // config while imports get a stable directory for relative resolution.
 pub struct VmlFileRunConfig[T] {
 pub:
-	units UnitProfile = .legacy
 	source_path string
 	model       T
 	title       string = 'App'
-	width       int = 400
-	height      int = 800
-	// Custom renderer only; native backends keep their refresh contract.
-	render_policy RenderPolicy = .continuous
+	width       int    = 400
+	height      int    = 800
 }
 
 // run_vml_file owns one typed model for a file-backed VML window and resolves
 // imports relative to source_path before validation and rendering.
 pub fn run_vml_file[T](config VmlFileRunConfig[T]) ! {
 	mut template := parse_vml_file(config.source_path)!
-	inherit_vml_units(mut template, config.units.str())
 	v_validate_template[T](template, config.model)!
 	initial_frame := rect(0, 0, f64(config.width), f64(config.height))
-	resolved, events := v_evaluate_template(template, config.model, initial_frame)!
+	resolved, _ := v_evaluate_template(template, config.model, initial_frame)!
 	validate_element_tree(element_from_vnode(resolved, initial_frame)!)!
-	mut controller := &VmlController[T]{
+	mut controller := &VmlApp[T]{
 		template: template
-		model: config.model
-		events: events
+		model:    config.model
 	}
 	mut runtime := vml_runtime()
 	runtime.controller = voidptr(controller)
-	$if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
-		set_render_policy(config.render_policy)
-	}
 	$if macos || windows || linux {
-		run_window(config.title, config.width, config.height, vml_controller_build[T],
-			vml_controller_handle[T])
+		run_window(config.title, config.width, config.height, vml_controller_build[T])
 	} $else {
-		run(vml_controller_build[T], vml_controller_handle[T])
+		run(vml_controller_build[T])
 	}
 }

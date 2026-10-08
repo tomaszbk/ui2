@@ -1,4 +1,9 @@
+@[has_globals]
 module ui2
+
+__global ui_modifier_test_events = []ElementEvent{}
+
+fn ui_modifier_test_callback(event ElementEvent) { ui_modifier_test_events << event }
 
 fn test_key_code_names_match_normalized_shortcut_names() {
 	assert KeyCode.n.name() == 'n'
@@ -13,7 +18,7 @@ fn test_key_code_names_match_normalized_shortcut_names() {
 fn test_transparent_box_does_not_draw_a_fill() {
 	assert box_draws_fill(BoxStyle{})
 	assert !box_draws_fill(BoxStyle{
-		bg: 0xff00ff
+		bg:          0xff00ff
 		transparent: true
 	})
 }
@@ -26,18 +31,29 @@ fn test_box_border_width_stays_inside_the_element() {
 	assert box_border_width(1, 0) == 0
 }
 
-fn test_with_secure_entry_preserves_text_field_configuration() {
-	field := text_field_with_change_and_submit('password', 'sign-in', 'Password', 'secret', rect(1, 2, 200, 32), BoxStyle{
-		bg: 0xfafafa
-	}, TextStyle{
-		size: 14
-	}, keyboard_default)
-	secure := with_secure_entry(field)
+fn test_text_input_password_preserves_input_configuration() {
+	field := text_input(
+		id:          'password'
+		placeholder: 'Password'
+		text:        'secret'
+		frame:       rect(1, 2, 200, 32)
+		box:         BoxStyle{ bg: 0xfafafa }
+		text_style:  TextStyle{ size: 14 }
+		on_event:    ui_modifier_test_callback
+		multiline:   false
+		password:    true
+	) or { panic(err) }
+	secure := field
 
 	assert secure.kind == .text_field
 	assert secure.id == 'password'
-	assert secure.submit_id == 'sign-in'
-	assert secure.emit_change
+	ui_modifier_test_events = []ElementEvent{}
+	secure.on_event(ElementEvent{ kind: .change, id: secure.id, text: 'edited' })
+	secure.on_event(ElementEvent{ kind: .submit, id: secure.id, text: 'edited' })
+	assert ui_modifier_test_events == [
+		ElementEvent{ kind: .change, id: 'password', text: 'edited' },
+		ElementEvent{ kind: .submit, id: 'password', text: 'edited' },
+	]
 	assert secure.text == 'secret'
 	assert secure.secure
 }
@@ -81,15 +97,17 @@ fn test_button_view_preserves_its_composite_content() {
 }
 
 fn test_with_button_behavior_preserves_a_view_and_explicit_accessibility_role() {
-	base := with_action(view('save_card', rect(4, 6, 180, 56), BoxStyle{
+	base := with_event(view('save_card', rect(4, 6, 180, 56), BoxStyle{
 		bg: 0xf8fafc
 	}, [label('save_card_title', 'Save changes', rect(16, 12, 148, 24), TextStyle{})]),
-		'persist_changes')
+		ui_modifier_test_callback)
 	el := with_button_behavior(base)
 
 	assert el.kind == .view
 	assert el.id == 'save_card'
-	assert el.action_id == 'persist_changes'
+	ui_modifier_test_events = []ElementEvent{}
+	el.on_event(ElementEvent{ kind: .tap, id: el.id })
+	assert ui_modifier_test_events == [ElementEvent{ kind: .tap, id: 'save_card' }]
 	assert el.frame == base.frame
 	assert el.box == base.box
 	assert el.children == base.children

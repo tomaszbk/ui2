@@ -27,11 +27,10 @@ pub fn (mut app ResponsiveApp) create_project() {
 
 fn main() {
 	ui2.run_vml[ResponsiveApp](
-		source:        responsive_source
-		model:         ResponsiveApp{}
-		title:         'UI2 · Responsive layout'
-		width:         if '--compact' in os.args { 390 } else { 1000 }
-		height:        780
-		render_policy: .on_demand
+		source: responsive_source
+		model:  ResponsiveApp{}
+		title:  'UI2 · Responsive layout'
+		width:  if '--compact' in os.args { 390 } else { 1000 }
+		height: 780
 	) or { panic(err) }
 }

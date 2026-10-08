@@ -1,16 +1,18 @@
+@[has_globals]
 module ui2
 
 $if ui2_custom_rendering ? {
+	__global custom_control_test_events = []ElementEvent{}
+	fn capture_custom_control_event(event ElementEvent) { custom_control_test_events << event }
+
 	fn custom_test_key_handler(_key string) {}
 	fn custom_test_key_event_handler(_event KeyEvent) {}
-
-	fn custom_test_scroll_handler(_id string) {}
 
 	fn custom_test_drop_handler(_event DropEvent) {}
 
 	fn test_custom_desktop_backend_defaults() {
 		assert bounds() == Rect{
-			width: 800
+			width:  800
 			height: 600
 		}
 		assert control_support(.button) == .supported
@@ -22,7 +24,6 @@ $if ui2_custom_rendering ? {
 	fn test_custom_desktop_backend_exposes_desktop_hooks() {
 		on_key(custom_test_key_handler)
 		on_key_event(custom_test_key_event_handler)
-		on_scroll(custom_test_scroll_handler)
 		on_drop(custom_test_drop_handler)
 		request_refresh()
 		refresh_element('missing', Element{})
@@ -56,10 +57,17 @@ $if ui2_custom_rendering ? {
 		g_focused_field = ''
 	}
 
-	fn test_custom_pointer_event_ids_are_normalized() {
-		assert pointer_event_id('down', 'surface', 20, 30) == 'pointer:down:surface:20.0:30.0'
-		assert pointer_event_id('drag', 'surface', 40, 50) == 'pointer:drag:surface:40.0:50.0'
-		assert pointer_event_id('up', 'surface', 40, 50) == 'pointer:up:surface:40.0:50.0'
+	fn test_custom_pointer_callbacks_receive_typed_coordinates() {
+		custom_control_test_events = []ElementEvent{}
+		target := HitTarget{ id: 'surface', on_event: capture_custom_control_event }
+		fire_pointer_event(.pointer_down, target, 20, 30)
+		fire_pointer_event(.pointer_drag, target, 40, 50)
+		fire_pointer_event(.pointer_up, target, 40, 50)
+		assert custom_control_test_events == [
+			ElementEvent{ kind: .pointer_down, id: 'surface', x: 20, y: 30 },
+			ElementEvent{ kind: .pointer_drag, id: 'surface', x: 40, y: 50 },
+			ElementEvent{ kind: .pointer_up, id: 'surface', x: 40, y: 50 },
+		]
 	}
 
 	fn test_custom_button_images_match_native_arrangements() {
@@ -119,12 +127,12 @@ $if ui2_custom_rendering ? {
 
 	fn test_custom_slider_pointer_value_uses_range_step_and_orientation() {
 		horizontal := HitTarget{
-			slider: true
-			slider_frame: rect(10, 20, 120, 30)
+			slider:         true
+			slider_frame:   rect(10, 20, 120, 30)
 			slider_padding: 10
-			slider_spec: SliderSpec{
-				min: -20
-				max: 80
+			slider_spec:    SliderSpec{
+				min:  -20
+				max:  80
 				step: 5
 			}
 		}
@@ -133,7 +141,7 @@ $if ui2_custom_rendering ? {
 		vertical := HitTarget{
 			...horizontal
 			slider_frame: rect(10, 20, 30, 120)
-			slider_spec: SliderSpec{
+			slider_spec:  SliderSpec{
 				...horizontal.slider_spec
 				orientation: .vertical
 			}
@@ -162,7 +170,51 @@ $if ui2_custom_rendering ? {
 		g_active_sliders = map[string]bool{}
 	}
 
+	fn test_custom_slider_change_payload_uses_committed_value_and_suppresses_duplicates() {
+		previous_values := g_slider_values.clone()
+		defer { g_slider_values = previous_values.clone() }
+		g_slider_values = {
+			'volume': -20.0
+		}
+		custom_control_test_events = []ElementEvent{}
+		target := HitTarget{
+			id:             'volume'
+			on_event:       capture_custom_control_event
+			slider:         true
+			slider_frame:   rect(10, 20, 120, 30)
+			slider_padding: 10
+			slider_spec:    SliderSpec{ min: -20, max: 80, step: 5 }
+		}
+		commit_slider(target, 70, 35)
+		commit_slider(target, 70, 35)
+		assert slider_value('volume') == 30
+		assert custom_control_test_events == [ElementEvent{ kind: .change, id: 'volume', value: 30 }]
+	}
+
+	fn test_custom_text_field_callback_receives_committed_change_and_submit_text() {
+		current := new_custom_window_state()
+		previous := activate_custom_window_state(current)
+		defer {
+			forget_text_state('editor')
+			activate_custom_window_state(previous)
+		}
+		g_active_fields['editor'] = true
+		g_text_kinds['editor'] = .text_field
+		g_focused_field = 'editor'
+		g_hit_targets = [HitTarget{ id: 'editor', text_field: true, on_event: capture_custom_control_event }]
+		replace_text_value('editor', 'café:')
+		custom_control_test_events = []ElementEvent{}
+		handle_char_input(u32(`ñ`))
+		handle_key_down(.enter, 0)
+		assert custom_control_test_events == [
+			ElementEvent{ kind: .change, id: 'editor', text: 'café:ñ' },
+			ElementEvent{ kind: .submit, id: 'editor', text: 'café:ñ' },
+		]
+		assert focused_id() == ''
+	}
+
 	fn test_custom_switch_tap_and_drag_update_live_state() {
+		custom_control_test_events = []ElementEvent{}
 		g_switch_values = map[string]bool{
 			'network': false
 		}
@@ -170,12 +222,12 @@ $if ui2_custom_rendering ? {
 			'network': true
 		}
 		target := HitTarget{
-			id: 'network'
-			action_id: 'network_changed'
-			x: 10
-			y: 20
-			w: 80
-			h: 32
+			id:             'network'
+			on_event:       capture_custom_control_event
+			x:              10
+			y:              20
+			w:              80
+			h:              32
 			switch_control: true
 		}
 		g_hit_targets = [target]
@@ -193,6 +245,10 @@ $if ui2_custom_rendering ? {
 		set_switch_active('missing', true)
 		assert switch_active('network')
 		assert !switch_active('missing')
+		assert custom_control_test_events == [
+			ElementEvent{ kind: .change, id: 'network', checked: true },
+			ElementEvent{ kind: .change, id: 'network', checked: true },
+		]
 		g_switch_values = map[string]bool{}
 		g_switch_declared = map[string]bool{}
 		g_active_switches = map[string]bool{}
@@ -201,6 +257,7 @@ $if ui2_custom_rendering ? {
 	}
 
 	fn test_custom_checkbox_tap_updates_live_checked_state() {
+		custom_control_test_events = []ElementEvent{}
 		g_checkbox_values = map[string]bool{
 			'newsletter': false
 		}
@@ -208,12 +265,12 @@ $if ui2_custom_rendering ? {
 			'newsletter': true
 		}
 		g_hit_targets = [HitTarget{
-			id: 'newsletter'
-			action_id: 'newsletter_changed'
-			x: 10
-			y: 20
-			w: 120
-			h: 28
+			id:       'newsletter'
+			on_event: capture_custom_control_event
+			x:        10
+			y:        20
+			w:        120
+			h:        28
 			checkbox: true
 		}]
 		handle_touch_down(20, 30)
@@ -223,6 +280,7 @@ $if ui2_custom_rendering ? {
 		set_checkbox_checked('missing', true)
 		assert !checkbox_checked('newsletter')
 		assert !checkbox_checked('missing')
+		assert custom_control_test_events == [ElementEvent{ kind: .change, id: 'newsletter', checked: true }]
 		g_checkbox_values = map[string]bool{}
 		g_checkbox_declared = map[string]bool{}
 		g_active_checkboxes = map[string]bool{}
@@ -238,22 +296,22 @@ $if ui2_custom_rendering ? {
 			'newsletter': true
 		}
 		g_hit_targets = [HitTarget{
-			id: 'newsletter'
-			x: 10
-			y: 60
-			w: 120
-			h: 28
+			id:       'newsletter'
+			x:        10
+			y:        60
+			w:        120
+			h:        28
 			checkbox: true
 		}]
 		g_scroll_areas = map[string]Rect{
-			'form': rect(0, 0, 160, 160)
+			named_scroll_state_id('form'): rect(0, 0, 160, 160)
 		}
 		g_scroll_viewports = map[string]Rect{
-			'form': rect(0, 0, 160, 160)
+			named_scroll_state_id('form'): rect(0, 0, 160, 160)
 		}
-		g_scroll_order = ['form']
+		g_scroll_order = [named_scroll_state_id('form')]
 		g_scroll_content_h = map[string]f64{
-			'form': 320
+			named_scroll_state_id('form'): 320
 		}
 		g_scroll_offsets = map[string]f64{}
 		handle_touch_down(20, 70)
@@ -272,6 +330,7 @@ $if ui2_custom_rendering ? {
 	}
 
 	fn test_custom_toggle_button_updates_live_pressed_state() {
+		custom_control_test_events = []ElementEvent{}
 		g_toggle_values = map[string]bool{
 			'bold': false
 		}
@@ -285,12 +344,12 @@ $if ui2_custom_rendering ? {
 			'bold': true
 		}
 		g_hit_targets = [HitTarget{
-			id: 'bold'
-			action_id: 'bold_changed'
-			x: 10
-			y: 20
-			w: 80
-			h: 32
+			id:            'bold'
+			on_event:      capture_custom_control_event
+			x:             10
+			y:             20
+			w:             80
+			h:             32
 			toggle_button: true
 		}]
 		handle_touch_down(20, 30)
@@ -300,6 +359,7 @@ $if ui2_custom_rendering ? {
 		set_toggle_button_pressed('missing', true)
 		assert !toggle_button_pressed('bold')
 		assert !toggle_button_pressed('missing')
+		assert custom_control_test_events == [ElementEvent{ kind: .change, id: 'bold', checked: true }]
 		g_toggle_values = map[string]bool{}
 		g_toggle_declared = map[string]bool{}
 		g_toggle_groups = map[string]string{}
@@ -327,24 +387,24 @@ $if ui2_custom_rendering ? {
 			'right': true
 		}
 		commit_toggle_button(HitTarget{
-			id: 'right'
-			toggle_button: true
-			toggle_group: 'alignment'
+			id:                        'right'
+			toggle_button:             true
+			toggle_group:              'alignment'
 			toggle_allow_no_selection: false
 		})
 		assert !toggle_button_pressed('left')
 		assert toggle_button_pressed('right')
 		commit_toggle_button(HitTarget{
-			id: 'right'
-			toggle_button: true
-			toggle_group: 'alignment'
+			id:                        'right'
+			toggle_button:             true
+			toggle_group:              'alignment'
 			toggle_allow_no_selection: false
 		})
 		assert toggle_button_pressed('right')
 		commit_toggle_button(HitTarget{
-			id: 'right'
-			toggle_button: true
-			toggle_group: 'alignment'
+			id:                        'right'
+			toggle_button:             true
+			toggle_group:              'alignment'
 			toggle_allow_no_selection: true
 		})
 		assert !toggle_button_pressed('left')
@@ -387,12 +447,12 @@ $if ui2_custom_rendering ? {
 
 	fn test_custom_dropdown_scroll_reveals_the_selected_row() {
 		g_dropdown_popup = DropdownPopup{
-			id: 'menu'
-			options: ['a', 'b', 'c', 'd', 'e', 'f']
+			id:         'menu'
+			options:    ['a', 'b', 'c', 'd', 'e', 'f']
 			row_height: 28
-			height: 2 * 28 + 8
+			height:     2 * 28 + 8
 			max_scroll: 4 * 28
-			selected: 5
+			selected:   5
 		}
 		g_dropdown_scroll = 0
 		reveal_dropdown_row(5)
@@ -407,12 +467,13 @@ $if ui2_custom_rendering ? {
 	}
 
 	fn test_custom_dropdown_click_opens_a_list_instead_of_cycling() {
+		custom_control_test_events = []ElementEvent{}
 		close_dropdown()
 		target := HitTarget{
-			id: 'menu-click'
-			action_id: 'menu-change'
+			id:       'menu-click'
+			on_event: capture_custom_control_event
 			dropdown: true
-			options: ['One', 'Two', 'Three']
+			options:  ['One', 'Two', 'Three']
 		}
 		open_dropdown(target)
 		assert g_open_dropdown == 'menu-click'
@@ -420,32 +481,36 @@ $if ui2_custom_rendering ? {
 		select_dropdown_option(HitTarget{
 			...target
 			dropdown_option: true
-			option_index: 2
+			option_index:    2
 		})
 		assert g_open_dropdown == ''
 		assert text('menu-click') == 'Three'
+		assert custom_control_test_events == [ElementEvent{ kind: .change, id: 'menu-click', text: 'Three' }]
 	}
 
 	fn test_custom_dropdown_without_an_id_only_reports_the_tap() {
+		custom_control_test_events = []ElementEvent{}
 		close_dropdown()
 		open_dropdown(HitTarget{
-			action_id: 'menu-change'
+			on_event: capture_custom_control_event
 			dropdown: true
-			options: ['One']
+			options:  ['One']
 		})
 		assert g_open_dropdown == ''
+		assert custom_control_test_events == [ElementEvent{ kind: .tap }]
 	}
 
 	fn test_custom_dropdown_keys_move_the_highlight_and_commit() {
+		custom_control_test_events = []ElementEvent{}
 		close_dropdown()
 		g_open_dropdown = 'menu-keys'
 		g_dropdown_popup = DropdownPopup{
-			id: 'menu-keys'
-			action_id: 'menu-change'
-			options: ['One', 'Two', 'Three']
+			id:         'menu-keys'
+			on_event:   capture_custom_control_event
+			options:    ['One', 'Two', 'Three']
 			row_height: 28
-			height: 3 * 28 + 8
-			mounted: true
+			height:     3 * 28 + 8
+			mounted:    true
 		}
 		assert handle_dropdown_key(.down)
 		assert g_dropdown_hover == 0
@@ -455,6 +520,7 @@ $if ui2_custom_rendering ? {
 		assert handle_dropdown_key(.enter)
 		assert g_open_dropdown == ''
 		assert text('menu-keys') == 'Three'
+		assert custom_control_test_events == [ElementEvent{ kind: .change, id: 'menu-keys', text: 'Three' }]
 	}
 
 	// The control sits at 32,70 296x42 and the list rows the popup registers on
@@ -463,33 +529,34 @@ $if ui2_custom_rendering ? {
 		options := ['One', 'Two', 'Three']
 		mut targets := [
 			HitTarget{
-				id: id
-				action_id: 'menu-change'
-				x: 32
-				y: 70
-				w: 296
-				h: 42
+				id:       id
+				on_event: capture_custom_control_event
+				x:        32
+				y:        70
+				w:        296
+				h:        42
 				dropdown: true
-				options: options
+				options:  options
 			},
 		]
 		for index in 0 .. options.len {
 			targets << HitTarget{
-				id: id
-				action_id: 'menu-change'
-				x: 32
-				y: 120 + f64(index) * 28
-				w: 296
-				h: 28
+				id:              id
+				on_event:        capture_custom_control_event
+				x:               32
+				y:               120 + f64(index) * 28
+				w:               296
+				h:               28
 				dropdown_option: true
-				option_index: index
-				options: options
+				option_index:    index
+				options:         options
 			}
 		}
 		return targets
 	}
 
 	fn test_custom_dropdown_pointer_flow_picks_a_row_from_the_list() {
+		custom_control_test_events = []ElementEvent{}
 		close_dropdown()
 		targets := custom_test_dropdown_targets('menu-pick')
 		g_hit_targets = [targets[0]]
@@ -503,6 +570,7 @@ $if ui2_custom_rendering ? {
 		handle_touch_up(100, 160)
 		assert g_open_dropdown == ''
 		assert text('menu-pick') == 'Two'
+		assert custom_control_test_events == [ElementEvent{ kind: .change, id: 'menu-pick', text: 'Two' }]
 		g_hit_targets = []HitTarget{}
 	}
 
@@ -534,11 +602,11 @@ $if ui2_custom_rendering ? {
 		close_dropdown()
 		g_open_dropdown = 'menu-escape'
 		g_dropdown_popup = DropdownPopup{
-			id: 'menu-escape'
-			options: ['One', 'Two']
+			id:         'menu-escape'
+			options:    ['One', 'Two']
 			row_height: 28
-			height: 2 * 28 + 8
-			mounted: true
+			height:     2 * 28 + 8
+			mounted:    true
 		}
 		assert handle_dropdown_key(.escape)
 		assert g_open_dropdown == ''
@@ -549,9 +617,9 @@ $if ui2_custom_rendering ? {
 		g_touch = TouchState{}
 		assert !touch_is_held_inside(10, 10, 100, 30)
 		g_touch = TouchState{
-			down: true
-			start_x: 20
-			start_y: 20
+			down:      true
+			start_x:   20
+			start_y:   20
 			current_x: 20
 			current_y: 20
 		}
@@ -561,9 +629,9 @@ $if ui2_custom_rendering ? {
 		assert !touch_is_held_inside(10, 10, 100, 30)
 		// A press that began elsewhere does not light up what it passes over.
 		g_touch = TouchState{
-			down: true
-			start_x: 300
-			start_y: 20
+			down:      true
+			start_x:   300
+			start_y:   20
 			current_x: 20
 			current_y: 20
 		}
@@ -576,7 +644,7 @@ fn test_text_field_selection_text_uses_rune_offsets() {
 	$if android && !ui2_headless ? {
 		before, selected := text_field_selection_text('a🙂bc', TextSelection{
 			anchor: 4
-			caret: 1
+			caret:  1
 		})
 		assert before == 'a'
 		assert selected == '🙂bc'
@@ -584,7 +652,7 @@ fn test_text_field_selection_text_uses_rune_offsets() {
 }
 
 fn test_text_field_selection_origin_respects_text_alignment() {
-	$if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
+	$if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headless ? {
 		assert text_field_aligned_text_origin(10, 100, 40, .left) == 10
 		assert text_field_aligned_text_origin(10, 100, 40, .center) == 40
 		assert text_field_aligned_text_origin(10, 100, 40, .right) == 70

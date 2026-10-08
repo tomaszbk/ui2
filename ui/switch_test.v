@@ -1,20 +1,32 @@
+@[has_globals]
 module ui2
+
+__global switch_test_events = []ElementEvent{}
+
+fn capture_switch_test_event(event ElementEvent) {
+	switch_test_events << event
+}
 
 fn test_switch_constructor_exposes_state_style_and_accessibility() {
 	el := switch_control(
-		id: 'wifi'
-		action_id: 'wifi_changed'
-		frame: rect(10, 20, 90, 40)
-		active: true
-		style: SwitchStyle{
+		id:       'wifi'
+		on_event: capture_switch_test_event
+		frame:    rect(10, 20, 90, 40)
+		active:   true
+		style:    SwitchStyle{
 			inactive_track_color: 0x111111
-			active_track_color: 0x222222
-			thumb_color: 0x333333
+			active_track_color:   0x222222
+			thumb_color:          0x333333
 		}
 	)
 	assert el.kind == .switch_control
 	assert el.id == 'wifi'
-	assert el.action_id == 'wifi_changed'
+	switch_test_events = []ElementEvent{}
+	el.on_event(ElementEvent{ kind: .change, id: el.id, checked: el.checked })
+	assert switch_test_events.len == 1
+	assert switch_test_events[0].id == el.id
+	assert switch_test_events[0].kind == .change
+	assert switch_test_events[0].checked
 	assert el.checked
 	assert el.switch_style.active_track_color == u32(0x222222)
 	assert el.accessibility_role == 'switch'

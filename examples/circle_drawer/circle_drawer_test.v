@@ -34,13 +34,13 @@ fn test_circle_drawer_add_select_resize_undo_and_redo() {
 fn test_circle_drawer_vml_builds_clickable_canvas_and_keyed_circles() {
 	mut app := CircleDrawerDemo{}
 	app.add_or_select(120, 100)
-	root := ui2.element_from_vml_model(circle_drawer_vml_source, app, ui2.rect(0, 0, circle_drawer_width, circle_drawer_height)) or { panic(err) }
+	root := ui2.element_from_vml_model_with_callbacks(circle_drawer_vml_source, app, ui2.rect(0, 0, circle_drawer_width, circle_drawer_height), circle_drawer_callbacks()) or { panic(err) }
 	ui2.validate_element_tree(root) or { panic(err) }
 	canvas := find_circle_drawer_element(root, 'circle_canvas') or { panic('missing canvas') }
 	assert canvas.clickable
-	assert canvas.action_id == 'circle_canvas'
-	assert canvas.children.len == 2
-	assert canvas.children[1].key == '1'
-	assert canvas.children[1].box.radius == 27
+	assert canvas.id == 'circle_canvas' && voidptr(canvas.on_event) != unsafe { nil }
+	assert canvas.children[0].children.len == 2
+	assert canvas.children[0].children[1].key == '1'
+	assert canvas.children[0].children[1].box.radius == 27
 	assert (find_circle_drawer_element(root, 'undo') or { panic('missing undo') }).native_style
 }

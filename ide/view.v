@@ -58,13 +58,17 @@ fn ide_layout(frame ui2.Rect, app &IdeApp) IdeLayout {
 	}
 	output_height := if app.output_open && body_height > 420 {
 		126.0
-	} else if app.output_open { 86.0 } else { 0.0 }
+	} else if app.output_open {
+		86.0
+	} else {
+		0.0
+	}
 	stage := ui2.rect(center_x, body_y, center_width, body_height - ide_tab_height - output_height)
 	tabs := ui2.rect(center_x, stage.y + stage.height, center_width, ide_tab_height)
 	output := ui2.rect(center_x, tabs.y + tabs.height, center_width, output_height)
 	available_width := stage.width - 54
-	adaptive_height := adaptive_toolbar_height(app)
-	available_height := stage.height - adaptive_height - 54
+	preview_height := preview_toolbar_height(app)
+	available_height := stage.height - preview_height - 54
 	mut scale := minimum(available_width / app.canvas_width(), available_height / app.canvas_height())
 	if scale > 1 {
 		scale = 1
@@ -75,27 +79,27 @@ fn ide_layout(frame ui2.Rect, app &IdeApp) IdeLayout {
 	form_width := app.canvas_width() * scale
 	form_height := app.canvas_height() * scale
 	return IdeLayout{
-		frame: frame
-		toolbar: ui2.rect(0, 0, frame.width, ide_toolbar_height)
-		palette: ui2.rect(0, ide_toolbar_height, frame.width, ide_palette_height)
-		left: ui2.rect(0, body_y, left_width, body_height)
+		frame:     frame
+		toolbar:   ui2.rect(0, 0, frame.width, ide_toolbar_height)
+		palette:   ui2.rect(0, ide_toolbar_height, frame.width, ide_palette_height)
+		left:      ui2.rect(0, body_y, left_width, body_height)
 		navigator: ui2.rect(0, body_y, left_width, navigator_height)
 		inspector: ui2.rect(0, body_y + navigator_height + 1, left_width, body_height - navigator_height - 1)
-		center: ui2.rect(center_x, body_y, center_width, body_height)
-		tabs: tabs
-		stage: stage
-		output: output
-		status: ui2.rect(0, status_y, frame.width, ide_status_height)
-		form: ui2.rect(stage.x + (stage.width - form_width) / 2, stage.y + adaptive_height + (stage.height - adaptive_height - form_height) / 2, form_width, form_height)
-		scale: scale
+		center:    ui2.rect(center_x, body_y, center_width, body_height)
+		tabs:      tabs
+		stage:     stage
+		output:    output
+		status:    ui2.rect(0, status_y, frame.width, ide_status_height)
+		form:      ui2.rect(stage.x + (stage.width - form_width) / 2, stage.y + preview_height + (stage.height - preview_height - form_height) / 2, form_width, form_height)
+		scale:     scale
 	}
 }
 
 fn text_style(size f64, color u32, bold bool) ui2.TextStyle {
 	return ui2.TextStyle{
-		size: size
+		size:  size
 		color: color
-		bold: bold
+		bold:  bold
 	}
 }
 
@@ -106,38 +110,39 @@ fn panel(id string, frame ui2.Rect, background u32, children []ui2.Element) ui2.
 }
 
 fn ide_button(id string, title string, frame ui2.Rect, active bool) ui2.Element {
-	return ui2.with_tooltip(ui2.button(id, title, frame, ui2.BoxStyle{
-		bg: if active { color_primary } else { 0xffffff }
+	return ui2.with_tooltip(ui2.with_event(ui2.button(id, title, frame, ui2.BoxStyle{
+		bg:     if active { color_primary } else { 0xffffff }
 		radius: 5
-	}, text_style(11, if active { u32(0xffffff) } else { color_text }, active)), title)
+	}, text_style(11, if active { u32(0xffffff) } else { color_text }, active)), ide_action(id)), title)
 }
 
-fn palette_drag_button(id string, title string, frame ui2.Rect, active bool) ui2.Element {
-	element := ui2.draggable_view_with_cursor(id, frame, ui2.BoxStyle{
-		bg: if active { color_primary } else { 0xffffff }
+fn palette_drag_button(kind string, title string, frame ui2.Rect, active bool) ui2.Element {
+	element := ui2.draggable_view_with_cursor('palette_${kind}', frame, ui2.BoxStyle{
+		bg:     if active { color_primary } else { 0xffffff }
 		radius: 5
 	}, ui2.cursor_pointing_hand, [
 		ui2.label('', title, ui2.rect(4, 4, frame.width - 8, frame.height - 8), ui2.TextStyle{
-			size: 11
+			size:  11
 			color: if active { u32(0xffffff) } else { color_text }
-			bold: active
+			bold:  active
 			align: .center
 		}),
 	])
 	return ui2.Element{
 		...ui2.with_tooltip(element, 'Drag ${title} onto the form, or click to select it')
-		accessibility_role: 'button'
+		accessibility_role:  'button'
 		accessibility_label: '${title} component tool'
+		on_event:            palette_callback(kind)
 	}
 }
 
 fn toolbar_icon_button(id string, icon string, tooltip string, frame ui2.Rect, active bool) ui2.Element {
 	return ui2.Element{
-		...ui2.with_tooltip(ui2.button(id, icon, frame, ui2.BoxStyle{
-			bg: if active { color_primary } else { 0xffffff }
+		...ui2.with_tooltip(ui2.with_event(ui2.button(id, icon, frame, ui2.BoxStyle{
+			bg:     if active { color_primary } else { 0xffffff }
 			radius: 5
-		}, text_style(17, if active { u32(0xffffff) } else { color_text }, false)), tooltip)
-		accessibility_role: 'button'
+		}, text_style(17, if active { u32(0xffffff) } else { color_text }, false)), ide_action(id)), tooltip)
+		accessibility_role:  'button'
 		accessibility_label: tooltip
 	}
 }
@@ -154,10 +159,10 @@ fn source_code_font_family() string {
 
 fn tiny_button(id string, title string, frame ui2.Rect, enabled bool) ui2.Element {
 	return ui2.Element{
-		...ui2.button(id, title, frame, ui2.BoxStyle{
-			bg: 0xffffff
+		...ui2.with_event(ui2.button(id, title, frame, ui2.BoxStyle{
+			bg:     0xffffff
 			radius: 4
-		}, text_style(10, color_text, false))
+		}, text_style(10, color_text, false)), ide_action(id))
 		enabled: enabled
 	}
 }
@@ -181,10 +186,20 @@ fn build_toolbar(layout IdeLayout, app &IdeApp) ui2.Element {
 	} else {
 		180.0
 	}
-	children << ui2.text_field_with_change_and_submit('project_path', 'open_path', 'path/to/form.vml', app.path_input, ui2.rect(path_x, 8, path_width, 30), ui2.BoxStyle{
-		bg: 0xffffff
-		radius: 5
-	}, text_style(10, color_text, false), ui2.keyboard_default)
+	children << ui2.text_input(
+		id:          'project_path'
+		on_event:    ide_path_callback
+		placeholder: 'path/to/form.vml'
+		text:        app.path_input
+		frame:       ui2.rect(path_x, 8, path_width, 30)
+		box:         ui2.BoxStyle{
+			bg:     0xffffff
+			radius: 5
+		}
+		text_style:  text_style(10, color_text, false)
+		keyboard:    ui2.keyboard_default
+		multiline:   false
+	) or { panic(err) }
 	children << ide_button('build_project', 'Build', ui2.rect(path_x + path_width + 8, 8, 72, 30), false)
 	return panel('toolbar', layout.toolbar, 0x172033, children)
 }
@@ -198,7 +213,7 @@ fn build_palette(layout IdeLayout, app &IdeApp) ui2.Element {
 		['text_area', 'Text area'],
 		['checkbox', 'Checkbox'],
 		['dropdown', 'Dropdown'],
-		['rectangle', 'Rectangle'],
+		['view', 'View'],
 		['image', 'Image'],
 	]
 	mut children := [
@@ -208,7 +223,7 @@ fn build_palette(layout IdeLayout, app &IdeApp) ui2.Element {
 	for item in items {
 		kind := item[0]
 		title := item[1]
-		width := if kind in ['text_field', 'text_area', 'rectangle', 'checkbox', 'dropdown'] {
+		width := if kind in ['text_field', 'text_area', 'view', 'checkbox', 'dropdown'] {
 			82.0
 		} else {
 			68.0
@@ -222,7 +237,7 @@ fn build_palette(layout IdeLayout, app &IdeApp) ui2.Element {
 		children << if kind == 'pointer' {
 			ide_button('palette_${kind}', title, frame, active)
 		} else {
-			palette_drag_button('palette_${kind}', title, frame, active)
+			palette_drag_button(kind, title, frame, active)
 		}
 		x += width + 6
 	}
@@ -242,7 +257,7 @@ fn build_object_tree(layout IdeLayout, app &IdeApp) ui2.Element {
 	mut children := []ui2.Element{}
 	children << ui2.label('', 'OBJECT TREE', ui2.rect(12, 9, 96, 18), text_style(10, color_muted, true))
 	children << ui2.label('', os_name(app.project_root), ui2.rect(112, 9, width - 124, 18), ui2.TextStyle{
-		size: 9
+		size:  9
 		color: color_muted
 		align: .right
 	})
@@ -283,10 +298,20 @@ fn display_file_name(app &IdeApp) string {
 fn inspector_field(id string, label string, value string, y f64, width f64) []ui2.Element {
 	return [
 		ui2.label('', label, ui2.rect(4, y + 3, 78, 16), text_style(10, color_muted, false)),
-		ui2.text_field_with_change(id, '', value, ui2.rect(86, y, width - 90, ide_inspector_field_height), ui2.BoxStyle{
-			bg: 0xffffff
-			radius: 2
-		}, text_style(10, color_text, false), ui2.keyboard_default),
+		ui2.text_input(
+			id:          id
+			placeholder: ''
+			text:        value
+			frame:       ui2.rect(86, y, width - 90, ide_inspector_field_height)
+			box:         ui2.BoxStyle{
+				bg:     0xffffff
+				radius: 2
+			}
+			text_style:  text_style(10, color_text, false)
+			keyboard:    ui2.keyboard_default
+			multiline:   false
+			on_event:    ide_action(id)
+		) or { panic(err) },
 	]
 }
 
@@ -297,7 +322,7 @@ fn build_form_inspector(width f64, app &IdeApp) []ui2.Element {
 	children << inspector_field('form_property_height', 'Height', int(app.form_height).str(), 4 + ide_inspector_row_height * 2, width)
 	children << inspector_field('form_property_background', 'Background', color_hex(app.form_background), 4 + ide_inspector_row_height * 3, width)
 	children << ui2.label('', 'Select a control or choose one from the palette, then click the form.', ui2.rect(4, 4 + ide_inspector_row_height * 4, width - 8, 40), ui2.TextStyle{
-		size: 10
+		size:  10
 		color: color_muted
 		lines: 3
 	})
@@ -321,7 +346,7 @@ fn build_component_inspector(width f64, component DesignerComponent) []ui2.Eleme
 	children << inspector_field('property_font_size', 'Font size', '${component.font_size:g}', 4 + ide_inspector_row_height * 8, width)
 	mut final_row_y := 4 + ide_inspector_row_height * 9
 	if component.kind == 'checkbox' {
-		children << ui2.checkbox('property_checked', 'Checked', component.checked, ui2.rect(86, final_row_y, width - 90, ide_inspector_field_height), text_style(10, color_text, false))
+		children << ui2.with_event(ui2.checkbox('property_checked', 'Checked', component.checked, ui2.rect(86, final_row_y, width - 90, ide_inspector_field_height), text_style(10, color_text, false)), ide_action('property_checked'))
 		final_row_y += ide_inspector_row_height
 	}
 	children << ui2.label('', 'Type', ui2.rect(4, final_row_y + 3, 78, 16), text_style(10, color_muted, false))
@@ -339,15 +364,15 @@ fn component_event_property(component DesignerComponent) string {
 
 fn build_events_inspector(width f64, app &IdeApp) []ui2.Element {
 	component := app.selected_component() or {
-		return [ui2.label('', 'Screen has no direct event. Select a control to bind an action id.', ui2.rect(4, 4, width - 8, 40), ui2.TextStyle{
-			size: 10
+		return [ui2.label('', 'Screen has no direct event. Select a control to name its callback.', ui2.rect(4, 4, width - 8, 40), ui2.TextStyle{
+			size:  10
 			color: color_muted
 			lines: 3
 		})]
 	}
 	mut children := inspector_field('property_event', component_event_property(component), component.event_handler, 4, width)
-	children << ui2.label('', 'The generated action id is emitted by run_window. Handle it in main.v.', ui2.rect(4, 4 + ide_inspector_row_height, width - 8, 40), ui2.TextStyle{
-		size: 10
+	children << ui2.label('', 'The named typed callback is generated in main.v. Edit its body there.', ui2.rect(4, 4 + ide_inspector_row_height, width - 8, 40), ui2.TextStyle{
+		size:  10
 		color: color_muted
 		lines: 3
 	})
@@ -408,9 +433,9 @@ fn palette_drag_preview(layout IdeLayout, app &IdeApp) ui2.Element {
 		u32(0xcbd5e1)
 	}, [
 		ui2.label('', component_title(app.palette_drag_kind), ui2.rect(4, 4, width - 8, height - 8), ui2.TextStyle{
-			size: 10
+			size:  10
 			color: color_text
-			bold: true
+			bold:  true
 			align: .center
 		}),
 	])
@@ -436,7 +461,7 @@ fn grid_children(app &IdeApp, scale f64) []ui2.Element {
 }
 
 // Keep selection targets in screen pixels when possible, but do not let them
-// extend beyond very small controls in a fitted adaptive canvas.
+// extend beyond very small controls in a fitted canvas.
 fn selection_outline(width f64, height f64, id int) []ui2.Element {
 	line_width := minimum(2, width)
 	line_height := minimum(2, height)
@@ -453,13 +478,13 @@ fn selection_outline(width f64, height f64, id int) []ui2.Element {
 		panel('', ui2.rect(width - marker_width, 0, marker_width, marker_height), color_primary, []),
 		panel('', ui2.rect(0, height - marker_height, marker_width, marker_height), color_primary, []),
 	]
-	children << ui2.draggable_view_with_cursor('resize_${id}', ui2.rect(width - handle_width, height - handle_height, handle_width, handle_height), ui2.BoxStyle{
+	children << ui2.with_event(ui2.draggable_view_with_cursor('resize_${id}', ui2.rect(width - handle_width, height - handle_height, handle_width, handle_height), ui2.BoxStyle{
 		bg: color_primary
-	}, ui2.cursor_resize_nwse, [])
+	}, ui2.cursor_resize_nwse, []), component_pointer_callback(id, 'resize'))
 	return children
 }
 
-// Adaptive stretching can leave a control smaller than its own content insets.
+// Canvas scaling can leave a control smaller than its own content insets.
 // Clip its child frames instead of passing negative sizes to the renderer or
 // replacing the entire control with an empty box.
 fn designer_content_frame(frame ui2.Rect, width f64, height f64) ui2.Rect {
@@ -483,7 +508,7 @@ fn designer_component(component DesignerComponent, selected bool, scale f64) ui2
 		}
 		'button' {
 			children << ui2.label('', component.text, ui2.rect(5 * scale, (height - font_size - 3 * scale) / 2, width - 10 * scale, font_size + 5 * scale), ui2.TextStyle{
-				size: font_size
+				size:  font_size
 				color: component.color
 				align: .center
 			})
@@ -493,7 +518,7 @@ fn designer_component(component DesignerComponent, selected bool, scale f64) ui2
 		}
 		'text_area' {
 			children << ui2.label('', component.text, ui2.rect(9 * scale, 7 * scale, width - 18 * scale, height - 14 * scale), ui2.TextStyle{
-				size: font_size
+				size:  font_size
 				color: component.color
 				lines: 4
 			})
@@ -508,12 +533,12 @@ fn designer_component(component DesignerComponent, selected bool, scale f64) ui2
 		'dropdown' {
 			children << ui2.label('', component.text, ui2.rect(9 * scale, (height - font_size - 3 * scale) / 2, width - 32 * scale, font_size + 5 * scale), text_style(font_size, component.color, false))
 			children << ui2.label('', 'v', ui2.rect(width - 24 * scale, (height - font_size - 3 * scale) / 2, 18 * scale, font_size + 5 * scale), ui2.TextStyle{
-				size: font_size
+				size:  font_size
 				color: color_muted
 				align: .center
 			})
 		}
-		'rectangle' {
+		'view' {
 			children << ui2.label('', component.name, ui2.rect(6 * scale, 5 * scale, width - 12 * scale, 18 * scale), text_style(9 * scale, color_muted, false))
 		}
 		'image' {
@@ -522,10 +547,10 @@ fn designer_component(component DesignerComponent, selected bool, scale f64) ui2
 			} else {
 				'IMAGE'
 			}, ui2.rect(5 * scale, (height - 18 * scale) / 2, width - 10 * scale, 18 * scale), ui2.TextStyle{
-				size: 10 * scale
+				size:  10 * scale
 				color: color_muted
 				align: .center
-				bold: true
+				bold:  true
 			})
 		}
 		else {}
@@ -540,81 +565,101 @@ fn designer_component(component DesignerComponent, selected bool, scale f64) ui2
 		children << selection_outline(width, height, component.id)
 	}
 	transparent := component.kind in ['label', 'checkbox']
-	return ui2.draggable_view_with_cursor('cmp_${component.id}', ui2.rect(component.x * scale, component.y * scale, width, height), ui2.BoxStyle{
-		bg: component.background
-		radius: if component.kind in ['button', 'text_field', 'text_area', 'dropdown', 'rectangle'] {
+	return ui2.with_event(ui2.draggable_view_with_cursor('cmp_${component.id}', ui2.rect(component.x * scale, component.y * scale, width, height), ui2.BoxStyle{
+		bg:          component.background
+		radius:      if component.kind in ['button', 'text_field', 'text_area', 'dropdown', 'view'] {
 			5.0 * scale
 		} else {
 			0
 		}
 		transparent: transparent
-	}, ui2.cursor_pointing_hand, children)
+	}, ui2.cursor_pointing_hand, children), component_pointer_callback(component.id, 'move'))
 }
 
 fn build_designer_form(layout IdeLayout, app &IdeApp) ui2.Element {
 	mut children := grid_children(app, layout.scale)
 	if app.components.len == 0 && layout.form.width > 80 {
 		children << ui2.label('', 'Choose a control from the palette, then click here to place it.', ui2.rect(30, 28, layout.form.width - 60, 28), ui2.TextStyle{
-			size: 12
+			size:  12
 			color: 0x94a3b8
 			align: .center
 		})
 	}
-	children << adaptive_guide_children(app, layout.scale)
 	for raw in app.components {
-		component := app.component_for_canvas(raw)
+		component := raw
 		if component.width <= 0 || component.height <= 0 { continue }
 		children << designer_component(component, component.id == app.selected_id, layout.scale)
-		if component.layout.hidden {
+		if component.hidden {
 			children << ui2.label('', 'Hidden', ui2.rect(component.x * layout.scale, component.y * layout.scale, 54, 16), text_style(9, color_muted, true))
 		}
 	}
-	return ui2.clickable_view('form_surface', layout.form, ui2.BoxStyle{
+	return ui2.with_event(ui2.clickable_view('form_surface', layout.form, ui2.BoxStyle{
 		bg: app.form_background
-	}, children)
+	}, children), form_pointer_callback)
 }
 
 fn preview_component(component DesignerComponent, scale f64) ui2.Element {
 	frame := ui2.rect(component.x * scale, component.y * scale, component.width * scale, component.height * scale)
 	style := text_style(clamp(component.font_size * scale, 8, 32), component.color, false)
 	box := ui2.BoxStyle{
-		bg: component.background
-		radius: 5 * scale
+		bg:          component.background
+		radius:      5 * scale
 		transparent: component.kind in ['label', 'checkbox']
 	}
 	id := 'preview_${component.id}'
-	return match component.kind {
+	element := match component.kind {
 		'label' { ui2.label(id, component.text, frame, style) }
 		'button' { ui2.button(id, component.text, frame, box, style) }
 		'text_field' {
-			ui2.text_field(id, component.text, '', frame, box, style, ui2.keyboard_default)
+			ui2.text_input(
+				id:          id
+				placeholder: component.text
+				text:        ''
+				frame:       frame
+				box:         box
+				text_style:  style
+				keyboard:    ui2.keyboard_default
+				multiline:   false
+			) or { panic(err) }
 		}
-		'text_area' { ui2.text_area(id, component.text, frame, box, style) }
-		'checkbox' { ui2.checkbox(id, component.text, component.checked, frame, style) }
+		'text_area' {
+			ui2.text_input(
+				id:         id
+				text:       component.text
+				frame:      frame
+				box:        box
+				text_style: style
+				multiline:  true
+			) or { panic(err) }
+		}
+		'checkbox' {
+			ui2.with_event(ui2.checkbox(id, component.text, component.checked, frame, style), ide_action(id))
+		}
 		'dropdown' {
 			ui2.dropdown(id, component.text, ['Option 1', 'Option 2', 'Option 3'], frame, box, style)
 		}
-		'rectangle' { ui2.view(id, frame, box, []) }
+		'view' { ui2.view(id, frame, box, []) }
 		'image' {
 			if component.text.len > 0 {
 				ui2.image(id, component.text, frame)
 			} else {
 				ui2.view(id, frame, box, [ui2.label('', 'IMAGE', ui2.rect(0, 0, frame.width, frame.height), ui2.TextStyle{
 					color: color_muted
-					size: 10
+					size:  10
 					align: .center
 				})])
 			}
 		}
 		else { ui2.view(id, frame, box, []) }
 	}
+	return ui2.with_event(element, ide_action('preview_${component.id}'))
 }
 
 fn build_preview_form(layout IdeLayout, app &IdeApp) ui2.Element {
 	mut children := []ui2.Element{}
 	for raw in app.components {
-		component := app.component_for_canvas(raw)
-		if component.layout.hidden || component.width <= 0 || component.height <= 0 { continue }
+		component := raw
+		if component.hidden || component.width <= 0 || component.height <= 0 { continue }
 		children << preview_component(component, layout.scale)
 	}
 	return panel('preview_form', layout.form, app.form_background, children)
@@ -623,18 +668,24 @@ fn build_preview_form(layout IdeLayout, app &IdeApp) ui2.Element {
 fn build_source_editor(layout IdeLayout, app &IdeApp) []ui2.Element {
 	padding := 10.0
 	apply_width := 116.0
-	mut editor := ui2.text_area('source_editor', app.source_text, ui2.rect(layout.stage.x + padding, layout.stage.y + padding, layout.stage.width - padding * 2, layout.stage.height - 54), ui2.BoxStyle{
-		bg: 0x0f172a
-		radius: 5
-	}, ui2.TextStyle{
-		color: 0xe2e8f0
-		size: 12
-		font_family: source_code_font_family()
-	})
+	mut editor := ui2.text_input(
+		id:         'source_editor'
+		text:       app.source_text
+		frame:      ui2.rect(layout.stage.x + padding, layout.stage.y + padding, layout.stage.width - padding * 2, layout.stage.height - 54)
+		box:        ui2.BoxStyle{
+			bg:     0x0f172a
+			radius: 5
+		}
+		text_style: ui2.TextStyle{
+			color:       0xe2e8f0
+			size:        12
+			font_family: source_code_font_family()
+		}
+		multiline:  true
+	) or { panic(err) }
 	editor = ui2.Element{
 		...editor
-		action_id: 'source_edit'
-		emit_change: true
+		on_event: ide_action('source_edit')
 	}
 	return [
 		panel('source_stage', layout.stage, 0x1e293b, []),
@@ -648,13 +699,20 @@ fn build_output(layout IdeLayout, app &IdeApp) []ui2.Element {
 	if layout.output.height <= 0 {
 		return []ui2.Element{}
 	}
-	mut output := ui2.text_area('build_output', app.messages, ui2.rect(layout.output.x + 6, layout.output.y + 25, layout.output.width - 12, layout.output.height - 30), ui2.BoxStyle{
-		bg: 0x0f172a
-	}, ui2.TextStyle{
-		color: 0xcbd5e1
-		size: 10
-		font_family: 'Roboto Mono'
-	})
+	mut output := ui2.text_input(
+		id:         'build_output'
+		text:       app.messages
+		frame:      ui2.rect(layout.output.x + 6, layout.output.y + 25, layout.output.width - 12, layout.output.height - 30)
+		box:        ui2.BoxStyle{
+			bg: 0x0f172a
+		}
+		text_style: ui2.TextStyle{
+			color:       0xcbd5e1
+			size:        10
+			font_family: 'Roboto Mono'
+		}
+		multiline:  true
+	) or { panic(err) }
 	output = ui2.Element{
 		...output
 		readonly: true
@@ -676,7 +734,7 @@ fn build_status(layout IdeLayout, app &IdeApp) ui2.Element {
 		} else {
 			'off'
 		}}', ui2.rect(layout.status.width - 286, 4, 276, 16), ui2.TextStyle{
-			size: 10
+			size:  10
 			color: color_muted
 			align: .right
 		}),
@@ -697,7 +755,7 @@ fn build_ide(frame ui2.Rect, app &IdeApp) ui2.Element {
 		'preview' { children << build_preview_form(layout, app) }
 		else { children << build_designer_form(layout, app) }
 	}
-	children << build_adaptive_toolbar(layout, app)
+	children << build_preview_toolbar(layout, app)
 	children << build_tabs(layout, app)
 	children << build_output(layout, app)
 	children << build_status(layout, app)

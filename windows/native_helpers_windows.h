@@ -56,6 +56,7 @@ extern int ui2_windows_control_key(void *hwnd, unsigned int virtual_key);
 extern int ui2_windows_context_menu(void *hwnd, int screen_x, int screen_y);
 extern int ui2_windows_cursor(void *hwnd);
 extern void ui2_windows_control_pointer(void *hwnd, unsigned int message, int x, int y);
+extern void ui2_windows_control_tracking(void *hwnd, int phase);
 extern void ui2_windows_control_border(void *hwnd);
 extern int ui2_windows_is_transparent_button(void *hwnd);
 extern int ui2_windows_paint_transparent_button(void *hwnd);
@@ -252,6 +253,17 @@ static LRESULT CALLBACK ui2_win_control_subclass(HWND hwnd, UINT message, WPARAM
 		LPARAM lparam, UINT_PTR subclass_id, DWORD_PTR reference_data) {
 	(void)subclass_id;
 	(void)reference_data;
+	// DefSubclassProc owns native button/slider/combobox tracking. Its synchronous
+	// notifications see the press snapshot, which is cleared after release.
+	if (message == WM_LBUTTONDOWN) ui2_windows_control_tracking(hwnd, 0);
+	if (message == WM_LBUTTONUP) SetPropW(hwnd, L"UI2ControlReleasing", (HANDLE)1);
+	if (message == WM_NCDESTROY) {
+		ui2_windows_control_tracking(hwnd, 6);
+	} else if (message == WM_CANCELMODE) {
+		ui2_windows_control_tracking(hwnd, 3);
+	} else if (message == WM_CAPTURECHANGED && GetPropW(hwnd, L"UI2ControlReleasing") == NULL) {
+		ui2_windows_control_tracking(hwnd, 2);
+	}
 	if (message == WM_KEYDOWN && wparam == VK_RETURN && ui2_windows_edit_submit(hwnd)) {
 		return 0;
 	}
@@ -273,6 +285,12 @@ static LRESULT CALLBACK ui2_win_control_subclass(HWND hwnd, UINT message, WPARAM
 	if (message == WM_LBUTTONDOWN || message == WM_MOUSEMOVE || message == WM_LBUTTONUP) {
 		ui2_windows_control_pointer(hwnd, message, GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam));
 		if (!IsWindow(hwnd)) return 0;
+	}
+	if (message == WM_LBUTTONUP) {
+		LRESULT result = DefSubclassProc(hwnd, message, wparam, lparam);
+		ui2_windows_control_tracking(hwnd, 1);
+		if (IsWindow(hwnd)) RemovePropW(hwnd, L"UI2ControlReleasing");
+		return result;
 	}
 	if (message == WM_ERASEBKGND && ui2_windows_is_transparent_button(hwnd)) {
 		return 1;
@@ -308,6 +326,14 @@ static LRESULT CALLBACK ui2_win_control_subclass(HWND hwnd, UINT message, WPARAM
 			}
 			parent = GetParent(parent);
 		}
+	}
+	if (message == WM_KEYDOWN || message == WM_KEYUP || message == BM_CLICK) {
+		// Keyboard and accessibility activation are new native actions, independent
+		// of a cancelled pointer gesture that never received a release message.
+		ui2_windows_control_tracking(hwnd, 4);
+		LRESULT result = DefSubclassProc(hwnd, message, wparam, lparam);
+		ui2_windows_control_tracking(hwnd, 5);
+		return result;
 	}
 	if (message == WM_NCDESTROY) {
 		ui2_win_release_placeholder(hwnd);
@@ -1161,7 +1187,15 @@ static const wchar_t *ui2_win_fallback_family(HFONT font, const wchar_t *text) {
 	return best;
 }
 
-static inline void *ui2_win_create_font(void *hwnd, double point_size,
+// Logical em size becomes an integer physical height only at presentation.
+static inline int ui2_win_logical_font_height(double logical_size, unsigned int dpi) {
+	double size = logical_size > 0 ? logical_size : 15.0;
+	unsigned int scale_dpi = dpi > 0 ? dpi : 96;
+	int height = (int)(size * (double)scale_dpi / 96.0 + 0.5);
+	return -(height > 0 ? height : 1);
+}
+
+static inline void *ui2_win_create_font(void *hwnd, double logical_size,
 		const wchar_t *family, int bold, int italic, int underline, int strikeout,
 		const wchar_t *text) {
 	UINT dpi = 96;
@@ -1172,8 +1206,7 @@ static inline void *ui2_win_create_font(void *hwnd, double point_size,
 			ReleaseDC((HWND)hwnd, dc);
 		}
 	}
-	double size = point_size > 0 ? point_size : 15.0;
-	int height = -MulDiv((int)(size * 10.0), (int)dpi, 720);
+	int height = ui2_win_logical_font_height(logical_size, dpi);
 	HFONT font = CreateFontW(height, 0, 0, 0, bold ? FW_BOLD : FW_NORMAL,
 		italic ? TRUE : FALSE, underline ? TRUE : FALSE, strikeout ? TRUE : FALSE,
 		DEFAULT_CHARSET,
@@ -1839,3 +1872,8 @@ static inline int ui2_win_key_down(int virtual_key) {
 }
 
 #endif
+
+static inline int ui2_win_control_available(void *pointer) {
+    HWND hwnd = (HWND)pointer;
+    return hwnd != NULL && IsWindow(hwnd) && IsWindowEnabled(hwnd) && IsWindowVisible(hwnd);
+}

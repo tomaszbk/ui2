@@ -52,21 +52,21 @@ fn test_accent_pointer_lands_on_the_channel_it_was_dragged_over() {
 	mut app := accent_color_demo()
 	track_width := accent_track_width(ui2.rect(0, 0, accent_color_width, accent_color_height))
 	assert track_width == accent_color_width - 232
-	app.handle_event('pointer:drag:track_green:${track_root_x + track_width / 2}:120', track_width)
+	app.track_channel('green', ui2.ElementEvent{ kind: .pointer_drag, id: 'track_green', x: track_root_x + track_width / 2, y: 120 }, track_width)
 	assert app.green == 128
 	assert app.red == 100
 	// A press to the left of the track floors the channel instead of going negative.
-	app.handle_event('pointer:down:track_blue:0:160', track_width)
+	app.track_channel('blue', ui2.ElementEvent{ kind: .pointer_down, id: 'track_blue', x: 0, y: 160 }, track_width)
 	assert app.blue == 0
 }
 
 fn test_accent_vml_paints_every_swatch_and_the_demo_stack() {
 	app := accent_color_demo()
 	frame := ui2.rect(0, 0, accent_color_width, accent_color_height)
-	root := ui2.element_from_vml_model(accent_color_vml_source, app, frame) or { panic(err) }
+	root := ui2.element_from_vml_model_with_callbacks(accent_color_vml_source, app, frame, accent_color_callbacks()) or { panic(err) }
 	ui2.validate_element_tree(root) or { panic(err) }
 	track := find_accent_element(root, 'track_red') or { panic('missing red track') }
-	assert track.draggable && track.action_id == 'track_red'
+	assert track.draggable && track.id == 'track_red' && voidptr(track.on_event) != unsafe { nil }
 	assert track.frame.x == track_root_x - 16
 	assert track.frame.width == accent_track_width(frame)
 	assert (find_accent_element(root, 'accent_preview') or { panic('missing preview') }).box.bg == 0x642896

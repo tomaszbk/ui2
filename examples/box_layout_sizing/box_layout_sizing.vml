@@ -1,31 +1,33 @@
 Screen {
     id: root
     background: #F1F5F9
+    Absolute {
+        transparent: true
+        Label {
+            text: "Fixed and proportional sizing"
+            x: 20
+            y: 18
+            width: root.width - 40
+            height: 30
+            color: #0F172A
+            font_size: 20
+            bold: true
+        }
 
-    Label {
-        text: "Fixed and proportional sizing"
-        x: 20
-        y: 18
-        width: root.width - 40
-        height: 30
-        color: #0F172A
-        font_size: 20
-        bold: true
-    }
+        Flex {
+            id: actions
+            x: 20
+            y: 68
+            width: root.width - 40
+            height: 96
+            padding: 10
+            gap: 8
+            background: #FFFFFF
+            corner_radius: 10
 
-    BoxLayout {
-        id: actions
-        x: 20
-        y: 68
-        width: root.width - 40
-        height: 96
-        padding: 10
-        spacing: 8
-        background: #FFFFFF
-        corner_radius: 10
-
-        Button { text: "Fixed" width: 88 size_hint_x: -1 background: #E2E8F0 corner_radius: 6 }
-        Button { text: "2 shares" size_hint_x: 2 background: #BFDBFE corner_radius: 6 }
-        Button { text: "1 share" size_hint_x: 1 background: #DBEAFE corner_radius: 6 }
+            Button { text: "Fixed" width: 88 flex_shrink: 0 background: #E2E8F0 corner_radius: 6 }
+            Button { text: "2 shares" flex_basis: 0 flex_grow: 2 background: #BFDBFE corner_radius: 6 }
+            Button { text: "1 share" flex_basis: 0 flex_grow: 1 background: #DBEAFE corner_radius: 6 }
+        }
     }
 }

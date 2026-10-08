@@ -27,11 +27,11 @@ fn test_radio_vml_reflects_exclusive_and_compact_selection() {
 	root := ui2.element_from_vml_model(radio_vml_source, app, ui2.rect(0, 0, radio_width, radio_height)) or { panic(err) }
 	ui2.validate_element_tree(root) or { panic(err) }
 	choices := find_radio_element(root, 'choices') or { panic('missing choices') }
-	assert choices.children.len == 4
-	assert !choices.children[0].checked
-	assert choices.children[1].checked
-	assert !choices.children[2].checked
-	assert choices.children[0].frame.y == 18
+	assert choices.children[0].children.len == 4
+	assert !choices.children[0].children[0].checked
+	assert choices.children[0].children[1].checked
+	assert !choices.children[0].children[2].checked
+	assert choices.children[0].children[0].frame.y == 18
 	assert (find_radio_element(root, 'compact_switch') or {
 		panic('missing compact switch')
 	}).checked
@@ -48,6 +48,6 @@ fn test_radio_vertical_layout_stays_inside_card() {
 	choices := find_radio_element(root, 'choices') or { panic('missing choices') }
 	status := find_radio_element(root, 'selected_country') or { panic('missing status') }
 	assert choices.frame.height == 158
-	assert choices.children[3].frame.y == 118
+	assert choices.children[0].children[3].frame.y == 118
 	assert status.frame.y + status.frame.height <= card.frame.height
 }

@@ -2,14 +2,14 @@ module ui2
 
 pub struct TreeViewNode {
 pub:
-	id               string
-	text             string
-	action_id        string
-	toggle_action_id string
-	expanded         bool
-	selected         bool
-	enabled          bool = true
-	children         []TreeViewNode
+	id        string
+	text      string
+	on_event  ElementCallback = unsafe { nil }
+	on_toggle ElementCallback = unsafe { nil }
+	expanded  bool
+	selected  bool
+	enabled   bool = true
+	children  []TreeViewNode
 }
 
 pub struct TreeViewConfig {
@@ -41,7 +41,7 @@ fn tree_view_append_rows(nodes []TreeViewNode, depth int, row_height f64, spacin
 	for node in nodes {
 		y := f64(rows.len) * (row_height + spacing)
 		rows << TreeViewRow{
-			node: node
+			node:  node
 			depth: depth
 			frame: rect(0, y, width, row_height)
 		}
@@ -107,9 +107,9 @@ pub fn tree_view(config TreeViewConfig) !Element {
 				} else {
 					'▸'
 				}, rect(indent_x, 0, config.disclosure_width, config.row_height), config.disclosure_box, config.disclosure_text_style)
-				action_id: row.node.toggle_action_id
-				enabled: row.node.enabled
-				accessibility_role: 'button'
+				on_event:            row.node.on_toggle
+				enabled:             row.node.enabled
+				accessibility_role:  'button'
 				accessibility_label: if row.node.expanded {
 					'Collapse ${row.node.text}'
 				} else {
@@ -122,9 +122,9 @@ pub fn tree_view(config TreeViewConfig) !Element {
 		}
 		row_children << Element{
 			...button(row.node.id, row.node.text, rect(label_x, 0, label_width, config.row_height), selected_box, selected_text)
-			action_id: row.node.action_id
-			enabled: row.node.enabled
-			accessibility_role: 'treeitem'
+			on_event:            row.node.on_event
+			enabled:             row.node.enabled
+			accessibility_role:  'treeitem'
 			accessibility_label: row.node.text
 			accessibility_value: if row.node.selected { 'selected' } else { 'not selected' }
 		}

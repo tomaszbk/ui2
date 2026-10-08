@@ -16,7 +16,7 @@ import math
 // Columns are rune offsets, like TextSelection, so positions stay valid for
 // UTF-8 text.
 
-// text_selection_drag_threshold is how far (in points) the pointer must move
+// text_selection_drag_threshold is how far (in logical units) the pointer must move
 // after a press before the press becomes a selection drag. Below it the press
 // is still a click, so links and buttons drawn over selectable text keep
 // working.

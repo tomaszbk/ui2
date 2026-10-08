@@ -43,9 +43,9 @@ fn test_crud_vml_builds_filtered_list_and_native_actions() {
 	ui2.validate_element_tree(root) or { panic(err) }
 
 	list := find_crud_element(root, 'people_list') or { panic('missing people list') }
-	assert list.children.len == 6
-	assert list.children[0].text == 'Man, Iron'
-	assert list.children[0].native_style
+	assert list.children[0].children.len == 6
+	assert list.children[0].children[0].text == 'Man, Iron'
+	assert list.children[0].children[0].native_style
 	create := find_crud_element(root, 'create') or { panic('missing Create button') }
 	assert create.native_style
 	assert create.frame.y == 184

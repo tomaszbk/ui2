@@ -63,7 +63,7 @@ fn test_child_window_drag_keeps_the_panel_inside_the_card() {
 
 fn test_child_window_vml_hides_the_panel_until_it_is_created() {
 	frame := ui2.rect(0, 0, child_window_width, child_window_height)
-	closed := ui2.element_from_vml_model(child_window_vml_source, ChildWindowDemo{}, frame) or {
+	closed := ui2.element_from_vml_model_with_callbacks(child_window_vml_source, ChildWindowDemo{}, frame, child_window_callbacks()) or {
 		panic(err)
 	}
 	ui2.validate_element_tree(closed) or { panic(err) }
@@ -72,13 +72,13 @@ fn test_child_window_vml_hides_the_panel_until_it_is_created() {
 	mut app := ChildWindowDemo{}
 	app.create_window()
 	app.toggle_woman()
-	open := ui2.element_from_vml_model(child_window_vml_source, app, frame) or { panic(err) }
+	open := ui2.element_from_vml_model_with_callbacks(child_window_vml_source, app, frame, child_window_callbacks()) or { panic(err) }
 	ui2.validate_element_tree(open) or { panic(err) }
 	panel := find_child_element(open, 'child_panel') or { panic('missing panel') }
 	assert !panel.hidden
 	assert panel.frame.x == 40 && panel.frame.y == 96
 	titlebar := find_child_element(open, 'child_titlebar') or { panic('missing title bar') }
-	assert titlebar.draggable && titlebar.action_id == 'child_titlebar'
+	assert titlebar.draggable && titlebar.id == 'child_titlebar' && voidptr(titlebar.on_event) != unsafe { nil }
 	assert (find_child_element(open, 'genre') or { panic('missing checkbox') }).checked
 	assert (find_child_element(open, 'greet') or { panic('missing greet button') }).native_style
 	// The parent field is a separate control, so the child never steals its text.

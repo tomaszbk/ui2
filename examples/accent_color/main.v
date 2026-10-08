@@ -34,7 +34,7 @@ pub mut:
 	font_color  string
 	on_dark     bool
 	swatches    []AccentSwatch
-	subscribed  bool = true
+	subscribed  bool   = true
 	sample      string = 'Accent colors'
 	status      string
 }
@@ -72,30 +72,30 @@ fn (mut app AccentColorDemo) derive() {
 	app.blue_ratio = f64(app.blue) / 255.0
 	app.swatches = [
 		AccentSwatch{
-			key: 'swatch-0'
+			key:   'swatch-0'
 			index: 0
-			role: 'shade'
+			role:  'shade'
 			color: app.shade
 			label: '0 · shade'
 		},
 		AccentSwatch{
-			key: 'swatch-1'
+			key:   'swatch-1'
 			index: 1
-			role: 'accent'
+			role:  'accent'
 			color: app.accent
 			label: '1 · accent'
 		},
 		AccentSwatch{
-			key: 'swatch-2'
+			key:   'swatch-2'
 			index: 2
-			role: 'tint'
+			role:  'tint'
 			color: app.tint
 			label: '2 · tint'
 		},
 		AccentSwatch{
-			key: 'swatch-3'
+			key:   'swatch-3'
 			index: 3
-			role: 'font'
+			role:  'font'
 			color: app.font_color
 			label: '3 · font'
 		},
@@ -159,52 +159,47 @@ fn accent_track_width(frame ui2.Rect) f64 {
 	return frame.width - 32.0 - track_gutter
 }
 
-fn accent_pointer(event string) ?(string, f64) {
-	parts := event.split(':')
-	if parts.len < 5 || parts[0] != 'pointer' {
-		return none
-	}
-	return parts[2], parts[3].f64()
-}
-
-fn (mut app AccentColorDemo) handle_event(event string, track_width f64) {
-	match event {
-		'reset' {
-			app.reset()
+fn accent_color_callbacks() map[string]ui2.ElementCallback {
+	return {
+		'reset':        fn (_event ui2.ElementEvent) {
+			mut state := unsafe { accent_color_state }
+			state.reset()
+			ui2.refresh()
 		}
-		'subscribe' {
-			app.toggle_subscribed()
+		'subscribe':    fn (event ui2.ElementEvent) {
+			mut state := unsafe { accent_color_state }
+			state.subscribed = event.checked
+			ui2.refresh()
 		}
-		'sample_input' {
-			app.sample = ui2.text('sample_input')
+		'sample_input': fn (event ui2.ElementEvent) {
+			mut state := unsafe { accent_color_state }
+			state.sample = event.text
+			ui2.refresh()
 		}
-		else {
-			id, x := accent_pointer(event) or { return }
-			name := match id {
-				'track_red' { 'red' }
-				'track_green' { 'green' }
-				'track_blue' { 'blue' }
-				else { '' }
-			}
-			if name.len > 0 && track_width > 0 {
-				app.set_fraction(name, (x - track_root_x) / track_width)
-			}
+		'track_red':    fn (event ui2.ElementEvent) {
+			mut state := unsafe { accent_color_state }
+			state.track_channel('red', event, accent_track_width(ui2.bounds()))
+			ui2.refresh()
+		}
+		'track_green':  fn (event ui2.ElementEvent) {
+			mut state := unsafe { accent_color_state }
+			state.track_channel('green', event, accent_track_width(ui2.bounds()))
+			ui2.refresh()
+		}
+		'track_blue':   fn (event ui2.ElementEvent) {
+			mut state := unsafe { accent_color_state }
+			state.track_channel('blue', event, accent_track_width(ui2.bounds()))
+			ui2.refresh()
 		}
 	}
 }
 
 fn build_accent_color_screen() ui2.Element {
 	state := unsafe { accent_color_state }
-	return ui2.element_from_vml_model(accent_color_vml_source, *state, ui2.bounds()) or {
+	return ui2.element_from_vml_model_with_callbacks(accent_color_vml_source, *state, ui2.bounds(), accent_color_callbacks()) or {
 		eprintln('accent-color VML failed: ${err}')
 		ui2.screen(0xf1f5f9, [])
 	}
-}
-
-fn handle_accent_color_event(event string) {
-	mut state := unsafe { accent_color_state }
-	state.handle_event(event, accent_track_width(ui2.bounds()))
-	ui2.refresh()
 }
 
 fn main() {
@@ -212,5 +207,11 @@ fn main() {
 	unsafe {
 		*state = accent_color_demo()
 	}
-	ui2.run_window('Accent Color', accent_color_width, accent_color_height, build_accent_color_screen, handle_accent_color_event)
+	ui2.run_window('Accent Color', accent_color_width, accent_color_height, build_accent_color_screen)
+}
+
+fn (mut app AccentColorDemo) track_channel(channel string, event ui2.ElementEvent, track_width f64) {
+	if event.kind in [.pointer_down, .pointer_drag, .pointer_up] && track_width > 0 {
+		app.set_fraction(channel, (event.x - track_root_x) / track_width)
+	}
 }

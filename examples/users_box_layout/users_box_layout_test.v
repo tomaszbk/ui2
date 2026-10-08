@@ -94,7 +94,9 @@ fn test_users_box_vml_anchors_the_table_pane_to_the_window() {
 	assert grown_table.frame.width == table.frame.width + 200
 
 	rows := find_users_box_element(root, 'user_rows') or { panic('missing rows') }
-	assert rows.children.len == 2
+	assert rows.children.len == 1
+	assert rows.children[0].children.len == 2
+	assert rows.children[0].children[0].key != rows.children[0].children[1].key
 	assert (find_users_box_element(root, 'password') or { panic('missing password') }).secure
 	assert (find_users_box_element(root, 'add_user') or { panic('missing add') }).tooltip.contains('Required fields')
 	assert (find_users_box_element(root, 'online') or { panic('missing checkbox') }).checked

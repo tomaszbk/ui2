@@ -56,20 +56,25 @@ fn test_editor_rejects_unsafe_or_duplicate_names() {
 
 fn test_editor_vml_builds_keyed_file_list_and_responsive_editor() {
 	app := EditorDemo{
-		root_path: '/tmp'
-		files: [EditorFile{ id: 1, name: 'demo.v', path: '/tmp/demo.v' }]
+		root_path:    '/tmp'
+		files:        [EditorFile{ id: 1, name: 'demo.v', path: '/tmp/demo.v' }]
 		current_path: '/tmp/demo.v'
 		current_name: 'demo.v'
-		text: 'fn main() {}'
+		text:         'fn main() {}'
 	}
-	root := ui2.element_from_vml_model(editor_vml_source, app, ui2.rect(0, 0, editor_width, editor_height)) or { panic(err) }
+	root := editor_test_tree(editor_vml_source, app, ui2.rect(0, 0, editor_width, editor_height)) or { panic(err) }
 	ui2.validate_element_tree(root) or { panic(err) }
 	list := find_editor_element(root, 'editor_files') or { panic('missing file list') }
 	area := find_editor_element(root, 'editor_text') or { panic('missing editor') }
-	assert list.children.len == 1
-	assert list.children[0].key == '/tmp/demo.v'
-	assert list.children[0].native_style
-	assert area.emit_change
+	assert list.children[0].children.len == 1
+	assert list.children[0].children[0].key == '/tmp/demo.v'
+	assert list.children[0].children[0].native_style
+	assert voidptr(area.on_event) != unsafe { nil }
 	assert area.text_style.font_family == 'Courier New'
 	assert (find_editor_element(root, 'save_file') or { panic('missing save') }).native_style
+}
+
+fn editor_test_tree[T](source string, model T, frame ui2.Rect) !ui2.Element {
+	mut app := ui2.new_vml_app(source, model)!
+	return app.build(frame)!
 }

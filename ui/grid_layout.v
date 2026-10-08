@@ -35,7 +35,7 @@ pub:
 	row_span    int = 1
 }
 
-pub struct GridLayoutConfig {
+pub struct GridConfig {
 pub:
 	id      string
 	frame   Rect
@@ -66,7 +66,7 @@ struct GridPlacement {
 	row_span    int = 1
 }
 
-fn grid_validate_config(config GridLayoutConfig, child_count int) ! {
+fn grid_validate_config(config GridConfig, child_count int) ! {
 	if child_count < 0 {
 		return error('grid child count cannot be negative')
 	}
@@ -101,7 +101,7 @@ fn grid_validate_config(config GridLayoutConfig, child_count int) ! {
 	}
 }
 
-fn grid_automatic_columns(config GridLayoutConfig, child_count int) int {
+fn grid_automatic_columns(config GridConfig, child_count int) int {
 	inner := math.max(0.0, config.frame.width - config.padding.left - config.padding.right)
 	fit := if inner < config.auto_columns_min_width {
 		f64(1)
@@ -181,7 +181,7 @@ fn grid_pack_spans(spans []GridSpan, columns int, rows int, orientation GridOrie
 	return cells
 }
 
-fn grid_spanned_dimensions(config GridLayoutConfig, child_count int, automatic bool) !(int, int, []GridPlacement) {
+fn grid_spanned_dimensions(config GridConfig, child_count int, automatic bool) !(int, int, []GridPlacement) {
 	mut columns := if automatic {
 		grid_automatic_columns(config, child_count)
 	} else {
@@ -339,7 +339,7 @@ fn grid_axis_sizes(available f64, count int, default_size f64, force_default boo
 	return sizes
 }
 
-fn grid_resolved_cells(config GridLayoutConfig, child_count int, automatic bool) !(int, int, []GridPlacement) {
+fn grid_resolved_cells(config GridConfig, child_count int, automatic bool) !(int, int, []GridPlacement) {
 	if config.child_spans.any(it.column_span > 1 || it.row_span > 1) && child_count > 0 {
 		return grid_spanned_dimensions(config, child_count, automatic)
 	}
@@ -394,10 +394,10 @@ fn grid_cell_coordinates(index int, columns int, rows int, orientation GridOrien
 	}
 }
 
-// grid_layout_frames returns child frames in declaration order. Unless an axis
+// grid_frames returns child frames in declaration order. Unless an axis
 // is forced to its defaults, remaining space is distributed equally after its
 // configured minimums have been reserved.
-pub fn grid_layout_frames(config GridLayoutConfig, child_count int) ![]Rect {
+pub fn grid_frames(config GridConfig, child_count int) ![]Rect {
 	grid_validate_config(config, child_count)!
 	automatic := config.columns == 0 && config.rows == 0 && config.auto_columns_min_width > 0
 	columns, rows, cells := grid_resolved_cells(config, child_count, automatic)!
@@ -445,14 +445,14 @@ pub fn grid_layout_frames(config GridLayoutConfig, child_count int) ![]Rect {
 	return frames
 }
 
-// grid_layout_preferred_size measures the natural grid size, including padding
+// grid_preferred_size measures the natural grid size, including padding
 // and gaps. Automatic columns are resolved from config.frame.width; child sizes
 // should therefore have been measured at the corresponding available width.
 // Measurement reserves enough equally distributed extra space that every child
-// fits its tracks, matching grid_layout_frames. Forced defaults ignore child
+// fits its tracks, matching grid_frames. Forced defaults ignore child
 // measurements on their axis. This does not mutate
 // or construct Elements and can be used by a containing layout during measurement.
-pub fn grid_layout_preferred_size(config GridLayoutConfig, child_sizes []Rect) !Rect {
+pub fn grid_preferred_size(config GridConfig, child_sizes []Rect) !Rect {
 	grid_validate_config(config, child_sizes.len)!
 	automatic := config.columns == 0 && config.rows == 0 && config.auto_columns_min_width > 0
 	columns, rows, cells := grid_resolved_cells(config, child_sizes.len, automatic)!
@@ -493,10 +493,10 @@ fn grid_preferred_track_extra(tracks []f64, start int, count int, preferred f64,
 	return math.max(0.0, (preferred - current) / f64(count))
 }
 
-// grid_layout creates a view whose children are assigned to cells in their
+// grid creates a view whose children are assigned to cells in their
 // declaration order. Child frames are replaced by the computed cell frames.
-pub fn grid_layout(config GridLayoutConfig) !Element {
-	frames := grid_layout_frames(config, config.children.len)!
+pub fn grid(config GridConfig) !Element {
+	frames := grid_frames(config, config.children.len)!
 	mut children := []Element{cap: config.children.len}
 	for index, child in config.children {
 		children << Element{

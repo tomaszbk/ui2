@@ -1,13 +1,13 @@
 module ui2
 
-fn v_modern_child_metric(parent &VNode, child &VNode, scope map[string]VValue, actual Rect, box bool, floating bool, mut cache VLayoutMeasureCache) !VLayoutChildMetrics {
-	if parent.tag == 'FlexLayout' {
+fn v_modern_child_metric(parent &VNode, child &VNode, scope map[string]VValue, actual Rect, mut cache VLayoutMeasureCache) !VLayoutChildMetrics {
+	if parent.tag in ['Flex', 'Row', 'Column'] {
 		// Evaluate sizing and content without registering events. The actual pass
 		// below resolves actions/bindings exactly once, with the allocated frame.
 		parent_props := v_measurement_node(parent, scope, actual, false)!
-		config := v_flex_config(parent_props, actual, []FlexLayoutChild{})!
-		available := rect(0, 0, box_max(0, actual.width - config.padding.left - config.padding.right),
-			box_max(0, actual.height - config.padding.top - config.padding.bottom))
+		config := v_flex_config(parent_props, actual, []FlexChild{})!
+		available := rect(0, 0, layout_max(0, actual.width - config.padding.left - config.padding.right),
+			layout_max(0, actual.height - config.padding.top - config.padding.bottom))
 		measured := v_measurement_node(child, scope, available, true)!
 		preferred := v_layout_preferred(measured, available, mut cache)!
 		return VLayoutChildMetrics{
@@ -17,8 +17,17 @@ fn v_modern_child_metric(parent &VNode, child &VNode, scope map[string]VValue, a
 			scope:  scope.clone()
 		}
 	}
-	metric := v_layout_child_metric(child, scope, box, floating)!
-	if parent.tag == 'GridLayout' {
+	if parent.tag == 'Stack' {
+		parent_props := v_measurement_node(parent, scope, actual, false)!
+		config := v_stack_config(parent_props, actual, []StackChild{})!
+		available := rect(0, 0, layout_max(0, actual.width - config.padding.left - config.padding.right),
+			layout_max(0, actual.height - config.padding.top - config.padding.bottom))
+		measured := v_measurement_node(child, scope, available, true)!
+		preferred := v_layout_preferred(measured, available, mut cache)!
+		return VLayoutChildMetrics{ frame: preferred, stack: v_stack_child(measured, preferred)!, source: &VNode{ ...child }, scope: scope.clone() }
+	}
+	metric := VLayoutChildMetrics{ frame: rect(0, 0, v_layout_dimension(child, 'width', scope, 80)!, v_layout_dimension(child, 'height', scope, 32)!) }
+	if parent.tag == 'Grid' {
 		return VLayoutChildMetrics{
 			...metric
 			span: GridSpan{
@@ -33,7 +42,7 @@ fn v_modern_child_metric(parent &VNode, child &VNode, scope map[string]VValue, a
 // Main-axis distribution can change the width available to wrapping content.
 // Measure auto heights once at that assigned width, keeping horizontal bases
 // intact. Vertical layouts then distribute their updated intrinsic heights.
-fn v_flex_remeasure_metrics(config FlexLayoutConfig, metrics []VLayoutChildMetrics, frames []Rect, mut cache VLayoutMeasureCache) ![]FlexLayoutChild {
+fn v_flex_remeasure_metrics(config FlexConfig, metrics []VLayoutChildMetrics, frames []Rect, mut cache VLayoutMeasureCache) ![]FlexChild {
 	mut children := config.children.clone()
 	for index, metric in metrics {
 		if metric.source == unsafe { nil } { continue }
@@ -43,7 +52,7 @@ fn v_flex_remeasure_metrics(config FlexLayoutConfig, metrics []VLayoutChildMetri
 		if v_dimension(measured, 'height', -1) >= 0 { continue }
 		preferred := v_layout_preferred(measured, available, mut cache)!
 		child := children[index]
-		children[index] = FlexLayoutChild{
+		children[index] = FlexChild{
 			...child
 			element: Element{
 				...child.element
@@ -55,10 +64,10 @@ fn v_flex_remeasure_metrics(config FlexLayoutConfig, metrics []VLayoutChildMetri
 }
 
 fn v_eval_layout_child(node &VNode, scope map[string]VValue, frame Rect, kind VChildLayoutKind, mut evaluation VmlEvaluation) !&VNode {
-	if kind !in [.flex, .grid] || v_is_layout_metadata(node) || node.tag == 'Option' {
+	if kind !in [.flex, .grid, .stack] || v_is_layout_metadata(node) || node.tag == 'Option' {
 		return v_eval_node(node, scope, frame, mut evaluation)!
 	}
-	mut assigned := &VNode{ ...node, expressions: node.expressions.clone() }
+	mut assigned := &VNode{ ...node, expressions: node.expressions.clone(), layout_allocated: true }
 	for key, value in {
 		'x':      frame.x
 		'y':      frame.y
@@ -68,36 +77,6 @@ fn v_eval_layout_child(node &VNode, scope map[string]VValue, frame Rect, kind VC
 		assigned.expressions[key] = &VExpression{ kind: .literal, value: value.str(), line: node.line }
 	}
 	return v_eval_node(assigned, scope, frame, mut evaluation)!
-}
-
-fn v_eval_adaptive_child(parent &VNode, child &VNode, scope map[string]VValue, available Rect, mut evaluation VmlEvaluation) !&VNode {
-	if child.tag in ['MenuItem', 'Option'] {
-		return v_eval_node(child, scope, available, mut evaluation)!
-	}
-	if child.tag == 'LayoutVariation' {
-		return error('LayoutVariation belongs to a control, not Screen')
-	}
-	rw := v_adaptive_number(parent, 'width', 0)!
-	rh := v_adaptive_number(parent, 'height', 0)!
-	bw := v_adaptive_number(parent, 'layout_breakpoint_width', 600)!
-	bh := v_adaptive_number(parent, 'layout_breakpoint_height', 600)!
-	v_validate_adaptive_screen(parent)!
-	measured := v_measurement_node(child, scope, available, true)!
-	adapted := v_adaptive_child(measured, rw, rh, available,
-		adaptive_size_class(available.width, bw), adaptive_size_class(available.height, bh))!
-	mut assigned := &VNode{ ...child, expressions: child.expressions.clone() }
-	assigned.expressions['hidden'] = &VExpression{ kind: .literal, value: adapted.prop('hidden'), line: child.line }
-	// Adapt before evaluation so descendants and actions see the actual frame.
-	return v_eval_layout_child(assigned, scope, v_frame(adapted, available), .flex, mut evaluation)!
-}
-
-fn v_validate_adaptive_screen(parent &VNode) ! {
-	for key in ['width', 'height', 'layout_breakpoint_width', 'layout_breakpoint_height'] {
-		fallback := if key.starts_with('layout_') { 600.0 } else { 0.0 }
-		if v_adaptive_number(parent, key, fallback)! <= 0 {
-			return error('adaptive Screen needs positive design dimensions and size-class breakpoints')
-		}
-	}
 }
 
 // Resolve only the declarative properties needed for measurement. In particular

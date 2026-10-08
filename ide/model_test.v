@@ -61,8 +61,7 @@ fn test_designer_drag_and_resize_stay_inside_form() {
 
 fn test_generated_vml_round_trips_all_palette_components() {
 	mut app := new_ide_app('.')
-	kinds := ['label', 'button', 'text_field', 'text_area', 'checkbox', 'dropdown', 'rectangle',
-		'image']
+	kinds := ['label', 'button', 'text_field', 'text_area', 'checkbox', 'dropdown', 'view', 'image']
 	for index, kind in kinds {
 		app.add_component(kind, 16 + index * 8, 24 + index * 8)
 	}
@@ -86,7 +85,7 @@ fn test_generated_vml_round_trips_all_palette_components() {
 }
 
 fn test_source_loader_reports_unsupported_dynamic_layout() {
-	source := 'Screen { id: Form1 Row { width: 300 height: 40 } }'
+	source := 'Screen { id: Form1 Absolute { Row { width: 300 height: 40 } } }'
 	if _ := document_from_vml(source) {
 		assert false, 'Row should require source editing rather than lossy visual loading'
 	} else {
@@ -95,7 +94,7 @@ fn test_source_loader_reports_unsupported_dynamic_layout() {
 }
 
 fn test_source_loader_rejects_nested_controls_instead_of_losing_them() {
-	source := 'Screen { id: Form1 Rectangle { id: card width: 300 height: 200 Button { id: ok } } }'
+	source := 'Screen { id: Form1 Absolute { View { id: card width: 300 height: 200 Button { id: ok } } } }'
 	if _ := document_from_vml(source) {
 		assert false, 'nested controls must not be flattened or lost'
 	} else {
@@ -197,21 +196,21 @@ fn test_palette_controls_can_be_clicked_or_dragged_onto_the_form() {
 	assert palette_button.kind == .view
 	assert palette_button.draggable
 
-	assert app.handle_pointer('pointer:down:palette_button:260:80', frame)
-	assert app.handle_pointer('pointer:up:palette_button:260:80', frame)
+	app.handle_palette_pointer(.pointer_down, 'button', 260, 80, layout)
+	app.handle_palette_pointer(.pointer_up, 'button', 260, 80, layout)
 	assert app.armed_kind == 'button'
 	assert app.components.len == 0
 
 	drop_x := layout.form.x + 200 * layout.scale
 	drop_y := layout.form.y + 160 * layout.scale
-	assert app.handle_pointer('pointer:down:palette_button:260:80', frame)
-	assert app.handle_pointer('pointer:drag:palette_button:${drop_x}:${drop_y}', frame)
+	app.handle_palette_pointer(.pointer_down, 'button', 260, 80, layout)
+	app.handle_palette_pointer(.pointer_drag, 'button', drop_x, drop_y, layout)
 	assert app.palette_drag_moved
 	drag_root := build_ide(frame, app)
 	_ := find_ide_element(drag_root, 'palette_drag_preview') or {
 		panic('missing palette drag preview')
 	}
-	assert app.handle_pointer('pointer:up:palette_button:${drop_x}:${drop_y}', frame)
+	app.handle_palette_pointer(.pointer_up, 'button', drop_x, drop_y, layout)
 	assert app.palette_drag_kind == ''
 	assert app.components.len == 1
 	assert app.components[0].kind == 'button'
@@ -254,6 +253,7 @@ fn test_saved_form_and_generated_main_compile_together() {
 	app.sync_source()
 	app.save_document() or { panic(err) }
 	main_path := app.generate_companion(false) or { panic(err) }
-	result := os.execute('${os.quoted_path(@VEXE)} -check ${os.quoted_path(main_path)}')
+	module_path := os.dir(@VMODROOT) + ':@vlib:@vmodules'
+	result := os.execute('${os.quoted_path(@VEXE)} -path ${os.quoted_path(module_path)} -check ${os.quoted_path(main_path)}')
 	assert result.exit_code == 0, result.output
 }

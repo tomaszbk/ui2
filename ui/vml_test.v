@@ -46,11 +46,11 @@ fn test_parse_nested() {
 
 fn test_find_by_id() {
 	source := 'Column {
-		TextField {
+		TextInput { multiline: false
 			id: username
 			placeholder: "Username"
 		}
-		TextField {
+		TextInput { multiline: false
 			id: password
 			placeholder: "Password"
 			secure: true
@@ -99,7 +99,7 @@ fn test_parse_login_screen() {
 			height: 40
 		}
 
-		TextField {
+		TextInput { multiline: false
 			id: username
 			placeholder: "Username"
 			background: #383A40
@@ -111,7 +111,7 @@ fn test_parse_login_screen() {
 			pad_left: 12
 		}
 
-		TextField {
+		TextInput { multiline: false
 			id: password
 			placeholder: "Password"
 			background: #383A40
@@ -146,7 +146,7 @@ fn test_parse_login_screen() {
 	assert node.prop('background') == '#303338'
 
 	user_field := node.find('username') or { panic('username not found') }
-	assert user_field.tag == 'TextField'
+	assert user_field.tag == 'TextInput'
 	assert user_field.prop('placeholder') == 'Username'
 
 	err_label := node.find('error_label') or { panic('error_label not found') }
@@ -176,7 +176,7 @@ fn test_parse_allows_assignments_only_in_event_properties() {
 	assert assignment.kind == .assignment
 
 	for source in [
-		'Rectangle { width: app.width = 10 }',
+		'View { width: app.width = 10 }',
 		r'Label { text: "Width ${app.width = 10}" }',
 	] {
 		if _ := parse_vml(source) {
@@ -188,20 +188,32 @@ fn test_parse_allows_assignments_only_in_event_properties() {
 }
 
 fn test_plain_container_children_use_resolved_local_frame() {
-	node := parse_vml('View { x: 30 y: 40 width: 200 height: 100 Label {} }') or {
+	node := parse_vml('Absolute {
+    transparent: true
+    View { x: 30 y: 40 width: 200 height: 100 Label {} }
+}') or {
 		panic(err)
 	}
-	el := element_from_vnode(node, rect(0, 0, 800, 600)) or { panic(err) }
+	root := vml_fixture_node(node, rect(0, 0, 800, 600)) or { panic(err) }
+	el := root.children[0]
 	assert el.frame == rect(30, 40, 200, 100)
 	assert el.children[0].frame == rect(0, 0, 200, 100)
 }
 
 fn test_nested_child_coordinates_are_parent_local() {
-	node := parse_vml('View { x: 30 y: 40 width: 200 height: 100 Label { x: 7 y: 9 width: 50 height: 20 } }') or {
+	node := parse_vml('Absolute {
+    transparent: true
+    View { x: 30 y: 40 width: 200 height: 100
+        Absolute {
+            transparent: true
+            Label { x: 7 y: 9 width: 50 height: 20 }
+        } }
+}') or {
 		panic(err)
 	}
-	el := element_from_vnode(node, rect(0, 0, 800, 600)) or { panic(err) }
-	assert el.children[0].frame == rect(7, 9, 50, 20)
+	root := vml_fixture_node(node, rect(0, 0, 800, 600)) or { panic(err) }
+	el := root.children[0]
+	assert el.children[0].children[0].frame == rect(7, 9, 50, 20)
 }
 
 fn test_parse_escaped_string() {
@@ -244,18 +256,18 @@ fn test_parse_row() {
 }
 
 fn test_parse_text_area() {
-	source := 'TextArea {
+	source := 'TextInput { multiline: true
 		id: body
 		text: "line one\\nline two"
 		on_change: body_changed
-		editable: false
+		readonly: true
 		background: #FAFAFA
 	}'
 	node := parse_vml(source) or { panic(err) }
-	assert node.tag == 'TextArea'
-	el := element_from_vnode(node, rect(0, 0, 400, 300)) or { panic(err) }
+	assert node.tag == 'TextInput'
+	el := vml_fixture_node(node, rect(0, 0, 400, 300)) or { panic(err) }
 	assert el.id == 'body'
-	assert el.action_id == 'body_changed'
+	assert voidptr(el.on_event) != unsafe { nil }
 	assert el.readonly == true
 	assert el.text.contains('line two')
 }
@@ -267,19 +279,21 @@ fn test_parse_menu_items() {
 		key: row42
 
 		MenuItem {
+			id: ctx_reply
 			text: "Reply"
 			on_tap: ctx_reply
 		}
 		MenuItem {
+			id: ctx_delete
 			text: "Delete"
 			on_tap: ctx_delete
 		}
 	}'
 	node := parse_vml(source) or { panic(err) }
-	el := element_from_vnode(node, rect(0, 0, 100, 30)) or { panic(err) }
+	el := vml_fixture_node(node, rect(0, 0, 100, 30)) or { panic(err) }
 	assert el.key == 'row42'
 	assert el.id == ''
-	assert el.action_id == 'open_row'
+	assert voidptr(el.on_event) != unsafe { nil }
 	assert el.menu.len == 2
 	assert el.menu[0].title == 'Reply'
 	assert el.menu[0].id == 'ctx_reply'
@@ -289,10 +303,10 @@ fn test_parse_menu_items() {
 }
 
 fn test_vml_applies_shared_control_state_properties() {
-	node := parse_vml('TextField { id: email hidden: true enabled: false autocorrect: false pad_left: 20 accessibility_role: text_field accessibility_label: "Email" }') or {
+	node := parse_vml('TextInput { multiline: false  id: email hidden: true enabled: false autocorrect: false pad_left: 20 accessibility_role: text_field accessibility_label: "Email" }') or {
 		panic(err)
 	}
-	el := element_from_vnode(node, rect(0, 0, 200, 40)) or { panic(err) }
+	el := vml_fixture_node(node, rect(0, 0, 200, 40)) or { panic(err) }
 	assert el.hidden
 	assert !el.enabled
 	assert !el.autocorrect
@@ -302,7 +316,7 @@ fn test_vml_applies_shared_control_state_properties() {
 }
 
 fn test_vml_applies_independent_box_borders() {
-	node := parse_vml('Rectangle {
+	node := parse_vml('View {
 		background: #10131F
 		border_color: #28314A
 		border_left: 1
@@ -310,7 +324,7 @@ fn test_vml_applies_independent_box_borders() {
 		border_right: 3
 		border_bottom: 4
 	}') or { panic(err) }
-	el := element_from_vnode(node, rect(0, 0, 200, 100)) or { panic(err) }
+	el := vml_fixture_node(node, rect(0, 0, 200, 100)) or { panic(err) }
 	assert el.box.border_color == 0x28314a
 	assert el.box.border_left == 1
 	assert el.box.border_top == 2.5
@@ -325,7 +339,7 @@ fn test_vml_border_width_is_an_all_sides_shorthand_with_edge_overrides() {
 		border_left: 0
 		border_bottom: 5
 	}') or { panic(err) }
-	el := element_from_vnode(node, rect(0, 0, 120, 32)) or { panic(err) }
+	el := vml_fixture_node(node, rect(0, 0, 120, 32)) or { panic(err) }
 	assert el.box.border_left == 0
 	assert el.box.border_top == 2
 	assert el.box.border_right == 2
@@ -338,7 +352,7 @@ fn test_vml_scroll_preserves_box_borders() {
 		border_left: 1
 		border_right: 2
 	}') or { panic(err) }
-	el := element_from_vnode(node, rect(0, 0, 120, 80)) or { panic(err) }
+	el := vml_fixture_node(node, rect(0, 0, 120, 80)) or { panic(err) }
 	assert el.kind == .scroll
 	assert el.box.border_color == 0x334155
 	assert el.box.border_left == 1
@@ -357,8 +371,8 @@ fn test_vml_applies_pointer_and_transform_properties() {
 		rotation: 37.5
 		cursor: "rotate"
 	}') or { panic(err) }
-	el := element_from_vnode(node, rect(0, 0, 100, 100)) or { panic(err) }
-	assert el.action_id == 'move_logo'
+	el := vml_fixture_node(node, rect(0, 0, 100, 100)) or { panic(err) }
+	assert voidptr(el.on_event) != unsafe { nil }
 	assert el.clickable
 	assert el.draggable
 	assert el.long_press
@@ -368,45 +382,51 @@ fn test_vml_applies_pointer_and_transform_properties() {
 }
 
 fn test_vml_rectangle_can_wrap_children_with_button_behavior() {
-	el := element_from_vml('Rectangle {
-		id: save_card
-		on_tap: persist_changes
-		button_behavior: true
-		x: 20
-		y: 30
-		width: 180
-		height: 56
-		background: #2563EB
-		corner_radius: 8
+	root := vml_static_fixture('Absolute {
+    transparent: true
+    View {
+            id: save_card
+            on_tap: persist_changes
+            button_behavior: true
+            x: 20
+            y: 30
+            width: 180
+            height: 56
+            background: #2563EB
+            corner_radius: 8
+        Absolute {
+            transparent: true
+            Label {
+                    id: save_card_title
+                    text: "Save changes"
+                    x: 16
+                    y: 16
+                    width: 148
+                    height: 24
+                    color: #FFFFFF
+                }
+        }
+        }
+}', rect(0, 0, 320, 200)) or { panic(err) }
 
-		Label {
-			id: save_card_title
-			text: "Save changes"
-			x: 16
-			y: 16
-			width: 148
-			height: 24
-			color: #FFFFFF
-		}
-	}', rect(0, 0, 320, 200)) or { panic(err) }
-
+	el := root.children[0]
 	assert el.kind == .view
 	assert el.id == 'save_card'
-	assert el.action_id == 'persist_changes'
+	assert voidptr(el.on_event) != unsafe { nil }
 	assert el.button_behavior
 	assert !el.clickable
 	assert el.accessibility_role == 'button'
 	assert el.accessibility_label == 'Save changes'
 	assert el.frame == rect(20, 30, 180, 56)
 	assert el.children.len == 1
-	assert el.children[0].kind == .label
-	assert el.children[0].id == 'save_card_title'
-	assert el.children[0].text == 'Save changes'
-	assert el.children[0].frame == rect(16, 16, 148, 24)
+	assert el.children[0].children[0].kind == .label
+	assert el.children[0].children[0].id == 'save_card_title'
+	assert el.children[0].children[0].text == 'Save changes'
+	assert el.children[0].children[0].frame == rect(16, 16, 148, 24)
 }
 
 fn test_vml_button_behavior_preserves_an_explicit_accessibility_role() {
-	el := element_from_vml('View {
+	el := vml_static_fixture('View {
 		id: documentation
 		on_tap: open_documentation
 		button_behavior: true
@@ -420,7 +440,7 @@ fn test_vml_button_behavior_preserves_an_explicit_accessibility_role() {
 }
 
 fn test_vml_button_behavior_is_ignored_on_native_controls() {
-	el := element_from_vml('Button {
+	el := vml_static_fixture('Button {
 		id: save
 		text: "Save"
 		button_behavior: true
@@ -449,7 +469,7 @@ fn test_vml_applies_extended_text_style_properties() {
 		first_line_indent: 4
 		hyphenation_factor: 0.5
 	}') or { panic(err) }
-	el := element_from_vnode(node, rect(0, 0, 200, 40)) or { panic(err) }
+	el := vml_fixture_node(node, rect(0, 0, 200, 40)) or { panic(err) }
 	assert el.text_style.color == 0x123456
 	assert el.text_style.background_color == 0xf0f1f2
 	assert el.text_style.size == 22
@@ -468,7 +488,7 @@ fn test_vml_applies_extended_text_style_properties() {
 }
 
 fn test_parse_text_field_change_and_submit_events() {
-	source := 'TextField {
+	source := 'TextInput { multiline: false
 		id: message
 		text: "hello"
 		on_change: message_changed
@@ -476,25 +496,23 @@ fn test_parse_text_field_change_and_submit_events() {
 		secure: true
 	}'
 	node := parse_vml(source) or { panic(err) }
-	el := element_from_vnode(node, rect(0, 0, 200, 40)) or { panic(err) }
+	el := vml_fixture_node(node, rect(0, 0, 200, 40)) or { panic(err) }
 	assert el.kind == .text_field
 	assert el.id == 'message'
-	assert el.action_id == 'message_changed'
-	assert el.submit_id == 'send_message'
-	assert el.emit_change
+	assert voidptr(el.on_event) != unsafe { nil }
+	assert voidptr(el.on_event) != unsafe { nil }
 	assert el.secure
 }
 
 fn test_parse_submit_only_text_field() {
-	source := 'TextField {
+	source := 'TextInput { multiline: false
 		id: search
 		on_submit: run_search
 	}'
 	node := parse_vml(source) or { panic(err) }
-	el := element_from_vnode(node, rect(0, 0, 200, 40)) or { panic(err) }
+	el := vml_fixture_node(node, rect(0, 0, 200, 40)) or { panic(err) }
 	assert el.id == 'search'
-	assert el.submit_id == 'run_search'
-	assert !el.emit_change
+	assert voidptr(el.on_event) != unsafe { nil }
 }
 
 fn test_vml_dropdown_options_persistent_scroll_and_tooltip() {
@@ -510,14 +528,14 @@ fn test_vml_dropdown_options_persistent_scroll_and_tooltip() {
 			Option { text: "Canada" }
 		}
 	}'
-	el := element_from_vml(source, rect(0, 0, 300, 200)) or { panic(err) }
+	el := vml_static_fixture(source, rect(0, 0, 300, 200)) or { panic(err) }
 	assert el.kind == .scroll
 	assert el.persistent_scrollbars
 	assert el.children.len == 1
 	dropdown_el := el.children[0]
 	assert dropdown_el.kind == .dropdown
 	assert dropdown_el.id == 'country'
-	assert dropdown_el.action_id == 'country_changed'
+	assert voidptr(dropdown_el.on_event) != unsafe { nil }
 	assert dropdown_el.text == 'Canada'
 	assert dropdown_el.tooltip == 'Choose a country'
 	assert dropdown_el.menu.len == 2
@@ -526,12 +544,12 @@ fn test_vml_dropdown_options_persistent_scroll_and_tooltip() {
 }
 
 fn test_vml_decimal_keyboard() {
-	el := element_from_vml('TextField { id: age keyboard: decimal }', rect(0, 0, 120, 32)) or { panic(err) }
+	el := vml_static_fixture('TextInput { multiline: false  id: age keyboard: decimal }', rect(0, 0, 120, 32)) or { panic(err) }
 	assert el.keyboard == keyboard_decimal
 }
 
 fn test_vml_progress_bar_uses_bounded_value_semantics() {
-	el := element_from_vml('ProgressBar {
+	el := vml_static_fixture('ProgressBar {
 		id: loading
 		value: 75
 		max: 200
@@ -552,7 +570,7 @@ fn test_vml_progress_bar_uses_bounded_value_semantics() {
 }
 
 fn test_vml_slider_exposes_range_orientation_and_style() {
-	el := element_from_vml('Slider {
+	el := vml_static_fixture('Slider {
 		id: volume
 		on_change: volume_changed
 		min: -20
@@ -571,7 +589,7 @@ fn test_vml_slider_exposes_range_orientation_and_style() {
 
 	assert el.kind == .slider
 	assert el.id == 'volume'
-	assert el.action_id == 'volume_changed'
+	assert voidptr(el.on_event) != unsafe { nil }
 	assert el.min_value == -20
 	assert el.max_value == 80
 	assert el.value == 55
@@ -589,7 +607,7 @@ fn test_vml_slider_exposes_range_orientation_and_style() {
 }
 
 fn test_vml_switch_exposes_active_state_action_and_style() {
-	el := element_from_vml('Switch {
+	el := vml_static_fixture('Switch {
 		id: airplane_mode
 		on_active: airplane_mode_changed
 		active: true
@@ -602,7 +620,7 @@ fn test_vml_switch_exposes_active_state_action_and_style() {
 
 	assert el.kind == .switch_control
 	assert el.id == 'airplane_mode'
-	assert el.action_id == 'airplane_mode_changed'
+	assert voidptr(el.on_event) != unsafe { nil }
 	assert el.checked
 	assert el.switch_style.inactive_track_color == u32(0x334155)
 	assert el.switch_style.active_track_color == u32(0x16a34a)
@@ -614,9 +632,9 @@ fn test_vml_switch_exposes_active_state_action_and_style() {
 }
 
 fn test_vml_spinner_exposes_values_selection_and_style() {
-	el := element_from_vml('Spinner {
+	el := vml_static_fixture('Spinner {
 		id: location
-		on_text: location_changed
+		on_change: location_changed
 		text_autoupdate: true
 		background: #DBEAFE
 		color: #1D4ED8
@@ -627,7 +645,7 @@ fn test_vml_spinner_exposes_values_selection_and_style() {
 
 	assert el.kind == .dropdown
 	assert el.id == 'location'
-	assert el.action_id == 'location_changed'
+	assert voidptr(el.on_event) != unsafe { nil }
 	assert el.text == 'Home'
 	assert el.menu.len == 2
 	assert el.menu[1].title == 'Work'
@@ -638,7 +656,7 @@ fn test_vml_spinner_exposes_values_selection_and_style() {
 }
 
 fn test_vml_toggle_button_exposes_pressed_and_released_styles() {
-	el := element_from_vml('ToggleButton {
+	el := vml_static_fixture('ToggleButton {
 		id: bold
 		text: "Bold"
 		on_state: bold_changed
@@ -653,7 +671,7 @@ fn test_vml_toggle_button_exposes_pressed_and_released_styles() {
 	}', rect(0, 0, 100, 40)) or { panic(err) }
 
 	assert el.kind == .toggle_button
-	assert el.action_id == 'bold_changed'
+	assert voidptr(el.on_event) != unsafe { nil }
 	assert el.checked
 	assert el.toggle_group == 'formatting'
 	assert !el.toggle_allow_no_selection
@@ -665,203 +683,36 @@ fn test_vml_toggle_button_exposes_pressed_and_released_styles() {
 	assert el.accessibility_value == 'pressed'
 }
 
-fn test_vml_box_layout_combines_fixed_and_proportional_children() {
-	el := element_from_vml('BoxLayout {
-		id: actions
-		padding: 10
-		spacing: 10
-		Button { text: "Fixed" width: 80 size_hint_x: -1 }
-		Button { text: "Wide" size_hint_x: 2 }
-		Button { text: "Narrow" size_hint_x: 1 }
-	}', rect(20, 30, 330, 80)) or { panic(err) }
+fn test_vml_flex_combines_fixed_and_growing_children() {
+	el := vml_static_fixture('Flex { padding: 10 gap: 10
+ Button { text: "Fixed" width: 80 flex_shrink: 0 }
+ Button { text: "Wide" flex_basis: 0 flex_grow: 2 }
+ Button { text: "Narrow" flex_basis: 0 flex_grow: 1 }
+ }', rect(20, 30, 330, 80)) or { panic(err) }
 	assert el.frame == rect(20, 30, 330, 80)
 	assert el.children[0].frame == rect(10, 10, 80, 60)
 	assert el.children[1].frame == rect(100, 10, 140, 60)
 	assert el.children[2].frame == rect(250, 10, 70, 60)
 }
 
-fn test_vml_vertical_box_layout_aligns_fixed_width_children() {
-	el := element_from_vml('BoxLayout {
-		orientation: vertical
-		padding: 10
-		spacing: 4
-		Button { text: "Centered" width: 60 height: 20 size_hint_x: -1 size_hint_y: -1 align_x: center }
-		Button { text: "Fill" }
-	}', rect(0, 0, 200, 120)) or { panic(err) }
-	assert el.children[0].frame == rect(70, 10, 60, 20)
-	assert el.children[1].frame == rect(10, 34, 180, 76)
-}
-
-fn test_vml_box_layout_validates_orientation_names() {
-	if _ := element_from_vml('BoxLayout { orientation: diagonal }', rect(0, 0, 100, 100)) {
-		assert false, 'unknown box orientations must fail'
-	} else {
-		assert err.msg().contains('diagonal')
-	}
-}
-
-fn test_vml_float_layout_applies_independent_size_and_position_hints() {
-	el := element_from_vml('FloatLayout {
-		Rectangle {
-			id: card
-			size_hint_x: 0.5
-			size_hint_y: 0.25
-			pos_hint_center_x: 0.5
-			pos_hint_center_y: 0.5
-		}
-		Button {
-			id: fixed
-			x: 20
-			y: 30
-			width: 80
-			height: 40
-			size_hint_x: -1
-			size_hint_y: -1
-		}
-	}', rect(10, 20, 300, 200)) or { panic(err) }
-	assert el.children[0].frame == rect(75, 75, 150, 50)
-	assert el.children[1].frame == rect(20, 30, 80, 40)
-}
-
-fn test_vml_float_layout_supports_edge_hints_and_bounds() {
-	el := element_from_vml('FloatLayout {
-		Button {
-			size_hint_x: 0.9
-			size_hint_y: 0.1
-			size_hint_max_x: 120
-			size_hint_min_y: 32
-			pos_hint_right: 1
-			pos_hint_bottom: 1
-		}
-	}', rect(0, 0, 300, 200)) or { panic(err) }
-	assert el.children[0].frame == rect(180, 168, 120, 32)
-}
-
-fn test_vml_relative_layout_keeps_child_frames_local() {
-	el := element_from_vml('RelativeLayout {
-		x: 80
-		y: 60
-		width: 240
-		height: 120
-		Button {
-			x: 20
-			y: 15
-			width: 80
-			height: 30
-			size_hint_x: -1
-			size_hint_y: -1
-		}
-	}', rect(0, 0, 400, 240)) or { panic(err) }
-	assert el.frame == rect(80, 60, 240, 120)
-	assert el.children[0].frame == rect(20, 15, 80, 30)
-}
-
-fn test_vml_grid_layout_assigns_cells_in_the_requested_orientation() {
-	el := element_from_vml('GridLayout {
-		id: tools
-		columns: 2
-		orientation: rl-bt
-		padding: 10
-		spacing: 10
-		Button { id: one text: "One" }
-		Button { id: two text: "Two" }
-		Button { id: three text: "Three" }
-	}', rect(20, 30, 210, 110)) or { panic(err) }
-	assert el.kind == .view
-	assert el.frame == rect(20, 30, 210, 110)
-	assert el.children.len == 3
+fn test_vml_grid_assigns_cells_in_the_requested_orientation() {
+	el := vml_static_fixture('Grid { columns: 2 orientation: rl-bt padding: 10 spacing: 10
+ Button { text: "One" } Button { text: "Two" } Button { text: "Three" }
+ }', rect(20, 30, 210, 110)) or { panic(err) }
 	assert el.children[0].frame == rect(110, 60, 90, 40)
 	assert el.children[1].frame == rect(10, 60, 90, 40)
 	assert el.children[2].frame == rect(110, 10, 90, 40)
 }
 
-fn test_vml_grid_layout_requires_a_constraint() {
-	if _ := element_from_vml('GridLayout { Button { text: "Missing constraint" } }', rect(0, 0, 200, 100)) {
-		assert false, 'an unconstrained VML grid must fail'
-	} else {
-		assert err.msg().contains('requires columns or rows')
-	}
-}
-
-fn test_vml_anchor_layout_positions_children_with_per_edge_padding() {
-	el := element_from_vml('AnchorLayout {
-		id: footer
-		anchor_x: right
-		anchor_y: bottom
-		padding_left: 4
-		padding_top: 6
-		padding_right: 10
-		padding_bottom: 12
-		Button { id: save text: "Save" width: 72 height: 32 }
-	}', rect(20, 30, 200, 100)) or { panic(err) }
-	assert el.kind == .view
-	assert el.frame == rect(20, 30, 200, 100)
-	assert el.children.len == 1
-	assert el.children[0].frame == rect(118, 56, 72, 32)
-}
-
-fn test_vml_anchor_layout_validates_anchor_names() {
-	if _ := element_from_vml('AnchorLayout { anchor_x: middle }', rect(0, 0, 100, 100)) {
-		assert false, 'unknown anchor names must fail'
-	} else {
-		assert err.msg().contains('middle')
-	}
-}
-
-fn test_vml_stack_layout_wraps_variable_size_children() {
-	el := element_from_vml('StackLayout {
-		id: tags
-		padding: 10
-		spacing_x: 6
-		spacing_y: 4
-		Button { text: "One" width: 70 height: 20 }
-		Button { text: "Two" width: 80 height: 30 }
-		Button { text: "Three" width: 90 height: 24 }
-	}', rect(20, 30, 180, 120)) or { panic(err) }
-	assert el.children[0].frame == rect(10, 10, 70, 20)
-	assert el.children[1].frame == rect(86, 10, 80, 30)
-	assert el.children[2].frame == rect(10, 44, 90, 24)
-}
-
-fn test_vml_stack_layout_validates_orientation_names() {
-	if _ := element_from_vml('StackLayout { orientation: sideways }', rect(0, 0, 100, 100)) {
-		assert false, 'unknown stack orientations must fail'
-	} else {
-		assert err.msg().contains('sideways')
-	}
-}
-
-fn test_vml_page_layout_exposes_adjacent_page_borders() {
-	el := element_from_vml('PageLayout {
-		page: 1
-		border: 40
-		Rectangle { id: first }
-		Rectangle { id: second }
-		Rectangle { id: third }
-	}', rect(10, 20, 300, 160)) or { panic(err) }
-	assert el.frame == rect(10, 20, 300, 160)
-	assert el.children[0].frame == rect(0, 0, 260, 160)
-	assert el.children[1].frame == rect(20, 0, 260, 160)
-	assert el.children[2].frame == rect(280, 0, 260, 160)
-}
-
-fn test_vml_page_layout_validates_border() {
-	if _ := element_from_vml('PageLayout { border: 120 Rectangle {} }', rect(0, 0, 100, 100)) {
-		assert false, 'a border wider than the page layout must fail'
-	} else {
-		assert err.msg().contains('border')
-	}
-}
-
 fn test_vml_widget_accessibility_defaults_survive_conversion() {
-	checkbox_el := element_from_vml('Checkbox { text: "Ready" checked: true }', rect(0, 0, 120, 24)) or {
+	checkbox_el := vml_static_fixture('Checkbox { text: "Ready" checked: true }', rect(0, 0, 120, 24)) or {
 		panic(err)
 	}
 	assert checkbox_el.accessibility_role == 'checkbox'
 	assert checkbox_el.accessibility_label == 'Ready'
 	assert checkbox_el.accessibility_value == 'checked'
 
-	progress_el := element_from_vml('ProgressBar { value: 150 }', rect(0, 0, 100, 8)) or {
+	progress_el := vml_static_fixture('ProgressBar { value: 150 }', rect(0, 0, 100, 8)) or {
 		panic(err)
 	}
 	assert progress_el.children[0].frame.width == 100
@@ -869,42 +720,42 @@ fn test_vml_widget_accessibility_defaults_survive_conversion() {
 }
 
 fn test_vml_text_input_defaults_to_multiline() {
-	el := element_from_vml('TextInput {
+	el := vml_static_fixture('TextInput {
 		id: notes
 		text: "One\\nTwo"
-		hint_text: "Notes"
-		on_text: notes_changed
+		placeholder: "Notes"
+		on_change: notes_changed
 		readonly: true
 		disable_scroll: true
 	}', rect(0, 0, 240, 120)) or { panic(err) }
 	assert el.kind == .text_area
 	assert el.text == 'One\nTwo'
 	assert el.placeholder == 'Notes'
-	assert el.action_id == 'notes_changed'
+	assert voidptr(el.on_event) != unsafe { nil }
 	assert el.readonly
 	assert el.disable_scroll
 }
 
 fn test_vml_text_input_supports_single_line_password_submission() {
-	el := element_from_vml('TextInput {
+	el := vml_static_fixture('TextInput {
 		id: password
 		multiline: false
 		password: true
-		hint_text: "Password"
-		on_text_validate: sign_in
+		placeholder: "Password"
+		on_submit: sign_in
 		autocorrect: false
 		padding: 8
 	}', rect(0, 0, 200, 36)) or { panic(err) }
 	assert el.kind == .text_field
 	assert el.secure
 	assert el.placeholder == 'Password'
-	assert el.submit_id == 'sign_in'
+	assert voidptr(el.on_event) != unsafe { nil }
 	assert !el.autocorrect
 	assert el.padding_left == 8
 }
 
 fn test_vml_tabbed_panel_builds_headers_and_active_content() {
-	el := element_from_vml('TabbedPanel {
+	el := vml_static_fixture('TabbedPanel {
 		id: settings
 		current: 1
 		tab_pos: bottom_right
@@ -920,12 +771,12 @@ fn test_vml_tabbed_panel_builds_headers_and_active_content() {
 	assert el.children[1].frame == rect(60, 160, 100, 40)
 	assert el.children[2].frame == rect(160, 160, 100, 40)
 	assert el.children[2].box.bg == u32(0x2563eb)
-	assert el.children[2].action_id == 'select_account'
+	assert voidptr(el.children[2].on_event) != unsafe { nil }
 	assert el.children[2].accessibility_value == 'selected'
 }
 
 fn test_vml_tabbed_panel_validates_tab_position() {
-	if _ := element_from_vml('TabbedPanel { tab_pos: diagonal }', rect(0, 0, 300, 200)) {
+	if _ := vml_static_fixture('TabbedPanel { tab_pos: diagonal }', rect(0, 0, 300, 200)) {
 		assert false, 'invalid tab positions must fail'
 	} else {
 		assert err.msg().contains('diagonal')
@@ -933,7 +784,7 @@ fn test_vml_tabbed_panel_validates_tab_position() {
 }
 
 fn test_vml_accordion_builds_headers_and_active_content() {
-	el := element_from_vml('Accordion {
+	el := vml_static_fixture('Accordion {
 		id: help
 		current: 1
 		orientation: vertical
@@ -949,13 +800,13 @@ fn test_vml_accordion_builds_headers_and_active_content() {
 	assert el.children[1].frame == rect(0, 0, 300, 40)
 	assert el.children[2].frame == rect(0, 40, 300, 40)
 	assert el.children[2].box.bg == u32(0x2563eb)
-	assert el.children[2].action_id == 'select_account'
+	assert voidptr(el.children[2].on_event) != unsafe { nil }
 	assert el.children[2].accessibility_value == 'expanded'
 	assert el.children[3].frame == rect(0, 200, 300, 40)
 }
 
 fn test_vml_accordion_validates_available_title_space() {
-	if _ := element_from_vml('Accordion {
+	if _ := vml_static_fixture('Accordion {
 		orientation: vertical
 		min_space: 40
 		AccordionItem {}
@@ -969,7 +820,7 @@ fn test_vml_accordion_validates_available_title_space() {
 }
 
 fn test_vml_tree_view_flattens_expanded_nodes_and_styles_selection() {
-	el := element_from_vml('TreeView {
+	el := vml_static_fixture('TreeView {
 		id: navigation
 		row_height: 32
 		spacing: 4
@@ -989,17 +840,17 @@ fn test_vml_tree_view_flattens_expanded_nodes_and_styles_selection() {
 	assert el.frame == rect(10, 20, 300, 200)
 	assert el.accessibility_role == 'tree'
 	assert el.children.len == 4
-	assert el.children[0].children[0].action_id == 'toggle_docs'
+	assert voidptr(el.children[0].children[0].on_event) != unsafe { nil }
 	assert el.children[0].children[0].accessibility_value == 'expanded'
 	assert el.children[1].children[1].frame == rect(44, 0, 256, 32)
 	assert el.children[2].frame == rect(0, 72, 300, 32)
 	assert el.children[2].children[1].box.bg == u32(0xdbeafe)
-	assert el.children[2].children[1].action_id == 'select_api'
+	assert voidptr(el.children[2].children[1].on_event) != unsafe { nil }
 	assert el.children[2].children[1].accessibility_value == 'selected'
 }
 
 fn test_vml_tree_view_validates_geometry() {
-	if _ := element_from_vml('TreeView { row_height: -1 }', rect(0, 0, 300, 200)) {
+	if _ := vml_static_fixture('TreeView { row_height: -1 }', rect(0, 0, 300, 200)) {
 		assert false, 'negative tree row height must fail'
 	} else {
 		assert err.msg().contains('geometry')
@@ -1007,7 +858,7 @@ fn test_vml_tree_view_validates_geometry() {
 }
 
 fn test_vml_screen_manager_renders_only_named_active_screen() {
-	el := element_from_vml('ScreenManager {
+	el := vml_static_fixture('ScreenManager {
 		id: navigation
 		current: details
 		Screen { id: home Label { text: "Home content" } }
@@ -1023,7 +874,7 @@ fn test_vml_screen_manager_renders_only_named_active_screen() {
 }
 
 fn test_vml_screen_manager_validates_current_name() {
-	if _ := element_from_vml('ScreenManager {
+	if _ := vml_static_fixture('ScreenManager {
 		current: missing
 		Screen { id: home }
 	}', rect(0, 0, 300, 200)) {
@@ -1034,7 +885,7 @@ fn test_vml_screen_manager_validates_current_name() {
 }
 
 fn test_vml_carousel_orders_slides_and_hides_inactive_content() {
-	el := element_from_vml('Carousel {
+	el := vml_static_fixture('Carousel {
 		id: gallery
 		index: 1
 		direction: bottom
@@ -1056,7 +907,7 @@ fn test_vml_carousel_orders_slides_and_hides_inactive_content() {
 }
 
 fn test_vml_carousel_validates_direction() {
-	if _ := element_from_vml('Carousel { direction: diagonal }', rect(0, 0, 300, 200)) {
+	if _ := vml_static_fixture('Carousel { direction: diagonal }', rect(0, 0, 300, 200)) {
 		assert false, 'unknown carousel directions must fail'
 	} else {
 		assert err.msg().contains('diagonal')
@@ -1064,7 +915,7 @@ fn test_vml_carousel_validates_direction() {
 }
 
 fn test_vml_modal_view_builds_centered_blocking_layers() {
-	el := element_from_vml('ModalView {
+	el := vml_static_fixture('ModalView {
 		id: confirm
 		open: true
 		on_dismiss: close_modal
@@ -1073,31 +924,31 @@ fn test_vml_modal_view_builds_centered_blocking_layers() {
 		overlay_background: #475569
 		background: #FFFFFF
 		corner_radius: 10
-		Label { text: "Delete item?" x: 20 y: 20 width: 260 height: 30 }
+		Absolute { Label { text: "Delete item?" x: 20 y: 20 width: 260 height: 30 } }
 	}', rect(0, 0, 500, 300)) or { panic(err) }
 	assert !el.hidden
 	assert el.accessibility_role == 'dialog'
 	assert el.children.len == 3
 	assert el.children[0].frame == rect(0, 0, 500, 300)
-	assert el.children[0].action_id == 'close_modal'
+	assert voidptr(el.children[0].on_event) != unsafe { nil }
 	assert el.children[1].frame == rect(100, 70, 300, 160)
 	assert el.children[1].box.radius == 10
 	assert el.children[2].frame == rect(100, 70, 300, 160)
-	assert el.children[2].children[0].text == 'Delete item?'
+	assert el.children[2].children[0].children[0].text == 'Delete item?'
 }
 
 fn test_vml_modal_view_supports_required_and_closed_states() {
-	el := element_from_vml('ModalView {
+	el := vml_static_fixture('ModalView {
 		id: required
 		auto_dismiss: false
 		on_dismiss: ignored
 	}', rect(0, 0, 400, 240)) or { panic(err) }
 	assert el.hidden
-	assert el.children[0].action_id == ''
+	assert voidptr(el.children[0].on_event) == unsafe { nil }
 }
 
 fn test_vml_popup_builds_title_separator_and_body() {
-	el := element_from_vml('Popup {
+	el := vml_static_fixture('Popup {
 		id: editor
 		open: true
 		title: "Edit profile"
@@ -1107,21 +958,21 @@ fn test_vml_popup_builds_title_separator_and_body() {
 		title_height: 48
 		separator_height: 2
 		separator_color: #CBD5E1
-		Label { text: "Profile form" x: 20 y: 20 width: 280 height: 30 }
+		Absolute { Label { text: "Profile form" x: 20 y: 20 width: 280 height: 30 } }
 	}', rect(0, 0, 500, 300)) or { panic(err) }
 	assert !el.hidden
-	assert el.children[0].action_id == 'close_editor'
+	assert voidptr(el.children[0].on_event) != unsafe { nil }
 	assert el.children[1].frame == rect(90, 50, 320, 200)
 	surface := el.children[2]
 	assert surface.children[0].text == 'Edit profile'
 	assert surface.children[1].frame == rect(0, 48, 320, 2)
 	assert surface.children[1].box.bg == u32(0xcbd5e1)
 	assert surface.children[2].frame == rect(0, 50, 320, 150)
-	assert surface.children[2].children[0].text == 'Profile form'
+	assert surface.children[2].children[0].children[0].text == 'Profile form'
 }
 
 fn test_vml_popup_validates_header_height() {
-	if _ := element_from_vml('Popup {
+	if _ := vml_static_fixture('Popup {
 		content_height: 40
 		title_height: 48
 	}', rect(0, 0, 300, 200)) {
@@ -1129,4 +980,27 @@ fn test_vml_popup_validates_header_height() {
 	} else {
 		assert err.msg().contains('exceed')
 	}
+}
+
+fn vml_static_fixture(source string, frame Rect) !Element {
+	mut node := parse_vml(source)!
+	return vml_fixture_node(node, frame)!
+}
+
+fn vml_fixture_node(node &VNode, frame Rect) !Element {
+	mut fixture := &VNode{ ...node }
+	mut callbacks := map[string]ElementCallback{}
+	vml_fixture_callbacks(fixture, mut callbacks)
+	v_attach_named_callbacks(mut fixture, callbacks)
+	return element_from_vnode(fixture, frame)!
+}
+
+fn vml_fixture_callbacks(node &VNode, mut callbacks map[string]ElementCallback) {
+	for property in vml_event_properties {
+		name := node.prop(property)
+		if name.len > 0 {
+			callbacks[name] = fn (_ ElementEvent) {}
+		}
+	}
+	for child in node.children { vml_fixture_callbacks(child, mut callbacks) }
 }

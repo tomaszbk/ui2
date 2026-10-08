@@ -1,6 +1,7 @@
 module main
 
 import math
+import sync
 import time
 import ui2
 
@@ -11,9 +12,9 @@ const timer_vml_source = $embed_file('timer.vml').to_string()
 @[heap]
 pub struct TimerDemo {
 pub mut:
-	duration       f64 = 15
+	duration       f64    = 15
 	duration_label string = '15 seconds'
-	duration_ratio f64 = 0.5
+	duration_ratio f64    = 0.5
 	elapsed        f64
 	elapsed_label  string = '0.0 s'
 	progress       f64
@@ -26,6 +27,35 @@ mut:
 }
 
 const timer_state = &TimerDemo{}
+
+// Workers own only this cancellation token. The model is read and updated on
+// the UI thread; a deadline wakes it to sample elapsed time.
+@[heap]
+struct TimerRefresh {
+	mutex &sync.Mutex = sync.new_mutex()
+mut:
+	generation u64
+	active     bool
+}
+
+const timer_refresh = &TimerRefresh{}
+
+fn schedule_timer_refresh() {
+	mut wake := unsafe { timer_refresh }
+	wake.mutex.lock()
+	wake.generation++
+	wake.active = true
+	generation := wake.generation
+	wake.mutex.unlock()
+	spawn refresh_timer_until_cancelled(generation)
+}
+
+fn cancel_timer_refresh() {
+	mut wake := unsafe { timer_refresh }
+	wake.mutex.lock()
+	wake.active = false
+	wake.mutex.unlock()
+}
 
 fn (mut app TimerDemo) update_labels() {
 	app.duration_label = '${int(math.round(app.duration))} seconds'
@@ -104,43 +134,55 @@ fn (mut app TimerDemo) sync_at(now i64) {
 	app.update_labels()
 }
 
-fn refresh_timer_for_duration() {
-	for _ in 0 .. 620 {
+fn refresh_timer_until_cancelled(generation u64) {
+	mut wake := unsafe { timer_refresh }
+	for {
 		time.sleep(50 * time.millisecond)
+		wake.mutex.lock()
+		active := wake.active && wake.generation == generation
+		wake.mutex.unlock()
+		if !active { return }
 		ui2.request_refresh()
+	}
+}
+
+fn timer_callbacks() map[string]ui2.ElementCallback {
+	return {
+		'start':           fn (_event ui2.ElementEvent) {
+			mut state := unsafe { timer_state }
+			state.start_at(time.ticks())
+			schedule_timer_refresh()
+			ui2.refresh()
+		}
+		'pause':           fn (_event ui2.ElementEvent) {
+			mut state := unsafe { timer_state }
+			if state.running {
+				state.pause_at(time.ticks())
+				cancel_timer_refresh()
+			} else {
+				state.resume_at(time.ticks())
+				schedule_timer_refresh()
+			}
+			ui2.refresh()
+		}
+		'duration_slider': fn (event ui2.ElementEvent) {
+			mut state := unsafe { timer_state }
+			state.set_duration(event.value)
+			ui2.refresh()
+		}
 	}
 }
 
 fn build_timer_screen() ui2.Element {
 	mut state := unsafe { timer_state }
 	state.sync_at(time.ticks())
-	return ui2.element_from_vml_model(timer_vml_source, *state, ui2.bounds()) or {
+	if !state.running { cancel_timer_refresh() }
+	return ui2.element_from_vml_model_with_callbacks(timer_vml_source, *state, ui2.bounds(), timer_callbacks()) or {
 		eprintln('timer VML failed: ${err}')
 		ui2.screen(0xf1f5f9, [])
 	}
 }
 
-fn handle_timer_event(event string) {
-	mut state := unsafe { timer_state }
-	match event {
-		'start' {
-			state.start_at(time.ticks())
-			spawn refresh_timer_for_duration()
-		}
-		'pause' {
-			if state.running {
-				state.pause_at(time.ticks())
-			} else {
-				state.resume_at(time.ticks())
-				spawn refresh_timer_for_duration()
-			}
-		}
-		'duration_slider' { state.set_duration(ui2.slider_value('duration_slider')) }
-		else {}
-	}
-	ui2.refresh()
-}
-
 fn main() {
-	ui2.run_window('Timer', timer_width, timer_height, build_timer_screen, handle_timer_event)
+	ui2.run_window('Timer', timer_width, timer_height, build_timer_screen)
 }

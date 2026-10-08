@@ -41,17 +41,17 @@ fn test_menu_bar_from_vml_matches_native_declarations() {
 	assert json2.encode(menus) == json2.encode(expected)
 }
 
-fn test_menu_bar_from_vml_accepts_one_menu_and_action_ids() {
+fn test_menu_bar_from_vml_keeps_identity_separate_from_callback_names() {
 	menus := menu_bar_from_vml('
 		Menu {
 			title: "File"
 			MenuItem { id: open_row text: "Open" on_tap: file_open }
-			MenuItem { text: "Save" on_tap: "file.save" }
+			MenuItem { id: save_row text: "Save" on_tap: "file.save" }
 			MenuItem { id: quit text: "Quit" }
 		}
 	') or { panic(err) }
 	assert menus.len == 1
-	assert menu_item_ids(menus[0].items) == ['file_open', 'file.save', 'quit']
+	assert menu_item_ids(menus[0].items) == ['open_row', 'save_row', 'quit']
 	assert menus[0].items[0].enabled
 	assert !menus[0].items[0].checked
 	assert !menus[0].items[0].separator
@@ -103,7 +103,7 @@ fn test_existing_vml_context_menu_entries_are_unchanged() {
 		}
 	', rect(0, 0, 300, 200)) or { panic(err) }
 	assert el.menu.len == 1
-	assert el.menu[0].id == 'copy'
+	assert el.menu[0].id == 'context_row'
 	assert el.menu[0].title == 'Copy'
 	assert el.children.len == 1
 	assert el.children[0].id == 'caption'
@@ -136,7 +136,6 @@ fn test_menu_bar_from_vml_rejects_invalid_declarations() {
 		VmlMenuErrorCase{'Menu { title: "File" MenuItem { separator: true id: a text: "A" } }', 'separator cannot carry'},
 		VmlMenuErrorCase{'Menu { title: "File" MenuItem { id: a text: "A" MenuItem { id: b text: "B" } } }', 'cannot also emit an id'},
 		VmlMenuErrorCase{'MenuBar { Menu { title: "File" MenuItem { id: same text: "A" } } Menu { title: "Edit" Menu { title: "Nested" MenuItem { id: same text: "B" } } } }', 'duplicate menu item id `same`'},
-		VmlMenuErrorCase{'Menu { title: "File" MenuItem { id: a text: "A" on_tap: shared } MenuItem { id: b text: "B" on_tap: shared } }', 'duplicate menu item id `shared`'},
 	]
 	for item in cases {
 		menu_bar_from_vml(item.source) or {
@@ -173,4 +172,19 @@ fn test_menu_bar_from_vml_preserves_parser_errors() {
 		return
 	}
 	assert false, 'an unclosed menu must fail to parse'
+}
+
+fn test_menu_callback_names_are_explicit_and_may_be_shared() {
+	mut ids := &[]string{}
+	callback := fn [mut ids] (event ElementEvent) { ids << event.id }
+	menus := menu_bar_from_vml_with_callbacks('Menu { title: "File"
+		MenuItem { id: first text: "First" on_tap: shared }
+		MenuItem { id: second text: "Second" on_tap: shared }
+		MenuItem { id: shared text: "Inert" }
+	}', {
+		'shared': callback
+	}) or { panic(err) }
+	for item in menus[0].items[..2] { item.on_select(ElementEvent{ kind: .tap, id: item.id }) }
+	assert *ids == ['first', 'second']
+	assert voidptr(menus[0].items[2].on_select) == unsafe { nil }
 }

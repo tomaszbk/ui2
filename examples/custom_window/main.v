@@ -57,43 +57,43 @@ fn (mut app CustomWindowDemo) update_completed_label() {
 	}
 }
 
-fn custom_window_pointer(raw string) ?(string, string) {
-	parts := raw.split(':')
-	if parts.len < 3 || parts[0] != 'pointer' {
-		return none
+fn custom_window_callbacks() map[string]ui2.ElementCallback {
+	return {
+		'increment':   fn (_event ui2.ElementEvent) {
+			mut state := unsafe { custom_window_state }
+			state.add_completed()
+			ui2.refresh()
+		}
+		'decrement':   fn (_event ui2.ElementEvent) {
+			mut state := unsafe { custom_window_state }
+			state.remove_completed()
+			ui2.refresh()
+		}
+		'reset':       fn (_event ui2.ElementEvent) {
+			mut state := unsafe { custom_window_state }
+			state.reset()
+			ui2.refresh()
+		}
+		'close':       fn (_event ui2.ElementEvent) {
+			ui2.quit()
+			ui2.refresh()
+		}
+		'window_drag': fn (event ui2.ElementEvent) {
+			if event.kind == .pointer_down { drag_custom_window() }
+			ui2.refresh()
+		}
 	}
-	return parts[1], parts[2]
 }
 
 fn build_custom_window_screen() ui2.Element {
 	mut state := unsafe { custom_window_state }
 	state.prepare_window()
-	return ui2.element_from_vml_model(custom_window_vml_source, *state, ui2.bounds()) or {
+	return ui2.element_from_vml_model_with_callbacks(custom_window_vml_source, *state, ui2.bounds(), custom_window_callbacks()) or {
 		eprintln('custom-window VML failed: ${err}')
 		ui2.screen(0x0f172a, [])
 	}
 }
 
-fn handle_custom_window_event(event string) {
-	mut state := unsafe { custom_window_state }
-	match event {
-		'increment' { state.add_completed() }
-		'decrement' { state.remove_completed() }
-		'reset' { state.reset() }
-		'close' {
-			ui2.quit()
-			return
-		}
-		else {
-			phase, id := custom_window_pointer(event) or { return }
-			if phase == 'down' && id == 'window_drag' {
-				drag_custom_window()
-			}
-		}
-	}
-	ui2.refresh()
-}
-
 fn main() {
-	ui2.run_window('ui2 custom window', custom_window_width, custom_window_height, build_custom_window_screen, handle_custom_window_event)
+	ui2.run_window('ui2 custom window', custom_window_width, custom_window_height, build_custom_window_screen)
 }

@@ -12,8 +12,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		g_tooltip_owners = 0
 		g_touch = TouchState{}
 		g_hit_targets = []HitTarget{}
-		g_event_handler = EventFn(unsafe { nil })
-		g_scroll_handler = ScrollFn(unsafe { nil })
+
 		reset_scroll_frame()
 		close_dropdown()
 	}

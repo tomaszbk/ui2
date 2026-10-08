@@ -1,7 +1,7 @@
-// UI2 retains its legacy point-size profile on all backends. Desktop custom
-// text passes the logical em size to vglyph; Android and CPU Fontstash paths
-// still convert it to the font's ascender-to-descender height. Font discovery
-// and the legacy line spacing below are shared by both text adapters.
+// Typography uses logical em sizes on every backend. Fontstash converts an
+// em size to the font's ascender-to-descender height; device DPI is applied
+// separately at presentation. Font discovery and default line spacing are
+// shared by the text adapters.
 module ui2
 
 import os
@@ -16,39 +16,19 @@ pub:
 	descender    int = -500
 }
 
-// ── Point sizes ────────────────────────────────────────────────────
-
-// font_pixels_per_point resolves a point the way the platform's own toolkit
-// does. Win32 and the Linux desktops render type at 96 dpi, AppKit and UIKit
-// at 72, so a declared size lines up with the native controls beside it.
-fn font_pixels_per_point() f64 {
-	$if linux || windows {
-		return 96.0 / 72.0
-	} $else {
-		return 1.0
-	}
-}
-
-// font_em_pixels is the height of the em square that `points` sized text draws
-// at, which is the size every native backend is given.
-fn font_em_pixels(points f64) f64 {
-	return points * font_pixels_per_point()
-}
-
-// font_render_size converts a point size into the size fontstash expects: the
-// ascender-to-descender height rather than the em square.
-fn font_render_size(points f64, metrics FontMetrics) f64 {
+// font_render_size converts a logical em size to Fontstash's
+// ascender-to-descender height. This font-metric conversion is independent of DPI.
+fn font_render_size(size f64, metrics FontMetrics) f64 {
 	span := metrics.ascender - metrics.descender
 	if span <= 0 || metrics.units_per_em <= 0 {
-		return font_em_pixels(points)
+		return size
 	}
-	return font_em_pixels(points) * f64(span) / f64(metrics.units_per_em)
+	return size * f64(span) / f64(metrics.units_per_em)
 }
 
-// font_line_height retains the legacy em square plus one quarter of leading.
-// The vglyph adapter requests this same logical line height from Pango.
-fn font_line_height(points f64) f64 {
-	return font_em_pixels(points) * 1.25
+// Default line spacing is one logical em plus one quarter of leading.
+fn font_line_height(size f64) f64 {
+	return size * 1.25
 }
 
 // text_block_top is the y a block of text `content` tall starts at, inside a frame
@@ -88,8 +68,7 @@ fn wrap_text_lines_measured(text string, width f64, limit int, measure fn (strin
 			if lines.len >= limit - 1 {
 				// The last line there is room for. Everything still to come stays on it
 				// so the draw truncates it, rather than text quietly disappearing.
-				lines << text_with_overflow(candidate, words[word_index + 1..], paragraphs[
-					index + 1..])
+				lines << text_with_overflow(candidate, words[word_index + 1..], paragraphs[index + 1..])
 				return lines
 			}
 			lines << current
@@ -234,8 +213,8 @@ fn parse_font_metrics(data []u8) !FontMetrics {
 	}
 	metrics := FontMetrics{
 		units_per_em: font_u16(data, head + 18)
-		ascender: font_i16(data, hhea + 4)
-		descender: font_i16(data, hhea + 6)
+		ascender:     font_i16(data, hhea + 4)
+		descender:    font_i16(data, hhea + 6)
 	}
 	if metrics.units_per_em <= 0 || metrics.ascender - metrics.descender <= 0 {
 		return error('font has no usable vertical metrics')
@@ -556,27 +535,4 @@ fn font_paths() (string, string) {
 		return bundled, bundled_bold
 	}
 	return font_pick(font_system_dirs())
-}
-
-// Logical typography uses the same unit as geometry. Legacy keeps platform points.
-fn font_style_em_pixels(style TextStyle) f64 {
-	return if style.units == .logical { style.size } else { font_em_pixels(style.size) }
-}
-
-fn font_style_line_height(style TextStyle) f64 {
-	return font_style_em_pixels(style) * 1.25
-}
-
-fn font_style_render_size(style TextStyle, metrics FontMetrics) f64 {
-	span := metrics.ascender - metrics.descender
-	return if span > 0 && metrics.units_per_em > 0 {
-		font_style_em_pixels(style) * f64(span) / f64(metrics.units_per_em)
-	} else {
-		font_style_em_pixels(style)
-	}
-}
-
-// Native toolkit APIs still expect points, including Win32's DPI conversion.
-fn native_font_points(style TextStyle) f64 {
-	return if style.units == .logical { style.size / font_pixels_per_point() } else { style.size }
 }

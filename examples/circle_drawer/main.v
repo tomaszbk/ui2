@@ -75,11 +75,11 @@ fn (mut app CircleDrawerDemo) add_or_select(x f64, y f64) {
 	}
 	app.checkpoint()
 	circle := DrawCircle{
-		id: app.next_id
-		x: x
-		y: y
+		id:     app.next_id
+		x:      x
+		y:      y
 		radius: 24
-		color: circle_color(app.next_id)
+		color:  circle_color(app.next_id)
 	}
 	app.circles << circle
 	app.selected_id = circle.id
@@ -149,37 +149,46 @@ fn (mut app CircleDrawerDemo) redo() {
 	app.status = 'Redid the last change.'
 }
 
-fn (mut app CircleDrawerDemo) handle_event(event string) {
-	match event {
-		'undo' { app.undo() }
-		'redo' { app.redo() }
-		'radius_less' { app.adjust_radius(-4) }
-		'radius_more' { app.adjust_radius(4) }
-		else {
-			if event.starts_with('pointer:up:circle_canvas:') {
-				parts := event.split(':')
-				if parts.len >= 5 {
-					app.add_or_select(parts[3].f64() - circle_canvas_root_x, parts[4].f64() - circle_canvas_root_y)
-				}
+fn circle_drawer_callbacks() map[string]ui2.ElementCallback {
+	return {
+		'undo':          fn (_event ui2.ElementEvent) {
+			mut state := unsafe { circle_drawer_state }
+			state.undo()
+			ui2.refresh()
+		}
+		'redo':          fn (_event ui2.ElementEvent) {
+			mut state := unsafe { circle_drawer_state }
+			state.redo()
+			ui2.refresh()
+		}
+		'radius_less':   fn (_event ui2.ElementEvent) {
+			mut state := unsafe { circle_drawer_state }
+			state.adjust_radius(-4)
+			ui2.refresh()
+		}
+		'radius_more':   fn (_event ui2.ElementEvent) {
+			mut state := unsafe { circle_drawer_state }
+			state.adjust_radius(4)
+			ui2.refresh()
+		}
+		'circle_canvas': fn (event ui2.ElementEvent) {
+			mut state := unsafe { circle_drawer_state }
+			if event.kind == .pointer_up {
+				state.add_or_select(event.x - circle_canvas_root_x, event.y - circle_canvas_root_y)
 			}
+			ui2.refresh()
 		}
 	}
 }
 
 fn build_circle_drawer_screen() ui2.Element {
 	state := unsafe { circle_drawer_state }
-	return ui2.element_from_vml_model(circle_drawer_vml_source, *state, ui2.bounds()) or {
+	return ui2.element_from_vml_model_with_callbacks(circle_drawer_vml_source, *state, ui2.bounds(), circle_drawer_callbacks()) or {
 		eprintln('circle-drawer VML failed: ${err}')
 		ui2.screen(0xf1f5f9, [])
 	}
 }
 
-fn handle_circle_drawer_event(event string) {
-	mut state := unsafe { circle_drawer_state }
-	state.handle_event(event)
-	ui2.refresh()
-}
-
 fn main() {
-	ui2.run_window('Circle Drawer', circle_drawer_width, circle_drawer_height, build_circle_drawer_screen, handle_circle_drawer_event)
+	ui2.run_window('Circle Drawer', circle_drawer_width, circle_drawer_height, build_circle_drawer_screen)
 }

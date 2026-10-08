@@ -194,10 +194,24 @@ fn test_macos_transparent_box_controls_disable_native_backgrounds() {
 	))
 	dropdown_view := native_new_dropdown(dropdown('clear-dropdown', 'One', ['One'], rect(0,
 		0, 120, 32), transparent_box, TextStyle{}))
-	field := native_new_text_field(text_field('clear-field', '', '', rect(0, 0, 120, 32),
-		transparent_box, TextStyle{}, keyboard_default))
-	text_area_view := native_new_text_area(text_area('clear-area', '', rect(0, 0, 120, 80),
-		transparent_box, TextStyle{}))
+	field := native_new_text_field(text_input(
+		id: 'clear-field'
+		placeholder: ''
+		text: ''
+		frame: rect(0, 0, 120, 32)
+		box: transparent_box
+		text_style: TextStyle{}
+		keyboard: keyboard_default
+		multiline: false
+	) or { panic(err) })
+	text_area_view := native_new_text_area(text_input(
+		id: 'clear-area'
+		text: ''
+		frame: rect(0, 0, 120, 80)
+		box: transparent_box
+		text_style: TextStyle{}
+		multiline: true
+	) or { panic(err) })
 	defer {
 		macos.release(button_view)
 		macos.release(scroll_view)
@@ -229,9 +243,18 @@ fn test_macos_text_field_uses_native_bezel_without_layer_mask() {
 	defer {
 		macos.release(pool)
 	}
-	field := native_new_text_field(text_field('field', 'Name', '', rect(0, 0, 200, 32), BoxStyle{
+	field := native_new_text_field(text_input(
+		id: 'field'
+		placeholder: 'Name'
+		text: ''
+		frame: rect(0, 0, 200, 32)
+		box: BoxStyle{
 		radius: 6
-	}, TextStyle{}, keyboard_default))
+	}
+		text_style: TextStyle{}
+		keyboard: keyboard_default
+		multiline: false
+	) or { panic(err) })
 	defer {
 		macos.release(field)
 	}

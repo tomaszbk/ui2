@@ -25,10 +25,15 @@ fn test_counter_vml_builds_valid_ui() {
 	app := CounterApp{
 		count: 7
 	}
-	root := ui2.element_from_vml_model(counter_vml_source, app, ui2.rect(0, 0, counter_width, counter_height)) or { panic(err) }
+	root := counter_test_tree(counter_vml_source, app, ui2.rect(0, 0, counter_width, counter_height)) or { panic(err) }
 	assert (find_counter_element(root, 'count') or { panic('missing count') }).text == '7'
 	button := find_counter_element(root, 'increment') or { panic('missing Count button') }
 	assert button.text == 'Count'
-	assert button.action_id.len > 0
+	assert voidptr(button.on_event) != unsafe { nil }
 	assert button.native_style
+}
+
+fn counter_test_tree[T](source string, model T, frame ui2.Rect) !ui2.Element {
+	mut app := ui2.new_vml_app(source, model)!
+	return app.build(frame)!
 }

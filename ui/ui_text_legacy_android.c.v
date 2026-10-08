@@ -191,7 +191,7 @@ $if android && !ui2_headless ? {
 		ensure_family_fallbacks(ctx, family)
 		ctx.set_text_cfg(gg.TextCfg{
 			color: hex_color(style.color)
-			size: int(font_style_render_size(style, text_font_metrics(family)) + 0.5)
+			size: int(font_render_size(style.size, text_font_metrics(family)) + 0.5)
 			bold: style.bold
 			italic: style.italic
 			family: family
@@ -226,7 +226,7 @@ $if android && !ui2_headless ? {
 		ensure_family_fallbacks(ctx, family)
 		cfg := gg.TextCfg{
 			color: hex_color(style.color)
-			size: int(font_style_render_size(style, text_font_metrics(family)) + 0.5)
+			size: int(font_render_size(style.size, text_font_metrics(family)) + 0.5)
 			bold: style.bold
 			italic: style.italic
 			family: family
@@ -240,13 +240,13 @@ $if android && !ui2_headless ? {
 		line_ranges := text_area_line_rune_ranges(shown, lines)
 		selection_start, selection_end := editor.selection.ordered()
 		show_selection := g_focused_field == el.id && selection_start != selection_end
-		line_height := math.max(1.0, font_style_line_height(style))
+		line_height := math.max(1.0, font_line_height(style.size))
 		content_height := f64(lines.len) * line_height + text_area_vertical_padding * 2
 		// Read-only means not editable, not unscrollable. disable_scroll only
 		// hides the scroller, matching Element's documented/native behavior.
 		scroll_id := text_area_scroll_id(el)
 		offset := register_scroll_view_in_parent(scroll_id, scroll_parent_id, frame, clip, content_height, el.enabled,
-			!el.disable_scroll, el.persistent_scrollbars)
+			!el.disable_scroll, el.persistent_scrollbars, HitTarget{ id: el.id, on_event: el.on_event })
 		text_clip := intersect_rect(content, clip)
 		if text_clip.width > 0 && text_clip.height > 0 {
 			apply_clip(ctx, text_clip)

@@ -30,10 +30,10 @@ fn test_nested_scroll_box_layout_vml_positions_editable_areas() {
 	}
 	ui2.validate_element_tree(root) or { panic(err) }
 	grid := find_nested_box_element(root, 'box_grid') or { panic('missing box grid') }
-	assert grid.children.len == 25
-	assert grid.children[0].key == '0'
-	assert !grid.children[0].readonly
-	assert grid.children[0].text.starts_with('box 00')
-	assert grid.children[5].frame.y == 120
-	assert grid.children[24].frame.y == 456
+	assert grid.children[0].children.len == 25
+	assert grid.children[0].children[0].key == '0'
+	assert !grid.children[0].children[0].readonly
+	assert grid.children[0].children[0].text.starts_with('box 00')
+	assert grid.children[0].children[5].frame.y == 120
+	assert grid.children[0].children[24].frame.y == 456
 }

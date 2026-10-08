@@ -55,21 +55,27 @@ fn test_clear_and_division_by_zero_recovery() {
 
 fn test_calculator_screen_contains_display_and_every_key() {
 	calculator := initial_calculator()
-	root := ui2.element_from_vml_model(calculator_vml_source, calculator, ui2.rect(0, 0, window_width, window_height)) or { panic(err) }
+	root := calculator_test_tree(calculator_vml_source, calculator, ui2.rect(0, 0, window_width, window_height)) or { panic(err) }
 	ui2.validate_element_tree(root) or { panic(err) }
 	assert (find_calculator_element(root, 'display') or { panic('missing display') }).text == '0'
 	panel := find_calculator_element(root, 'calculator') or { panic('missing calculator panel') }
-	assert panel.children.len == 21
+	assert panel.children.len == 2
+	assert panel.children[1].children.len == 20
 	assert calculator.keys.len == 20
-	clear_key := panel.children[1]
+	clear_key := panel.children[1].children[0]
 	assert clear_key.key == 'C'
 	assert clear_key.text == 'C'
 	assert clear_key.box.bg == 0xef4444
-	assert clear_key.action_id.len > 0
+	assert voidptr(clear_key.on_event) != unsafe { nil }
 	assert clear_key.native_style
-	equals_key := panel.children.last()
+	equals_key := panel.children[1].children.last()
 	assert equals_key.key == '='
 	assert equals_key.box.bg == 0x3478d4
 	assert equals_key.text_style.bold
 	assert equals_key.native_style
+}
+
+fn calculator_test_tree[T](source string, model T, frame ui2.Rect) !ui2.Element {
+	mut app := ui2.new_vml_app(source, model)!
+	return app.build(frame)!
 }

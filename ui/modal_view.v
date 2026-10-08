@@ -2,18 +2,18 @@ module ui2
 
 pub struct ModalViewConfig {
 pub:
-	id                string
-	frame             Rect
-	open              bool
-	auto_dismiss      bool = true
-	dismiss_action_id string
-	content_width     f64 = -1.0
-	content_height    f64 = -1.0
-	size_hint_x       f64 = 0.8
-	size_hint_y       f64 = 0.8
-	overlay_box       BoxStyle
-	content_box       BoxStyle
-	content           Element
+	id             string
+	frame          Rect
+	open           bool
+	auto_dismiss   bool            = true
+	on_dismiss     ElementCallback = unsafe { nil }
+	content_width  f64             = -1.0
+	content_height f64             = -1.0
+	size_hint_x    f64             = 0.8
+	size_hint_y    f64             = 0.8
+	overlay_box    BoxStyle
+	content_box    BoxStyle
+	content        Element
 }
 
 pub struct ModalViewGeometry {
@@ -69,7 +69,11 @@ pub fn modal_view(config ModalViewConfig) !Element {
 	geometry := modal_view_geometry(config)!
 	backdrop := Element{
 		...button(modal_view_id(config.id, 'backdrop'), '', geometry.overlay, config.overlay_box, TextStyle{})
-		action_id: if config.auto_dismiss { config.dismiss_action_id } else { '' }
+		on_event:           if config.auto_dismiss {
+			config.on_dismiss
+		} else {
+			ElementCallback(unsafe { nil })
+		}
 		accessibility_role: 'presentation'
 	}
 	// The surface button sits above the backdrop and consumes clicks in blank
@@ -90,7 +94,7 @@ pub fn modal_view(config ModalViewConfig) !Element {
 	}
 	return Element{
 		...view(config.id, config.frame, BoxStyle{ transparent: true }, [backdrop, surface, content])
-		hidden: !config.open
+		hidden:             !config.open
 		accessibility_role: 'dialog'
 	}
 }

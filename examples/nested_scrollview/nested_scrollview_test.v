@@ -27,10 +27,10 @@ fn test_nested_scrollview_vml_nests_text_areas_in_outer_scroll() {
 	ui2.validate_element_tree(root) or { panic(err) }
 
 	outer := find_nested_scroll_element(root, 'outer_scroll') or { panic('missing outer scroll') }
-	assert outer.children.len == 12
-	assert outer.children[0].key == '1'
-	assert outer.children[0].children.len == 3
-	text_area := outer.children[0].children[2]
+	assert outer.children[0].children.len == 12
+	assert outer.children[0].children[0].key == '1'
+	assert outer.children[0].children[0].children[0].children.len == 3
+	text_area := outer.children[0].children[0].children[0].children[2]
 	assert text_area.readonly
 	assert text_area.text.split_into_lines().len == 8
 }

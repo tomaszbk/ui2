@@ -2,7 +2,49 @@ module ui2
 
 pub type BuildFn = fn () Element
 
-pub type EventFn = fn (string)
+// Element callbacks are attached to their declaration. An id identifies live
+// state; it never chooses a handler.
+pub type ElementCallback = fn (ElementEvent)
+
+pub enum ElementEventKind {
+	tap
+	change
+	submit
+	scroll
+	pointer_down
+	pointer_drag
+	pointer_up
+	long_press
+	swipe_left
+	link
+}
+
+pub struct ElementEvent {
+pub:
+	kind ElementEventKind
+	id   string
+	x    f64
+	y    f64
+	text string
+	// Scroll events carry the logical vertical offset in value.
+	value   f64
+	checked bool
+	target  string
+}
+
+pub enum ScanResultKind {
+	code
+	error
+	cancelled
+}
+
+pub struct ScanResult {
+pub:
+	kind ScanResultKind
+	text string
+}
+
+pub type ScanCallback = fn (ScanResult)
 
 // KeyFn receives normalized key strings: 'up', 'forward_delete', 'tab',
 // 'cmd+shift+r', 'f5', or text-view commands like 'text:editor:backspace'
@@ -150,7 +192,7 @@ pub:
 	cmd   bool
 }
 
-// name returns the normalized key name used by the legacy KeyFn callback.
+// name returns the normalized key name used by the KeyFn callback.
 pub fn (code KeyCode) name() string {
 	return match code {
 		.invalid { '' }
@@ -182,9 +224,6 @@ pub fn (code KeyCode) name() string {
 		else { code.str() }
 	}
 }
-
-// ScrollFn receives the id of the Scroll element whose position changed.
-pub type ScrollFn = fn (string)
 
 // DropFn receives file URLs and/or plain text dropped on the application
 // window, plus the pointer location in root-view coordinates.
@@ -232,8 +271,9 @@ pub enum Kind {
 // MenuEntry is one right-click context menu item attached to an element.
 pub struct MenuEntry {
 pub:
-	id    string
-	title string
+	on_select ElementCallback = unsafe { nil }
+	id        string
+	title     string
 }
 
 pub struct Rect {
@@ -244,18 +284,12 @@ pub:
 	height f64
 }
 
-pub enum UnitProfile {
-	legacy
-	logical
-}
-
 pub struct TextStyle {
 pub:
-	units UnitProfile = .legacy
-	color              u32 = 0x111111
-	background_color   u32
-	size               f64 = 15.0
-	font_family        string
+	color            u32 = 0x111111
+	background_color u32
+	size             f64 = 15.0 // logical em size, independent of device DPI
+	font_family      string
 	// weight 0 preserves bold compatibility; explicit 100–900 overrides bold.
 	weight             int
 	letter_spacing     f64
@@ -311,24 +345,24 @@ pub enum BorderPattern {
 
 pub struct BoxStyle {
 pub:
-	bg            u32 = 0xffffff
-	radius        f64
-	transparent   bool
-	border_color  u32
-	border_left   f64
-	border_top    f64
-	border_right  f64
-	border_bottom f64
-	border_left_color ?u32
-	border_top_color ?u32
-	border_right_color ?u32
+	bg                  u32 = 0xffffff
+	radius              f64
+	transparent         bool
+	border_color        u32
+	border_left         f64
+	border_top          f64
+	border_right        f64
+	border_bottom       f64
+	border_left_color   ?u32
+	border_top_color    ?u32
+	border_right_color  ?u32
 	border_bottom_color ?u32
-	border_pattern BorderPattern
-	dash_length f64 = 6
-	dash_gap f64 = 4
-	outline_color u32
-	outline_width f64
-	outline_offset f64
+	border_pattern      BorderPattern
+	dash_length         f64 = 6
+	dash_gap            f64 = 4
+	outline_color       u32
+	outline_width       f64
+	outline_offset      f64
 }
 
 // box_draws_fill is shared by native and custom renderers so every element
@@ -367,61 +401,59 @@ pub struct Element {
 pub:
 	// kind is readable from outside the module so a renderer can live in
 	// another package: dispatching on it is the first thing any backend does.
-	kind                  Kind
-	id                    string // lookup/state identity
-	action_id             string // event identity (falls back to id)
-	submit_id             string // text_field: optional event id emitted when Return submits
-	key                   string // stable identity for reconciliation (falls back to child index)
-	text                  string
-	checked               bool // checkbox: declared on/off state
-	image_path            string
-	tooltip               string
-	placeholder           string
-	frame                 Rect
-	box                   BoxStyle
-	interaction_style     InteractionStyle // custom renderer: sparse visual state overrides
-	content_size          LayoutSize // custom: fixed logical composition, fit within frame
-	text_style            TextStyle
-	native_style          bool // button: let the platform own bezel and interaction styling
+	kind              Kind
+	id                string // lookup/state identity
+	on_event          ElementCallback = unsafe { nil }
+	key               string // stable identity for reconciliation (falls back to child index)
+	text              string
+	checked           bool // checkbox: declared on/off state
+	image_path        string
+	tooltip           string
+	placeholder       string
+	frame             Rect
+	box               BoxStyle
+	interaction_style InteractionStyle // custom renderer: sparse visual state overrides
+	content_size      LayoutSize       // custom: fixed logical composition, fit within frame
+	text_style        TextStyle
+	native_style      bool // button: let the platform own bezel and interaction styling
 	// Transient state supplied by split-process backends so their renderer can
 	// paint the caret and selection owned by the input backend.
-	focused               bool
-	text_selection         TextSelection
-	text_runs             []TextRun // label/text_area: optional rich text style runs
-	keyboard              int
-	emit_change           bool
-	long_press            bool
-	swipe_left            bool
-	readonly              bool // text_area: selectable but not editable
-	disable_scroll        bool // text_area: hide the internal scroll view scroller
-	persistent_scrollbars bool // scroll: keep a legacy always-visible scroller instead of the auto-fading overlay one
-	secure                bool // text_field: native password entry
-	clickable             bool // view/image: emit pointer down/up events
-	button_behavior       bool // view: emit its ordinary action when released like a button
-	draggable             bool // view/image: emit pointer drag events
-	rotation              f64 // image: clockwise degrees
-	cursor                string // view/image: hover cursor hint
-	menu                  []MenuEntry
-	children              []Element
-	hidden                bool
-	enabled               bool = true
-	accessibility_role    string
-	accessibility_label   string
-	accessibility_value   string
-	autocorrect           bool = true // native text inputs
-	padding_left          f64 = 12.0 // text input content inset
-	value                 f64 // slider: current value
-	min_value             f64 // slider: lower range boundary
-	max_value             f64 = 100.0 // slider: upper range boundary
-	step                  f64 // slider: zero is continuous
-	orientation           Orientation // slider: horizontal or vertical
-	padding               f64 = 16.0 // slider: inset from each end of its track
-	value_track           bool // slider: color the track between min and value
-	slider_style          SliderStyle
-	switch_style          SwitchStyle
-	toggle_down_box        BoxStyle
-	toggle_down_text_style TextStyle
-	toggle_group           string
+	focused                   bool
+	text_selection            TextSelection
+	text_runs                 []TextRun // label/text_area: optional rich text style runs
+	keyboard                  int
+	long_press                bool
+	swipe_left                bool
+	readonly                  bool   // text_area: selectable but not editable
+	disable_scroll            bool   // text_area: hide the internal scroll view scroller
+	persistent_scrollbars     bool   // scroll: keep a legacy always-visible scroller instead of the auto-fading overlay one
+	secure                    bool   // text_field: native password entry
+	clickable                 bool   // view/image: emit pointer down/up events
+	button_behavior           bool   // view: invoke its callback when released like a button
+	draggable                 bool   // view/image: emit pointer drag events
+	rotation                  f64    // image: clockwise degrees
+	cursor                    string // view/image: hover cursor hint
+	menu                      []MenuEntry
+	children                  []Element
+	hidden                    bool
+	enabled                   bool = true
+	accessibility_role        string
+	accessibility_label       string
+	accessibility_value       string
+	autocorrect               bool = true // native text inputs
+	padding_left              f64  = 12.0 // text input content inset
+	value                     f64 // slider: current value
+	min_value                 f64 // slider: lower range boundary
+	max_value                 f64 = 100.0 // slider: upper range boundary
+	step                      f64         // slider: zero is continuous
+	orientation               Orientation // slider: horizontal or vertical
+	padding                   f64 = 16.0 // slider: inset from each end of its track
+	value_track               bool // slider: color the track between min and value
+	slider_style              SliderStyle
+	switch_style              SwitchStyle
+	toggle_down_box           BoxStyle
+	toggle_down_text_style    TextStyle
+	toggle_group              string
 	toggle_allow_no_selection bool = true
 }
 
@@ -461,10 +493,6 @@ pub fn control_support(kind Kind) BackendSupport {
 	}
 }
 
-fn element_action_id(el Element) string {
-	return if el.action_id.len > 0 { el.action_id } else { el.id }
-}
-
 // reconciliation_child_key encodes user keys so separators inside a key
 // cannot alias a nested key path.
 fn reconciliation_child_key(parent string, index int, el Element) string {
@@ -482,8 +510,8 @@ pub fn validate_element_tree(root Element) ! {
 fn validate_element_node(el Element, path string, mut ids map[string]bool) ! {
 	if el.content_size.width != 0 || el.content_size.height != 0 {
 		if el.kind != .view { return error('scaled content must be a view at ${path}') }
-		contain_content(el.frame,el.content_size.width,el.content_size.height)!
-		$if !(android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
+		contain_content(el.frame, el.content_size.width, el.content_size.height)!
+		$if !( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headless ? {
 			return error('scaled content requires the custom renderer')
 		}
 	}
@@ -518,9 +546,9 @@ pub const cursor_rotate = 'rotate'
 
 pub fn rect(x f64, y f64, width f64, height f64) Rect {
 	return Rect{
-		x: x
-		y: y
-		width: width
+		x:      x
+		y:      y
+		width:  width
 		height: height
 	}
 }
@@ -535,17 +563,17 @@ fn intersect_rect(a Rect, b Rect) Rect {
 	right := if right_a < right_b { right_a } else { right_b }
 	bottom := if bottom_a < bottom_b { bottom_a } else { bottom_b }
 	return Rect{
-		x: left
-		y: top
-		width: if right > left { right - left } else { 0 }
+		x:      left
+		y:      top
+		width:  if right > left { right - left } else { 0 }
 		height: if bottom > top { bottom - top } else { 0 }
 	}
 }
 
 pub fn screen(bg u32, children []Element) Element {
 	return Element{
-		kind: .screen
-		box: BoxStyle{
+		kind:     .screen
+		box:      BoxStyle{
 			bg: bg
 		}
 		children: children
@@ -554,10 +582,10 @@ pub fn screen(bg u32, children []Element) Element {
 
 pub fn view(id string, frame Rect, box_ BoxStyle, children []Element) Element {
 	return Element{
-		kind: .view
-		id: id
-		frame: frame
-		box: box_
+		kind:     .view
+		id:       id
+		frame:    frame
+		box:      box_
 		children: children
 	}
 }
@@ -567,24 +595,24 @@ pub fn view(id string, frame Rect, box_ BoxStyle, children []Element) Element {
 // body of a window that should come to the front when it is touched, say.
 pub fn clickable_view(id string, frame Rect, box_ BoxStyle, children []Element) Element {
 	return Element{
-		kind: .view
-		id: id
-		frame: frame
-		box: box_
+		kind:      .view
+		id:        id
+		frame:     frame
+		box:       box_
 		clickable: true
-		children: children
+		children:  children
 	}
 }
 
 // button_view is a container with ordinary button activation semantics. Unlike
-// clickable_view, which reports raw pointer phases, it emits its action once
+// clickable_view, which reports raw pointer phases, it invokes its callback once
 // when a press is released inside the view.
 pub fn button_view(id string, frame Rect, box_ BoxStyle, children []Element) Element {
 	return with_button_behavior(view(id, frame, box_, children))
 }
 
 // with_button_behavior turns a composed view into one semantic button without
-// discarding its children. Its id is the action unless with_action is applied
+// discarding its children. Attach a callback with with_event.
 // as well. Other element kinds are returned unchanged.
 pub fn with_button_behavior(el Element) Element {
 	if el.kind != .view {
@@ -592,8 +620,8 @@ pub fn with_button_behavior(el Element) Element {
 	}
 	return Element{
 		...el
-		button_behavior: true
-		accessibility_role: if el.accessibility_role.len > 0 {
+		button_behavior:     true
+		accessibility_role:  if el.accessibility_role.len > 0 {
 			el.accessibility_role
 		} else {
 			'button'
@@ -641,56 +669,56 @@ fn button_behavior_label_source(el Element) bool {
 
 pub fn draggable_view(id string, frame Rect, box_ BoxStyle, children []Element) Element {
 	return Element{
-		kind: .view
-		id: id
-		frame: frame
-		box: box_
+		kind:      .view
+		id:        id
+		frame:     frame
+		box:       box_
 		draggable: true
-		children: children
+		children:  children
 	}
 }
 
 pub fn draggable_view_with_cursor(id string, frame Rect, box_ BoxStyle, cursor string, children []Element) Element {
 	return Element{
-		kind: .view
-		id: id
-		frame: frame
-		box: box_
+		kind:      .view
+		id:        id
+		frame:     frame
+		box:       box_
 		draggable: true
-		cursor: cursor
-		children: children
+		cursor:    cursor
+		children:  children
 	}
 }
 
 pub fn view_with_long_press(id string, frame Rect, box_ BoxStyle, children []Element) Element {
 	return Element{
-		kind: .view
-		id: id
-		frame: frame
-		box: box_
+		kind:       .view
+		id:         id
+		frame:      frame
+		box:        box_
 		long_press: true
-		children: children
+		children:   children
 	}
 }
 
 pub fn view_with_long_press_and_swipe_left(id string, frame Rect, box_ BoxStyle, children []Element) Element {
 	return Element{
-		kind: .view
-		id: id
-		frame: frame
-		box: box_
+		kind:       .view
+		id:         id
+		frame:      frame
+		box:        box_
 		long_press: true
 		swipe_left: true
-		children: children
+		children:   children
 	}
 }
 
 pub fn scroll(id string, frame Rect, bg u32, children []Element) Element {
 	return Element{
-		kind: .scroll
-		id: id
-		frame: frame
-		box: BoxStyle{
+		kind:     .scroll
+		id:       id
+		frame:    frame
+		box:      BoxStyle{
 			bg: bg
 		}
 		children: children
@@ -703,72 +731,72 @@ pub fn scroll(id string, frame Rect, bg u32, children []Element) Element {
 // draggable scrollbar should stay on screen.
 pub fn scroll_persistent(id string, frame Rect, bg u32, children []Element) Element {
 	return Element{
-		kind: .scroll
-		id: id
-		frame: frame
-		box: BoxStyle{
+		kind:                  .scroll
+		id:                    id
+		frame:                 frame
+		box:                   BoxStyle{
 			bg: bg
 		}
-		children: children
+		children:              children
 		persistent_scrollbars: true
 	}
 }
 
 pub fn label(id string, text string, frame Rect, style TextStyle) Element {
 	return Element{
-		kind: .label
-		id: id
-		text: text
-		frame: frame
+		kind:       .label
+		id:         id
+		text:       text
+		frame:      frame
 		text_style: style
 	}
 }
 
 pub fn image(id string, path string, frame Rect) Element {
 	return Element{
-		kind: .image
-		id: id
+		kind:       .image
+		id:         id
 		image_path: path
-		frame: frame
+		frame:      frame
 	}
 }
 
 pub fn transformed_image(id string, path string, frame Rect, rotation f64, clickable bool) Element {
 	return Element{
-		kind: .image
-		id: id
+		kind:       .image
+		id:         id
 		image_path: path
-		frame: frame
-		rotation: rotation
-		clickable: clickable
+		frame:      frame
+		rotation:   rotation
+		clickable:  clickable
 	}
 }
 
 pub fn transformed_image_with_cursor(id string, path string, frame Rect, rotation f64, clickable bool, cursor string) Element {
 	return Element{
-		kind: .image
-		id: id
+		kind:       .image
+		id:         id
 		image_path: path
-		frame: frame
-		rotation: rotation
-		clickable: clickable
-		cursor: cursor
+		frame:      frame
+		rotation:   rotation
+		clickable:  clickable
+		cursor:     cursor
 	}
 }
 
 // rich_label uses full per-run styles; VML Run children additionally inherit
 // omitted properties. Desktop custom supports shared wrapping and baselines.
 pub fn rich_label(id string, runs []TextRun, frame Rect, style TextStyle) Element {
-	return Element{...label(id, text_runs_content(runs), frame, style), text_runs: runs}
+	return Element{ ...label(id, text_runs_content(runs), frame, style), text_runs: runs }
 }
 
 pub fn button(id string, title string, frame Rect, box_ BoxStyle, style TextStyle) Element {
 	return Element{
-		kind: .button
-		id: id
-		text: title
-		frame: frame
-		box: box_
+		kind:       .button
+		id:         id
+		text:       title
+		frame:      frame
+		box:        box_
 		text_style: style
 	}
 }
@@ -786,16 +814,16 @@ pub fn with_native_style(el Element) Element {
 // user toggles it; rebuild with the updated checked value to retain that state.
 pub fn checkbox(id string, title string, checked bool, frame Rect, style TextStyle) Element {
 	return Element{
-		kind: .checkbox
-		id: id
-		text: title
-		checked: checked
-		frame: frame
-		box: BoxStyle{
+		kind:                .checkbox
+		id:                  id
+		text:                title
+		checked:             checked
+		frame:               frame
+		box:                 BoxStyle{
 			transparent: true
 		}
-		text_style: style
-		accessibility_role: 'checkbox'
+		text_style:          style
+		accessibility_role:  'checkbox'
 		accessibility_label: title
 		accessibility_value: if checked { 'checked' } else { 'unchecked' }
 	}
@@ -803,12 +831,12 @@ pub fn checkbox(id string, title string, checked bool, frame Rect, style TextSty
 
 pub fn button_with_image(id string, title string, image_name string, frame Rect, box_ BoxStyle, style TextStyle) Element {
 	return Element{
-		kind: .button
-		id: id
-		text: title
+		kind:       .button
+		id:         id
+		text:       title
 		image_path: image_name
-		frame: frame
-		box: box_
+		frame:      frame
+		box:        box_
 		text_style: style
 	}
 }
@@ -821,30 +849,21 @@ pub fn with_tooltip(el Element, tooltip string) Element {
 	}
 }
 
-// with_action separates an emitted event name from the element's lookup id.
-pub fn with_action(el Element, action_id string) Element {
-	return Element{
-		...el
-		action_id: action_id
-	}
+// with_event attaches a typed callback without changing element identity.
+pub fn with_event(el Element, on_event ElementCallback) Element {
+	return Element{ ...el, on_event: on_event }
 }
 
 // with_secure_entry makes a text field use the platform's native password
 // control while retaining the field's change and submit bindings.
-pub fn with_secure_entry(el Element) Element {
-	return Element{
-		...el
-		secure: true
-	}
-}
 
 pub fn button_with_long_press(id string, title string, frame Rect, box_ BoxStyle, style TextStyle) Element {
 	return Element{
-		kind: .button
-		id: id
-		text: title
-		frame: frame
-		box: box_
+		kind:       .button
+		id:         id
+		text:       title
+		frame:      frame
+		box:        box_
 		text_style: style
 		long_press: true
 	}
@@ -854,116 +873,18 @@ pub fn dropdown(id string, selected string, options []string, frame Rect, box_ B
 	mut entries := []MenuEntry{}
 	for option in options {
 		entries << MenuEntry{
-			id: option
+			id:    option
 			title: option
 		}
 	}
 	return Element{
-		kind: .dropdown
-		id: id
-		text: selected
-		frame: frame
-		box: box_
+		kind:       .dropdown
+		id:         id
+		text:       selected
+		frame:      frame
+		box:        box_
 		text_style: style
-		menu: entries
-	}
-}
-
-pub fn text_field(id string, placeholder string, text string, frame Rect, box_ BoxStyle, style TextStyle, keyboard int) Element {
-	return Element{
-		kind: .text_field
-		id: id
-		text: text
-		placeholder: placeholder
-		frame: frame
-		box: box_
-		text_style: style
-		keyboard: keyboard
-	}
-}
-
-// text_area is a multi-line editor (NSTextView on macOS) with native
-// wrapping, scrolling, selection, clipboard and undo.
-pub fn text_area(id string, text string, frame Rect, box_ BoxStyle, style TextStyle) Element {
-	return Element{
-		kind: .text_area
-		id: id
-		text: text
-		frame: frame
-		box: box_
-		text_style: style
-	}
-}
-
-pub fn text_area_without_scroll(id string, text string, frame Rect, box_ BoxStyle, style TextStyle) Element {
-	return Element{
-		kind: .text_area
-		id: id
-		text: text
-		frame: frame
-		box: box_
-		text_style: style
-		disable_scroll: true
-	}
-}
-
-pub fn rich_text_area(id string, text string, runs []TextRun, frame Rect, box_ BoxStyle, style TextStyle) Element {
-	return Element{
-		kind: .text_area
-		id: id
-		text: text
-		frame: frame
-		box: box_
-		text_style: style
-		text_runs: runs
-	}
-}
-
-pub fn rich_text_area_without_scroll(id string, text string, runs []TextRun, frame Rect, box_ BoxStyle, style TextStyle) Element {
-	return Element{
-		kind: .text_area
-		id: id
-		text: text
-		frame: frame
-		box: box_
-		text_style: style
-		text_runs: runs
-		disable_scroll: true
-	}
-}
-
-pub fn text_field_with_change(id string, placeholder string, text string, frame Rect, box_ BoxStyle, style TextStyle, keyboard int) Element {
-	return text_field_with_change_and_submit(id, '', placeholder, text, frame, box_, style, keyboard)
-}
-
-// text_field_with_submit emits submit_id when Return/Enter is pressed without
-// also emitting a live change event for every edit.
-pub fn text_field_with_submit(id string, submit_id string, placeholder string, text string, frame Rect, box_ BoxStyle, style TextStyle, keyboard int) Element {
-	return Element{
-		kind: .text_field
-		id: id
-		submit_id: submit_id
-		text: text
-		placeholder: placeholder
-		frame: frame
-		box: box_
-		text_style: style
-		keyboard: keyboard
-	}
-}
-
-pub fn text_field_with_change_and_submit(id string, submit_id string, placeholder string, text string, frame Rect, box_ BoxStyle, style TextStyle, keyboard int) Element {
-	return Element{
-		kind: .text_field
-		id: id
-		submit_id: submit_id
-		text: text
-		placeholder: placeholder
-		frame: frame
-		box: box_
-		text_style: style
-		keyboard: keyboard
-		emit_change: true
+		menu:       entries
 	}
 }
 
@@ -983,5 +904,5 @@ fn text_field_display_text(text string, secure bool) string {
 // scaled_content fits fixed logical child geometry inside a viewport without reflow.
 // Custom renderer only. Navigation outside this view keeps its normal dimensions.
 pub fn scaled_content(id string, viewport Rect, width f64, height f64, box_ BoxStyle, children []Element) Element {
-	return Element{...view(id, viewport, box_, children), content_size:LayoutSize{width:width,height:height}}
+	return Element{ ...view(id, viewport, box_, children), content_size: LayoutSize{ width: width, height: height } }
 }

@@ -76,7 +76,7 @@ fn test_text_style_vml_applies_the_chosen_family_to_the_preview() {
 	assert preview.text_style.size == 24
 	assert preview.text_style.bold
 	list := find_text_style_element(root, 'font_list') or { panic('missing font list') }
-	assert list.children.len == app.fonts.len
-	assert list.children[0].text == app.fonts[0].family
+	assert list.children[0].children.len == app.fonts.len
+	assert list.children[0].children[0].text == app.fonts[0].family
 	assert (find_text_style_element(root, 'bold') or { panic('missing bold') }).checked
 }

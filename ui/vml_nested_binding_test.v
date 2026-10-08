@@ -43,12 +43,9 @@ fn test_nested_binding_reads_and_writes_before_invoking_action() {
 			}
 		}
 	}) or { panic(err) }
-	app.control_text = fn (_ string) string {
-		return 'After'
-	}
 	built := app.build(rect(0, 0, 240, 36)) or { panic(err) }
 	assert built.text == 'Before'
-	app.handle(built.action_id) or { panic(err) }
+	built.on_event(ElementEvent{ kind: .change, text: 'After' })
 	assert app.state().section.values.name == 'After'
 	assert app.state().saved == 'After'
 	assert (app.build(rect(0, 0, 240, 36)) or { panic(err) }).text == 'After'
@@ -64,12 +61,9 @@ fn test_nested_binding_supports_boolean_and_numeric_controls() {
 		Slider { bind.value: app.section.values.ratio min: 0 max: 100 }
 	}'
 	mut app := new_vml_app(source, NestedBindingApp{}) or { panic(err) }
-	app.control_value = fn (_ string) f64 {
-		return 42.5
-	}
 	built := app.build(rect(0, 0, 300, 300)) or { panic(err) }
 	for child in built.children {
-		app.handle(child.action_id) or { panic(err) }
+		child.on_event(ElementEvent{ kind: .change, checked: true, value: 42.5 })
 	}
 	assert app.state().section.values.checked
 	assert app.state().section.values.active

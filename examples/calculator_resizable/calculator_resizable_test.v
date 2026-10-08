@@ -71,7 +71,7 @@ fn test_resizable_calculator_vml_scales_every_measurement_with_the_window() {
 	display := find_resizable_calc_element(root, 'display') or { panic('missing display') }
 	assert display.text_style.size == resizable_calc_height / 10
 	// The keypad fills the window: the last key ends one margin short of the edges.
-	keys := root.children.filter(it.id == '')
+	keys := root.children[0].children.filter(it.id == '')
 	assert keys.len == 20
 	last := keys.last()
 	margin := resizable_calc_width * 0.04
@@ -83,7 +83,7 @@ fn test_resizable_calculator_vml_scales_every_measurement_with_the_window() {
 	grown := ui2.element_from_vml_model(resizable_calc_vml_source, app, big) or { panic(err) }
 	grown_display := find_resizable_calc_element(grown, 'display') or { panic('missing display') }
 	assert grown_display.text_style.size == display.text_style.size * 2
-	grown_keys := grown.children.filter(it.id == '')
+	grown_keys := grown.children[0].children.filter(it.id == '')
 	assert grown_keys.first().frame.width == keys.first().frame.width * 2
 	assert grown_keys.first().text_style.size == keys.first().text_style.size * 2
 	assert grown_keys.first().box.radius == keys.first().box.radius * 2

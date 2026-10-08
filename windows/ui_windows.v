@@ -56,6 +56,8 @@ fn C.ui2_win_is_window(hwnd voidptr) int
 
 fn C.ui2_win_is_enabled(hwnd voidptr) int
 
+fn C.ui2_win_control_available(hwnd voidptr) int
+
 fn C.ui2_win_parent(hwnd voidptr) voidptr
 
 fn C.ui2_win_set_parent(hwnd voidptr, parent voidptr)
@@ -136,7 +138,8 @@ fn C.ui2_win_combo_add(hwnd voidptr, text &u16)
 
 fn C.ui2_win_combo_select_text(hwnd voidptr, text &u16)
 
-fn C.ui2_win_create_font(hwnd voidptr, point_size f64, family &u16, bold int, italic int, underline int, strikeout int, text &u16) voidptr
+fn C.ui2_win_logical_font_height(logical_size f64, dpi u32) int
+fn C.ui2_win_create_font(hwnd voidptr, logical_size f64, family &u16, bold int, italic int, underline int, strikeout int, text &u16) voidptr
 
 fn C.ui2_win_apply_text_font(hwnd voidptr, text &u16)
 
@@ -243,7 +246,24 @@ struct WindowsRunConfig {
 	min_height int
 }
 
+struct WindowsCallbackBinding {
+	id       string
+	on_event ElementCallback = unsafe { nil }
+	kind     Kind
+	event    ElementEventKind
+}
+
+fn windows_callback_binding(el Element, event ElementEventKind) WindowsCallbackBinding {
+	return WindowsCallbackBinding{ id: el.id, on_event: el.on_event, kind: el.kind, event: event }
+}
+
+struct WindowsControlCapture {
+	binding WindowsCallbackBinding
+	cancelled bool
+}
+
 struct WindowsPointerBinding {
+	on_event ElementCallback = unsafe { nil }
 	id              string
 	clickable       bool
 	button_behavior bool
@@ -256,10 +276,8 @@ struct WindowsPointerBinding {
 struct WindowsState {
 mut:
 	build_screen       BuildFn = BuildFn(unsafe { nil })
-	event_handler      EventFn = EventFn(unsafe { nil })
 	key_handler        KeyFn = KeyFn(unsafe { nil })
 	key_event_handler  KeyEventFn = KeyEventFn(unsafe { nil })
-	scroll_handler     ScrollFn = ScrollFn(unsafe { nil })
 	drop_handler       DropFn = DropFn(unsafe { nil })
 	root               voidptr
 	nodes              map[string]voidptr
@@ -285,13 +303,15 @@ mut:
 	view_kinds         map[string]Kind
 	label_frames       map[string]Rect
 	handle_keys        map[u64]string
-	action_ids         map[u64]string
-	change_ids         map[u64]string
-	submit_ids         map[u64]string
+	action_bindings         map[u64]WindowsCallbackBinding
+	control_captures        map[u64]WindowsControlCapture
+	control_native_activations map[u64]int
+	change_bindings         map[u64]WindowsCallbackBinding
+	submit_bindings         map[u64]WindowsCallbackBinding
 	pointer_bindings   map[u64]WindowsPointerBinding
 	menus              map[u64][]MenuEntry
 	cursors            map[u64]int
-	scroll_ids         map[u64]string
+	scroll_callbacks         map[u64]WindowsCallbackBinding
 	slider_specs       map[u64]SliderSpec
 	toggle_groups      map[u64]string
 	toggle_allow_no_selection map[u64]bool
@@ -335,13 +355,13 @@ const windows_state_singleton = &WindowsState{
 	view_keys: map[string]string{}
 	view_kinds: map[string]Kind{}
 	handle_keys: map[u64]string{}
-	action_ids: map[u64]string{}
-	change_ids: map[u64]string{}
-	submit_ids: map[u64]string{}
+	action_bindings: map[u64]WindowsCallbackBinding{}
+	change_bindings: map[u64]WindowsCallbackBinding{}
+	submit_bindings: map[u64]WindowsCallbackBinding{}
 	pointer_bindings: map[u64]WindowsPointerBinding{}
 	menus: map[u64][]MenuEntry{}
 	cursors: map[u64]int{}
-	scroll_ids: map[u64]string{}
+	scroll_callbacks: map[u64]WindowsCallbackBinding{}
 	slider_specs: map[u64]SliderSpec{}
 	toggle_groups: map[u64]string{}
 	toggle_allow_no_selection: map[u64]bool{}
@@ -472,18 +492,17 @@ pub fn bounds() Rect {
 	}
 }
 
-pub fn run(build_fn BuildFn, event_fn EventFn) {
-	run_window('App', 400, 800, build_fn, event_fn)
+pub fn run(build_fn BuildFn) {
+	run_window('App', 400, 800, build_fn)
 }
 
-pub fn run_window(title string, width int, height int, build_fn BuildFn, event_fn EventFn) {
-	run_window_with_min_size(title, width, height, 0, 0, build_fn, event_fn)
+pub fn run_window(title string, width int, height int, build_fn BuildFn) {
+	run_window_with_min_size(title, width, height, 0, 0, build_fn)
 }
 
-fn run_window_with_min_size(title string, width int, height int, min_width int, min_height int, build_fn BuildFn, event_fn EventFn) {
+fn run_window_with_min_size(title string, width int, height int, min_width int, min_height int, build_fn BuildFn) {
 	mut st := windows_state()
 	st.build_screen = build_fn
-	st.event_handler = event_fn
 	configure_animation_driver(request_refresh, true)
 	st.run_config = WindowsRunConfig{
 		title: title
@@ -508,7 +527,7 @@ fn run_window_with_min_size(title string, width int, height int, min_width int, 
 	st.root = root
 	// The menu bar and the tray can be declared before the window exists;
 	// attach whatever was declared now that there is a window to attach to.
-	publish_menu_context(event_fn, title, root)
+	publish_menu_context(title, root)
 	install_declared_menus()
 	refresh()
 	C.ui2_win_show_main_window(root)
@@ -535,13 +554,13 @@ pub fn refresh() {
 	st.view_kinds = map[string]Kind{}
 	st.label_frames = map[string]Rect{}
 	st.handle_keys = map[u64]string{}
-	st.action_ids = map[u64]string{}
-	st.change_ids = map[u64]string{}
-	st.submit_ids = map[u64]string{}
+	st.action_bindings = map[u64]WindowsCallbackBinding{}
+	st.change_bindings = map[u64]WindowsCallbackBinding{}
+	st.submit_bindings = map[u64]WindowsCallbackBinding{}
 	st.pointer_bindings = map[u64]WindowsPointerBinding{}
 	st.menus = map[u64][]MenuEntry{}
 	st.cursors = map[u64]int{}
-	st.scroll_ids = map[u64]string{}
+	st.scroll_callbacks = map[u64]WindowsCallbackBinding{}
 	st.slider_specs = map[u64]SliderSpec{}
 	st.toggle_groups = map[u64]string{}
 	st.toggle_allow_no_selection = map[u64]bool{}
@@ -575,11 +594,6 @@ pub fn on_key(handler KeyFn) {
 pub fn on_key_event(handler KeyEventFn) {
 	mut st := windows_state()
 	st.key_event_handler = handler
-}
-
-pub fn on_scroll(handler ScrollFn) {
-	mut st := windows_state()
-	st.scroll_handler = handler
 }
 
 pub fn on_drop(handler DropFn) {
@@ -783,10 +797,9 @@ pub fn safe_area_top() f64 {
 	return 0
 }
 
-pub fn start_barcode_scan() {
-	st := windows_state()
-	if voidptr(st.event_handler) != unsafe { nil } {
-		st.event_handler('scan_error:barcode scanner unavailable')
+pub fn start_barcode_scan(on_result ScanCallback) {
+	if on_result != unsafe { nil } {
+		on_result(ScanResult{ kind: .error, text: 'barcode scanner unavailable' })
 	}
 }
 
@@ -1257,11 +1270,11 @@ fn windows_update_style(key string, hwnd voidptr, el Element) {
 		}
 	} else if el.kind !in [.view, .scroll, .image, .slider, .switch_control] {
 		font_text := windows_font_text(el)
-		font_sig := '${native_font_points(el.text_style)}:${el.text_style.font_family.bytes().hex()}:${windows_bool(el.text_style.bold)}:${windows_bool(el.text_style.italic)}:${windows_bool(el.text_style.underline)}:${windows_bool(el.text_style.strikethrough)}:${windows_font_glyph_key(font_text)}'
+		font_sig := '${el.text_style.size}:${el.text_style.font_family.bytes().hex()}:${windows_bool(el.text_style.bold)}:${windows_bool(el.text_style.italic)}:${windows_bool(el.text_style.underline)}:${windows_bool(el.text_style.strikethrough)}:${windows_font_glyph_key(font_text)}'
 		if (st.font_sigs[key] or { '' }) != font_sig {
 			wide_family := el.text_style.font_family.to_wide()
 			wide_text := font_text.to_wide()
-			font := C.ui2_win_create_font(hwnd, native_font_points(el.text_style), wide_family, windows_bool(el.text_style.bold), windows_bool(el.text_style.italic), windows_bool(el.text_style.underline), windows_bool(el.text_style.strikethrough), wide_text)
+			font := C.ui2_win_create_font(hwnd, el.text_style.size, wide_family, windows_bool(el.text_style.bold), windows_bool(el.text_style.italic), windows_bool(el.text_style.underline), windows_bool(el.text_style.strikethrough), wide_text)
 			unsafe { free(wide_family) }
 			unsafe { free(wide_text) }
 			if font != unsafe { nil } {
@@ -1293,10 +1306,9 @@ fn windows_update_style(key string, hwnd voidptr, el Element) {
 fn windows_register_bindings(hwnd voidptr, el Element) {
 	mut st := windows_state()
 	handle := windows_handle_id(hwnd)
-	action_id := element_action_id(el)
-	if action_id.len > 0
+	if el.on_event != unsafe { nil }
 		&& el.kind in [.button, .checkbox, .dropdown, .slider, .switch_control, .toggle_button] {
-		st.action_ids[handle] = action_id
+		st.action_bindings[handle] = windows_callback_binding(el, if el.kind == .button { .tap } else { .change })
 	}
 	if el.kind == .slider {
 		st.slider_specs[handle] = slider_spec(el)
@@ -1310,17 +1322,18 @@ fn windows_register_bindings(hwnd voidptr, el Element) {
 			release_windows_toggle_group(handle)
 		}
 	}
-	if action_id.len > 0 && ((el.kind == .text_field && el.emit_change) || el.kind == .text_area) {
-		st.change_ids[handle] = action_id
+	if el.on_event != unsafe { nil } && el.kind in [.text_field, .text_area] {
+		st.change_bindings[handle] = windows_callback_binding(el, .change)
 	}
-	if el.submit_id.len > 0 && el.kind == .text_field {
-		st.submit_ids[handle] = el.submit_id
+	if el.on_event != unsafe { nil } && el.kind == .text_field {
+		st.submit_bindings[handle] = windows_callback_binding(el, .submit)
 	}
 	if el.enabled && !el.hidden
 		&& (el.clickable || (el.kind == .view && el.button_behavior) || el.draggable
 		|| el.long_press || el.swipe_left) {
 		st.pointer_bindings[handle] = WindowsPointerBinding{
-			id:              action_id
+			id:              el.id
+			on_event:        el.on_event
 			clickable:       el.clickable
 			button_behavior: el.kind == .view && el.button_behavior
 			draggable:       el.draggable
@@ -1336,7 +1349,7 @@ fn windows_register_bindings(hwnd voidptr, el Element) {
 		st.cursors[handle] = cursor
 	}
 	if el.kind == .scroll {
-		st.scroll_ids[handle] = el.id
+		st.scroll_callbacks[handle] = windows_callback_binding(el, .scroll)
 	}
 }
 
@@ -1364,6 +1377,10 @@ fn windows_reparent_direct_children(key string, new_parent voidptr) {
 
 fn windows_cleanup_node_resources(key string, hwnd voidptr, kind Kind) {
 	mut st := windows_state()
+	handle := windows_handle_id(hwnd)
+	if captured := st.control_captures[handle] {
+		st.control_captures[handle] = WindowsControlCapture{ ...captured, cancelled: true }
+	}
 	if st.pointer_handle == hwnd {
 		C.ui2_win_release_mouse()
 		st.pointer_handle = unsafe { nil }
@@ -1484,44 +1501,119 @@ fn windows_handle_scroll(hwnd voidptr, wparam usize, wheel bool) {
 	}
 	st.scroll_positions[key] = position
 	windows_reposition_scroll_children(key, position)
-	id := st.scroll_ids[windows_handle_id(hwnd)] or { '' }
-	if id.len > 0 && voidptr(st.scroll_handler) != unsafe { nil } {
-		st.scroll_handler(id)
-	}
+	windows_emit_scroll(hwnd, f64(position))
 }
 
-fn windows_emit_action(id string) {
+fn windows_emit_scroll(hwnd voidptr, offset f64) bool {
 	st := windows_state()
-	if id.len > 0 && voidptr(st.event_handler) != unsafe { nil } {
-		st.event_handler(id)
-	}
+	binding := st.scroll_callbacks[windows_handle_id(hwnd)] or { return false }
+	return windows_emit_callback(binding.on_event, ElementEvent{ id: binding.id, kind: .scroll, value: offset })
 }
 
-fn windows_emit_button_behavior_action(hwnd voidptr, id string) bool {
-	st := windows_state()
-	if id.len == 0 || voidptr(st.event_handler) == unsafe { nil } {
-		return false
-	}
-	C.ui2_win_notify_invoked(hwnd)
-	st.event_handler(id)
+fn windows_emit_callback(callback ElementCallback, event ElementEvent) bool {
+	if callback == unsafe { nil } { return false }
+	callback(event)
 	return true
 }
 
-fn windows_button_behavior_accessibility_action(current WindowsPointerBinding, target_available bool) string {
-	if current.button_behavior && current.id.len > 0 && target_available {
-		return current.id
+fn windows_control_release_binding(captured WindowsCallbackBinding, current WindowsCallbackBinding, available bool) ?WindowsCallbackBinding {
+	if !available || captured.on_event == unsafe { nil } || current.on_event == unsafe { nil }
+		|| captured.kind != current.kind { return none }
+	return captured
+}
+
+fn windows_control_dispatch_binding(current WindowsCallbackBinding, captured WindowsControlCapture, pointer_captured bool, available bool, native_activation bool) ?WindowsCallbackBinding {
+	if !available || current.on_event == unsafe { nil } { return none }
+	if native_activation || !pointer_captured { return current }
+	return windows_control_release_binding(captured.binding, current, available && !captured.cancelled)
+}
+
+fn windows_control_action_binding(hwnd voidptr) ?WindowsCallbackBinding {
+	st := windows_state()
+	handle := windows_handle_id(hwnd)
+	current := st.action_bindings[handle] or { return none }
+	captured := st.control_captures[handle] or { WindowsControlCapture{} }
+	return windows_control_dispatch_binding(current, captured, handle in st.control_captures,
+		C.ui2_win_control_available(hwnd) != 0, (st.control_native_activations[handle] or { 0 }) > 0)
+}
+
+// This hook only snapshots ordinary native controls. Text editing and submit
+// dispatch keep their current callbacks, independent of pointer tracking.
+@[export: 'ui2_windows_control_tracking']
+fn ui2_windows_control_tracking(hwnd voidptr, phase int) {
+	mut st := windows_state()
+	handle := windows_handle_id(hwnd)
+	if phase == 4 {
+		st.control_native_activations[handle] = (st.control_native_activations[handle] or { 0 }) + 1
+		return
 	}
-	return ''
+	if phase == 5 {
+		depth := st.control_native_activations[handle] or { 0 }
+		if depth > 1 { st.control_native_activations[handle] = depth - 1 }
+		else { st.control_native_activations.delete(handle) }
+		return
+	}
+	if phase == 6 {
+		st.control_captures.delete(handle)
+		st.control_native_activations.delete(handle)
+		return
+	}
+	if phase == 0 {
+		key := st.handle_keys[handle] or { return }
+		kind := st.node_kinds[key] or { return }
+		if kind !in [.button, .checkbox, .dropdown, .slider, .switch_control, .toggle_button] { return }
+		st.control_captures[handle] = WindowsControlCapture{
+			binding: st.action_bindings[handle] or { WindowsCallbackBinding{ kind: kind } }
+		}
+		return
+	}
+	captured := st.control_captures[handle] or { return }
+	if phase == 1 {
+		// Combobox menu selection may arrive after the row's mouse release.
+		if captured.binding.kind != .dropdown { st.control_captures.delete(handle) }
+	} else if phase == 3 || captured.binding.kind != .dropdown {
+		st.control_captures[handle] = WindowsControlCapture{ ...captured, cancelled: true }
+	}
+}
+
+fn windows_emit_control_action(hwnd voidptr) bool {
+	binding := windows_control_action_binding(hwnd) or { return false }
+	return windows_emit_control(hwnd, binding)
+}
+
+fn windows_emit_control(hwnd voidptr, binding WindowsCallbackBinding) bool {
+	mut event := ElementEvent{ id: binding.id, kind: binding.event }
+	if binding.kind in [.text_field, .text_area, .dropdown] {
+		event = ElementEvent{ ...event, text: windows_native_text(hwnd) }
+	} else if binding.kind == .slider {
+		st := windows_state()
+		if spec := st.slider_specs[windows_handle_id(hwnd)] {
+			event = ElementEvent{ ...event, value: windows_snap_slider_value(hwnd, spec) }
+		}
+	} else if binding.kind in [.checkbox, .switch_control, .toggle_button] {
+		event = ElementEvent{ ...event, checked: C.ui2_win_get_checked(hwnd) != 0 }
+	}
+	return windows_emit_callback(binding.on_event, event)
+}
+
+fn windows_emit_button_behavior(hwnd voidptr, binding WindowsPointerBinding) bool {
+	if binding.on_event == unsafe { nil } { return false }
+	C.ui2_win_notify_invoked(hwnd)
+	return windows_emit_callback(binding.on_event, ElementEvent{ id: binding.id, kind: .tap })
+}
+
+fn windows_button_behavior_accessibility_available(current WindowsPointerBinding, target_available bool) bool {
+	return current.button_behavior && current.on_event != unsafe { nil } && target_available
 }
 
 @[export: 'ui2_windows_accessibility_activate']
 fn ui2_windows_accessibility_activate(hwnd voidptr) int {
 	st := windows_state()
 	current := st.pointer_bindings[windows_handle_id(hwnd)] or { WindowsPointerBinding{} }
-	action := windows_button_behavior_accessibility_action(current,
+	if !windows_button_behavior_accessibility_available(current,
 		C.ui2_win_is_window(hwnd) != 0 && C.ui2_win_is_enabled(hwnd) != 0
-		&& C.ui2_win_is_accessible_button(hwnd) != 0)
-	return windows_bool(windows_emit_button_behavior_action(hwnd, action))
+		&& C.ui2_win_is_accessible_button(hwnd) != 0) { return 0 }
+	return windows_bool(windows_emit_button_behavior(hwnd, current))
 }
 
 fn windows_snap_slider_value(hwnd voidptr, spec SliderSpec) f64 {
@@ -1724,12 +1816,16 @@ fn ui2_windows_window_proc(hwnd voidptr, message u32, wparam usize, lparam isize
 			code := int((wparam >> 16) & 0xffff)
 			if code == win_en_change {
 				if !st.rendering {
-					windows_emit_action(st.change_ids[handle] or { '' })
+					windows_emit_control(child, st.change_bindings[handle] or { WindowsCallbackBinding{} })
 				}
 				return 0
 			}
+			if code == 8 { // CBN_CLOSEUP
+				st.control_captures.delete(handle)
+				return 0
+			}
 			if code == win_cbn_selchange {
-				windows_emit_action(st.action_ids[handle] or { '' })
+				windows_emit_control_action(child)
 				return 0
 			}
 			if code == win_bn_clicked {
@@ -1738,7 +1834,7 @@ fn ui2_windows_window_proc(hwnd voidptr, message u32, wparam usize, lparam isize
 					return 0
 				}
 				commit_windows_toggle_button(handle, child)
-				windows_emit_action(st.action_ids[handle] or { '' })
+				windows_emit_control_action(child)
 				return 0
 			}
 		}
@@ -1814,7 +1910,7 @@ fn ui2_windows_window_proc(hwnd voidptr, message u32, wparam usize, lparam isize
 				handle := windows_handle_id(child)
 				if spec := st.slider_specs[handle] {
 					windows_snap_slider_value(child, spec)
-					windows_emit_action(st.action_ids[handle] or { '' })
+					windows_emit_control_action(child)
 					return 0
 				}
 			}
@@ -1841,10 +1937,10 @@ fn ui2_windows_window_proc(hwnd voidptr, message u32, wparam usize, lparam isize
 				binding := st.pointer_bindings[windows_handle_id(hwnd)] or {
 					WindowsPointerBinding{}
 				}
-				action := windows_button_behavior_accessibility_action(binding,
+				available := windows_button_behavior_accessibility_available(binding,
 					C.ui2_win_is_window(hwnd) != 0 && C.ui2_win_is_enabled(hwnd) != 0
 					&& C.ui2_win_is_accessible_button(hwnd) != 0)
-				if action.len > 0 {
+				if available {
 					C.ui2_win_click(hwnd)
 					return 0
 				}
@@ -1941,9 +2037,8 @@ fn ui2_windows_is_transparent_button(hwnd voidptr) int {
 @[export: 'ui2_windows_edit_submit']
 fn ui2_windows_edit_submit(hwnd voidptr) int {
 	st := windows_state()
-	id := st.submit_ids[windows_handle_id(hwnd)] or { return 0 }
-	windows_emit_action(id)
-	return 1
+	binding := st.submit_bindings[windows_handle_id(hwnd)] or { return 0 }
+	return windows_bool(windows_emit_control(hwnd, binding))
 }
 
 @[export: 'ui2_windows_control_key']
@@ -1978,7 +2073,8 @@ fn ui2_windows_context_menu(hwnd voidptr, screen_x int, screen_y int) int {
 	command := C.ui2_win_menu_track(menu, target, screen_x, screen_y)
 	C.ui2_win_menu_destroy(menu)
 	if command > 0 && int(command) <= entries.len {
-		windows_emit_action(entries[int(command) - 1].id)
+		entry := entries[int(command) - 1]
+		windows_emit_callback(entry.on_select, ElementEvent{ id: entry.id, kind: .tap })
 	}
 	return 1
 }
@@ -2012,7 +2108,7 @@ fn ui2_windows_control_pointer(hwnd voidptr, message u32, local_x int, local_y i
 		for target != unsafe { nil } {
 			handle := windows_handle_id(target)
 			binding = st.pointer_bindings[handle] or { WindowsPointerBinding{} }
-			if binding.id.len > 0 || target == st.root {
+			if binding.on_event != unsafe { nil } || target == st.root {
 				break
 			}
 			key := st.handle_keys[handle] or { '' }
@@ -2025,7 +2121,7 @@ fn ui2_windows_control_pointer(hwnd voidptr, message u32, local_x int, local_y i
 			}
 			target = C.ui2_win_parent(target)
 		}
-		if binding.id.len == 0 {
+		if binding.on_event == unsafe { nil } {
 			return
 		}
 		if binding.button_behavior {
@@ -2039,7 +2135,7 @@ fn ui2_windows_control_pointer(hwnd voidptr, message u32, local_x int, local_y i
 		st.pointer_moved = false
 		C.ui2_win_capture_mouse(target)
 		if binding.clickable || binding.draggable {
-			windows_emit_action('pointer:down:${binding.id}:${x}:${y}')
+			windows_emit_callback(binding.on_event, ElementEvent{ id: binding.id, kind: .pointer_down, x: f64(x), y: f64(y) })
 		}
 		return
 	}
@@ -2048,14 +2144,18 @@ fn ui2_windows_control_pointer(hwnd voidptr, message u32, local_x int, local_y i
 	}
 	target := st.pointer_handle
 	binding := st.pointer_binding
+	current_binding := st.pointer_bindings[windows_handle_id(target)] or { WindowsPointerBinding{} }
+	available := current_binding.on_event != unsafe { nil }
+		&& C.ui2_win_is_window(target) != 0 && C.ui2_win_is_enabled(target) != 0
 	if message == win_wm_mouse_move {
+		if !available { return }
 		move_x := x - st.pointer_start_x
 		move_y := y - st.pointer_start_y
 		if move_x < -8 || move_x > 8 || move_y < -8 || move_y > 8 {
 			st.pointer_moved = true
 		}
 		if binding.draggable {
-			windows_emit_action('pointer:drag:${binding.id}:${x}:${y}')
+			windows_emit_callback(binding.on_event, ElementEvent{ id: binding.id, kind: .pointer_drag, x: f64(x), y: f64(y) })
 		}
 		return
 	}
@@ -2065,44 +2165,41 @@ fn ui2_windows_control_pointer(hwnd voidptr, message u32, local_x int, local_y i
 	C.ui2_win_release_mouse()
 	st.pointer_handle = unsafe { nil }
 	st.pointer_binding = WindowsPointerBinding{}
+	if !available { return }
 	delta_x := x - st.pointer_start_x
 	delta_y := y - st.pointer_start_y
 	duration := C.ui2_win_ticks() - st.pointer_started
 	mut gesture := false
-	mut gesture_event := ''
+	mut gesture_kind := ElementEventKind.tap
 	if binding.swipe_left && delta_x <= -60 && delta_y >= -40 && delta_y <= 40 {
-		gesture_event = 'swipe_left:' + binding.id
+		gesture_kind = .swipe_left
 		gesture = true
 	} else if binding.long_press && !st.pointer_moved && duration >= 500 && delta_x >= -8 && delta_x <= 8
 		&& delta_y >= -8 && delta_y <= 8 {
-		gesture_event = 'long:' + binding.id
+		gesture_kind = .long_press
 		gesture = true
 	}
-	current_binding := st.pointer_bindings[windows_handle_id(target)] or { WindowsPointerBinding{} }
-	button_action := windows_button_behavior_action(binding, current_binding, gesture,
+	activate := windows_button_behavior_available(binding, current_binding, gesture,
 		st.pointer_moved, C.ui2_win_is_window(target) != 0
 		&& C.ui2_win_is_enabled(target) != 0
 		&& C.ui2_win_root_point_in_client(st.root, target, x, y) != 0)
-	if gesture_event.len > 0 {
-		windows_emit_action(gesture_event)
+	if gesture {
+		windows_emit_callback(binding.on_event, ElementEvent{ id: binding.id, kind: gesture_kind })
 	}
 	if binding.clickable || binding.draggable {
-		windows_emit_action('pointer:up:${binding.id}:${x}:${y}')
+		windows_emit_callback(binding.on_event, ElementEvent{ id: binding.id, kind: .pointer_up, x: f64(x), y: f64(y) })
 	}
-	if button_action.len > 0 {
-		windows_emit_button_behavior_action(target, button_action)
+	if activate {
+		windows_emit_button_behavior(target, binding)
 	}
 	if gesture {
 		st.suppress_click[windows_handle_id(target)] = true
 	}
 }
 
-fn windows_button_behavior_action(captured WindowsPointerBinding, current WindowsPointerBinding, gesture bool, moved bool, target_available bool) string {
-	if captured.button_behavior && captured.id.len > 0 && current.button_behavior
-		&& current.id.len > 0 && !gesture && !moved && target_available {
-		return captured.id
-	}
-	return ''
+fn windows_button_behavior_available(captured WindowsPointerBinding, current WindowsPointerBinding, gesture bool, moved bool, target_available bool) bool {
+	return captured.button_behavior && captured.on_event != unsafe { nil } && current.button_behavior
+		&& current.on_event != unsafe { nil } && !gesture && !moved && target_available
 }
 
 fn windows_text_area_handle(id string) ?voidptr {

@@ -52,25 +52,30 @@ fn test_imported_composite_button_accepts_children_and_dispatches_its_action() {
 	os.write_file(os.join_path(dir, 'app.vml'), 'import ActionSurface
 
 Screen {
-	ActionSurface {
-		id: save_card
-		on_tap: app.save()
-		x: 20
-		y: 20
-		width: 180
-
-		Label {
-			text: "Save changes"
-			x: 16
-			y: 16
-			width: save_card.width - 32
-			height: 24
-		}
-	}
+    Absolute {
+        transparent: true
+        ActionSurface {
+            id: save_card
+            on_tap: app.save()
+            x: 20
+            y: 20
+            width: 180
+            Absolute {
+                transparent: true
+                Label {
+                    text: "Save changes"
+                    x: 16
+                    y: 16
+                    width: save_card.width - 32
+                    height: 24
+                }
+            }
+        }
+    }
 }') or { panic(err) }
 	os.write_file(os.join_path(dir, 'action_surface.vml'), 'module ActionSurface
 
-Rectangle {
+View {
 	button_behavior: true
 	height: 56
 	background: #2563EB
@@ -82,14 +87,14 @@ Rectangle {
 	}
 	built := app.build(rect(0, 0, 320, 200)) or { panic(err) }
 	assert built.children.len == 1
-	surface := built.children[0]
+	surface := built.children[0].children[0]
 	assert surface.kind == .view
 	assert surface.button_behavior
 	assert surface.accessibility_role == 'button'
 	assert surface.accessibility_label == 'Save changes'
 	assert surface.children.len == 1
-	assert surface.children[0].frame.width == 148
-	app.handle(surface.action_id) or { panic(err) }
+	assert surface.children[0].children[0].frame.width == 148
+	surface.on_event(ElementEvent{ kind: .tap })
 	assert app.state().saved
 }
 
@@ -125,5 +130,19 @@ import First
 Screen { First {} }') or { panic(err) }
 	if _ := parse_vml_file(os.join_path(dir, 'main.vml')) {
 		assert false, 'cyclic imports must be rejected'
+	}
+}
+
+fn test_imported_units_property_is_rejected_before_conversion() {
+	dir := vml_import_test_dir('units_removed')
+	defer { os.rmdir_all(dir) or {} }
+	os.write_file(os.join_path(dir, 'app.vml'), 'import Content
+Screen { Content {} }') or { panic(err) }
+	os.write_file(os.join_path(dir, 'content.vml'), 'module Content
+Label { units: logical text: "Invalid" }') or { panic(err) }
+	if _ := parse_vml_file(os.join_path(dir, 'app.vml')) {
+		assert false, 'imported units declarations must be rejected'
+	} else {
+		assert err.msg().contains('units is not a VML property')
 	}
 }

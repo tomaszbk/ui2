@@ -9,8 +9,8 @@ font directories and file paths still work.
 
 Spacing and baseline offsets use logical geometry units. Positive baseline
 values raise text. `line_height` is an absolute logical line advance;
-`line_height_factor` multiplies the platform's existing logical em size. Choose
-one; zero keeps legacy spacing. Defaults preserve existing point-size behavior.
+`line_height_factor` multiplies the declared logical em size. Choose
+one; zero uses the font's default line spacing. Font sizes always use logical units.
 `tabular_figures` requests the OpenType `tnum` feature where the font supports it.
 
 ```vml
@@ -40,6 +40,6 @@ These additions currently render on desktop custom (macOS, Windows and Linux).
 Native, Android and headless retain their existing text paths: a rich label's
 concatenated text remains visible, but new typography attributes and per-run
 styles do not gain portable native rendering in this delivery. Existing native
-rich TextArea contracts remain unchanged. This does not extend grapheme editing,
+rich TextInput contracts remain unchanged. This does not extend grapheme editing,
 IME or accessibility support. Runtime and `$vml` compiler lowering are distinct;
 new Run syntax requires runtime VML, not the external compiler's existing lowering.

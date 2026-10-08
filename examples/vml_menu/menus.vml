@@ -1,18 +1,18 @@
 MenuBar {
     Menu {
         title: "File"
-        MenuItem { id: file_new text: "New" shortcut: "cmd+n" }
-        MenuItem { text: "Open" on_tap: file_open shortcut: "cmd+o" }
+        MenuItem { id: file_new on_tap: file_new text: "New" shortcut: "cmd+n" }
+        MenuItem { id: file_open text: "Open" on_tap: file_open shortcut: "cmd+o" }
         MenuSeparator {}
-        MenuItem { id: file_revert text: "Revert" enabled: false }
+        MenuItem { id: file_revert on_tap: file_revert text: "Revert" enabled: false }
         Menu {
             title: "Export"
-            MenuItem { id: export_pdf text: "PDF" }
-            MenuItem { id: export_png text: "PNG" }
+            MenuItem { id: export_pdf on_tap: export_pdf text: "PDF" }
+            MenuItem { id: export_png on_tap: export_png text: "PNG" }
         }
     }
     Menu {
         title: "View"
-        MenuItem { id: word_wrap text: "Word Wrap" checked: true }
+        MenuItem { id: word_wrap on_tap: word_wrap text: "Word Wrap" checked: true }
     }
 }

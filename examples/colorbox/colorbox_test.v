@@ -66,17 +66,17 @@ fn test_colorbox_vml_paints_both_canvases_and_tracks_the_markers() {
 	app.set_hue(180)
 	app.set_saturation_value(0.5, 0.25)
 	frame := ui2.rect(0, 0, colorbox_width, colorbox_height)
-	root := ui2.element_from_vml_model(colorbox_vml_source, app, frame) or { panic(err) }
+	root := ui2.element_from_vml_model_with_callbacks(colorbox_vml_source, app, frame, colorbox_callbacks()) or { panic(err) }
 	ui2.validate_element_tree(root) or { panic(err) }
 	hue := find_colorbox_element(root, 'hue_strip') or { panic('missing hue strip') }
-	assert hue.draggable && hue.action_id == 'hue_strip'
-	assert hue.children.len == hue_bands + 1
+	assert hue.draggable && hue.id == 'hue_strip' && voidptr(hue.on_event) != unsafe { nil }
+	assert hue.children[0].children.len == hue_bands + 1
 	// The marker is the last child, so it stays on top of the bands.
-	assert hue.children.last().frame.y == 180.0 / 360.0 * picker_side - 2
+	assert hue.children[0].children.last().frame.y == 180.0 / 360.0 * picker_side - 2
 	square := find_colorbox_element(root, 'sv_square') or { panic('missing sv square') }
-	assert square.children.len == sv_side * sv_side + 1
-	assert square.children.last().frame.x == 0.5 * picker_side - 7
-	assert square.children.last().frame.y == 0.75 * picker_side - 7
+	assert square.children[0].children.len == sv_side * sv_side + 1
+	assert square.children[0].children.last().frame.x == 0.5 * picker_side - 7
+	assert square.children[0].children.last().frame.y == 0.75 * picker_side - 7
 	// Every tile of the square is repainted from the current hue.
 	assert app.sv_cells.last().color == '#000808'
 	assert (find_colorbox_element(root, 'red_input') or { panic('missing input') }).text == app.red_text

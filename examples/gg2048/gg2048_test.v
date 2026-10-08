@@ -41,9 +41,9 @@ fn test_2048_vml_builds_responsive_board_and_native_controls() {
 	root := ui2.element_from_vml_model(game_2048_vml_source, app, ui2.rect(0, 0, game_2048_width, game_2048_height)) or { panic(err) }
 	ui2.validate_element_tree(root) or { panic(err) }
 	board := find_2048_element(root, 'board') or { panic('missing board') }
-	assert board.children.len == 18
-	assert board.children[16].key == 'tile-0'
-	assert board.children[17].key == 'tile-5'
+	assert board.children[0].children.len == 18
+	assert board.children[0].children[16].key == 'tile-0'
+	assert board.children[0].children[17].key == 'tile-5'
 	assert (find_2048_element(root, 'move_left') or { panic('missing left') }).native_style
 	assert (find_2048_element(root, 'new_game') or { panic('missing new game') }).native_style
 }

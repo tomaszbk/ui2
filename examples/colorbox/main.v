@@ -141,11 +141,11 @@ fn colorbox_demo() ColorBoxDemo {
 		hue := f64(index) * 360.0 / f64(swatch_columns * swatch_rows)
 		red, green, blue := hsv_to_rgb(hue, 0.65, 0.9)
 		app.swatches << Swatch{
-			key: 'swatch-${index}'
-			index: index
-			column: index % swatch_columns
-			row: index / swatch_columns
-			color: hex_color(red, green, blue)
+			key:      'swatch-${index}'
+			index:    index
+			column:   index % swatch_columns
+			row:      index / swatch_columns
+			color:    hex_color(red, green, blue)
 			selected: index == 0
 		}
 	}
@@ -161,7 +161,7 @@ fn hue_strip_cells() []HueCell {
 		hue := f64(index) * 360.0 / f64(hue_bands)
 		red, green, blue := hsv_to_rgb(hue, 1.0, 1.0)
 		cells << HueCell{
-			key: 'hue-${index}'
+			key:   'hue-${index}'
 			index: index
 			color: hex_color(red, green, blue)
 		}
@@ -179,10 +179,10 @@ fn (mut app ColorBoxDemo) sync() {
 			value := 1.0 - (f64(row) + 0.5) / f64(sv_side)
 			red, green, blue := hsv_to_rgb(app.hue, saturation, value)
 			app.sv_cells << SvCell{
-				key: 'sv-${row}-${column}'
+				key:    'sv-${row}-${column}'
 				column: column
-				row: row
-				color: hex_color(red, green, blue)
+				row:    row
+				color:  hex_color(red, green, blue)
 			}
 		}
 	}
@@ -308,52 +308,56 @@ fn (app &ColorBoxDemo) swatch_at(x f64, y f64) int {
 	return row * swatch_columns + column
 }
 
-fn colorbox_pointer(event string) ?(string, f64, f64) {
-	parts := event.split(':')
-	if parts.len < 5 || parts[0] != 'pointer' {
-		return none
-	}
-	return parts[2], parts[3].f64(), parts[4].f64()
-}
-
-fn (mut app ColorBoxDemo) handle_event(event string) {
-	match event {
-		'red_input' { app.apply_channel('red', ui2.text('red_input')) }
-		'green_input' { app.apply_channel('green', ui2.text('green_input')) }
-		'blue_input' { app.apply_channel('blue', ui2.text('blue_input')) }
-		'store' { app.store_swatch() }
-		else {
-			id, x, y := colorbox_pointer(event) or { return }
-			match id {
-				'hue_strip' {
-					app.set_hue(clamp_unit((y - hue_root_y) / picker_side) * 359.999)
-				}
-				'sv_square' {
-					app.set_saturation_value((x - sv_root_x) / picker_side, 1.0 - (y - sv_root_y) / picker_side)
-				}
-				'swatch_grid' {
-					if event.starts_with('pointer:up:') {
-						app.select_swatch(app.swatch_at(x, y))
-					}
-				}
-				else {}
+fn colorbox_callbacks() map[string]ui2.ElementCallback {
+	return {
+		'red_input':   fn (event ui2.ElementEvent) {
+			mut state := unsafe { colorbox_state }
+			state.apply_channel('red', event.text)
+			ui2.refresh()
+		}
+		'green_input': fn (event ui2.ElementEvent) {
+			mut state := unsafe { colorbox_state }
+			state.apply_channel('green', event.text)
+			ui2.refresh()
+		}
+		'blue_input':  fn (event ui2.ElementEvent) {
+			mut state := unsafe { colorbox_state }
+			state.apply_channel('blue', event.text)
+			ui2.refresh()
+		}
+		'store':       fn (_event ui2.ElementEvent) {
+			mut state := unsafe { colorbox_state }
+			state.store_swatch()
+			ui2.refresh()
+		}
+		'hue_strip':   fn (event ui2.ElementEvent) {
+			mut state := unsafe { colorbox_state }
+			if event.kind in [.pointer_down, .pointer_drag, .pointer_up] {
+				state.set_hue(clamp_unit((event.y - hue_root_y) / picker_side) * 359.999)
 			}
+			ui2.refresh()
+		}
+		'sv_square':   fn (event ui2.ElementEvent) {
+			mut state := unsafe { colorbox_state }
+			if event.kind in [.pointer_down, .pointer_drag, .pointer_up] {
+				state.set_saturation_value((event.x - sv_root_x) / picker_side, 1.0 - (event.y - sv_root_y) / picker_side)
+			}
+			ui2.refresh()
+		}
+		'swatch_grid': fn (event ui2.ElementEvent) {
+			mut state := unsafe { colorbox_state }
+			if event.kind == .pointer_up { state.select_swatch(state.swatch_at(event.x, event.y)) }
+			ui2.refresh()
 		}
 	}
 }
 
 fn build_colorbox_screen() ui2.Element {
 	state := unsafe { colorbox_state }
-	return ui2.element_from_vml_model(colorbox_vml_source, *state, ui2.bounds()) or {
+	return ui2.element_from_vml_model_with_callbacks(colorbox_vml_source, *state, ui2.bounds(), colorbox_callbacks()) or {
 		eprintln('colorbox VML failed: ${err}')
 		ui2.screen(0xf1f5f9, [])
 	}
-}
-
-fn handle_colorbox_event(event string) {
-	mut state := unsafe { colorbox_state }
-	state.handle_event(event)
-	ui2.refresh()
 }
 
 fn main() {
@@ -361,5 +365,5 @@ fn main() {
 	unsafe {
 		*state = colorbox_demo()
 	}
-	ui2.run_window('Color Box', colorbox_width, colorbox_height, build_colorbox_screen, handle_colorbox_event)
+	ui2.run_window('Color Box', colorbox_width, colorbox_height, build_colorbox_screen)
 }

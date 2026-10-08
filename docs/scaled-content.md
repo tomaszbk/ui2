@@ -9,16 +9,18 @@ scaled content instead of silently changing its meaning.
 
 ```vml
 Screen {
-    units: "logical"
-    ScaledContent {
-        id: "slide"
-        content_width: 1280
-        content_height: 720
-        Column {
-            Label { text: "A fixed composition" font_size: 36 height: 60 }
+    Absolute {
+        transparent: true
+        ScaledContent {
+            id: "slide"
+            content_width: 1280
+            content_height: 720
+            Column {
+                Label { text: "A fixed composition" font_size: 36 height: 60 }
+            }
         }
+        Button { id: "next" text: "Next" x: 12 y: 12 width: 44 height: 64 }
     }
-    Button { id: "next" text: "Next" x: 12 y: 12 width: 44 height: 64 }
 }
 ```
 

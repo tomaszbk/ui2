@@ -25,21 +25,30 @@ const ns_control_state_off = i64(0)
 // Status area images are drawn at the menu bar's own height.
 const macos_status_image_size = f64(18)
 
+struct MacosMenuCallback {
+	id       string
+	on_event ElementCallback = unsafe { nil }
+}
+
+fn macos_emit_menu_callback(binding MacosMenuCallback) {
+	emit_menu_callback(binding.on_event, binding.id)
+}
+
 @[heap]
 struct MacosMenuState {
 mut:
 	handler     macos.Id
 	status_item macos.Id
 	// bar_ids and tray_ids map an NSMenuItem — or the status item's button — to
-	// the id it emits. The menu owns the item, so the pointer identifies it for
+	// the typed callback it invokes. The menu owns the item, so the pointer identifies it for
 	// as long as it can be chosen.
-	bar_ids  map[u64]string
-	tray_ids map[u64]string
+	bar_ids  map[u64]MacosMenuCallback
+	tray_ids map[u64]MacosMenuCallback
 }
 
 const macos_menu_state_singleton = &MacosMenuState{
-	bar_ids: map[u64]string{}
-	tray_ids: map[u64]string{}
+	bar_ids: map[u64]MacosMenuCallback{}
+	tray_ids: map[u64]MacosMenuCallback{}
 }
 
 fn macos_menu_state() &MacosMenuState {
@@ -90,7 +99,7 @@ fn native_remove_tray() {
 // travels the responder chain to NSApp, honoring any applicationShouldTerminate:
 // the app's delegate installs.
 fn macos_install_menu_bar(app_name string, menus []Menu) {
-	mut ids := map[u64]string{}
+	mut ids := map[u64]MacosMenuCallback{}
 	main_menu := macos.msg_id(macos.alloc('NSMenu'), 'init')
 	macos.msg_void_bool(main_menu, 'setAutoenablesItems:', false)
 
@@ -135,7 +144,7 @@ fn macos_install_status_item(cfg TrayConfig) {
 		// hold it, or it leaves the menu bar as soon as the pool drains.
 		st.status_item = macos.retain(item)
 	}
-	mut ids := map[u64]string{}
+	mut ids := map[u64]MacosMenuCallback{}
 	if cfg.menu.len > 0 {
 		menu := macos_build_menu(cfg.title, cfg.menu, mut ids)
 		macos.msg_void1(st.status_item, 'setMenu:', menu)
@@ -150,10 +159,10 @@ fn macos_install_status_item(cfg TrayConfig) {
 		macos.msg_void1(status_button, 'setImage:', macos_status_image(cfg.icon))
 		// A status item with a menu opens it on either mouse button, so the
 		// button's own action is only wired up for the menu-less case.
-		if cfg.menu.len == 0 && cfg.id.len > 0 {
+		if cfg.menu.len == 0 && cfg.on_event != unsafe { nil } {
 			macos.msg_void1(status_button, 'setTarget:', macos_menu_handler())
 			macos.msg_void1(status_button, 'setAction:', macos.sel('handleMenuItem:'))
-			ids[u64(voidptr(status_button))] = cfg.id
+			ids[u64(voidptr(status_button))] = MacosMenuCallback{ id: cfg.id, on_event: cfg.on_event }
 		} else {
 			macos.msg_void1(status_button, 'setTarget:', macos.Id(unsafe { nil }))
 			macos.msg_void1(status_button, 'setAction:', macos.Id(unsafe { nil }))
@@ -173,7 +182,7 @@ fn macos_remove_status_item() {
 	}
 	macos.release(st.status_item)
 	st.status_item = macos.Id(unsafe { nil })
-	st.tray_ids = map[u64]string{}
+	st.tray_ids = map[u64]MacosMenuCallback{}
 }
 
 // macos_status_image resolves an SF Symbol name or an image file into an icon
@@ -209,7 +218,7 @@ fn macos_status_image(icon string) macos.Id {
 	return sized
 }
 
-fn macos_build_menu(title string, items []MenuItem, mut ids map[u64]string) macos.Id {
+fn macos_build_menu(title string, items []MenuItem, mut ids map[u64]MacosMenuCallback) macos.Id {
 	menu := macos.msg_id1(macos.alloc('NSMenu'), 'initWithTitle:', macos.nsstring(title))
 	// ui2 declares whether a row is enabled, so AppKit must not decide for
 	// itself by asking the responder chain about each action.
@@ -220,7 +229,7 @@ fn macos_build_menu(title string, items []MenuItem, mut ids map[u64]string) maco
 	return menu
 }
 
-fn macos_add_menu_item(menu macos.Id, item MenuItem, mut ids map[u64]string) {
+fn macos_add_menu_item(menu macos.Id, item MenuItem, mut ids map[u64]MacosMenuCallback) {
 	if item.separator {
 		macos.msg_void1(menu, 'addItem:', macos.msg_id(macos.get_class('NSMenuItem'), 'separatorItem'))
 		return
@@ -243,7 +252,7 @@ fn macos_add_menu_item(menu macos.Id, item MenuItem, mut ids map[u64]string) {
 	macos.msg_void_i64(row, 'setState:', if item.checked { ns_control_state_on } else { ns_control_state_off })
 	// Bind by sender pointer rather than by a positional tag, so a retained
 	// item from an earlier declaration can never dispatch through this one.
-	ids[u64(voidptr(row))] = item.id
+	ids[u64(voidptr(row))] = MacosMenuCallback{ id: item.id, on_event: item.on_select }
 	macos.msg_void1(menu, 'addItem:', row)
 	macos.release(row)
 }
@@ -316,5 +325,5 @@ fn macos_menu_handler() macos.Id {
 fn ui2_menu_item_chosen(_self voidptr, _cmd voidptr, sender voidptr) {
 	st := macos_menu_state()
 	pointer := u64(sender)
-	emit_menu_event(st.bar_ids[pointer] or { st.tray_ids[pointer] or { '' } })
+	macos_emit_menu_callback(st.bar_ids[pointer] or { st.tray_ids[pointer] or { return } })
 }

@@ -75,8 +75,6 @@ fn charts_screen(bounds ui2.Rect) ui2.Element {
 	])
 }
 
-fn handle_chart_event(_event string) {}
-
 fn main() {
-	ui2.run_window('UI2 Charts', 1080, 720, build_charts, handle_chart_event)
+	ui2.run_window('UI2 Charts', 1080, 720, build_charts)
 }

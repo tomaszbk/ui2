@@ -44,9 +44,9 @@ fn test_filebrowser_opens_folders_and_builds_native_rows() {
 	root := ui2.element_from_vml_model(filebrowser_vml_source, app, ui2.rect(0, 0, filebrowser_width, filebrowser_height)) or { panic(err) }
 	ui2.validate_element_tree(root) or { panic(err) }
 	list := find_filebrowser_element(root, 'browser_list') or { panic('missing browser list') }
-	assert list.children.len == 2
-	assert list.children[0].native_style
-	assert list.children[0].key == app.entries[0].path
+	assert list.children[0].children.len == 2
+	assert list.children[0].children[0].native_style
+	assert list.children[0].children[0].key == app.entries[0].path
 	assert (find_filebrowser_element(root, 'open') or { panic('missing open button') }).native_style
 	app.activate(1)
 	assert app.path.ends_with('child')

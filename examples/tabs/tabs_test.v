@@ -29,12 +29,12 @@ fn test_tabs_vml_shows_only_active_page() {
 	root := ui2.element_from_vml_model(tabs_vml_source, app, ui2.rect(0, 0, tabs_width, tabs_height)) or { panic(err) }
 	ui2.validate_element_tree(root) or { panic(err) }
 	bar := find_tabs_element(root, 'tab_bar') or { panic('missing tab bar') }
-	assert bar.children.len == 3
-	assert bar.children[0].native_style
-	assert bar.children[1].text == '• tab2'
+	assert bar.children[0].children.len == 3
+	assert bar.children[0].children[0].native_style
+	assert bar.children[0].children[1].text == '• tab2'
 	stage := find_tabs_element(root, 'tab_stage') or { panic('missing tab stage') }
-	assert stage.children.len == 3
-	assert stage.children[0].hidden
-	assert !stage.children[1].hidden
-	assert stage.children[2].hidden
+	assert stage.children[0].children.len == 3
+	assert stage.children[0].children[0].hidden
+	assert !stage.children[0].children[1].hidden
+	assert stage.children[0].children[2].hidden
 }

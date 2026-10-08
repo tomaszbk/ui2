@@ -61,7 +61,7 @@ fn test_tray_choose_logs_and_ignores_unknown_ids() {
 
 fn test_tray_does_not_claim_to_dock_without_a_status_area() {
 	mut app := TrayDemo{
-		docked: false
+		docked:    false
 		supported: false
 	}
 	assert app.choose('tray_show')
@@ -77,12 +77,20 @@ fn test_tray_status_from_id_only_matches_status_rows() {
 }
 
 fn test_tray_vml_offers_the_same_rows_where_there_is_no_status_area() {
-	root := ui2.element_from_vml_model(tray_icon_vml_source, TrayDemo{
+	mut record := &TrayEventRecord{}
+	mut callbacks := map[string]ui2.ElementCallback{}
+	for action in ['tray_status', 'tray_notifications', 'status_available', 'status_busy', 'status_away'] {
+		callbacks[action] = fn [action, mut record] (event ui2.ElementEvent) {
+			record.action = action
+			record.identity = event.id
+		}
+	}
+	root := ui2.element_from_vml_model_with_callbacks(tray_icon_vml_source, TrayDemo{
 		supported: false
-		docked: false
-	}, ui2.rect(0, 0, tray_icon_width, tray_icon_height)) or { panic(err) }
+		docked:    false
+	}, ui2.rect(0, 0, tray_icon_width, tray_icon_height), callbacks) or { panic(err) }
 	ui2.validate_element_tree(root) or { panic(err) }
-	// The fallback buttons carry the very ids the tray menu rows emit.
+	// Element identity and declared menu action stay independent.
 	for id, action in {
 		'fallback_status':        'tray_status'
 		'fallback_notifications': 'tray_notifications'
@@ -92,7 +100,11 @@ fn test_tray_vml_offers_the_same_rows_where_there_is_no_status_area() {
 	} {
 		button := find_tray_element(root, id) or { panic('missing ${id}') }
 		assert !button.hidden
-		assert button.action_id == action
+		assert button.id == id
+		assert voidptr(button.on_event) != unsafe { nil }
+		button.on_event(ui2.ElementEvent{ kind: .tap, id: button.id })
+		assert record.action == action
+		assert record.identity == id
 	}
 	// Docking is not on offer where it cannot happen.
 	assert !(find_tray_element(root, 'tray_show') or { panic('missing dock button') }).enabled
@@ -100,10 +112,17 @@ fn test_tray_vml_offers_the_same_rows_where_there_is_no_status_area() {
 }
 
 fn test_tray_vml_hides_the_fallback_rows_where_the_status_area_is_real() {
-	root := ui2.element_from_vml_model(tray_icon_vml_source, TrayDemo{
+	root := ui2.element_from_vml_model_with_callbacks(tray_icon_vml_source, TrayDemo{
 		supported: true
-	}, ui2.rect(0, 0, tray_icon_width, tray_icon_height)) or { panic(err) }
+	}, ui2.rect(0, 0, tray_icon_width, tray_icon_height), tray_icon_callbacks()) or { panic(err) }
 	assert (find_tray_element(root, 'fallback_status') or { panic('missing fallback') }).hidden
 	assert (find_tray_element(root, 'status_state') or { panic('missing status chip') }).text == 'Available'
 	assert (find_tray_element(root, 'tray_hide') or { panic('missing hide button') }).enabled
+}
+
+@[heap]
+struct TrayEventRecord {
+mut:
+	action   string
+	identity string
 }

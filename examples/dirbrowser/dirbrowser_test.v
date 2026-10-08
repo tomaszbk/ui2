@@ -40,10 +40,10 @@ fn test_dirbrowser_vml_builds_keyed_native_folder_rows() {
 	root := ui2.element_from_vml_model(dirbrowser_vml_source, app, ui2.rect(0, 0, dirbrowser_width, dirbrowser_height)) or { panic(err) }
 	ui2.validate_element_tree(root) or { panic(err) }
 	list := find_dirbrowser_element(root, 'folder_list') or { panic('missing folder list') }
-	assert list.children.len == app.entries.len + 1
+	assert list.children[0].children.len == app.entries.len + 1
 	if app.entries.len > 0 {
-		assert list.children[0].key == app.entries[0].path
-		assert list.children[0].native_style
+		assert list.children[0].children[0].key == app.entries[0].path
+		assert list.children[0].children[0].native_style
 	}
 	assert (find_dirbrowser_element(root, 'parent') or { panic('missing parent button') }).native_style
 	assert (find_dirbrowser_element(root, 'choose') or { panic('missing choose button') }).native_style

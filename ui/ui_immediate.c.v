@@ -13,10 +13,11 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	import time
 
 	struct HitTarget {
+		identity string
+		kind Kind = .view
 		content_transform ContentTransform
 		id             string
-		action_id      string
-		submit_id      string
+		on_event       ElementCallback = unsafe { nil }
 		x              f64
 		y              f64
 		w              f64
@@ -42,7 +43,6 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		// owning dropdown and option_index the value the row selects.
 		dropdown_option bool
 		option_index    int
-		emit_change bool
 		clickable      bool
 		button_behavior bool
 		draggable      bool
@@ -52,6 +52,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	mut:
 		// A rebuild can move a dragged view away from the initial press.
 		// Keep its event identity until release instead of hit-testing it again.
+		pointer_captured   bool
 		pointer_target     HitTarget
 		pressed_id         string // visual press owner, including ordinary controls
 		down               bool
@@ -72,7 +73,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	struct GgApp {
 	mut:
 		ctx &DrawContext = unsafe { nil }
-		scheduler &FrameCoordinator = new_frame_coordinator(.continuous)
+		scheduler &FrameCoordinator = new_frame_coordinator()
 		declared_root Element
 		has_root bool
 		iconified bool
@@ -96,7 +97,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	struct DropdownPopup {
 	mut:
 		id         string
-		action_id  string
+		on_event   ElementCallback = unsafe { nil }
 		x          f64
 		y          f64
 		width      f64
@@ -162,10 +163,8 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	const tooltip_text_color = u32(0x1f2937)
 
 	__global g_build_screen = BuildFn(unsafe { nil })
-	__global g_event_handler = EventFn(unsafe { nil })
 	__global g_key_handler = KeyFn(unsafe { nil })
 	__global g_key_event_handler = KeyEventFn(unsafe { nil })
-	__global g_scroll_handler = ScrollFn(unsafe { nil })
 	__global g_drop_handler = DropFn(unsafe { nil })
 	__global g_key_consumed = false
 	__global g_gg_app = &GgApp{}
@@ -185,6 +184,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	__global g_toggle_groups = map[string]string{}
 	__global g_toggle_allow_no_selection = map[string]bool{}
 	__global g_focused_field = ''
+	__global g_scroll_targets = map[string]HitTarget{}
 	__global g_scroll_offsets = map[string]f64{}
 	__global g_scroll_content_h = map[string]f64{}
 	__global g_hit_targets = []HitTarget{}
@@ -301,21 +301,21 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		}
 	}
 
-	pub fn run(build_fn BuildFn, event_fn EventFn) {
+	pub fn run(build_fn BuildFn) {
 		$if linux || macos || windows {
-			run_window('App', 800, 600, build_fn, event_fn)
+			run_window('App', 800, 600, build_fn)
 		} $else {
-			run_window('App', 400, 800, build_fn, event_fn)
+			run_window('App', 400, 800, build_fn)
 		}
 	}
 
-	pub fn run_window(title string, width int, height int, build_fn BuildFn, event_fn EventFn) {
-		run_window_with_min_size(title, width, height, 0, 0, build_fn, event_fn)
+	pub fn run_window(title string, width int, height int, build_fn BuildFn) {
+		run_window_with_min_size(title, width, height, 0, 0, build_fn)
 	}
 
-	fn run_window_with_min_size(title string, width int, height int, min_width int, min_height int, build_fn BuildFn, event_fn EventFn) {
+	fn run_window_with_min_size(title string, width int, height int, min_width int, min_height int, build_fn BuildFn) {
 		$if macos && ui2_embedder ? {
-			open_embedder_window(title, width, height, min_width, min_height, build_fn, event_fn) or {
+			open_embedder_window(title, width, height, min_width, min_height, build_fn) or {
 				panic('ui2: ${err}')
 			}
 			C.ui2_embedder_run()
@@ -326,9 +326,8 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			g_gg_app = &GgApp{}
 		}
 		g_build_screen = build_fn
-		g_event_handler = event_fn
 		configure_animation_driver(request_refresh, false)
-		publish_menu_context(event_fn, title, unsafe { nil })
+		publish_menu_context(title, unsafe { nil })
 		// Pick the bundled font before constructing either drawing adapter.
 		font_regular, font_bold := font_paths()
 		$if android {
@@ -361,15 +360,6 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			max_dropped_file_path_length: 4096
 		))
 		g_gg_app.ctx.inner.run()
-	}
-
-	// set_render_policy selects custom-renderer scheduling. Continuous remains
-	// the default. Call on the UI thread, before run or while the window is open.
-	pub fn set_render_policy(policy RenderPolicy) {
-		if g_gg_app.scheduler.is_closed() {
-			g_gg_app = &GgApp{}
-		}
-		g_gg_app.scheduler.set_policy(policy)
 	}
 
 	pub fn render_stats() RenderStats {
@@ -409,10 +399,6 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 
 	pub fn on_key_event(handler KeyEventFn) {
 		g_key_event_handler = handler
-	}
-
-	pub fn on_scroll(handler ScrollFn) {
-		g_scroll_handler = handler
 	}
 
 	pub fn on_drop(handler DropFn) {
@@ -587,9 +573,9 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		return 0
 	}
 
-	pub fn start_barcode_scan() {
-		if voidptr(g_event_handler) != unsafe { nil } {
-			g_event_handler('scan_error:barcode scanner unavailable')
+	pub fn start_barcode_scan(on_result ScanCallback) {
+		if voidptr(on_result) != unsafe { nil } {
+			on_result(ScanResult{ kind: .error, text: 'barcode scanner unavailable' })
 		}
 	}
 
@@ -606,7 +592,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	}
 
 	pub fn scroll_offset(id string) f64 {
-		return g_scroll_offsets[id] or { 0.0 }
+		return scroll_state_offset(named_scroll_state_id(id))
 	}
 
 	// scroll_to_offset puts a Scroll element at the given vertical offset. Before the
@@ -617,28 +603,30 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		if id.len == 0 {
 			return
 		}
+		state_id := named_scroll_state_id(id)
 		wanted := if offset < 0 { 0.0 } else { offset }
-		if id in g_scroll_viewports {
-			set_scroll_offset(id, wanted, scroll_maximum(id))
+		if state_id in g_scroll_viewports {
+			set_scroll_offset(state_id, wanted, scroll_maximum(state_id))
 			return
 		}
 		// The view does not exist yet, so its range is unknown and the offset cannot be
 		// stored as a live position: the next frame rendered without the view would
 		// prune it. Hold the request until the view registers and can clamp it.
-		g_pending_scroll[id] = wanted
+		g_pending_scroll[state_id] = wanted
 		invalidate_custom_paint()
 	}
 
 	pub fn scroll_to_rect(id string, _x f64, y f64, _width f64, height f64) {
-		area := g_scroll_viewports[id] or { return }
-		current := scroll_offset(id)
+		state_id := named_scroll_state_id(id)
+		area := g_scroll_viewports[state_id] or { return }
+		current := scroll_state_offset(state_id)
 		mut next := current
 		if y < current {
 			next = y
 		} else if y + height > current + area.height {
 			next = y + height - area.height
 		}
-		set_scroll_offset(id, next, scroll_maximum(id))
+		set_scroll_offset(state_id, next, scroll_maximum(state_id))
 	}
 
 	pub fn clipboard_has_image() bool {
@@ -740,7 +728,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		}
 		if g_touch.down && !g_touch.moved && !g_touch.long_press_fired && !g_touch.scrollbar_drag {
 			target := hit_test(g_touch.start_x, g_touch.start_y)
-			if target.long_press && target.action_id.len > 0 {
+			if target.long_press && voidptr(target.on_event) != unsafe { nil } {
 				press_deadline := g_touch.start_time + 450
 				if deadline < 0 || press_deadline < deadline {
 					deadline = press_deadline
@@ -841,7 +829,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		if app.has_root {
 			g_dropdown_popup.mounted = false
 			top := menu_bar_height()
-			render_element(ctx, root, 0, top, rect(0, top, f64(ctx.width), f64(ctx.height) - top), '')
+			render_element(ctx, root, 0, top, rect(0, top, f64(ctx.width), f64(ctx.height) - top), '', 'root')
 			if g_open_dropdown.len > 0 {
 				if g_dropdown_popup.mounted {
 					draw_dropdown_popup(ctx)
@@ -888,7 +876,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 				// Recorded before any handler below can claim the move, so the
 				// tooltip always knows where the pointer is.
 				g_tooltip.pointer_moved(f64(e.mouse_x), f64(e.mouse_y), renderer_now_ms())
-				if g_touch.down && g_touch.pointer_target.action_id.len > 0 {
+				if g_touch.down && g_touch.pointer_captured {
 					handle_touch_move(f64(e.mouse_x), f64(e.mouse_y))
 					return
 				}
@@ -915,7 +903,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 				g_tooltip.pointer_left()
 			}
 			.mouse_up {
-				if g_touch.down && g_touch.pointer_target.action_id.len > 0 {
+				if g_touch.down && g_touch.pointer_captured {
 					handle_touch_up(f64(e.mouse_x), f64(e.mouse_y))
 					return
 				}
@@ -994,13 +982,9 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 
 	// ── Touch handling ─────────────────────────────────────────────────
 
-	fn pointer_event_id(phase string, action_id string, x f64, y f64) string {
-		return 'pointer:${phase}:${action_id}:${x}:${y}'
-	}
-
-	fn target_pointer_event_id(phase string, target HitTarget, x f64, y f64) string {
-		logical_x, logical_y := target.content_transform.inverse(x,y)
-		return pointer_event_id(phase,target.action_id,logical_x,logical_y)
+	fn fire_pointer_event(kind ElementEventKind, target HitTarget, x f64, y f64) {
+		logical_x, logical_y := target.content_transform.inverse(x, y)
+		fire_target_event(target, ElementEvent{ kind: kind, id: target.id, x: logical_x, y: logical_y })
 	}
 
 	fn handle_touch_down(x f64, y f64) {
@@ -1019,6 +1003,8 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			return
 		}
 		target := hit_test(x, y)
+		g_touch.pointer_target = target
+		g_touch.pointer_captured = target.w > 0 && target.h > 0
 		g_touch.pressed_id = target.id
 		if target.slider {
 			commit_slider(target, x, y)
@@ -1032,11 +1018,11 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		if begin_scrollbar_drag(x, y) {
 			return
 		}
-		if target.action_id.len > 0
+		if voidptr(target.on_event) != unsafe { nil }
 			&& (target.clickable || target.button_behavior || target.draggable) {
 			g_touch.pointer_target = target
 			if target.clickable || target.draggable {
-				fire_event(target_pointer_event_id('down', target, x, y))
+				fire_pointer_event(.pointer_down, target, x, y)
 			}
 		}
 	}
@@ -1053,11 +1039,12 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		}
 		g_touch.current_x = x
 		g_touch.current_y = y
-		target := if g_touch.pointer_target.action_id.len > 0 {
+		target := if g_touch.pointer_captured {
 			g_touch.pointer_target
 		} else {
 			hit_test(g_touch.start_x, g_touch.start_y)
 		}
+		if g_touch.pointer_captured && !target.clickable && !target.draggable && current_pointer_target(target) == none { return }
 		if target.slider {
 			commit_slider(target, x, y)
 			return
@@ -1073,8 +1060,8 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		if g_touch.scroll_chain.len > 0 {
 			apply_scroll_chain(g_touch.scroll_chain, previous_y - y)
 		}
-		if target.action_id.len > 0 && target.draggable {
-			fire_event(target_pointer_event_id('drag', target, x, y))
+		if voidptr(target.on_event) != unsafe { nil } && target.draggable {
+			fire_pointer_event(.pointer_drag, target, x, y)
 		}
 	}
 
@@ -1104,10 +1091,8 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		g_scroll_offsets[id] = next
 		if next != previous {
 			invalidate_custom_paint()
-			if voidptr(g_scroll_handler) != unsafe { nil } {
-				refresh()
-				g_scroll_handler(id)
-			}
+			target := g_scroll_targets[id] or { HitTarget{} }
+			fire_target_event(target, ElementEvent{ kind: .scroll, id: target.id, value: next })
 		}
 	}
 
@@ -1123,13 +1108,16 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		g_touch.current_x = x
 		g_touch.current_y = y
 		captured := g_touch.pointer_target
+		was_captured := g_touch.pointer_captured
+		g_touch.pointer_captured = false
 		g_touch.pointer_target = HitTarget{}
 		g_touch.down = false
-		slider_target := if captured.action_id.len > 0 {
+		slider_target := if was_captured {
 			captured
 		} else {
 			hit_test(g_touch.start_x, g_touch.start_y)
 		}
+		if was_captured && !captured.clickable && !captured.draggable && current_pointer_target(captured) == none { return }
 		if slider_target.slider {
 			commit_slider(slider_target, x, y)
 			return
@@ -1150,51 +1138,56 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		if g_touch.long_press_fired || g_touch.scrollbar_drag {
 			return
 		}
-		if g_open_dropdown.len > 0 && captured.action_id.len == 0 {
+		if g_open_dropdown.len > 0 && !was_captured {
 			handle_dropdown_release(x, y)
 			return
 		}
-		mut target := if captured.action_id.len > 0 {
+		mut target := if was_captured {
 			captured
 		} else {
 			hit_test(g_touch.start_x, g_touch.start_y)
 		}
 		dx := x - g_touch.start_x
-		if g_touch.moved && dx < -72 {
-			if target.action_id.len > 0 && target.swipe_left {
-				fire_event('swipe_left:' + target.action_id)
-				return
+		if g_touch.moved && dx < -72 && target.swipe_left && voidptr(target.on_event) != unsafe { nil } {
+			if current := current_pointer_target(target) {
+				if current.swipe_left {
+					fire_target_event(target, ElementEvent{ kind: .swipe_left, id: target.id })
+					return
+				}
 			}
 		}
-		mut button_action := ''
-		if target.action_id.len > 0 && target.button_behavior {
+		mut activate := false
+		if voidptr(target.on_event) != unsafe { nil } && target.button_behavior {
 			if !g_touch.moved {
-				if current := current_button_behavior_target(target) {
-					if hit_target_contains(current, x, y) {
-						button_action = target.action_id
+				if current := current_pointer_target(target) {
+					if current.button_behavior && voidptr(current.on_event) != unsafe { nil } && hit_target_contains(current, x, y) {
+						activate = true
 					}
 				}
 			}
 		}
-		if target.action_id.len > 0 && (target.clickable || target.draggable) {
-			fire_event(target_pointer_event_id('up', target, x, y))
+		if voidptr(target.on_event) != unsafe { nil } && (target.clickable || target.draggable) {
+			fire_pointer_event(.pointer_up, target, x, y)
 		}
 		if target.button_behavior {
-			fire_event(button_action)
+			if activate { fire_target_event(target, ElementEvent{ kind: .tap, id: target.id }) }
 			return
 		}
-		if target.action_id.len > 0 && (target.clickable || target.draggable) {
+		if voidptr(target.on_event) != unsafe { nil } && (target.clickable || target.draggable) {
 			return
 		}
 		if g_touch.moved {
 			return
 		}
-		target = hit_test(x, y)
+		if was_captured {
+			current := current_pointer_target(target) or { return }
+			if !hit_target_contains(current, x, y) { return }
+		} else { target = hit_test(x, y) }
 		if target.checkbox {
 			commit_checkbox(target)
 			return
 		}
-		if target.id.len == 0 && target.action_id.len == 0 {
+		if target.id.len == 0 && voidptr(target.on_event) == unsafe { nil } {
 			if g_focused_field.len > 0 {
 				g_focused_field = ''
 			}
@@ -1226,7 +1219,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			commit_toggle_button(target)
 			return
 		}
-		fire_event(target.action_id)
+		fire_target_event(target, ElementEvent{ kind: .tap, id: target.id })
 	}
 
 	// Finish a captured gesture on focus loss/cancellation so an IDE drag cannot
@@ -1236,8 +1229,8 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		x := g_touch.current_x
 		y := g_touch.current_y
 		g_touch = TouchState{}
-		if captured.action_id.len > 0 && (captured.clickable || captured.draggable) {
-			fire_event(target_pointer_event_id('up', captured, x, y))
+		if voidptr(captured.on_event) != unsafe { nil } && (captured.clickable || captured.draggable) {
+			fire_pointer_event(.pointer_up, captured, x, y)
 		}
 	}
 
@@ -1249,10 +1242,11 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		if elapsed < 450 {
 			return
 		}
-		target := hit_test(g_touch.start_x, g_touch.start_y)
-		if target.action_id.len > 0 && target.long_press {
+		target := if g_touch.pointer_captured { g_touch.pointer_target } else { hit_test(g_touch.start_x, g_touch.start_y) }
+		current := current_pointer_target(target) or { return }
+		if voidptr(target.on_event) != unsafe { nil } && target.long_press && current.long_press {
 			g_touch.long_press_fired = true
-			fire_event('long:' + target.action_id)
+			fire_target_event(target, ElementEvent{ kind: .long_press, id: target.id })
 		}
 	}
 
@@ -1274,42 +1268,33 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	// A semantic press keeps the action chosen on pointer-down, but the surface
 	// must still exist and be enabled when it is released. Hit targets are rebuilt
 	// every frame, so use the current geometry rather than the captured rectangle.
-	fn current_button_behavior_target(captured HitTarget) ?HitTarget {
+	fn current_pointer_target(captured HitTarget) ?HitTarget {
 		if captured.id.len > 0 {
 			for i := g_hit_targets.len - 1; i >= 0; i-- {
 				current := g_hit_targets[i]
-				if current.button_behavior && current.action_id.len > 0
-					&& current.id == captured.id {
-					return current
+				if current.id == captured.id {
+					return eligible_pointer_target(captured, current)
 				}
 			}
 			return none
 		}
-		mut found := false
-		mut matched := HitTarget{}
-		for i := g_hit_targets.len - 1; i >= 0; i-- {
-			current := g_hit_targets[i]
-			if !current.button_behavior || current.action_id != captured.action_id {
-				continue
-			}
-			if found {
-				// Without a lookup id there is no stable way to distinguish two
-				// surfaces that dispatch the same action after a rebuild.
-				return none
-			}
-			found = true
-			matched = current
-		}
-		if found {
-			return matched
+		if captured.identity.len == 0 { return none }
+		for current in g_hit_targets {
+			if current.identity == captured.identity { return eligible_pointer_target(captured, current) }
 		}
 		return none
 	}
 
-	fn fire_event(id string) {
-		if id.len > 0 && voidptr(g_event_handler) != unsafe { nil } {
+	fn eligible_pointer_target(captured HitTarget, current HitTarget) ?HitTarget {
+		if captured.kind != current.kind { return none }
+		if voidptr(captured.on_event) != unsafe { nil } && voidptr(current.on_event) == unsafe { nil } { return none }
+		return current
+	}
+
+	fn fire_target_event(target HitTarget, event ElementEvent) {
+		if voidptr(target.on_event) != unsafe { nil } {
 			refresh()
-			g_event_handler(id)
+			target.on_event(event)
 		}
 	}
 
@@ -1331,7 +1316,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			g_slider_values[target.id] = next
 		}
 		if next != previous {
-			fire_event(target.action_id)
+			fire_target_event(target, ElementEvent{ kind: .change, id: target.id, value: next })
 		}
 	}
 
@@ -1344,7 +1329,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			g_switch_values[target.id] = active
 		}
 		if active != previous {
-			fire_event(target.action_id)
+			fire_target_event(target, ElementEvent{ kind: .change, id: target.id, checked: active })
 		}
 	}
 
@@ -1356,7 +1341,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		if target.id.len > 0 {
 			g_checkbox_values[target.id] = !previous
 		}
-		fire_event(target.action_id)
+		fire_target_event(target, ElementEvent{ kind: .change, id: target.id, checked: !previous })
 	}
 
 	fn commit_toggle_button(target HitTarget) {
@@ -1374,7 +1359,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			}
 			g_toggle_values[target.id] = pressed
 		}
-		fire_event(target.action_id)
+		fire_target_event(target, ElementEvent{ kind: .change, id: target.id, checked: pressed })
 	}
 
 	fn handle_files_dropped(e &gg.Event) {
@@ -1595,8 +1580,8 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			id := g_focused_field
 			g_focused_field = ''
 			for target in g_hit_targets {
-				if target.id == id && target.text_field && target.submit_id.len > 0 {
-					fire_event(target.submit_id)
+				if target.id == id && target.text_field && voidptr(target.on_event) != unsafe { nil } {
+					fire_target_event(target, ElementEvent{ kind: .submit, id: id, text: text(id) })
 					break
 				}
 			}
@@ -1636,15 +1621,16 @@ fn text_navigation_boundary_modifier(super_ bool) bool {
 }
 
 fn page_focused_text_area(direction int) {
-		viewport := g_scroll_viewports[g_focused_field] or { return }
-		set_scroll_offset(g_focused_field, scroll_offset(g_focused_field) + f64(direction) * viewport.height,
-			scroll_maximum(g_focused_field))
+		state_id := named_scroll_state_id(g_focused_field)
+		viewport := g_scroll_viewports[state_id] or { return }
+		set_scroll_offset(state_id, scroll_state_offset(state_id) + f64(direction) * viewport.height,
+			scroll_maximum(state_id))
 	}
 
 	fn fire_field_change(id string) {
 		for target in g_hit_targets {
-			if target.id == id && (target.text_field || target.text_area) && target.emit_change {
-				fire_event(target.action_id)
+			if target.id == id && (target.text_field || target.text_area) && voidptr(target.on_event) != unsafe { nil } {
+				fire_target_event(target, ElementEvent{ kind: .change, id: target.id, text: text(id) })
 				return
 			}
 		}
@@ -1656,7 +1642,7 @@ fn page_focused_text_area(direction int) {
 	// is nowhere to keep the selection, so such a control only reports the tap.
 	fn open_dropdown(target HitTarget) {
 		if target.id.len == 0 || target.options.len == 0 {
-			fire_event(target.action_id)
+			fire_target_event(target, ElementEvent{ kind: .tap, id: target.id })
 			return
 		}
 		close_dropdown()
@@ -1687,13 +1673,13 @@ fn page_focused_text_area(direction int) {
 			close_dropdown()
 			return
 		}
-		commit_dropdown(target.id, target.action_id, target.options[target.option_index])
+		commit_dropdown(target.id, target.on_event, target.options[target.option_index])
 	}
 
-	fn commit_dropdown(id string, action_id string, value string) {
+	fn commit_dropdown(id string, on_event ElementCallback, value string) {
 		close_dropdown()
 		replace_text_value(id, value)
-		fire_event(action_id)
+		fire_target_event(HitTarget{ id: id, on_event: on_event }, ElementEvent{ kind: .change, id: id, text: value })
 	}
 
 	fn handle_dropdown_key(key gg.KeyCode) bool {
@@ -1724,7 +1710,7 @@ fn page_focused_text_area(direction int) {
 					close_dropdown()
 					return true
 				}
-				commit_dropdown(dropdown_state.id, dropdown_state.action_id,
+				commit_dropdown(dropdown_state.id, dropdown_state.on_event,
 					dropdown_state.options[highlighted])
 				return true
 			}
@@ -1842,7 +1828,7 @@ fn page_focused_text_area(direction int) {
 		opening := g_dropdown_popup.id != el.id
 		g_dropdown_popup = DropdownPopup{
 			id: el.id
-			action_id: element_action_id(el)
+			on_event: el.on_event
 			x: frame.x
 			y: frame.y
 			width: frame.width
@@ -1910,8 +1896,9 @@ fn page_focused_text_area(direction int) {
 			draw_text(ctx, option, dropdown_state.x + 26, row_y, dropdown_state.width - 34,
 				dropdown_state.row_height, row_style)
 			add_hit_target(HitTarget{
+				kind: .dropdown
 				id: dropdown_state.id
-				action_id: dropdown_state.action_id
+				on_event: dropdown_state.on_event
 				x: dropdown_state.x
 				y: row_y
 				w: dropdown_state.width
@@ -2103,7 +2090,7 @@ fn page_focused_text_area(direction int) {
 			// Measured with the configuration draw_text_in_box draws with, so no
 			// line that fits here is shortened when it is drawn.
 			ctx.set_text_cfg(gg.TextCfg{
-				size: int(font_style_render_size(style, text_font_metrics('')) + 0.5)
+				size: int(font_render_size(style.size, text_font_metrics('')) + 0.5)
 				align: .left
 				vertical_align: .middle
 			})
@@ -2113,7 +2100,7 @@ fn page_focused_text_area(direction int) {
 			if lines.len == 0 {
 				return
 			}
-			line_h := font_style_line_height(style)
+			line_h := font_line_height(style.size)
 			window := rect(0, 0, f64(ctx.width), f64(ctx.height))
 			frame := tooltip_frame(g_tooltip.anchor_x, g_tooltip.anchor_y,
 				text_width + tooltip_padding * 2, f64(lines.len) * line_h + tooltip_padding * 2, window)
@@ -2245,6 +2232,7 @@ fn page_focused_text_area(direction int) {
 		focused := declared.focused || (declared.id.len > 0 && declared.id == g_focused_field)
 		style_pressed := g_touch.down && declared.id.len > 0
 			&& (declared.id == g_touch.pressed_id || declared.id == g_touch.pointer_target.id)
+			&& (!g_touch.pointer_captured || declared.kind == g_touch.pointer_target.kind)
 			&& !g_touch.moved && !g_touch.scrollbar_drag
 			&& box_contains_point(intersect_rect(area, clip), press_x, press_y)
 		return Element{...declared,
@@ -2252,25 +2240,25 @@ fn page_focused_text_area(direction int) {
 			text_style: interaction_text_style(declared, hovered, focused, style_pressed)}
 	}
 
-	fn render_scaled_content(ctx &DrawContext, el Element, off_x f64, off_y f64, clip Rect, scroll_parent_id string) {
+	fn render_scaled_content(ctx &DrawContext, el Element, off_x f64, off_y f64, clip Rect, scroll_parent_id string, path string) {
 		if el.hidden { return }
 		viewport := rect(el.frame.x+off_x,el.frame.y+off_y,el.frame.width,el.frame.height)
 		local := contain_content(viewport,el.content_size.width,el.content_size.height) or { return }
 		outer := ctx.content_transform
 		window_clip := outer.project(intersect_rect(viewport,clip))
 		// Draw the viewport's fill/interaction at its normal size before entering content.
-		render_element(ctx, Element{...el, children:[], content_size:LayoutSize{}}, off_x, off_y, clip, scroll_parent_id)
+		render_element(ctx, Element{...el, children:[], content_size:LayoutSize{}}, off_x, off_y, clip, scroll_parent_id, path)
 		transform := outer.compose(local)
 		unsafe { ctx.content_transform = transform }
 		defer { unsafe { ctx.content_transform = outer } }
 		content_clip := intersect_rect(rect(0,0,el.content_size.width,el.content_size.height), transform.inverse_rect(window_clip))
 		if content_clip.width <= 0 || content_clip.height <= 0 { return }
-		for child in el.children { render_element(ctx,child,0,0,content_clip,scroll_parent_id) }
+		for index, child in el.children { render_element(ctx,child,0,0,content_clip,scroll_parent_id,reconciliation_child_key(path,index,child)) }
 	}
 
-	fn render_element(ctx &DrawContext, declared_el Element, off_x f64, off_y f64, clip Rect, scroll_parent_id string) {
+	fn render_element(ctx &DrawContext, declared_el Element, off_x f64, off_y f64, clip Rect, scroll_parent_id string, path string) {
 		if declared_el.content_size.width > 0 || declared_el.content_size.height > 0 {
-			render_scaled_content(ctx, declared_el, off_x, off_y, clip, scroll_parent_id)
+			render_scaled_content(ctx, declared_el, off_x, off_y, clip, scroll_parent_id, path)
 			return
 		}
 		if declared_el.hidden {
@@ -2309,8 +2297,8 @@ fn page_focused_text_area(direction int) {
 					draw_rect(ctx, off_x, off_y, w - off_x, h - off_y, el.box.bg, 0)
 				}
 				draw_box_borders(ctx, off_x, off_y, w - off_x, h - off_y, el.box)
-				for child in el.children {
-					render_element(ctx, child, off_x, off_y, clip, scroll_parent_id)
+				for index, child in el.children {
+					render_element(ctx, child, off_x, off_y, clip, scroll_parent_id, reconciliation_child_key(path,index,child))
 				}
 			}
 			.view {
@@ -2320,12 +2308,14 @@ fn page_focused_text_area(direction int) {
 					draw_rect(ctx, x, y, el.frame.width, el.frame.height, el.box.bg, el.box.radius)
 				}
 				draw_box_borders(ctx, x, y, el.frame.width, el.frame.height, el.box)
-				if el.enabled && element_action_id(el).len > 0
+				if el.enabled && voidptr(el.on_event) != unsafe { nil }
 					&& (el.clickable || el.button_behavior || el.draggable || el.long_press
 					|| el.swipe_left) {
 					add_hit_target(HitTarget{
+						identity: path
+						kind: el.kind
 						id: el.id
-						action_id: element_action_id(el)
+						on_event: el.on_event
 						x: x
 						y: y
 						w: el.frame.width
@@ -2337,8 +2327,8 @@ fn page_focused_text_area(direction int) {
 						draggable: el.draggable
 					}, clip)
 				}
-				for child in el.children {
-					render_element(ctx, child, x, y, clip, scroll_parent_id)
+				for index, child in el.children {
+					render_element(ctx, child, x, y, clip, scroll_parent_id, reconciliation_child_key(path,index,child))
 				}
 			}
 			.scroll {
@@ -2348,7 +2338,7 @@ fn page_focused_text_area(direction int) {
 				draw_rect(ctx, x, y, el.frame.width, el.frame.height, el.box.bg, 0)
 				draw_box_borders(ctx, x, y, el.frame.width, el.frame.height, el.box)
 				mut content_h := 0.0
-				for child in el.children {
+				for index, child in el.children {
 					if !child.hidden && child.frame.y + child.frame.height > content_h {
 						content_h = child.frame.y + child.frame.height
 					}
@@ -2357,17 +2347,18 @@ fn page_focused_text_area(direction int) {
 				if content_h > 0 {
 					content_h += 16
 				}
-				scroll_y := register_scroll_view_in_parent(el.id, scroll_parent_id, frame, clip, content_h, el.enabled,
-					true, el.persistent_scrollbars)
-				child_scroll_parent_id := if el.id.len > 0 { el.id } else { scroll_parent_id }
+				scroll_id := scroll_view_state_id(el, path)
+				scroll_y := register_scroll_view_in_parent(scroll_id, scroll_parent_id, frame, clip, content_h, el.enabled,
+					true, el.persistent_scrollbars, HitTarget{ id: el.id, on_event: el.on_event })
+				child_scroll_parent_id := scroll_id
 				child_clip := intersect_rect(frame, clip)
-				for child in el.children {
+				for index, child in el.children {
 					child_screen_y := child.frame.y - scroll_y
 					if child_screen_y + child.frame.height < 0 || child_screen_y > el.frame.height {
-						retain_culled_scroll_state(child)
+						retain_culled_scroll_state(child, reconciliation_child_key(path, index, child))
 						continue
 					}
-					 render_element(ctx, child, x, y - scroll_y, child_clip, child_scroll_parent_id)
+					 render_element(ctx, child, x, y - scroll_y, child_clip, child_scroll_parent_id, reconciliation_child_key(path,index,child))
 				}
 				if child_clip.width > 0 && child_clip.height > 0 {
 					apply_clip(ctx, child_clip)
@@ -2391,11 +2382,13 @@ fn page_focused_text_area(direction int) {
 					el.rotation) {
 					draw_rect(ctx, x, y, el.frame.width, el.frame.height, 0xe8ecef, 0)
 				}
-				if el.enabled && element_action_id(el).len > 0
+				if el.enabled && voidptr(el.on_event) != unsafe { nil }
 					&& (el.clickable || el.draggable) {
 					add_hit_target(HitTarget{
+						identity: path
+						kind: el.kind
 						id: el.id
-						action_id: element_action_id(el)
+						on_event: el.on_event
 						x: x
 						y: y
 						w: el.frame.width
@@ -2430,8 +2423,10 @@ fn page_focused_text_area(direction int) {
 				}
 				if el.enabled {
 					add_hit_target(HitTarget{
+						identity: path
+						kind: el.kind
 						id: el.id
-						action_id: element_action_id(el)
+						on_event: el.on_event
 						x: x
 						y: y
 						w: el.frame.width
@@ -2474,8 +2469,10 @@ fn page_focused_text_area(direction int) {
 				add_full_text_tooltip(el, area, clip, el.text, shortened)
 				if el.enabled {
 					add_hit_target(HitTarget{
+						identity: path
+						kind: el.kind
 						id: el.id
-						action_id: element_action_id(el)
+						on_event: el.on_event
 						x: x
 						y: y
 						w: el.frame.width
@@ -2525,8 +2522,10 @@ fn page_focused_text_area(direction int) {
 				add_full_text_tooltip(el, area, clip, el.text, shortened)
 				if el.enabled {
 					add_hit_target(HitTarget{
+						identity: path
+						kind: el.kind
 						id: el.id
-						action_id: element_action_id(el)
+						on_event: el.on_event
 						x: x
 						y: y
 						w: el.frame.width
@@ -2566,8 +2565,10 @@ fn page_focused_text_area(direction int) {
 						options << entry.title
 					}
 					add_hit_target(HitTarget{
+						identity: path
+						kind: el.kind
 						id: el.id
-						action_id: element_action_id(el)
+						on_event: el.on_event
 						x: x
 						y: y
 						w: el.frame.width
@@ -2676,15 +2677,15 @@ fn page_focused_text_area(direction int) {
 				}
 				if el.enabled && !el.readonly {
 					add_hit_target(HitTarget{
+						identity: path
+						kind: el.kind
 						id: el.id
-						action_id: element_action_id(el)
-						submit_id: el.submit_id
+						on_event: el.on_event
 						x: x
 						y: y
 						w: el.frame.width
 						h: el.frame.height
 						text_field: true
-						emit_change: el.emit_change
 					}, clip)
 				}
 			}
@@ -2713,14 +2714,15 @@ fn page_focused_text_area(direction int) {
 				draw_text_area_content(ctx, el, current_text, x, y, clip, scroll_parent_id)
 				if el.enabled && !el.readonly {
 					add_hit_target(HitTarget{
+						identity: path
+						kind: el.kind
 						id: el.id
-						action_id: element_action_id(el)
+						on_event: el.on_event
 						x: x
 						y: y
 						w: el.frame.width
 						h: el.frame.height
 						text_area: true
-						emit_change: true
 					}, clip)
 				}
 			}
@@ -2795,8 +2797,10 @@ fn page_focused_text_area(direction int) {
 				}
 				if el.enabled {
 					add_hit_target(HitTarget{
+						identity: path
+						kind: el.kind
 						id: el.id
-						action_id: element_action_id(el)
+						on_event: el.on_event
 						x: frame.x
 						y: frame.y
 						w: frame.width
@@ -2845,8 +2849,10 @@ fn page_focused_text_area(direction int) {
 					thumb.height / 2)
 				if el.enabled {
 					add_hit_target(HitTarget{
+						identity: path
+						kind: el.kind
 						id: el.id
-						action_id: element_action_id(el)
+						on_event: el.on_event
 						x: frame.x
 						y: frame.y
 						w: frame.width
@@ -3326,7 +3332,7 @@ fn page_focused_text_area(direction int) {
 				caret_top = text_block_top(y, h, caret_shape.size.height, .middle)
 			}
 			cursor := caret_shape.cursor(editor.selection.caret)
-			cursor_h := if cursor.height > 0 { cursor.height } else { font_style_line_height(el.text_style) }
+			cursor_h := if cursor.height > 0 { cursor.height } else { font_line_height(el.text_style.size) }
 			caret := rect(caret_origin + cursor.x, caret_top + cursor.y, 2, cursor_h)
 			draw_rect(ctx, caret.x, caret.y, caret.width, caret.height, el.text_style.color, 0)
 			g_gg_app.text_caret = current_presentation_rect(caret)
@@ -3372,14 +3378,14 @@ fn page_focused_text_area(direction int) {
 			ensure_family_fallbacks(ctx, family)
 			cfg := gg.TextCfg{
 				color: hex_color(style.color)
-				size: int(font_style_render_size(style, text_font_metrics(family)) + 0.5)
+				size: int(font_render_size(style.size, text_font_metrics(family)) + 0.5)
 				bold: style.bold
 				italic: style.italic
 				family: family
 				align: text_align(style.align)
 				vertical_align: .middle
 			}
-			line_h := font_style_line_height(style)
+			line_h := font_line_height(style.size)
 			parts := if style.lines > 1 {
 				wrap_text_lines(ctx, t, w, style.lines, cfg)
 			} else {

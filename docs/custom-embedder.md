@@ -9,17 +9,14 @@ use their existing platform paths; this define currently requires macOS/Metal.
 v -d ui2_custom_rendering -d ui2_embedder run examples/text_input
 ```
 
-`run_window` and the VML runners use the owned host under this define. Render
-policy stays explicit: call `set_render_policy(.on_demand)` before starting,
-or choose `render_policy: .on_demand` in the runner configuration. Continuous
-applications retain presentation-driven work.
+`run_window` and the VML runners use the owned host under this define. The
+host builds and paints on demand; no render policy configuration is required.
 
 ## Window ownership and scheduling
 
 ```v
-ui2.set_render_policy(.on_demand)
-first := ui2.open_window('First', 600, 400, build_first, event_first)!
-second := ui2.open_window('Second', 600, 400, build_second, event_second)!
+first := ui2.open_window('First', 600, 400, build_first)!
+second := ui2.open_window('Second', 600, 400, build_second)!
 dispatcher := first.dispatcher()
 // Pass dispatcher to a worker; apply its result inside dispatcher.post(...).
 ui2.run_windows()
@@ -44,11 +41,11 @@ pending work immediately and defers renderer resource destruction until its
 outer callback returns. `native_handle()` returns a borrowed NSWindow for
 main-thread platform integrations while the window remains open.
 
-The host waits for events or the earliest visual deadline. An idle on-demand
-window has no periodic pump callback. Worker messages post one coalesced native
-wake event. Tooltips and long presses use deadlines; animations and continuous
-mode use the screen's reported presentation cadence. The coordinator preserves
-invalidations issued during a frame. An unavailable Metal drawable is retried
+The host waits for events or the earliest visual deadline. An idle window has
+no periodic pump callback. Worker messages post one coalesced native wake event.
+Tooltips and long presses use deadlines; active animations use the screen's
+reported presentation cadence and stop requesting frames when they finish.
+The coordinator preserves invalidations issued during a frame. An unavailable Metal drawable is retried
 after a bounded wait while business messages continue to be delivered.
 
 Minimized or occluded windows suspend visual work, retain pending model updates
@@ -161,15 +158,16 @@ the collection of windows. Keep `run_window` as a convenience entry point.
 The independent view/metrics boundary in modern embedders is also illustrated
 by [FlutterWindowsView](https://api.flutter.dev/windows-embedder/classflutter_1_1_flutter_windows_view.html).
 
-UI2 currently scopes existing global helpers at callback boundaries to keep
-applications compatible. A future builder/event API receiving a window context
+UI2 scopes global helpers at callback boundaries so they act on the active
+window. A future builder/event API receiving a window context
 would allow those helpers to become context methods and remove that internal
 activation boundary. This is a proposal for the creator, not an implicit
 change to existing VML bindings or handler signatures.
 
-The explicit context should also extend to VML hosting: `VmlApp` already owns
-its model and parsed document, while the blocking `run_vml` and compiled runner
-use singleton callback routing. An `open_vml` entry point returning a window
+The explicit context should also extend to VML hosting: `VmlApp` owns
+its model and parsed document, and its elements capture their declared actions
+in typed callbacks. The blocking `run_vml` and compiled runner select their
+current model through a singleton build context. An `open_vml` entry point returning a window
 would make multiwindow VML lifecycle explicit without changing expression or
 binding semantics. Until then, host a separate `VmlApp` in each window and
-resolve live controls inside its scoped callbacks.
+deliver typed events directly to its elements.

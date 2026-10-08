@@ -7,9 +7,12 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	import math
 
 	const text_area_vertical_padding = 8.0
+	const named_scroll_prefix = '@scroll-id:'
 	const anonymous_text_area_scroll_prefix = '@text-area-key:'
+	const anonymous_scroll_prefix = '@scroll-path:'
 
 	fn reset_scroll_frame() {
+		g_scroll_targets = map[string]HitTarget{}
 		g_scroll_areas = map[string]Rect{}
 		g_scroll_transforms = map[string]ContentTransform{}
 		g_scroll_viewports = map[string]Rect{}
@@ -27,16 +30,17 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		return if content_height > frame.height { content_height - frame.height } else { 0.0 }
 	}
 
-	fn register_scroll_view(id string, frame Rect, clip Rect, content_height f64, enabled bool, show_scrollbar bool, persistent bool) f64 {
+	fn register_scroll_view(id string, frame Rect, clip Rect, content_height f64, enabled bool, show_scrollbar bool, persistent bool, target HitTarget) f64 {
 		return register_scroll_view_in_parent(id, '', frame, clip, content_height, enabled,
-			show_scrollbar, persistent)
+			show_scrollbar, persistent, target)
 	}
 
-	fn register_scroll_view_in_parent(id string, parent_id string, frame Rect, clip Rect, content_height f64, enabled bool, show_scrollbar bool, persistent bool) f64 {
+	fn register_scroll_view_in_parent(id string, parent_id string, frame Rect, clip Rect, content_height f64, enabled bool, show_scrollbar bool, persistent bool, target HitTarget) f64 {
 		if id.len == 0 {
 			return 0.0
 		}
 		g_active_scrolls[id] = true
+		g_scroll_targets[id] = target
 		g_scroll_viewports[id] = frame
 		g_scroll_transforms[id] = current_content_transform()
 		g_scroll_content_h[id] = content_height
@@ -47,13 +51,13 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		// the content or viewport changes the available range. A position asked for
 		// before this view existed takes precedence, now that there is a range to
 		// clamp it to.
-		mut requested := scroll_offset(id)
+		mut requested := scroll_state_offset(id)
 		if pending := g_pending_scroll[id] {
 			requested = pending
 			g_pending_scroll.delete(id)
 		}
 		set_scroll_offset(id, requested, scroll_maximum(id))
-		offset := scroll_offset(id)
+		offset := scroll_state_offset(id)
 		area := intersect_rect(frame, clip)
 		if enabled && area.width > 0 && area.height > 0 {
 			g_scroll_areas[id] = current_content_transform().project(area)
@@ -70,22 +74,23 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	// Rendering skips subtrees outside a scroll viewport, but those elements are
 	// still mounted. Keep their scroll-backed state active so unmount cleanup
 	// does not discard positions that must be restored when they re-enter view.
-	fn retain_culled_scroll_state(el Element) {
+	fn retain_culled_scroll_state(el Element, path string) {
 		if el.hidden {
 			return
 		}
 		if el.kind == .scroll {
-			if el.id.len > 0 {
-				g_active_scrolls[el.id] = true
-			}
+			id := scroll_view_state_id(el, path)
+			g_active_scrolls[id] = true
+			g_scroll_targets[id] = HitTarget{ id: el.id, on_event: el.on_event }
 		} else if el.kind == .text_area {
 			id := text_area_scroll_id(el)
 			if id.len > 0 {
 				g_active_scrolls[id] = true
+				g_scroll_targets[id] = HitTarget{ id: el.id, on_event: el.on_event }
 			}
 		}
-		for child in el.children {
-			retain_culled_scroll_state(child)
+		for index, child in el.children {
+			retain_culled_scroll_state(child, reconciliation_child_key(path, index, child))
 		}
 	}
 
@@ -133,10 +138,10 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			if id !in g_scroll_areas {
 				continue
 			}
-			before := scroll_offset(id)
+			before := scroll_state_offset(id)
 			scale := (g_scroll_transforms[id] or { ContentTransform{} }).scale
 			set_scroll_offset(id, before + remaining / scale, scroll_maximum(id))
-			remaining -= (scroll_offset(id) - before) * scale
+			remaining -= (scroll_state_offset(id) - before) * scale
 		}
 	}
 
@@ -200,13 +205,29 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			math.max(0.0, frame.height - text_area_vertical_padding * 2))
 	}
 
+	// Named ids and anonymous reconciliation paths occupy separate private
+	// namespaces. Every authored id remains valid, including these prefixes.
+	fn named_scroll_state_id(id string) string {
+		return named_scroll_prefix + id
+	}
+
+	fn scroll_state_offset(state_id string) f64 {
+		return g_scroll_offsets[state_id] or { 0.0 }
+	}
+
+	// Anonymous Scroll nodes retain state by structural/key identity. The
+	// private state key never becomes the event's authored source id.
+	fn scroll_view_state_id(el Element, path string) string {
+		return if el.id.len > 0 { named_scroll_state_id(el.id) } else { anonymous_scroll_prefix + path }
+	}
+
 	fn text_area_scroll_id(el Element) string {
 		if el.id.len > 0 {
-			return el.id
+			return named_scroll_state_id(el.id)
 		}
 		// Keyed repeater children do not need public ids for reconciliation, but
 		// the immediate backend still needs stable private state to scroll them.
-		// Prefix the key so it cannot alias a normal VML id in the scroll maps.
+		// This namespace is distinct from named ids and anonymous Scroll paths.
 		if el.key.len > 0 {
 			return anonymous_text_area_scroll_prefix + el.key
 		}
@@ -337,7 +358,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			content_height := shaped.size.height + text_area_vertical_padding * 2
 			scroll_id := text_area_scroll_id(el)
 			offset := register_scroll_view_in_parent(scroll_id, scroll_parent_id, frame, clip,
-				content_height, el.enabled, !el.disable_scroll, el.persistent_scrollbars)
+				content_height, el.enabled, !el.disable_scroll, el.persistent_scrollbars, HitTarget{ id: el.id, on_event: el.on_event })
 			text_clip := intersect_rect(content, clip)
 			if text_clip.width > 0 && text_clip.height > 0 {
 				apply_clip(ctx, text_clip)

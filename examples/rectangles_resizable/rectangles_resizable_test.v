@@ -32,11 +32,11 @@ fn test_resizable_rectangles_share_extra_width() {
 	wide_card := find_resizable_rectangles_element(wide_root, 'card') or {
 		panic('missing wide card')
 	}
-	assert initial_card.children.len == 6
-	assert wide_card.children.len == 6
-	assert wide_card.children[2].frame.width > initial_card.children[2].frame.width
-	assert wide_card.children[2].box.radius == 10
-	assert wide_card.children[2].children[0].frame.y > 0
-	assert wide_card.children[2].children[0].frame.height == 20
-	assert wide_card.children[5].key == '4'
+	assert initial_card.children[0].children.len == 6
+	assert wide_card.children[0].children.len == 6
+	assert wide_card.children[0].children[2].frame.width > initial_card.children[0].children[2].frame.width
+	assert wide_card.children[0].children[2].box.radius == 10
+	assert wide_card.children[0].children[2].children[0].children[0].frame.y > 0
+	assert wide_card.children[0].children[2].children[0].children[0].frame.height == 20
+	assert wide_card.children[0].children[5].key == '4'
 }

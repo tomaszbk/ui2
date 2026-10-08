@@ -74,7 +74,7 @@ fn test_inside_row_vml_builds_two_panes_and_a_draggable_image() {
 	mut app := inside_row_demo()
 	app.rotate()
 	frame := ui2.rect(0, 0, inside_row_width, inside_row_height)
-	root := ui2.element_from_vml_model(inside_row_vml_source, app, frame) or { panic(err) }
+	root := ui2.element_from_vml_model_with_callbacks(inside_row_vml_source, app, frame, canvas_layout_inside_row_callbacks()) or { panic(err) }
 	ui2.validate_element_tree(root) or { panic(err) }
 	tray := find_inside_row_element(root, 'tray') or { panic('missing tray') }
 	canvas := find_inside_row_element(root, 'canvas') or { panic('missing canvas') }
@@ -83,7 +83,7 @@ fn test_inside_row_vml_builds_two_panes_and_a_draggable_image() {
 	// The panes sit side by side without overlapping.
 	assert tray.frame.x + tray.frame.width <= canvas.frame.x
 	logo := find_inside_row_element(root, 'logo') or { panic('missing logo') }
-	assert logo.draggable && logo.action_id == 'logo'
+	assert logo.draggable && logo.id == 'logo' && voidptr(logo.on_event) != unsafe { nil }
 	assert logo.rotation == 90
 	assert logo.tooltip == 'Drag me across the divider'
 	assert logo.cursor == ui2.cursor_pointing_hand

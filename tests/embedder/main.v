@@ -67,11 +67,8 @@ fn main() {
 		path := '/System/Library/Fonts/Supplemental/Arial Unicode.ttf'
 		if os.is_file(path) { interactive_font = path }
 	}
-	ui2.set_render_policy(.on_demand)
-	first_window = ui2.open_window('UI2 embedder acceptance — First', 520, 460, first_build,
-		first_event) or { panic(err) }
-	second_window = ui2.open_window('UI2 embedder acceptance — Second', 520, 460, second_build,
-		second_event) or { panic(err) }
+	first_window = ui2.open_window('UI2 embedder acceptance — First', 520, 460, first_build) or { panic(err) }
+	second_window = ui2.open_window('UI2 embedder acceptance — Second', 520, 460, second_build) or { panic(err) }
 	assert C.ui2_fixture_place(first_window.native_handle(), 30, 160)
 	assert C.ui2_fixture_place(second_window.native_handle(), 590, 160)
 	first_host := C.ui2_fixture_host_handle(first_window.native_handle())
@@ -110,21 +107,39 @@ fn first_build() ui2.Element {
 	if first_model.status == 'Animation completed' {
 		first_model.completion_built = true
 	}
-	return build_window(first_model)
+	return build_window(first_model, first_change, first_animate, first_close)
 }
 
 fn second_build() ui2.Element {
-	return build_window(second_model)
+	return build_window(second_model, second_change, second_animate, second_close)
 }
 
-fn build_window(model WindowModel) ui2.Element {
+fn build_window(model WindowModel, on_change ui2.ElementCallback, on_animate ui2.ElementCallback, on_close ui2.ElementCallback) ui2.Element {
 	style := ui2.TextStyle{ size: 14, color: 0x243247 }
 	editor_style := ui2.TextStyle{ ...style, font_family: interactive_font }
 	box := ui2.BoxStyle{ bg: 0xe2e8f0, radius: 6 }
-	input := ui2.text_field('input', 'Japanese IME input', 'A😀Z', ui2.rect(24, 58, 300,
-		36), box, editor_style, 0)
-	area := ui2.text_area('editor', '${model.name} declared body', ui2.rect(24, 108, 300,
-		70), box, editor_style)
+	input := ui2.text_input(
+		id:          'input'
+		on_event:    on_change
+		placeholder: 'Japanese IME input'
+		text:        'A😀Z'
+		frame:       ui2.rect(24, 58, 300,
+			36)
+		box:         box
+		text_style:  editor_style
+		keyboard:    0
+		multiline:   false
+	) or { panic(err) }
+	area := ui2.text_input(
+		id:         'editor'
+		on_event:   on_change
+		text:       '${model.name} declared body'
+		frame:      ui2.rect(24, 108, 300,
+			70)
+		box:        box
+		text_style: editor_style
+		multiline:  true
+	) or { panic(err) }
 	mut rows := []ui2.Element{}
 	for index in 0 .. 30 {
 		rows << ui2.label('row-${index}', '${model.name} row ${index}', ui2.rect(8,
@@ -136,13 +151,12 @@ fn build_window(model WindowModel) ui2.Element {
 			'Stationary pointer deadline belongs to this window.'),
 		ui2.Element{
 			...input
-			emit_change: fixture_interactive
-			readonly:    model.input_readonly
-			enabled:     !model.input_disabled
+			readonly: model.input_readonly
+			enabled:  !model.input_disabled
 		},
-		ui2.Element{ ...area, emit_change: fixture_interactive },
-		ui2.button('animate', 'Animate', ui2.rect(350, 58, 138, 36), box, style),
-		ui2.button('close', 'Close this window', ui2.rect(350, 108, 138, 36), box, style),
+		area,
+		ui2.with_event(ui2.button('animate', 'Animate', ui2.rect(350, 58, 138, 36), box, style), on_animate),
+		ui2.with_event(ui2.button('close', 'Close this window', ui2.rect(350, 108, 138, 36), box, style), on_close),
 		ui2.view('moving', ui2.rect(350, 156, 30, 24), ui2.BoxStyle{ bg: 0x2563eb }, []ui2.Element{}),
 		ui2.scroll('rows', ui2.rect(24, 206, 250, 228), 0xe2e8f0, rows),
 		ui2.label('instructions', 'Equal ids in both windows.\nEdits, selection and scroll\nmust remain independent.\nHover heading for tooltip.\nTry IME in either editor.',
@@ -150,14 +164,20 @@ fn build_window(model WindowModel) ui2.Element {
 	])
 }
 
-fn first_event(id string) {
-	if id == 'close' {
+fn first_close(event ui2.ElementEvent) {
+	if event.kind == .tap {
 		end_japanese_ime()
 		first_window.close()
-	} else if id == 'animate' {
-		start_first_animation()
-	} else if fixture_interactive && id in ['input', 'editor'] {
-		println('First committed ${id}: ${ui2.text(id)}')
+	}
+}
+
+fn first_animate(event ui2.ElementEvent) {
+	if event.kind == .tap { start_first_animation() }
+}
+
+fn first_change(event ui2.ElementEvent) {
+	if fixture_interactive && event.kind == .change {
+		println('First committed ${event.id}: ${event.text}')
 	}
 }
 
@@ -168,13 +188,17 @@ fn end_japanese_ime() {
 	}
 }
 
-fn second_event(id string) {
-	if id == 'close' {
-		second_window.close()
-	} else if id == 'animate' {
-		ui2.animation(duration: 0.8, x: 440.0).start('moving')
-	} else if fixture_interactive && id in ['input', 'editor'] {
-		println('Second committed ${id}: ${ui2.text(id)}')
+fn second_close(event ui2.ElementEvent) {
+	if event.kind == .tap { second_window.close() }
+}
+
+fn second_animate(event ui2.ElementEvent) {
+	if event.kind == .tap { ui2.animation(duration: 0.8, x: 440.0).start('moving') }
+}
+
+fn second_change(event ui2.ElementEvent) {
+	if fixture_interactive && event.kind == .change {
+		println('Second committed ${event.id}: ${event.text}')
 	}
 }
 
@@ -397,10 +421,19 @@ fn dispatcher_only_window(probe &GcLifetimeProbe) ui2.UiDispatcher {
 			observed.builds++
 			observed.mutex.unlock()
 			return ui2.screen(0xf8fafc, [
-				ui2.text_field('gc-editor', '', 'before collection', ui2.rect(16, 24, 248,
-					36), ui2.BoxStyle{ bg: 0xe2e8f0 }, ui2.TextStyle{ size: 14 }, 0),
+				ui2.text_input(
+					id:          'gc-editor'
+					placeholder: ''
+					text:        'before collection'
+					frame:       ui2.rect(16, 24, 248,
+						36)
+					box:         ui2.BoxStyle{ bg: 0xe2e8f0 }
+					text_style:  ui2.TextStyle{ size: 14 }
+					keyboard:    0
+					multiline:   false
+				) or { panic(err) },
 			])
-		}, fn (_id string) {}) or { panic(err) }
+		}) or { panic(err) }
 	return window.dispatcher()
 }
 

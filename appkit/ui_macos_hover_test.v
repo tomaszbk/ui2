@@ -75,7 +75,8 @@ fn test_macos_composite_button_uses_pointer_view_and_passive_child_classes() {
 	el := button_view('save_card', rect(0, 0, 160, 48), BoxStyle{}, [
 		label('save_card_label', 'Save changes', rect(12, 12, 136, 24), TextStyle{}),
 	])
-	native := native_create_element(el)
+	interactive := Element{ ...el, on_event: fn (_event ElementEvent) {} }
+	native := native_create_element(interactive)
 	label_native := native_create_element(el.children[0])
 	decorative_native := native_create_element(view('decoration', rect(0, 0, 20, 20),
 		BoxStyle{}, []Element{}))
@@ -90,18 +91,18 @@ fn test_macos_composite_button_uses_pointer_view_and_passive_child_classes() {
 	assert macos.msg_bool_id(decorative_native, 'isKindOfClass:',
 		macos.get_class('UI2PointerChildView'))
 	assert macos.responds_to(native, 'accessibilityPerformPress')
-	register_pointer(native, el)
+	register_pointer(native, interactive)
 	pointer := u64(voidptr(native))
 	mut st := state()
 	assert (st.pointer_buttons[pointer] or { false })
-	assert (st.pointer_ids[pointer] or { '' }) == 'save_card'
+	assert (st.pointer_callbacks[pointer] or { AppkitCallbackBinding{} }).id == 'save_card'
 
 	disabled := Element{
-		...el
+		...interactive
 		enabled: false
 	}
 	register_pointer(native, disabled)
 	assert pointer !in st.pointer_buttons
-	assert pointer !in st.pointer_ids
+	assert pointer !in st.pointer_callbacks
 }
 }

@@ -14,7 +14,7 @@ pub mut:
 	horizontal_valid bool = true
 	vertical_value   int
 	vertical_text    string
-	vertical_valid   bool = true
+	vertical_valid   bool   = true
 	status           string = 'Drag either slider or type a value.'
 }
 
@@ -48,7 +48,11 @@ fn slider_textbox_demo() SliderTextboxDemo {
 fn (mut app SliderTextboxDemo) set_horizontal(value int) {
 	clamped := if value < -20 {
 		-20
-	} else if value > 100 { 100 } else { value }
+	} else if value > 100 {
+		100
+	} else {
+		value
+	}
 	app.horizontal_value = clamped
 	app.horizontal_text = clamped.str()
 	app.horizontal_valid = true
@@ -58,7 +62,11 @@ fn (mut app SliderTextboxDemo) set_horizontal(value int) {
 fn (mut app SliderTextboxDemo) set_vertical(value int) {
 	clamped := if value < -100 {
 		-100
-	} else if value > -20 { -20 } else { value }
+	} else if value > -20 {
+		-20
+	} else {
+		value
+	}
 	app.vertical_value = clamped
 	app.vertical_text = clamped.str()
 	app.vertical_valid = true
@@ -101,29 +109,42 @@ fn (mut app SliderTextboxDemo) reset() {
 	app.status = 'Both controls reset to their midpoint.'
 }
 
-fn (mut app SliderTextboxDemo) handle_event(event string) {
-	match event {
-		'horizontal_input' { app.apply_horizontal_text(ui2.text('horizontal_input')) }
-		'vertical_input' { app.apply_vertical_text(ui2.text('vertical_input')) }
-		'horizontal_slider' { app.set_horizontal(int(ui2.slider_value('horizontal_slider'))) }
-		'vertical_slider' { app.set_vertical(int(ui2.slider_value('vertical_slider'))) }
-		'reset' { app.reset() }
-		else {}
+fn slider_textbox_callbacks() map[string]ui2.ElementCallback {
+	return {
+		'reset':             fn (_event ui2.ElementEvent) {
+			mut state := unsafe { slider_textbox_state }
+			state.reset()
+			ui2.refresh()
+		}
+		'horizontal_input':  fn (event ui2.ElementEvent) {
+			mut state := unsafe { slider_textbox_state }
+			state.apply_horizontal_text(event.text)
+			ui2.refresh()
+		}
+		'vertical_input':    fn (event ui2.ElementEvent) {
+			mut state := unsafe { slider_textbox_state }
+			state.apply_vertical_text(event.text)
+			ui2.refresh()
+		}
+		'horizontal_slider': fn (event ui2.ElementEvent) {
+			mut state := unsafe { slider_textbox_state }
+			state.set_horizontal(int(event.value))
+			ui2.refresh()
+		}
+		'vertical_slider':   fn (event ui2.ElementEvent) {
+			mut state := unsafe { slider_textbox_state }
+			state.set_vertical(int(event.value))
+			ui2.refresh()
+		}
 	}
 }
 
 fn build_slider_textbox_screen() ui2.Element {
 	state := unsafe { slider_textbox_state }
-	return ui2.element_from_vml_model(slider_textbox_vml_source, *state, ui2.bounds()) or {
+	return ui2.element_from_vml_model_with_callbacks(slider_textbox_vml_source, *state, ui2.bounds(), slider_textbox_callbacks()) or {
 		eprintln('slider-textbox VML failed: ${err}')
 		ui2.screen(0xf1f5f9, [])
 	}
-}
-
-fn handle_slider_textbox_event(event string) {
-	mut state := unsafe { slider_textbox_state }
-	state.handle_event(event)
-	ui2.refresh()
 }
 
 fn main() {
@@ -131,5 +152,5 @@ fn main() {
 	unsafe {
 		*state = slider_textbox_demo()
 	}
-	ui2.run_window('Slider & Textbox', slider_textbox_width, slider_textbox_height, build_slider_textbox_screen, handle_slider_textbox_event)
+	ui2.run_window('Slider & Textbox', slider_textbox_width, slider_textbox_height, build_slider_textbox_screen)
 }

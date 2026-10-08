@@ -27,8 +27,24 @@ fn build_smoke_screen() ui2.Element {
 		}, [
 			ui2.with_native_style(ui2.button('button', 'Native button', ui2.rect(12, 12, 150, 34), ui2.BoxStyle{}, ui2.TextStyle{})),
 			ui2.dropdown('dropdown', 'Two', ['One', 'Two', 'Three'], ui2.rect(178, 12, 160, 34), ui2.BoxStyle{}, ui2.TextStyle{}),
-			ui2.text_field_with_change_and_submit('field', 'submit', 'Native text field', 'hello', ui2.rect(12, 60, 326, 32), ui2.BoxStyle{}, ui2.TextStyle{}, ui2.keyboard_default),
-			ui2.text_area('area', 'Native multiline EDIT control', ui2.rect(12, 106, 326, 72), ui2.BoxStyle{}, ui2.TextStyle{}),
+			ui2.text_input(
+				id:          'field'
+				placeholder: 'Native text field'
+				text:        'hello'
+				frame:       ui2.rect(12, 60, 326, 32)
+				box:         ui2.BoxStyle{}
+				text_style:  ui2.TextStyle{}
+				keyboard:    ui2.keyboard_default
+				multiline:   false
+			) or { panic(err) },
+			ui2.text_input(
+				id:         'area'
+				text:       'Native multiline EDIT control'
+				frame:      ui2.rect(12, 106, 326, 72)
+				box:        ui2.BoxStyle{}
+				text_style: ui2.TextStyle{}
+				multiline:  true
+			) or { panic(err) },
 			ui2.image('image', '', ui2.rect(12, 190, 40, 40)),
 			ui2.scroll('scroll', ui2.rect(66, 190, 272, 54), 0xf8fafc, [
 				ui2.label('scroll-label', 'Native scrolling container', ui2.rect(8, 8, 220, 24), ui2.TextStyle{}),
@@ -37,8 +53,6 @@ fn build_smoke_screen() ui2.Element {
 		]),
 	])
 }
-
-fn handle_smoke_event(_event string) {}
 
 fn verify_and_close_smoke_window() {
 	mut state := unsafe { smoke_state }
@@ -82,7 +96,7 @@ fn verify_and_close_smoke_window() {
 
 fn main() {
 	spawn verify_and_close_smoke_window()
-	ui2.run_window('ui2 Wine smoke test', 392, 328, build_smoke_screen, handle_smoke_event)
+	ui2.run_window('ui2 Wine smoke test', 392, 328, build_smoke_screen)
 	state := unsafe { smoke_state }
 	if !state.built || !state.verified {
 		eprintln('UI2_WINE_SMOKE_FAILED: ${state.error}')

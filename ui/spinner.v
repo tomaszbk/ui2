@@ -3,7 +3,7 @@ module ui2
 pub struct SpinnerConfig {
 pub:
 	id              string
-	action_id       string
+	on_event        ElementCallback = unsafe { nil }
 	frame           Rect
 	text            string
 	values          []string
@@ -27,8 +27,8 @@ pub fn spinner(config SpinnerConfig) Element {
 	selected := spinner_selected_text(config.text, config.values, config.text_autoupdate)
 	return Element{
 		...dropdown(config.id, selected, config.values, config.frame, config.box, config.text_style)
-		action_id: config.action_id
-		accessibility_role: 'combobox'
+		on_event:            config.on_event
+		accessibility_role:  'combobox'
 		accessibility_label: 'Spinner'
 		accessibility_value: selected
 	}
