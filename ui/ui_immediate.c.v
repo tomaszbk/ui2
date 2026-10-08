@@ -827,6 +827,9 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		g_tooltip_owners = 0
 		app.text_caret = Rect{}
 		reset_scroll_frame()
+		// Paint-time clamping can also notify user code before another pane is
+		// painted. Keep every mounted Scroll available to nested public calls.
+		sync_mounted_scroll_views()
 		g_active_fields = map[string]bool{}
 		app.editable_fields.clear()
 		g_active_sliders = map[string]bool{}
@@ -2394,19 +2397,10 @@ fn page_focused_text_area(direction int) {
 				frame := rect(x, y, el.frame.width, el.frame.height)
 				draw_rect(ctx, x, y, el.frame.width, el.frame.height, el.box.bg, 0)
 				draw_box_borders(ctx, x, y, el.frame.width, el.frame.height, el.box)
-				mut content_h := 0.0
-				for index, child in el.children {
-					if !child.hidden && child.frame.y + child.frame.height > content_h {
-						content_h = child.frame.y + child.frame.height
-					}
-				}
-				// Include the bottom inset in both the scroll range and thumb geometry.
-				if content_h > 0 {
-					content_h += 16
-				}
+				content_h := scroll_content_height(el)
 				scroll_id := scroll_view_state_id(el, path)
 				scroll_y := register_scroll_view_in_parent(scroll_id, scroll_parent_id, frame, clip, content_h, el.enabled,
-					true, el.persistent_scrollbars, HitTarget{ id: el.id, on_event: el.on_event })
+					true, el.persistent_scrollbars, HitTarget{ id: el.id, kind: .scroll, on_event: el.on_event })
 				if !custom_frame_current(dispatch, ctx) { return }
 				child_scroll_parent_id := scroll_id
 				child_clip := intersect_rect(frame, clip)

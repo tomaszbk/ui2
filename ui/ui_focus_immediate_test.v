@@ -211,6 +211,63 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		prune_unmounted_state()
 	}
 
+	fn test_nested_scroll_notification_revalidates_each_focus_reveal_continuation() {
+		// The inner A notification calls B; B can invalidate the outer A reveal.
+		// The normal case proves nested notifications do not suppress that reveal.
+		previous_app := g_gg_app
+		previous := activate_custom_window_state(new_custom_window_state())
+		defer { activate_custom_window_state(previous); g_gg_app = previous_app }
+		for mode in 0 .. 8 {
+			mut app := &GgApp{ctx: &DrawContext{width: 320, height: 180}}
+			g_gg_app = app
+			activate_custom_window_state(new_custom_window_state())
+			mut events := &[]string{}
+			inner_callback := fn [mut events] (event ElementEvent) {
+				events << 'inner:${event.value}'
+				scroll_to_offset('b', 42)
+			}
+			outer_callback := fn [mut events] (event ElementEvent) { events << 'outer:${event.value}' }
+			b_callback := fn [mode, mut app, mut events] (event ElementEvent) {
+				events << 'b:${event.value}'
+				match mode {
+					1 { update_custom_focus_tree(screen(0xffffff, [Element{kind: .button, id: 'replacement'}])) }
+					2 {
+						old := activate_custom_window_state(new_custom_window_state())
+						activate_custom_window_state(old)
+					}
+					3 { app.scheduler = new_frame_coordinator() }
+					4 { app.ctx = &DrawContext{width: 640, height: 360} }
+					5 { app.ctx.destroyed = true }
+					6 { g_gg_app = &GgApp{} }
+					7 { app.scheduler.close() }
+					else {}
+				}
+			}
+			inner := Element{kind: .scroll, id: 'inner', frame: rect(0, 300, 100, 100),
+				children: [Element{kind: .button, id: 'restore', frame: rect(0, 500, 80, 30)}]}
+			outer := Element{kind: .scroll, id: 'outer', frame: rect(0, 0, 100, 100), children: [inner]}
+			b := Element{kind: .scroll, id: 'b', frame: rect(180, 0, 100, 100),
+				children: [Element{kind: .label, frame: rect(0, 300, 80, 30)}]}
+			mount_focus_fixture(screen(0xffffff, [outer, b,
+				Element{kind: .view, id: 'scope', focus_scope: true,
+					children: [Element{kind: .button, id: 'inside'}]},
+			]))
+			focus('restore')
+			assert scroll_offset('inner') == 430 && scroll_offset('outer') == 300
+			assert enter_focus_scope('scope')
+			scroll_to_offset('inner', 0)
+			scroll_to_offset('outer', 0)
+			current_inner := Element{...inner, on_event: inner_callback}
+			current_outer := Element{...outer, on_event: outer_callback, children: [current_inner]}
+			update_custom_focus_tree(screen(0xffffff, [current_outer, Element{...b, on_event: b_callback}]))
+			assert *events == if mode == 0 { ['inner:430.0', 'b:42.0', 'outer:300.0'] } else { ['inner:430.0', 'b:42.0'] }
+			if mode == 0 {
+				assert focused_id() == 'restore' && scroll_offset('outer') == 300
+			}
+			eprintln('nested scroll continuation mode=${mode} passed')
+		}
+	}
+
 	fn focus_input_root() Element {
 		return screen(0xffffff, [
 			Element{ kind: .text_field, id: 'edit', text: 'café ñ', on_event: focus_input_event, frame: rect(0, 0, 160, 30) },

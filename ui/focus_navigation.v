@@ -348,12 +348,16 @@ fn focus_reveal_offset(offset f64, viewport_height f64, target Rect) f64 {
 	return offset
 }
 
-fn focus_scroll_maximum(el Element) f64 {
+fn scroll_content_height(el Element) f64 {
 	mut bottom := 0.0
 	for child in el.children {
 		if !child.hidden { bottom = math.max(bottom, child.frame.y + child.frame.height) }
 	}
-	return math.max(0, bottom + 16 - el.frame.height)
+	return if bottom > 0 { bottom + 16 } else { 0.0 }
+}
+
+fn focus_scroll_maximum(el Element) f64 {
+	return math.max(0, scroll_content_height(el) - el.frame.height)
 }
 
 // Windows character messages retain their originating key's scan code. A
