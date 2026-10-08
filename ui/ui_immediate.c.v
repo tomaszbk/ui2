@@ -684,13 +684,17 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 
 	// ── Frame & event loop ─────────────────────────────────────────────
 
-	fn on_init(app &GgApp) {
-		mut ctx := app.ctx
-		ctx.sync_gg()
+	fn configure_custom_presentation(app &GgApp, backend gfx.Backend) {
 		// Sokol's GL/EGL/D3D loops swap even when frame_fn returns early. Their
 		// discarded backbuffers need a full paint; only the Metal path can skip
 		// submission safely until UI2 owns presentation in the platform embedder.
-		app.scheduler.set_presentation_required(gfx.query_backend() != .metal_macos)
+		app.scheduler.set_presentation_required(backend != .metal_macos)
+	}
+
+	fn on_init(app &GgApp) {
+		mut ctx := app.ctx
+		ctx.sync_gg()
+		configure_custom_presentation(app, gfx.query_backend())
 		if voidptr(g_build_screen) == unsafe { nil } {
 			return
 		}
@@ -1474,7 +1478,10 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		if g_focused_field.len == 0 {
 			return
 		}
-		if ch < 32 {
+		// gg synthesizes CHAR(127) after Delete on Windows/X11; editing already
+		// happened in KEY_DOWN. C0 controls and DEL are commands, not text. Sokol
+		// supplies Unicode scalars (Win32 surrogate pairs are decoded by the host).
+		if ch < 32 || ch == 127 || ch > 0x10ffff || (ch >= 0xd800 && ch <= 0xdfff) {
 			return
 		}
 		mut editor := g_text_editors[g_focused_field] or {

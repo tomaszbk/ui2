@@ -38,6 +38,7 @@ check-linux:
 check-windows:
 	$(V) -enable-globals -shared -os windows -check .
 	$(V) -enable-globals -os windows -check windows/ui_windows_test.v
+	$(V) -os windows -check examples/windows_custom_runtime
 
 check-custom-macos:
 	$(V) -d ui2_custom_rendering -shared -os macos -check .
@@ -45,7 +46,14 @@ check-custom-macos:
 
 check-custom-windows:
 	$(V) -d ui2_custom_rendering -shared -os windows -check .
-	$(V) -d ui2_custom_rendering -os windows -check ui/ui_custom_test.v
+	@set -e; for fixture in ui/ui_custom_test.v ui/ui_custom_runtime_test.v \
+		ui/ui_scheduler_immediate_test.v ui/ui_pointer_capture_immediate_test.v \
+		ui/ui_scroll_immediate_test.v ui/ui_window_state_immediate_test.v \
+		ui/text_backend_vglyph_test.v ui/text_composition_test.v \
+		ui/presentation_geometry_test.v ui/frame_scheduler_test.v; do \
+		$(V) -d ui2_custom_rendering -os windows -check $$fixture; \
+	done
+	$(V) -d ui2_custom_rendering -os windows -check examples/windows_custom_runtime
 
 check-custom: check-custom-macos check-custom-windows
 
