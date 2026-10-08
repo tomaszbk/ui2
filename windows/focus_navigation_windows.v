@@ -131,10 +131,13 @@ $if !ui2_custom_rendering ? {
 
 $if !ui2_custom_rendering ? {
 	@[export: 'ui2_windows_control_key_up']
-	fn ui2_windows_control_key_up(virtual_key u32) int {
+	fn ui2_windows_control_key_up(virtual_key u32, scan_code u32) int {
 		mut st := windows_state()
-		consumed := virtual_key in st.suppressed_keys
-		st.suppressed_keys.delete(virtual_key)
+		physical := windows_physical_key(virtual_key, scan_code)
+		consumed := physical in st.suppressed_keys || (st.activation_keys[physical] or { false })
+		st.suppressed_keys.delete(physical)
+		st.activation_keys.delete(physical)
+		if consumed { st.keyboard_generation++ }
 		return windows_bool(consumed)
 	}
 

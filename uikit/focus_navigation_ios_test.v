@@ -3,6 +3,10 @@ module ui2
 
 import macos
 
+#include "@VMODROOT/uikit/focus_events_ios_test.h"
+fn C.ui2_ios_focus_test_select(view voidptr, location i64, length i64)
+fn C.ui2_ios_focus_test_selection_is(view voidptr, location i64, length i64) bool
+
 __global ios_semantic_events = []ElementEvent{}
 __global ios_semantic_handlers = []string{}
 
@@ -175,4 +179,87 @@ fn test_ios_dropdown_semantic_capability_and_native_command_selection() {
 		assert text('dropdown') == 'B'
 		render_root(screen(0xffffff, []))
 	}
+}
+
+// These use real UIWindow/UIScrollView/UIKit responders. Mac verification only
+// typechecks them; execution requires an iOS host and is reported separately.
+fn test_ios_focus_reveals_fractional_scroll_target_with_uikit_selector() {
+	begin_ios_semantic_fixture()
+	defer { end_ios_semantic_fixture() }
+	render_root(screen(0xffffff, [scroll('pane', rect(0, 0, 180.5, 80.5), 0xffffff, [
+		Element{kind: .text_field, id: 'below', text: 'café ñ', frame: rect(0, 250.5, 150.25, 30.25)},
+	])]))
+	pane := g_views['pane'] or { panic('missing UIScrollView') }
+	assert macos.responds_to(pane, 'scrollRectToVisible:animated:')
+	assert !macos.responds_to(pane, 'scrollRectToVisible:')
+	focus('below')
+	assert focused_id() == 'below'
+	visible_offset := scroll_content_offset_y(pane)
+	assert visible_offset <= 250.5 && visible_offset + 80.5 >= 280.75
+	// First-responder acquisition can also scroll UIKit. Reset after acquisition
+	// to independently verify the nearest-edge reveal with fractional geometry.
+	set_scroll_content_offset_y(pane, 0)
+	focus('below')
+	assert scroll_content_offset_y(pane) == 200.25
+	assert text('below') == 'café ñ'
+}
+
+fn test_ios_reconciliation_resigns_ineligible_or_removed_native_editor_and_keeps_local_edits() {
+	begin_ios_semantic_fixture()
+	defer { end_ios_semantic_fixture() }
+	for kind in [Kind.text_field, .text_area] {
+		field := Element{kind: kind, id: 'edit', text: 'declared', frame: rect(0, 0, 180, 60)}
+		for reason in ['unfocusable', 'hidden', 'disabled', 'ancestor', 'removed'] {
+			root := screen(0xffffff, [Element{kind: .view, id: 'parent', children: [field]}])
+			render_root(root)
+			focus('edit')
+			native := g_views['edit'] or { panic('missing editor') }
+			macos.retain(native)
+			defer { macos.release(native) }
+			assert macos.msg_bool(native, 'isFirstResponder')
+			set_text('edit', 'local ñá')
+			C.ui2_ios_focus_test_select(native, 2, 3)
+			assert C.ui2_ios_focus_test_selection_is(native, 2, 3)
+			render_root(Element{...root, box: BoxStyle{bg: 0xeeeeee}})
+			assert focused_id() == 'edit' && text('edit') == 'local ñá'
+			assert (g_views['edit'] or { panic('lost editor') }) == native
+			assert C.ui2_ios_focus_test_selection_is(native, 2, 3)
+			changed := match reason {
+				'unfocusable' { Element{...field, focus_policy: .unfocusable} }
+				'hidden' { Element{...field, hidden: true} }
+				'disabled' { Element{...field, enabled: false} }
+				else { field }
+			}
+			render_root(screen(0xffffff, if reason == 'removed' { []Element{} } else {
+				[Element{kind: .view, id: 'parent', enabled: reason != 'ancestor', children: [changed]}]
+			}))
+			assert g_ios_navigation.current == '' && focused_id() == ''
+			assert !macos.msg_bool(native, 'isFirstResponder')
+			if reason != 'removed' {
+				assert text('edit') == 'local ñá'
+				assert !(semantic_node('edit') or { panic('missing semantics') }).state.focused
+			}
+		}
+	}
+}
+
+fn test_ios_scope_removal_restores_eligible_native_responder_and_resigns_removed_editor() {
+	begin_ios_semantic_fixture()
+	defer { end_ios_semantic_fixture() }
+	outside := Element{kind: .text_field, id: 'outside', text: 'café ñ', frame: rect(0, 0, 180, 30)}
+	render_root(screen(0xffffff, [outside,
+		Element{kind: .view, id: 'scope', focus_scope: true, children: [
+			Element{kind: .text_area, id: 'inside', text: 'editor', frame: rect(0, 50, 180, 60)},
+		]},
+	]))
+	focus('outside')
+	set_text('outside', 'local ñá')
+	assert enter_focus_scope('scope') && focused_id() == 'inside'
+	inside := g_views['inside'] or { panic('missing scoped editor') }
+	macos.retain(inside)
+	defer { macos.release(inside) }
+	render_root(screen(0xffffff, [outside]))
+	assert focused_id() == 'outside' && g_ios_navigation.current == 'outside'
+	assert !macos.msg_bool(inside, 'isFirstResponder')
+	assert text('outside') == 'local ñá'
 }

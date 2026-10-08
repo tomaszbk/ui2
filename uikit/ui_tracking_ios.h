@@ -1,5 +1,6 @@
 #include <objc/message.h>
 #include <objc/runtime.h>
+#include <CoreGraphics/CGGeometry.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -10,6 +11,15 @@
 #define UI2_TRACKING_OBJECT(pointer) ((id)(pointer))
 #define UI2_TRACKING_POINTER(object) ((void *)(object))
 #endif
+
+// Keep CGRect and BOOL in the UIKit message signature; neither a pointer-sized
+// argument nor AppKit's one-argument selector has the UIScrollView ABI.
+static inline void ui2_ios_scroll_rect_visible(void *pointer, double x, double y,
+        double width, double height, BOOL animated) {
+    ((void (*)(id, SEL, CGRect, BOOL))objc_msgSend)(UI2_TRACKING_OBJECT(pointer),
+        sel_registerName("scrollRectToVisible:animated:"),
+        CGRectMake(x, y, width, height), animated);
+}
 
 extern void vui_control_tracking_begin(void *control);
 extern void vui_control_tracking_end(void *control);

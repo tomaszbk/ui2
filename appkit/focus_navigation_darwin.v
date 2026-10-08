@@ -4,6 +4,7 @@ $if !ui2_custom_rendering ? {
 	import macos
 
 	fn C.ui2_macos_window_send_event(window voidptr, event voidptr)
+	fn C.ui2_macos_window_lifecycle(window voidptr, selector voidptr)
 
 	fn focus_manager() &FocusManager { return state().navigation }
 
@@ -120,11 +121,22 @@ $if !ui2_custom_rendering ? {
 	// Intercept before NSControl and the shared field editor dispatch. Tab cannot
 	// be handled a second time by AppKit, and a semantic button consumes repeats.
 	fn appkit_navigation_key(event macos.Id) bool {
-		if macos.msg_u64(event, 'type') != 10 { return false }
+		mut st := state()
+		event_type := macos.msg_u64(event, 'type')
+		if event_type !in [u64(10), u64(11)] { return false }
+		physical := macos.msg_u64(event, 'keyCode')
+		if event_type == 11 {
+			if st.activation_keys[physical] or { false } { st.keyboard_generation++ }
+			st.activation_keys.delete(physical)
+			return false
+		}
 		key := appkit_key_event(event)
-		if key.ctrl || key.cmd || key.alt { return false }
+		repeated := macos.msg_bool(event, 'isARepeat')
+		owned := repeated && (st.activation_keys[physical] or { false })
+		if !repeated { st.activation_keys.delete(physical) }
+		if !owned && (key.ctrl || key.cmd || key.alt) { return false }
 		manager := focus_manager()
-		mut candidate := key.code == .tab
+		mut candidate := owned || key.code == .tab
 		if node := manager.node(focused_id()) {
 			candidate = candidate || (semantic_activatable(node.el) && !key.shift && key.code in [
 				.space,
@@ -135,9 +147,8 @@ $if !ui2_custom_rendering ? {
 					.down])
 		}
 		if !candidate { return false }
-		if dispatch_typed_key_event(event) { return true }
-		mut st := state()
 		if st.key_handler != unsafe { nil } {
+			generation := st.keyboard_generation
 			st.key_consumed = false
 			mut name := key_event_string(event)
 			if node := manager.node(focused_id()) {
@@ -147,13 +158,48 @@ $if !ui2_custom_rendering ? {
 			consumed := st.key_consumed || st.text_key_consumed
 			st.key_consumed = false
 			st.text_key_consumed = false
-			if consumed { return true }
+			if consumed || st.keyboard_generation != generation { return true }
 		}
-		return handle_focus_key(key, macos.msg_bool(event, 'isARepeat'))
+		if owned { return true }
+		// Claim before the synchronous callback: it may focus/remove a control,
+		// refresh, resign or close the window. Never re-latch after that callback.
+		if !repeated && !key.shift && key.code in [.space, .enter, .kp_enter] {
+			if node := manager.node(focused_id()) {
+				if manager.can_focus(node.el.id) && semantic_activatable(node.el) {
+					st.activation_keys[physical] = true
+				}
+			}
+		}
+		return handle_focus_key(key, repeated)
+	}
+
+	fn ui2_window_release_activation(self voidptr, selector voidptr) {
+		mut st := state()
+		if self == st.window {
+			st.activation_keys.clear()
+			st.keyboard_generation++
+		}
+		C.ui2_macos_window_lifecycle(self, selector)
+	}
+
+	fn ui2_app_release_activation(_self voidptr, _selector voidptr, _notification voidptr) {
+		mut st := state()
+		st.activation_keys.clear()
+		st.keyboard_generation++
 	}
 
 	@[export: 'ui2_window_send_event']
 	fn ui2_window_send_event(self voidptr, _cmd voidptr, event voidptr) {
+		if self != state().window {
+			C.ui2_macos_window_send_event(self, event)
+			return
+		}
+		// Native editors can bypass window keyDown:. Observe each key-down here;
+		// performKeyEquivalent/keyDown share the event/timestamp deduplication.
+		if macos.msg_u64(event, 'type') == 10 {
+			generation := state().keyboard_generation
+			if dispatch_typed_key_event(event) || state().keyboard_generation != generation { return }
+		}
 		if appkit_navigation_key(macos.Id(event)) { return }
 		previous := focused_id()
 		mut st := state()

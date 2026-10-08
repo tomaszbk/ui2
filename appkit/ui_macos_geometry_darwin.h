@@ -44,3 +44,8 @@ static inline void ui2_macos_window_send_event(void *window, void *event) {
     ((void (*)(struct objc_super *, SEL, id))objc_msgSendSuper)(&parent,
         sel_registerName("sendEvent:"), (id)event);
 }
+
+static inline void ui2_macos_window_lifecycle(void *window, void *selector) {
+    struct objc_super parent = { (id)window, class_getSuperclass(objc_getClass("UI2Window")) };
+    ((void (*)(struct objc_super *, SEL))objc_msgSendSuper)(&parent, (SEL)selector);
+}

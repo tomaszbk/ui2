@@ -105,6 +105,8 @@ mut:
 	navigation &FocusManager = &FocusManager{}
 	navigation_paths map[string]string
 	focus_selections map[string]macos.Range
+	activation_keys map[u64]bool // Physical NSEvent keyCode, owned until release/blur.
+	keyboard_generation u64 // Lifecycle changes during a synchronous key observer.
 	typed_key_event voidptr
 	typed_key_timestamp f64 = -1
 	typed_key_consumed bool
@@ -939,6 +941,7 @@ fn ensure_runtime_classes() {
 	if macos.get_class('UI2AppDelegate') == unsafe { nil } {
 		cls := macos.allocate_class_pair(macos.get_class('NSObject'), 'UI2AppDelegate')
 		macos.add_method(cls, 'applicationDidFinishLaunching:', voidptr(ui2_app_did_finish_launching), 'v@:@')
+		macos.add_method(cls, 'applicationDidResignActive:', voidptr(ui2_app_release_activation), 'v@:@')
 		macos.add_method(cls, 'applicationShouldTerminateAfterLastWindowClosed:', voidptr(ui2_app_should_terminate_after_last_window_closed), 'B@:@')
 		macos.add_method(cls, 'windowDidResize:', voidptr(ui2_window_did_resize), 'v@:@')
 		macos.register_class_pair(cls)
@@ -957,6 +960,8 @@ fn ensure_runtime_classes() {
 	if macos.get_class('UI2Window') == unsafe { nil } {
 		cls := macos.allocate_class_pair(macos.get_class('NSWindow'), 'UI2Window')
 		macos.add_method(cls, 'sendEvent:', voidptr(ui2_window_send_event), 'v@:@')
+		macos.add_method(cls, 'resignKeyWindow', voidptr(ui2_window_release_activation), 'v@:')
+		macos.add_method(cls, 'close', voidptr(ui2_window_release_activation), 'v@:')
 		macos.add_method(cls, 'keyDown:', voidptr(ui2_window_key_down), 'v@:@')
 		macos.add_method(cls, 'performKeyEquivalent:', voidptr(ui2_window_perform_key_equiv), 'B@:@')
 		macos.register_class_pair(cls)

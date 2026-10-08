@@ -51,8 +51,7 @@ enum {
 
 extern intptr_t ui2_windows_window_proc(void *hwnd, unsigned int message,
 		uintptr_t wparam, intptr_t lparam);
-extern int ui2_windows_edit_submit(void *hwnd);
-extern int ui2_windows_control_key_up(unsigned int virtual_key);
+extern int ui2_windows_control_key_up(unsigned int virtual_key, unsigned int scan_code);
 extern int ui2_windows_control_char(unsigned int character, unsigned int scan_code);
 extern void ui2_windows_focus_changed(void *hwnd);
 extern int ui2_windows_control_key(void *hwnd, unsigned int virtual_key, int repeated,
@@ -221,15 +220,13 @@ static LRESULT CALLBACK ui2_win_control_subclass(HWND hwnd, UINT message, WPARAM
 		ui2_windows_control_tracking(hwnd, 2);
 	}
 	if (message == WM_SETFOCUS) ui2_windows_focus_changed(hwnd);
-	if (message == WM_KEYDOWN && wparam == VK_RETURN && ui2_windows_edit_submit(hwnd)) {
-		return 0;
-	}
 	if (message == WM_KEYDOWN && ui2_windows_control_key(hwnd, (unsigned int)wparam,
             (lparam & ((LPARAM)1 << 30)) != 0,
             (unsigned int)((lparam >> 16) & 0x1ff))) return 0;
     // Key-up/char can go to the newly focused HWND after Tab or a scope action.
     // Suppression belongs to the window runtime, never the originating control.
-    if (message == WM_KEYUP && ui2_windows_control_key_up((unsigned int)wparam)) return 0;
+    if (message == WM_KEYUP && ui2_windows_control_key_up((unsigned int)wparam,
+            (unsigned int)((lparam >> 16) & 0x1ff))) return 0;
     if (message == WM_CHAR && ui2_windows_control_char((unsigned int)wparam,
             (unsigned int)((lparam >> 16) & 0x1ff))) return 0;
 	if (message == WM_KEYDOWN && !IsWindow(hwnd)) return 0;

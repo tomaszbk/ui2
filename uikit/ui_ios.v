@@ -5,6 +5,8 @@ import macos
 
 #include "@VMODROOT/uikit/ui_tracking_ios.h"
 
+fn C.ui2_ios_scroll_rect_visible(view voidptr, x f64, y f64, width f64, height f64, animated bool)
+
 fn C.ui2_ios_install_control_tracking(control voidptr)
 
 fn C.vui_app_did_finish_launching(self voidptr, cmd voidptr, application voidptr, launch_options voidptr) bool
@@ -305,7 +307,8 @@ pub fn focus(id string) {
 	if macos.msg_bool(native, 'becomeFirstResponder') { g_ios_navigation.current = id }
 	for request in g_ios_navigation.reveals(id) {
 		if pane := g_views[request.id] {
-			macos.msg_void_rect(pane, 'scrollRectToVisible:', native_rect(request.rect))
+			C.ui2_ios_scroll_rect_visible(pane, request.rect.x, request.rect.y,
+				request.rect.width, request.rect.height, false)
 		}
 	}
 }
@@ -1005,6 +1008,10 @@ fn remember_scroll_offsets() {
 
 fn render_root(declared Element) {
 	previous_focus := focused_id()
+	previous_responder := g_views[previous_focus] or { objc_nil() }
+	// Removal may release the view before focus reconciliation finishes.
+	if !objc_is_nil(previous_responder) { macos.retain(previous_responder) }
+	defer { if !objc_is_nil(previous_responder) { macos.release(previous_responder) } }
 	root := effective_element_state(apply_widget_animations(declared), true)
 	validate_element_tree(root) or {
 		eprintln('ui2: ${err}')
@@ -1033,7 +1040,11 @@ fn render_root(declared Element) {
 	g_ios_navigation.root = root
 	g_ios_navigation.current = previous_focus
 	sync_focus_navigation()
-	if g_ios_navigation.current.len > 0 && focused_id() != g_ios_navigation.current { focus(g_ios_navigation.current) }
+	if g_ios_navigation.current.len > 0 {
+		if focused_id() != g_ios_navigation.current { focus(g_ios_navigation.current) }
+	} else if !objc_is_nil(previous_responder) {
+		macos.msg_bool(previous_responder, 'resignFirstResponder')
+	}
 	mut removed_scrolls := []string{}
 	for id, _ in g_scroll_offsets {
 		if id !in g_scroll_ids {

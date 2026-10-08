@@ -281,6 +281,8 @@ mut:
 	navigation &FocusManager = &FocusManager{}
 	navigation_paths map[string]string
 	suppressed_keys map[u32]u32
+	activation_keys map[u32]bool // Virtual key + scan/extended bit, independent of HWND.
+	keyboard_generation u64 // A synchronous callback can release the press/host.
 	build_screen       BuildFn = BuildFn(unsafe { nil })
 	key_handler        KeyFn = KeyFn(unsafe { nil })
 	key_event_handler  KeyEventFn = KeyEventFn(unsafe { nil })
@@ -1478,6 +1480,8 @@ fn windows_release_all_node_resources() {
 	mut focus_state := windows_state()
 	focus_state.navigation = &FocusManager{}
 	focus_state.suppressed_keys.clear()
+	focus_state.activation_keys.clear()
+	focus_state.keyboard_generation++
 	st := windows_state()
 	for key, hwnd in st.nodes {
 		windows_cleanup_node_resources(key, hwnd, st.node_kinds[key] or { Kind.view })
@@ -1750,13 +1754,6 @@ fn windows_dispatch_key_string(virtual_key u32) bool {
 	return st.key_consumed
 }
 
-fn windows_dispatch_key(virtual_key u32) bool {
-	if windows_dispatch_typed_key(virtual_key) {
-		return true
-	}
-	return windows_dispatch_key_string(virtual_key)
-}
-
 fn windows_dispatch_control_app_key(hwnd voidptr, virtual_key u32) bool {
 	if windows_dispatch_typed_key(virtual_key) {
 		return true
@@ -1784,9 +1781,36 @@ fn windows_dispatch_control_app_key(hwnd voidptr, virtual_key u32) bool {
 	return st.key_consumed
 }
 
-fn windows_dispatch_control_key(hwnd voidptr, virtual_key u32, repeated bool) bool {
-	if windows_dispatch_control_app_key(hwnd, virtual_key) { return true }
-	return handle_focus_key(windows_key_event(virtual_key), repeated)
+fn windows_dispatch_control_key(hwnd voidptr, virtual_key u32, repeated bool, scan_code u32) bool {
+	mut st := windows_state()
+	physical := windows_physical_key(virtual_key, scan_code)
+	owned := repeated && (st.activation_keys[physical] or { false })
+	if !repeated {
+		st.activation_keys.delete(physical)
+		st.suppressed_keys.delete(physical)
+	}
+	// Observers run once even for owned repeats. Ownership precedes the native
+	// edit-submit shortcut and navigation, which can both change the focused HWND.
+	generation := st.keyboard_generation
+	observed := windows_dispatch_control_app_key(hwnd, virtual_key)
+	if owned || observed || st.keyboard_generation != generation { return true }
+	if virtual_key == 0x0d && windows_edit_submit(hwnd) { return true }
+	key := windows_key_event(virtual_key)
+	if !repeated && scan_code != 0 && !key.ctrl && !key.cmd && !key.alt && !key.shift
+		&& key.code in [.enter, .kp_enter, .space] {
+		if node := st.navigation.node(focused_id()) {
+			if st.navigation.can_focus(node.el.id) && semantic_activatable(node.el) {
+				// Claim before synchronous native activation. Deactivate/dispose in
+				// the callback clears it without a post-callback re-latch.
+				st.activation_keys[physical] = true
+			}
+		}
+	}
+	return handle_focus_key(key, repeated)
+}
+
+fn windows_physical_key(virtual_key u32, scan_code u32) u32 {
+	return (virtual_key << 9) | (scan_code & 0x1ff)
 }
 
 fn windows_handle_drop(drop voidptr) {
@@ -1944,14 +1968,19 @@ fn ui2_windows_window_proc(hwnd voidptr, message u32, wparam usize, lparam isize
 			return 0
 		}
 		win_wm_key_down {
-			if windows_dispatch_key(u32(wparam)) || handle_focus_key(windows_key_event(u32(wparam)), (usize(lparam) & (usize(1) << 30)) != 0) {
-				st.suppressed_keys[u32(wparam)] = u32((usize(lparam) >> 16) & 0x1ff)
+			if ui2_windows_control_key(hwnd, u32(wparam), windows_bool((usize(lparam) & (usize(1) << 30)) != 0), u32((usize(lparam) >> 16) & 0x1ff)) != 0 {
 				return 0
 			}
 		}
-		win_wm_key_up { if ui2_windows_control_key_up(u32(wparam)) != 0 { return 0 } }
+		win_wm_key_up { if ui2_windows_control_key_up(u32(wparam), u32((usize(lparam) >> 16) & 0x1ff)) != 0 { return 0 } }
 		win_wm_char { if ui2_windows_control_char(u32(wparam), u32((usize(lparam) >> 16) & 0x1ff)) != 0 { return 0 } }
-		win_wm_activate_app { if wparam == 0 { st.suppressed_keys.clear() } }
+		win_wm_activate_app {
+			if wparam == 0 {
+				st.suppressed_keys.clear()
+				st.activation_keys.clear()
+				st.keyboard_generation++
+			}
+		}
 
 		win_wm_dropfiles {
 			windows_handle_drop(voidptr(wparam))
@@ -2041,17 +2070,20 @@ fn ui2_windows_is_transparent_button(hwnd voidptr) int {
 	return windows_bool(windows_uses_transparent_button_paint(kind, box))
 }
 
-@[export: 'ui2_windows_edit_submit']
-fn ui2_windows_edit_submit(hwnd voidptr) int {
+fn windows_edit_submit(hwnd voidptr) bool {
 	st := windows_state()
-	binding := st.submit_bindings[windows_handle_id(hwnd)] or { return 0 }
-	return windows_bool(windows_emit_control(hwnd, binding))
+	binding := st.submit_bindings[windows_handle_id(hwnd)] or { return false }
+	return windows_emit_control(hwnd, binding)
 }
 
 @[export: 'ui2_windows_control_key']
 fn ui2_windows_control_key(hwnd voidptr, virtual_key u32, repeated int, scan_code u32) int {
-	consumed := windows_dispatch_control_key(hwnd, virtual_key, repeated != 0)
-	if consumed { windows_state().suppressed_keys[virtual_key] = scan_code }
+	mut st := windows_state()
+	generation := st.keyboard_generation
+	consumed := windows_dispatch_control_key(hwnd, virtual_key, repeated != 0, scan_code)
+	if consumed && st.keyboard_generation == generation {
+		st.suppressed_keys[windows_physical_key(virtual_key, scan_code)] = scan_code
+	}
 	return windows_bool(consumed)
 }
 
