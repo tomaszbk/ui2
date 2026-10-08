@@ -80,12 +80,20 @@ fn (mut manager FocusManager) update(root Element, offsets map[string]f64) {
 }
 
 fn (mut manager FocusManager) update_presented(root Element, offsets map[string]f64, transform ContentTransform) {
+	manager.update_geometry(root, offsets, transform, root.frame)
+}
+
+fn (mut manager FocusManager) update_mounted(root Element, offsets map[string]f64, viewport Rect, transform ContentTransform) {
+	manager.update_geometry(root, offsets, transform, mounted_root_frame(root, viewport))
+}
+
+fn (mut manager FocusManager) update_geometry(root Element, offsets map[string]f64, transform ContentTransform, root_frame Rect) {
 	manager.root = root
 	manager.scroll_offsets = offsets.clone()
 	manager.nodes.clear()
 	manager.node_indices.clear()
 	manager.path_indices.clear()
-	manager.collect(root, 'root', '', 0, 0, transform, false, true, []string{}, []string{})
+	manager.collect(root, root_frame, 'root', '', 0, 0, transform, false, true, []string{}, []string{})
 	// Validate the complete active chain: a surviving inner scope may have
 	// moved out of its parent, or that parent may have disappeared entirely.
 	mut valid_scopes := 0
@@ -110,12 +118,12 @@ fn (mut manager FocusManager) update_presented(root Element, offsets map[string]
 	}
 }
 
-fn (mut manager FocusManager) collect(el Element, path string, parent string,
+fn (mut manager FocusManager) collect(el Element, frame Rect, path string, parent string,
 	off_x f64, off_y f64, transform ContentTransform, ancestor_hidden bool,
 	ancestor_enabled bool, scopes []string, scrolls []string) {
 	hidden := ancestor_hidden || el.hidden
 	enabled := ancestor_enabled && el.enabled
-	local := rect(off_x + el.frame.x, off_y + el.frame.y, el.frame.width, el.frame.height)
+	local := rect(off_x + frame.x, off_y + frame.y, frame.width, frame.height)
 	mut child_scopes := scopes.clone()
 	if el.focus_scope { child_scopes << el.id }
 	index := manager.nodes.len
@@ -153,7 +161,7 @@ fn (mut manager FocusManager) collect(el Element, path string, parent string,
 		child_scrolls << path
 	}
 	for i, child in el.children {
-		manager.collect(child, reconciliation_child_key(path, i, child), path,
+		manager.collect(child, child.frame, reconciliation_child_key(path, i, child), path,
 			child_x, child_y, child_transform, hidden, enabled, child_scopes, child_scrolls)
 	}
 }

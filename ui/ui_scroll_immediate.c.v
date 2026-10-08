@@ -36,6 +36,10 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	}
 
 	fn register_scroll_view_in_parent(id string, parent_id string, frame Rect, clip Rect, content_height f64, enabled bool, show_scrollbar bool, persistent bool, target HitTarget) f64 {
+		dispatch := custom_input_dispatch(g_gg_app)
+		build_pending := dispatch.scheduler.build_pending()
+		root := g_focus_navigation.root
+		focused := g_focused_field
 		if id.len == 0 {
 			return 0.0
 		}
@@ -57,6 +61,8 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			g_pending_scroll.delete(id)
 		}
 		set_scroll_offset(id, requested, scroll_maximum(id))
+		if !dispatch.valid() || (!build_pending && dispatch.scheduler.build_pending())
+			|| g_focus_navigation.root != root || g_focused_field != focused { return 0 }
 		offset := scroll_state_offset(id)
 		area := intersect_rect(frame, clip)
 		if enabled && area.width > 0 && area.height > 0 {

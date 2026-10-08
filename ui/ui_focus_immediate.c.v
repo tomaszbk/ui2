@@ -16,7 +16,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 	fn sync_focus_navigation() {
 		mut offsets := map[string]f64{}
 		custom_focus_offsets(g_focus_navigation.root, 'root', mut offsets)
-		g_focus_navigation.update_presented(g_focus_navigation.root, offsets, ContentTransform{ y: menu_bar_height() })
+		g_focus_navigation.update_mounted(g_focus_navigation.root, offsets, bounds(), ContentTransform{ y: menu_bar_height() })
 	}
 
 	fn update_custom_focus_tree(root Element) {
@@ -33,6 +33,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 
 	fn reveal_custom_focus(id string) {
 		dispatch := custom_input_dispatch(g_gg_app)
+		root := g_focus_navigation.root
 		if !dispatch.valid() { return }
 		for request in g_focus_navigation.reveals(id) {
 			pane := g_focus_navigation.path_node(request.path) or { continue }
@@ -41,8 +42,14 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 			before := scroll_state_offset(state_id)
 			next := focus_reveal_offset(before, pane.el.frame.height, request.rect)
 			maximum := focus_scroll_maximum(pane.el)
+			// Focus restoration runs before paint registration. Use the current
+			// mounted pane from this same registry, never its last painted handler.
+			g_scroll_targets[state_id] = HitTarget{
+				id: pane.el.id
+				on_event: if !pane.hidden && pane.enabled { pane.el.on_event } else { ElementCallback(unsafe { nil }) }
+			}
 			set_scroll_offset(state_id, next, maximum)
-			if !dispatch.valid() { return }
+			if !dispatch.valid() || g_focused_field != id || g_focus_navigation.root != root { return }
 		}
 		sync_focus_navigation()
 	}

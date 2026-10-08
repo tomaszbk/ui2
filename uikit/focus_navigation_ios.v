@@ -24,7 +24,7 @@ fn sync_focus_navigation() {
 	mut offsets := map[string]f64{}
 	g_ios_navigation_paths.clear()
 	ios_focus_offsets(g_ios_navigation.root, 'root', '', mut offsets)
-	g_ios_navigation.update(g_ios_navigation.root, offsets)
+	g_ios_navigation.update_mounted(g_ios_navigation.root, offsets, bounds(), ContentTransform{})
 }
 
 fn live_semantic_nodes(nodes []SemanticNode) []SemanticNode {

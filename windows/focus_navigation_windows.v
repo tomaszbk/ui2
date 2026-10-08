@@ -22,7 +22,7 @@ $if !ui2_custom_rendering ? {
 			reconciliation_child_key('', 0, st.navigation.root)
 		}
 		windows_focus_offsets(st.navigation.root, 'root', native_path, mut offsets)
-		st.navigation.update(st.navigation.root, offsets)
+		st.navigation.update_mounted(st.navigation.root, offsets, bounds(), ContentTransform{})
 	}
 
 	fn reconcile_windows_focus(root Element, previous string) {

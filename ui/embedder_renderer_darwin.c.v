@@ -177,8 +177,11 @@ $if macos && ui2_embedder ? && ui2_custom_rendering ? && !ui2_headless ? {
 		interval := C.ui2_embedder_frame_interval(app.native_window)
 		wake_at := app.scheduler.next_wake(now, app.last_frame, interval)
 		if wake_at >= 0 && wake_at <= now {
+			dispatch := custom_input_dispatch(app)
+			ctx := app.ctx
 			drain_custom_tasks(mut app)
 			if app.scheduler.is_closed() { return -1 }
+			if !dispatch.valid() || app.ctx != ctx { return 0 }
 			if app.surface_retry_at > now { return app.surface_retry_at - now }
 			mut metrics := C.ui2_embedder_surface{}
 			C.ui2_embedder_metrics(app.native_window, &metrics)
@@ -186,10 +189,12 @@ $if macos && ui2_embedder ? && ui2_custom_rendering ? && !ui2_headless ? {
 			draws := app.scheduler.stats().draws
 			on_frame(mut app)
 			if app.scheduler.is_closed() { return -1 }
-			if app.scheduler.stats().draws != draws {
-				app.last_frame = renderer_now_ms()
+			if custom_frame_current(dispatch, ctx) {
+				if app.scheduler.stats().draws != draws {
+					app.last_frame = renderer_now_ms()
+				}
+				sync_embedder_text(app)
 			}
-			sync_embedder_text(app)
 		}
 		next := app.scheduler.next_wake(renderer_now_ms(), app.last_frame, interval)
 		if next < 0 { return -1 }

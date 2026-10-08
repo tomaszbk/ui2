@@ -65,6 +65,26 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		return ctx
 	}
 
+	// Read live logical dimensions without synchronizing drawing resources or
+	// waiting for paint. Owned hosts publish these directly on their context.
+	fn (ctx &DrawContext) logical_viewport(host_window voidptr) Rect {
+		$if macos && ui2_embedder ? {
+			if ctx.owns_surface && host_window != unsafe { nil } {
+				mut metrics := C.ui2_embedder_surface{}
+				C.ui2_embedder_metrics(host_window, &metrics)
+				return rect(0, 0, f64(metrics.width), f64(metrics.height))
+			}
+		}
+		if !ctx.owns_surface && ctx.inner != unsafe { nil } {
+			live := ctx.inner.window_size()
+			if live.width > 0 && live.height > 0 {
+				return rect(0, 0, f64(live.width), f64(live.height))
+			}
+			return rect(0, 0, f64(ctx.inner.width), f64(ctx.inner.height))
+		}
+		return rect(0, 0, f64(ctx.width), f64(ctx.height))
+	}
+
 	fn (mut ctx DrawContext) sync_gg() {
 		if ctx.inner == unsafe { nil } || ctx.owns_surface || ctx.destroyed { return }
 		ctx.width = ctx.inner.width
@@ -363,6 +383,12 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		gfx.end_pass()
 		gfx.commit()
 		unsafe { ctx.inner.frame++ }
+	}
+
+	// begin records commands; the GPU pass starts only in end. An invalidated
+	// frame must discard those commands without submitting to its old surface.
+	fn (ctx &DrawContext) cancel() {
+		if !ctx.destroyed && gfx.is_valid() { gfx.commit() }
 	}
 
 	fn release_draw_device() {

@@ -298,9 +298,10 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		}
 		// The drawn menu bar owns the top strip of the window, so the screen
 		// an app lays out is the rest of it.
+		viewport := g_gg_app.ctx.logical_viewport(g_gg_app.native_window)
 		return Rect{
-			width: f64(g_gg_app.ctx.width)
-			height: f64(g_gg_app.ctx.height) - menu_bar_height()
+			width: viewport.width
+			height: viewport.height - menu_bar_height()
 		}
 	}
 
@@ -757,22 +758,29 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		app.draining_tasks = false
 	}
 
+	fn custom_frame_current(dispatch CustomInputDispatch, ctx &DrawContext) bool {
+		return dispatch.valid() && dispatch.app.ctx == ctx && !ctx.destroyed
+			&& !dispatch.app.iconified && !dispatch.app.suspended
+			&& !dispatch.scheduler.build_pending()
+	}
+
 	fn on_frame(mut app GgApp) {
 		if app.scheduler.is_closed() || app.ctx == unsafe { nil } || app.draining_tasks { return }
+		dispatch := custom_input_dispatch(&app)
 		drain_custom_tasks(mut app)
-		if app.scheduler.is_closed() { return }
+		if !dispatch.valid() { return }
 		mut ctx := app.ctx
 		if !ctx.owns_surface {
 			ctx.sync_gg()
-			live_size := ctx.inner.window_size()
+			live_size := ctx.logical_viewport(app.native_window)
 			if live_size.width > 0 && live_size.height > 0
 				&& (ctx.width != live_size.width || ctx.height != live_size.height) {
-				ctx.width = live_size.width
-				ctx.height = live_size.height
-				ctx.inner.width = live_size.width
-				ctx.inner.height = live_size.height
-				ctx.inner.window.width = live_size.width
-				ctx.inner.window.height = live_size.height
+				ctx.width = int(live_size.width)
+				ctx.height = int(live_size.height)
+				ctx.inner.width = int(live_size.width)
+				ctx.inner.height = int(live_size.height)
+				ctx.inner.window.width = int(live_size.width)
+				ctx.inner.window.height = int(live_size.height)
 				app.scheduler.invalidate(.surface)
 			}
 			dpi := sapp.dpi_scale()
@@ -782,12 +790,14 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			}
 		}
 		now := renderer_now_ms()
-		work := app.scheduler.begin_frame(now) or { return }
-		defer { app.scheduler.finish_frame(work) }
+		scheduler := app.scheduler
+		work := scheduler.begin_frame(now) or { return }
+		defer { scheduler.finish_frame(work) }
 		$if android { ensure_symbol_fallbacks(ctx) }
 		if work.build && voidptr(g_build_screen) != unsafe { nil } {
 			app.scheduler.record_build()
 			declared := g_build_screen()
+			if !custom_frame_current(dispatch, ctx) { return }
 			validate_element_tree(declared) or {
 				eprintln('ui2: ${err}')
 				return
@@ -795,12 +805,12 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			app.declared_root = declared
 			app.has_root = true
 		}
-		if app.scheduler.is_closed() || app.iconified || app.suspended {
+		if !custom_frame_current(dispatch, ctx) {
 			return
 		}
 		root := effective_element_state(apply_custom_widget_animations(app.declared_root), true)
 		// Animation callbacks are user code and may close or suspend the window.
-		if app.scheduler.is_closed() || app.iconified || app.suspended {
+		if !custom_frame_current(dispatch, ctx) {
 			return
 		}
 		validate_element_tree(root) or {
@@ -808,6 +818,10 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			return
 		}
 
+		// Restoring focus can notify user code. Leave retained input state in
+		// place until ownership is revalidated, so a newer gesture survives.
+		update_custom_focus_tree(root)
+		if !custom_frame_current(dispatch, ctx) || g_focus_navigation.root != root { return }
 		g_hit_targets = []HitTarget{}
 		g_tooltip_targets.clear()
 		g_tooltip_owners = 0
@@ -821,21 +835,25 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		g_active_toggles = map[string]bool{}
 		g_active_scrolls = map[string]bool{}
 		g_active_images = map[string]bool{}
-		update_custom_focus_tree(root)
 		sync_mounted_focus_controls(root, 'root')
 		$if macos && ui2_embedder ? {
 			if ctx.owns_surface {
+				host_window := app.native_window
 				if !acquire_embedder_surface(mut app) { return }
-				defer { C.ui2_embedder_frame_done(app.native_window) }
+				defer { C.ui2_embedder_frame_done(host_window) }
 			}
 		}
 		// Image resources must be available before starting the GPU pass.
 		preload_images(root)
 		ctx.begin()
+		defer {
+			if custom_frame_current(dispatch, ctx) { ctx.end() } else { ctx.cancel() }
+		}
 		if app.has_root {
 			g_dropdown_popup.mounted = false
 			top := menu_bar_height()
 			render_element(ctx, root, 0, top, rect(0, top, f64(ctx.width), f64(ctx.height) - top), '', 'root')
+			if !custom_frame_current(dispatch, ctx) { return }
 			if g_open_dropdown.len > 0 {
 				if g_dropdown_popup.mounted {
 					draw_dropdown_popup(ctx)
@@ -852,11 +870,11 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			}
 		}
 		check_long_press()
+		if !custom_frame_current(dispatch, ctx) { return }
 		$if android {
 			// Android's legacy gg atlas uploads glyphs introduced by this frame.
 			if ctx.font_inited { ctx.ft.flush() }
 		}
-		ctx.end()
 		app.scheduler.record_draw()
 		app.scheduler.set_deadline(custom_visual_deadline())
 		app.scheduler.set_animation_active(custom_animations_need_frame(app.declared_root))
@@ -2066,7 +2084,9 @@ fn page_focused_text_area(direction int) {
 	// fills the window below its offset, whatever its frame says.
 	fn element_area(ctx &DrawContext, el Element, off_x f64, off_y f64) Rect {
 		if el.kind == .screen {
-			return rect(off_x, off_y, f64(ctx.width) - off_x, f64(ctx.height) - off_y)
+			host_window := if g_gg_app.ctx == ctx { g_gg_app.native_window } else { unsafe { nil } }
+			viewport := ctx.logical_viewport(host_window)
+			return mounted_root_frame(el, rect(off_x, off_y, viewport.width - off_x, viewport.height - off_y))
 		}
 		return rect(el.frame.x + off_x, el.frame.y + off_y, el.frame.width, el.frame.height)
 	}
@@ -2267,6 +2287,7 @@ fn page_focused_text_area(direction int) {
 	}
 
 	fn render_scaled_content(ctx &DrawContext, el Element, off_x f64, off_y f64, clip Rect, scroll_parent_id string, path string) {
+		dispatch := custom_input_dispatch(g_gg_app)
 		if el.hidden { return }
 		viewport := rect(el.frame.x+off_x,el.frame.y+off_y,el.frame.width,el.frame.height)
 		local := contain_content(viewport,el.content_size.width,el.content_size.height) or { return }
@@ -2274,15 +2295,20 @@ fn page_focused_text_area(direction int) {
 		window_clip := outer.project(intersect_rect(viewport,clip))
 		// Draw the viewport's fill/interaction at its normal size before entering content.
 		render_element(ctx, Element{...el, children:[], content_size:LayoutSize{}}, off_x, off_y, clip, scroll_parent_id, path)
+		if !custom_frame_current(dispatch, ctx) { return }
 		transform := outer.compose(local)
 		unsafe { ctx.content_transform = transform }
 		defer { unsafe { ctx.content_transform = outer } }
 		content_clip := intersect_rect(rect(0,0,el.content_size.width,el.content_size.height), transform.inverse_rect(window_clip))
 		if content_clip.width <= 0 || content_clip.height <= 0 { return }
-		for index, child in el.children { render_element(ctx,child,0,0,content_clip,scroll_parent_id,reconciliation_child_key(path,index,child)) }
+		for index, child in el.children {
+			render_element(ctx,child,0,0,content_clip,scroll_parent_id,reconciliation_child_key(path,index,child))
+			if !custom_frame_current(dispatch, ctx) { return }
+		}
 	}
 
 	fn render_element(ctx &DrawContext, declared_el Element, off_x f64, off_y f64, clip Rect, scroll_parent_id string, path string) {
+		dispatch := custom_input_dispatch(g_gg_app)
 		if declared_el.content_size.width > 0 || declared_el.content_size.height > 0 {
 			render_scaled_content(ctx, declared_el, off_x, off_y, clip, scroll_parent_id, path)
 			return
@@ -2322,14 +2348,13 @@ fn page_focused_text_area(direction int) {
 		}
 		match el.kind {
 			.screen {
-				w := f64(ctx.width)
-				h := f64(ctx.height)
 				if !el.box.transparent {
-					draw_rect(ctx, off_x, off_y, w - off_x, h - off_y, el.box.bg, 0)
+					draw_rect(ctx, area.x, area.y, area.width, area.height, el.box.bg, 0)
 				}
-				draw_box_borders(ctx, off_x, off_y, w - off_x, h - off_y, el.box)
+				draw_box_borders(ctx, area.x, area.y, area.width, area.height, el.box)
 				for index, child in el.children {
 					render_element(ctx, child, off_x, off_y, clip, scroll_parent_id, reconciliation_child_key(path,index,child))
+					if !custom_frame_current(dispatch, ctx) { return }
 				}
 			}
 			.view {
@@ -2360,6 +2385,7 @@ fn page_focused_text_area(direction int) {
 				}
 				for index, child in el.children {
 					render_element(ctx, child, x, y, clip, scroll_parent_id, reconciliation_child_key(path,index,child))
+					if !custom_frame_current(dispatch, ctx) { return }
 				}
 			}
 			.scroll {
@@ -2381,6 +2407,7 @@ fn page_focused_text_area(direction int) {
 				scroll_id := scroll_view_state_id(el, path)
 				scroll_y := register_scroll_view_in_parent(scroll_id, scroll_parent_id, frame, clip, content_h, el.enabled,
 					true, el.persistent_scrollbars, HitTarget{ id: el.id, on_event: el.on_event })
+				if !custom_frame_current(dispatch, ctx) { return }
 				child_scroll_parent_id := scroll_id
 				child_clip := intersect_rect(frame, clip)
 				for index, child in el.children {
@@ -2389,7 +2416,8 @@ fn page_focused_text_area(direction int) {
 						retain_culled_scroll_state(child, reconciliation_child_key(path, index, child))
 						continue
 					}
-					 render_element(ctx, child, x, y - scroll_y, child_clip, child_scroll_parent_id, reconciliation_child_key(path,index,child))
+					render_element(ctx, child, x, y - scroll_y, child_clip, child_scroll_parent_id, reconciliation_child_key(path,index,child))
+					if !custom_frame_current(dispatch, ctx) { return }
 				}
 				if child_clip.width > 0 && child_clip.height > 0 {
 					apply_clip(ctx, child_clip)

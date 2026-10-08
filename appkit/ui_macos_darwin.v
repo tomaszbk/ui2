@@ -571,6 +571,8 @@ pub fn focus(id string) {
 // focused_id returns the declarative id of the control that currently owns
 // keyboard focus. NSTextField edits through a shared field editor, so compare
 // that responder with each field's currentEditor as well as direct responders.
+// NSScrollView redirects explicit focus to its document view. Match that exact
+// internal responder only; a Scroll never owns its children's editor/control.
 pub fn focused_id() string {
 	st := state()
 	if native_is_nil(st.window) {
@@ -585,6 +587,10 @@ pub fn focused_id() string {
 	}
 	for id, native in st.views {
 		if native == NativeView(responder) {
+			return id
+		}
+		if (st.view_kinds[id] or { Kind.view }) == .scroll
+			&& macos.msg_id(native, 'documentView') == responder {
 			return id
 		}
 		if (st.view_kinds[id] or { Kind.view }) == .text_field

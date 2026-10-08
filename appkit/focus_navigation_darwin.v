@@ -27,7 +27,7 @@ $if !ui2_custom_rendering ? {
 		mut offsets := map[string]f64{}
 		st.navigation_paths.clear()
 		appkit_focus_offsets(st.navigation.root, 'root', '', mut offsets)
-		st.navigation.update(st.navigation.root, offsets)
+		st.navigation.update_mounted(st.navigation.root, offsets, bounds(), ContentTransform{})
 	}
 
 	fn reconcile_appkit_focus(root Element, previous string) {

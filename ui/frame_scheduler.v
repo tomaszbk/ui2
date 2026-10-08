@@ -35,6 +35,12 @@ pub:
 	closed                bool
 }
 
+fn (mut coordinator FrameCoordinator) build_pending() bool {
+	coordinator.mutex.lock()
+	defer { coordinator.mutex.unlock() }
+	return RenderReason.build in coordinator.pending_reasons
+}
+
 struct FrameWork {
 	generation u64
 	serial     u64

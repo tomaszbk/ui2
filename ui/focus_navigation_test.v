@@ -1,5 +1,32 @@
 module ui2
 
+fn test_mounted_root_geometry_preserves_declarations_and_scaled_children() {
+	root := Element{kind: .screen, frame: rect(30, 40, 1, 2), children: [
+		scaled_content('composition', rect(0, 0, 400, 300), 200, 100, BoxStyle{}, [
+			Element{kind: .view, id: 'panel', frame: rect(12.5, 9.25, 175, 80), children: [
+				Element{kind: .label, id: 'caption', frame: rect(3.25, 4.5, 87.5, 10.25)},
+			]},
+		]),
+	]}
+	$if ui2_custom_rendering ? { validate_element_tree(root)! }
+	mut manager := FocusManager{}
+	manager.update_mounted(root, {}, rect(0, 0, 400, 300), ContentTransform{})
+	assert manager.semantics()[0].frame == rect(0, 0, 400, 300)
+	assert manager.root == root
+	assert (manager.path_node('root') or { panic('missing root') }).el.frame == root.frame
+	assert (manager.node('panel') or { panic('missing panel') }).frame == rect(25, 68.5, 350, 160)
+	assert (manager.node('caption') or { panic('missing caption') }).frame == rect(31.5, 77.5, 175, 20.5)
+	manager.update_mounted(root, {}, rect(0, 0, 600, 300), ContentTransform{y: 24})
+	assert manager.semantics()[0].frame == rect(0, 24, 600, 300)
+	assert (manager.node('caption') or { panic('missing resized caption') }).frame == rect(31.5, 101.5, 175, 20.5)
+	subtree := root.children[0].children[0]
+	manager.update_mounted(subtree, {}, rect(0, 0, 600, 300), ContentTransform{})
+	assert manager.semantics()[0].frame == subtree.frame
+	assert (manager.node('caption') or { panic('missing subtree caption') }).frame == rect(15.75, 13.75, 87.5, 10.25)
+	manager.update(root, {})
+	assert manager.semantics()[0].frame == root.frame
+}
+
 fn test_consumed_key_character_keeps_unrelated_and_ime_text_while_navigation_is_held() {
 	// Tab and Space are held; A and scan-less IME text must still reach editors.
 	suppressed := {u32(0x09): u32(0x0f), u32(0x20): u32(0x39), u32(0x0d): u32(0x11c)}
