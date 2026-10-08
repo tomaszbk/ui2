@@ -99,10 +99,7 @@ pub fn accordion(config AccordionConfig) !Element {
 	mut children := []Element{}
 	if config.items.len > 0 {
 		current := accordion_current(config.current, config.items.len)
-		children << Element{
-			...config.items[current].content
-			frame: geometry.content
-		}
+		children << config.items[current].content.with_layout_frame(geometry.content)
 	}
 	for index, item in config.items {
 		active := index == accordion_current(config.current, config.items.len)

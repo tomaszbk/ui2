@@ -67,10 +67,7 @@ pub fn popup(config PopupConfig) !Element {
 	} else {
 		config.content
 	}
-	content := Element{
-		...content_source
-		frame: geometry.body
-	}
+	content := content_source.with_layout_frame(geometry.body)
 	surface_content := view(popup_id(config.id, 'content'), rect(0, 0, geometry.surface.width, geometry.surface.height), BoxStyle{ transparent: true }, [
 		title,
 		separator,
