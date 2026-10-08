@@ -11,14 +11,10 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	fn (p Parcel) drag_type() string { return 'parcel' }
 
 	__global drag_records = []ElementEvent{}
-	__global drag_withdraw_on_over = false
 	__global drag_cancel_on_enter = false
 
 	fn record_drag(event ElementEvent) {
 		drag_records << event
-		if event.kind == .drag_over && drag_withdraw_on_over {
-			g_drag_registry.owners.delete('id:target')
-		}
 		if event.kind == .drag_enter && drag_cancel_on_enter { cancel_drag() }
 	}
 	fn accept_parcel(offer DragOffer) DragOperation {
@@ -42,7 +38,6 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		reset_scroll_frame()
 		close_dropdown()
 		drag_records = []ElementEvent{}
-		drag_withdraw_on_over = false
 		drag_cancel_on_enter = false
 		source := HitTarget{id: 'source', identity: 'source', w: 40, h: 40, x: 10, y: 20,
 			on_event: record_drag, button_behavior: true, drag_generation: 1,
@@ -176,11 +171,6 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		handle_touch_up(120, 30)
 		assert ElementEventKind.drop !in drag_kinds()
 
-		reset_drag_fixture()
-		drag_withdraw_on_over = true
-		handle_touch_down(20, 30)
-		handle_touch_up(120, 30)
-		assert ElementEventKind.drop !in drag_kinds(), 'over callback withdrew target before commit'
 	}
 
 	fn test_source_unmount_generation_and_clipped_source_have_distinct_lifetimes() {

@@ -79,6 +79,13 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		ctx &DrawContext = unsafe { nil }
 		scheduler &FrameCoordinator = new_frame_coordinator()
 		declared_root Element
+		hit_declaration Element
+		hit_scroll_offsets map[string]f64
+		hit_menu_height f64
+		has_hit_declaration bool
+		building_declaration bool
+		declaration_generation u64
+		releasing_drag bool
 		has_root bool
 		iconified bool
 		suspended bool
@@ -716,6 +723,9 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		state.ctx = unsafe { nil }
 		clear_text_area_layouts()
 		state.declared_root = Element{}
+		state.hit_declaration = Element{}
+		state.hit_scroll_offsets.clear()
+		state.has_hit_declaration = false
 		state.has_root = false
 		state.editable_fields.clear()
 		configure_animation_driver(unsafe { nil }, false)
@@ -760,6 +770,26 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		app.draining_tasks = false
 	}
 
+	// Both frames and terminal input reconcile declarations through this path.
+	// It never acquires a surface, drains tasks, evaluates animations or draws.
+	fn build_custom_declaration(mut app GgApp) bool {
+		if app.scheduler.is_closed() || app.iconified || app.suspended || app.building_declaration { return false }
+		if voidptr(g_build_screen) == unsafe { nil } { return true }
+		app.building_declaration = true
+		defer { app.building_declaration = false }
+		app.declaration_generation = app.scheduler.stats().generation
+		app.scheduler.record_build()
+		declared := g_build_screen()
+		if app.scheduler.is_closed() || app.scheduler.stats().suspended || app.iconified || app.suspended { return false }
+		validate_element_tree(declared) or {
+			eprintln('ui2: ${err}')
+			return false
+		}
+		app.declared_root = declared
+		app.has_root = true
+		return true
+	}
+
 	fn on_frame(mut app GgApp) {
 		if app.scheduler.is_closed() || app.ctx == unsafe { nil } || app.draining_tasks { return }
 		drain_custom_tasks(mut app)
@@ -788,16 +818,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		work := app.scheduler.begin_frame(now) or { return }
 		defer { app.scheduler.finish_frame(work) }
 		$if android { ensure_symbol_fallbacks(ctx) }
-		if work.build && voidptr(g_build_screen) != unsafe { nil } {
-			app.scheduler.record_build()
-			declared := g_build_screen()
-			validate_element_tree(declared) or {
-				eprintln('ui2: ${err}')
-				return
-			}
-			app.declared_root = declared
-			app.has_root = true
-		}
+		if work.build && !build_custom_declaration(mut app) { return }
 		if app.scheduler.is_closed() || app.iconified || app.suspended {
 			return
 		}
@@ -845,6 +866,10 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 					close_dropdown()
 				}
 			}
+			app.hit_scroll_offsets = drag_hit_scroll_offsets()
+			app.hit_menu_height = top
+			app.hit_declaration = app.declared_root
+			app.has_hit_declaration = true
 			sync_drag_session()
 			draw_drag_preview(ctx)
 			draw_menu_bar(ctx)
@@ -972,10 +997,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 				handle_char_input(e.char_code)
 			}
 			.key_down {
-				if e.key_code == .escape && (g_touch.drag.active || g_touch.drag.pending) {
-					cancel_drag_session(.escape)
-					return
-				}
+				if drag_owned_escape(e.key_code) { return }
 				g_tooltip.dismiss()
 				if menu_bar_handle_key(e) {
 					return

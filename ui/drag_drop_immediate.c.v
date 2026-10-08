@@ -3,6 +3,8 @@
 module ui2
 
 $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
+	import gg
+
 	struct DragSession {
 	mut:
 		pending bool
@@ -74,6 +76,13 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 
 	pub fn cancel_drag() { cancel_drag_session(.cancelled) }
 
+	// Dispatch this before menu, focus and ordinary key handling in every host.
+	fn drag_owned_escape(key gg.KeyCode) bool {
+		if key != .escape || (!g_touch.drag.active && !g_touch.drag.pending) { return false }
+		cancel_drag_session(.escape)
+		return true
+	}
+
 	fn begin_drag_candidate(target HitTarget) {
 		source := target.drag_source or { return }
 		captured := HitTarget{...target,
@@ -101,15 +110,19 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	}
 
 	fn same_drag_session(token u64) bool {
+		stats := g_gg_app.scheduler.stats()
 		return g_touch.down && g_touch.drag.active && g_touch.drag.token == token
+			&& !stats.closed && !stats.suspended && !g_gg_app.iconified && !g_gg_app.suspended
 	}
 
 	// Shared hit membership is authoritative. A top ordinary control blocks the
 	// drop surface below it; no separate bounding-box/shape test lives here.
 	fn drag_destination(x f64, y f64) HitTarget {
 		target := hit_test(x, y)
-		if target.drop_target == none || current_drag_owner(target) == none { return HitTarget{} }
-		return target
+		owner := current_drag_owner(target) or { return HitTarget{} }
+		if owner.drop_target == none { return HitTarget{} }
+		return HitTarget{...target, on_event: owner.on_event,
+			drag_source: owner.drag_source, drop_target: owner.drop_target}
 	}
 
 	fn accepted_drag_operation(session DragSession, target HitTarget, x f64, y f64) DragOperation {
@@ -184,39 +197,122 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		return true
 	}
 
+	// Geometry still belongs to the shared rendered hit list. A declaration
+	// change affecting that geometry must wait for normal reconciliation; never
+	// hit-test stale bounds or duplicate the renderer's layout/clip traversal.
+	fn same_drag_hit_declaration(a Element, b Element) bool {
+		if a.kind != b.kind || a.id != b.id || a.key != b.key || a.frame != b.frame
+			|| a.content_size != b.content_size || a.hidden != b.hidden || a.enabled != b.enabled
+			|| a.rotation != b.rotation || a.box != b.box || a.interaction_style != b.interaction_style
+			|| a.text_style != b.text_style || a.text_runs != b.text_runs || a.text != b.text
+			|| a.clickable != b.clickable || a.draggable != b.draggable || a.button_behavior != b.button_behavior
+			|| a.long_press != b.long_press || a.swipe_left != b.swipe_left
+			|| a.readonly != b.readonly || a.disable_scroll != b.disable_scroll
+			|| a.persistent_scrollbars != b.persistent_scrollbars
+			|| (voidptr(a.on_event) == unsafe { nil }) != (voidptr(b.on_event) == unsafe { nil })
+			|| (a.drag_source == none) != (b.drag_source == none) || (a.drop_target == none) != (b.drop_target == none)
+			|| a.padding != b.padding || a.padding_left != b.padding_left || a.orientation != b.orientation
+			|| a.slider_style != b.slider_style || a.switch_style != b.switch_style
+			|| a.children.len != b.children.len { return false }
+		for i, child in a.children {
+			if !same_drag_hit_declaration(child, b.children[i]) { return false }
+		}
+		return true
+	}
+
+	fn owns_drag_token(token u64) bool {
+		return g_touch.down && (g_touch.drag.active || g_touch.drag.pending) && g_touch.drag.token == token
+	}
+
+	fn drag_hit_scroll_offsets() map[string]f64 {
+		mut offsets := map[string]f64{}
+		// Only mounted scroll state influenced the rendered hit list. Entries
+		// pruned after drawing cannot invalidate otherwise unchanged geometry.
+		for id, _ in g_active_scrolls { offsets[id] = g_scroll_offsets[id] or { 0.0 } }
+		return offsets
+	}
+
+	fn reconcile_drag_release(mut app GgApp, token u64, hit_declaration Element, hit_scroll_offsets map[string]f64, hit_menu_height f64) bool {
+		if g_gg_app != app || !owns_drag_token(token) { return false }
+		stats := app.scheduler.stats()
+		if stats.closed || stats.suspended || stats.in_flight || app.iconified || app.suspended
+			|| app.building_declaration {
+			cancel_drag_session(.cancelled)
+			return false
+		}
+		if app.has_hit_declaration && RenderReason.surface in stats.pending_reasons {
+			cancel_drag_session(.invalid_target)
+			return false
+		}
+		if voidptr(g_build_screen) != unsafe { nil } {
+			if stats.generation != app.declaration_generation
+				&& stats.pending_reasons.any(it in [.build, .surface, .animation, .worker]) {
+				if !build_custom_declaration(mut app) {
+					if g_gg_app == app && owns_drag_token(token) { cancel_drag_session(.cancelled) }
+					return false
+				}
+			}
+			if g_gg_app != app || !owns_drag_token(token) { return false }
+			refresh_drag_owners(app.declared_root)
+		}
+		owner := current_drag_owner(g_touch.drag.source) or {
+			cancel_drag_session(.source_removed)
+			return false
+		}
+		if owner.drag_source == none {
+			cancel_drag_session(.source_removed)
+			return false
+		}
+		after := app.scheduler.stats()
+		if after.closed || after.suspended || after.generation != stats.generation
+			|| hit_scroll_offsets != drag_hit_scroll_offsets() || hit_menu_height != menu_bar_height()
+			|| (app.has_root && !same_drag_hit_declaration(hit_declaration, app.declared_root)) {
+			cancel_drag_session(.invalid_target)
+			return false
+		}
+		return true
+	}
+
 	fn release_drag_session(x f64, y f64) bool {
 		if !g_touch.drag.active && !g_touch.drag.pending { return false }
+		mut app := g_gg_app
+		if app.releasing_drag { return true }
+		app.releasing_drag = true
+		defer { app.releasing_drag = false }
+		token := g_touch.drag.token
+		hit_declaration := if app.has_hit_declaration { app.hit_declaration } else { app.declared_root }
+		hit_scroll_offsets := if app.has_hit_declaration { app.hit_scroll_offsets } else { drag_hit_scroll_offsets() }
+		hit_menu_height := if app.has_hit_declaration { app.hit_menu_height } else { menu_bar_height() }
+		if !reconcile_drag_release(mut app, token, hit_declaration, hit_scroll_offsets, hit_menu_height) { return true }
 		// A release beyond threshold counts even if the host coalesced all moves.
 		move_drag_session(x, y)
-		if !g_touch.down { return true }
+		if !reconcile_drag_release(mut app, token, hit_declaration, hit_scroll_offsets, hit_menu_height) { return true }
 		if g_touch.drag.pending {
 			g_touch.drag = DragSession{}
 			return false // a short press may activate the source's normal tap
 		}
 		update_drag_destination(x, y, false)
-		if !g_touch.down { return true }
+		if !reconcile_drag_release(mut app, token, hit_declaration, hit_scroll_offsets, hit_menu_height) { return true }
 		session := g_touch.drag
-		owner := current_drag_owner(session.source) or {
-			cancel_drag_session(.source_removed)
-			return true
-		}
-		if owner.drag_source == none {
-			cancel_drag_session(.source_removed)
-			return true
-		}
-		// Revalidate after callbacks; enter/over may withdraw a target.
 		current := drag_destination(x, y)
 		operation := accepted_drag_operation(session, current, x, y)
-		if !same_drag_session(session.token) { return true }
-		valid := operation != .none && current.drag_generation == session.target.drag_generation
-			&& drag_owner_key(current) == drag_owner_key(session.target)
+		// accept is also user code. Reconcile once, without a callback loop, then
+		// require the accepted declaration and operation to remain authoritative.
+		if !reconcile_drag_release(mut app, token, hit_declaration, hit_scroll_offsets, hit_menu_height) { return true }
+		final_target := drag_destination(x, y)
+		owner := current_drag_owner(session.source) or { return true }
+		current_source := owner.drag_source or { return true }
+		accepted := current.drop_target or { DropTarget{} }
+		final_destination := final_target.drop_target or { DropTarget{} }
+		valid := operation != .none && operation in current_source.allowed
+			&& final_target.drag_generation == session.target.drag_generation
+			&& drag_owner_key(final_target) == drag_owner_key(session.target)
+			&& voidptr(accepted.accept) == voidptr(final_destination.accept)
 		g_touch = TouchState{} // clear capture before terminal callbacks/reentrancy
 		if valid {
-			emit_drag(.drop, current, session, current, x, y, operation, .none)
-			// No callback intervenes between final validation and drop. Leave is
-			// cleanup after the commit, so it cannot withdraw a validated target.
-			emit_drag(.drag_leave, current, session, current, x, y, operation, .none)
-			emit_drag(.drag_end, session.source, session, current, x, y, operation, .none)
+			emit_drag(.drop, final_target, session, final_target, x, y, operation, .none)
+			emit_drag(.drag_leave, final_target, session, final_target, x, y, operation, .none)
+			emit_drag(.drag_end, session.source, session, final_target, x, y, operation, .none)
 		} else {
 			if session.target.drop_target != none {
 				emit_drag(.drag_leave, session.target, session, session.target, x, y, .none, .invalid_target)

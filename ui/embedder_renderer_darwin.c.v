@@ -249,6 +249,7 @@ $if macos && ui2_embedder ? && ui2_custom_rendering ? && !ui2_headless ? {
 		if event.typ in [.resized, .restored, .resumed] { app.surface_retry_at = -1 }
 		if event.typ == .key_down {
 			app.scheduler.invalidate(.build)
+			if drag_owned_escape(event.key_code) { return true }
 			g_tooltip.dismiss()
 			if !native.skip_dispatch {
 				if menu_bar_handle_key(&event) { return true }
