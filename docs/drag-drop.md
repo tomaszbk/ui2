@@ -2,6 +2,7 @@
 
 Attach a `DragSource` and a `DropTarget` to `View` or `Image` elements with
 `with_drag_source` / `with_drop_target`. Both require an `on_event` callback.
+Hidden or disabled ancestry excludes a configured surface from hit registration; it cannot fall back to an ordinary tap.
 Native profiles diagnose these declarations as unsupported. This API moves data
 inside a UI2 window. Existing external window `DropEvent` handlers are independent.
 
@@ -58,7 +59,10 @@ drag after the next render. Stable acceptance/geometry does not emit repeated
 over events on idle redraws. A target removed during `over` cannot receive drop.
 
 Release reevaluates acceptance and current ownership/geometry. A valid release
-emits exactly one `.drop`, `.drag_leave`, then `.drag_end` on the source. An
+emits exactly one `.drop`, `.drag_leave`, then `.drag_end` on the source. Paint-only
+highlights and fixed-frame text changes during enter/over/accept preserve that drop
+even before the next frame. Changes to frames, membership, scroll geometry or
+eligibility wait for normal rendering and invalidate stale release geometry. An
 invalid release emits leave and `.drag_cancel` with `.invalid_target`.
 `cancel_drag()`, Escape, focus loss, touch cancellation, suspension and window
 close release capture; an active drag receives one cancel event. Cancellation
@@ -114,7 +118,8 @@ v -d ui2_custom_rendering -d ui2_drag_runtime_probe test ui/drag_drop_runtime_im
 ```
 
 It drives gg pointer events through the existing handler on the UI thread, checks
-one drop and one Escape cancellation, preserves a live UTF-8 draft/selection/IME
+a coalesced drop after an enter highlight before the next frame, a second drop,
+and one Escape cancellation. It preserves a live UTF-8 draft/selection/IME
 composition through redraws, verifies that content and preview share one cached
 image, and measures two 30-second idle intervals. Its input gate excludes unrelated
 desktop pointer/key/focus events while preserving real surface/lifecycle events.

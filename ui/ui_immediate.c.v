@@ -2360,6 +2360,8 @@ fn page_focused_text_area(direction int) {
 						kind: el.kind
 						id: el.id
 						on_event: el.on_event
+						drag_source: el.drag_source
+						drop_target: el.drop_target
 						x: x
 						y: y
 						w: el.frame.width
@@ -2433,6 +2435,8 @@ fn page_focused_text_area(direction int) {
 						kind: el.kind
 						id: el.id
 						on_event: el.on_event
+						drag_source: el.drag_source
+						drop_target: el.drop_target
 						x: x
 						y: y
 						w: el.frame.width
@@ -2924,6 +2928,9 @@ fn page_focused_text_area(direction int) {
 
 	fn add_hit_target(declared HitTarget, clip Rect) {
 		owner := g_drag_registry.owners[drag_owner_key(declared)] or { HitTarget{} }
+		// A configured surface excluded by hidden/disabled ancestry cannot
+		// become an ordinary interactive fallback when its mounted owner is absent.
+		if (declared.drag_source != none || declared.drop_target != none) && owner.drag_generation == 0 { return }
 		target := HitTarget{...declared, drag_source: owner.drag_source, drop_target: owner.drop_target, drag_generation: owner.drag_generation}
 		visible := intersect_rect(Rect{
 			x: target.x

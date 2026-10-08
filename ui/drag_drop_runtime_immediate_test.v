@@ -18,12 +18,15 @@ $if macos && ui2_custom_rendering ? && ui2_drag_runtime_probe ? && !ui2_embedder
 	const drag_runtime_image = @VMODROOT + '/examples/users/logo.png'
 	__global drag_runtime_drops = 0
 	__global drag_runtime_cancels = 0
+	__global drag_runtime_highlight = false
 	__global drag_runtime_composition = TextComposition{}
 	__global drag_runtime_image_id = 0
 
 	fn drag_runtime_accept(_ DragOffer) DragOperation { return .move }
 	fn drag_runtime_event(event ElementEvent) {
 		println('RUNTIME ${event.kind}')
+		if event.kind == .drag_enter { drag_runtime_highlight = true }
+		if event.kind == .drag_leave { drag_runtime_highlight = false }
 		if event.kind == .drop { drag_runtime_drops++ }
 		if event.kind == .drag_cancel { drag_runtime_cancels++ }
 	}
@@ -36,7 +39,7 @@ $if macos && ui2_custom_rendering ? && ui2_drag_runtime_probe ? && !ui2_embedder
 				with_event(with_drag_source(view('source', rect(10, 30, 90, 50), BoxStyle{bg: 0x3b82f6}, []),
 					DragSource{preview: DragPreview{text: 'Niño / café', image_path: drag_runtime_image,
 						width: 90, height: 38, offset_x: 6, offset_y: 6}}), drag_runtime_event),
-				with_event(with_drop_target(view('target', rect(130, 30, 100, 70), BoxStyle{bg: 0x16a34a}, []),
+				with_event(with_drop_target(view('target', rect(130, 30, 100, 70), BoxStyle{bg: if drag_runtime_highlight { u32(0x15803d) } else { u32(0x16a34a) }}, []),
 					DropTarget{accept: drag_runtime_accept}), drag_runtime_event),
 			]),
 			image('shared-image', drag_runtime_image, rect(650, 430, 60, 60)),
@@ -72,6 +75,14 @@ $if macos && ui2_custom_rendering ? && ui2_drag_runtime_probe ? && !ui2_embedder
 			g_gg_app.composition.update('editor', editor, 'á', 1, 0, -1, 0)
 			drag_runtime_composition = g_gg_app.composition
 			drag_runtime_image_id = g_image_ids[drag_runtime_image]
+			// The public example highlights in enter. A coalesced release must
+			// drop after that paint-only declaration change, before another frame.
+			before := g_gg_app.scheduler.stats()
+			on_event(&gg.Event{typ: .mouse_down, mouse_x: 100, mouse_y: 190}, g_gg_app)
+			on_event(&gg.Event{typ: .mouse_up, mouse_x: 340, mouse_y: 190}, g_gg_app)
+			assert drag_runtime_drops == 1 && drag_runtime_cancels == 0
+			assert g_gg_app.scheduler.stats().draws == before.draws
+			println('METAL highlight coalesced release before-frame drop1 cancel0 PASS')
 			on_event(&gg.Event{typ: .mouse_down, mouse_x: 100, mouse_y: 190}, g_gg_app)
 			on_event(&gg.Event{typ: .mouse_move, mouse_x: 340, mouse_y: 190}, g_gg_app)
 			assert drag_active() && g_touch.pointer_captured
@@ -87,7 +98,7 @@ $if macos && ui2_custom_rendering ? && ui2_drag_runtime_probe ? && !ui2_embedder
 		dispatcher.post(fn () {
 			on_event(&gg.Event{typ: .mouse_up, mouse_x: 340, mouse_y: 190}, g_gg_app)
 			assert !drag_active() && !g_touch.pointer_captured
-			assert drag_runtime_drops == 1 && drag_runtime_cancels == 0
+			assert drag_runtime_drops == 2 && drag_runtime_cancels == 0
 			drag_runtime_assert_editor()
 		})
 		time.sleep(time.second)
@@ -102,7 +113,7 @@ $if macos && ui2_custom_rendering ? && ui2_drag_runtime_probe ? && !ui2_embedder
 			on_event(&gg.Event{typ: .mouse_move, mouse_x: 340, mouse_y: 190}, g_gg_app)
 			on_event(&gg.Event{typ: .key_down, key_code: .escape}, g_gg_app)
 			assert !drag_active() && !g_touch.pointer_captured
-			assert drag_runtime_drops == 1 && drag_runtime_cancels == 1
+			assert drag_runtime_drops == 2 && drag_runtime_cancels == 1
 			drag_runtime_assert_editor()
 		})
 		time.sleep(time.second)

@@ -203,8 +203,6 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	fn same_drag_hit_declaration(a Element, b Element) bool {
 		if a.kind != b.kind || a.id != b.id || a.key != b.key || a.frame != b.frame
 			|| a.content_size != b.content_size || a.hidden != b.hidden || a.enabled != b.enabled
-			|| a.rotation != b.rotation || a.box != b.box || a.interaction_style != b.interaction_style
-			|| a.text_style != b.text_style || a.text_runs != b.text_runs || a.text != b.text
 			|| a.clickable != b.clickable || a.draggable != b.draggable || a.button_behavior != b.button_behavior
 			|| a.long_press != b.long_press || a.swipe_left != b.swipe_left
 			|| a.readonly != b.readonly || a.disable_scroll != b.disable_scroll
@@ -212,8 +210,18 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			|| (voidptr(a.on_event) == unsafe { nil }) != (voidptr(b.on_event) == unsafe { nil })
 			|| (a.drag_source == none) != (b.drag_source == none) || (a.drop_target == none) != (b.drop_target == none)
 			|| a.padding != b.padding || a.padding_left != b.padding_left || a.orientation != b.orientation
-			|| a.slider_style != b.slider_style || a.switch_style != b.switch_style
 			|| a.children.len != b.children.len { return false }
+		// Fixed-frame text, boxes, interaction patches, image rotation and control
+		// chrome only paint. Intrinsic layout changes have already changed frame.
+		// Text areas are different: shaping changes their registered scroll range.
+		if a.kind == .text_area && (a.text != b.text
+			|| a.text_style.size != b.text_style.size || a.text_style.font_family != b.text_style.font_family
+			|| a.text_style.weight != b.text_style.weight || a.text_style.bold != b.text_style.bold
+			|| a.text_style.italic != b.text_style.italic || a.text_style.letter_spacing != b.text_style.letter_spacing
+			|| a.text_style.line_height != b.text_style.line_height || a.text_style.line_height_factor != b.text_style.line_height_factor
+			|| a.text_style.baseline_offset != b.text_style.baseline_offset || a.text_style.tabular_figures != b.text_style.tabular_figures) { return false }
+		// Popup rows use the declared font size even though the anchor is fixed.
+		if a.kind == .dropdown && a.text_style.size != b.text_style.size { return false }
 		for i, child in a.children {
 			if !same_drag_hit_declaration(child, b.children[i]) { return false }
 		}
