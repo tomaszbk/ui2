@@ -155,6 +155,7 @@ $if macos && ui2_embedder ? && ui2_custom_rendering ? && !ui2_headless ? {
 			activate_custom_window_state(previous_state)
 			g_gg_app = previous_app
 		}
+		reset_custom_keyboard()
 		app.scheduler.close()
 		app.cleanup_pending = true
 		if app.callback_depth == 0 { cleanup_embedder_app(app) }
@@ -176,8 +177,11 @@ $if macos && ui2_embedder ? && ui2_custom_rendering ? && !ui2_headless ? {
 		interval := C.ui2_embedder_frame_interval(app.native_window)
 		wake_at := app.scheduler.next_wake(now, app.last_frame, interval)
 		if wake_at >= 0 && wake_at <= now {
+			dispatch := custom_input_dispatch(app)
+			ctx := app.ctx
 			drain_custom_tasks(mut app)
 			if app.scheduler.is_closed() { return -1 }
+			if !dispatch.valid() || app.ctx != ctx { return 0 }
 			if app.surface_retry_at > now { return app.surface_retry_at - now }
 			mut metrics := C.ui2_embedder_surface{}
 			C.ui2_embedder_metrics(app.native_window, &metrics)
@@ -185,10 +189,12 @@ $if macos && ui2_embedder ? && ui2_custom_rendering ? && !ui2_headless ? {
 			draws := app.scheduler.stats().draws
 			on_frame(mut app)
 			if app.scheduler.is_closed() { return -1 }
-			if app.scheduler.stats().draws != draws {
-				app.last_frame = renderer_now_ms()
+			if custom_frame_current(dispatch, ctx) {
+				if app.scheduler.stats().draws != draws {
+					app.last_frame = renderer_now_ms()
+				}
+				sync_embedder_text(app)
 			}
-			sync_embedder_text(app)
 		}
 		next := app.scheduler.next_wake(renderer_now_ms(), app.last_frame, interval)
 		if next < 0 { return -1 }
@@ -246,19 +252,32 @@ $if macos && ui2_embedder ? && ui2_custom_rendering ? && !ui2_headless ? {
 			scroll_x: native.scroll_x
 			scroll_y: native.scroll_y
 		}
+		dispatch_context := custom_input_dispatch(app)
 		if event.typ in [.resized, .restored, .resumed] { app.surface_retry_at = -1 }
-		if event.typ == .key_down {
+		if event.typ == .mouse_down {
+			dispatch := custom_mouse_down(app, f64(event.mouse_x), f64(event.mouse_y))
+			if dispatch.valid() { sync_embedder_text(app) }
+			return false
+		} else if event.typ == .key_down {
 			app.scheduler.invalidate(.build)
 			g_tooltip.dismiss()
-			if !native.skip_dispatch {
-				if menu_bar_handle_key(&event) { return true }
-				if g_open_dropdown.len > 0 && handle_dropdown_key(event.key_code) { return true }
-				if dispatch_key_event(&event) { return true }
+			dispatch := begin_custom_input_dispatch(app)
+			if custom_key_down(&event, native.skip_dispatch,
+				native.text_input && app.composition.field_id.len > 0, dispatch) {
+				if dispatch.valid() { sync_embedder_text(app) }
+				return true
 			}
+			if !dispatch.valid() { return true }
 			if !native.text_input && (g_focused_field.len == 0 || app.editable_fields[g_focused_field]) {
 				handle_key_down(event.key_code, event.modifiers)
 			}
-		} else if event.typ == .char && g_focused_field.len > 0 && !app.editable_fields[g_focused_field] {
+			if !dispatch.valid() { return true }
+			sync_embedder_text(app)
+			return false
+		} else if event.typ == .char {
+			if g_focused_field.len > 0 && !app.editable_fields[g_focused_field] { return false }
+			dispatch := custom_character_input(app, event.char_code)
+			if dispatch.valid() { sync_embedder_text(app) }
 			return false
 		} else if event.typ == .files_dropped {
 			if voidptr(g_drop_handler) != unsafe { nil } && native.paths != unsafe { nil } && native.path_count > 0 {
@@ -267,12 +286,13 @@ $if macos && ui2_embedder ? && ui2_custom_rendering ? && !ui2_headless ? {
 					paths << unsafe { cstring_to_vstring(native.paths[index]) }
 				}
 				g_drop_handler(DropEvent{paths: paths, x: f64(native.x), y: f64(native.y)})
+				if !dispatch_context.valid() { return false }
 				app.scheduler.invalidate(.build)
 			}
 		} else {
 			on_event(&event, app)
 		}
-		if !app.scheduler.is_closed() { sync_embedder_text(app) }
+		if dispatch_context.valid() { sync_embedder_text(app) }
 		return false
 	}
 
@@ -288,7 +308,11 @@ $if macos && ui2_embedder ? && ui2_custom_rendering ? && !ui2_headless ? {
 			activate_custom_window_state(previous_state)
 			g_gg_app = previous_app
 		}
+		dispatch := begin_custom_input_dispatch(app)
 		id := g_focused_field
+		// NSTextInputClient text/IME deliveries have their own provenance and
+		// must never inherit a pending Sokol character from a physical key.
+		g_custom_keyboard.pending = .invalid
 		if id.len == 0 || id !in g_active_fields || !app.editable_fields[id] { return }
 		mut editor := g_text_editors[id] or { text_editor((g_text_values[id] or { '' }).clone()) }
 		value := if native.text == unsafe { nil } { '' } else { unsafe { cstring_to_vstring(native.text) } }
@@ -306,9 +330,10 @@ $if macos && ui2_embedder ? && ui2_custom_rendering ? && !ui2_headless ? {
 			replace_text_value(id, editor.text)
 			replace_text_editor(id, editor)
 			fire_field_change(id)
+			if !dispatch.valid() { return }
 			app.scheduler.invalidate(.build)
 		}
-		if !app.scheduler.is_closed() { sync_embedder_text(app) }
+		if dispatch.valid() { sync_embedder_text(app) }
 	}
 
 	fn custom_composition_editor(id string, editor TextEditor) TextEditor {

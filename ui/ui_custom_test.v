@@ -22,6 +22,10 @@ $if ui2_custom_rendering ? {
 	}
 
 	fn test_custom_desktop_backend_exposes_desktop_hooks() {
+		previous_app := g_gg_app
+		previous := activate_custom_window_state(new_custom_window_state())
+		g_gg_app = &GgApp{}
+		defer { activate_custom_window_state(previous); g_gg_app = previous_app }
 		on_key(custom_test_key_handler)
 		on_key_event(custom_test_key_event_handler)
 		on_drop(custom_test_drop_handler)
@@ -38,23 +42,19 @@ $if ui2_custom_rendering ? {
 	}
 
 	fn test_custom_text_editor_replaces_owned_state_after_caret_moves() {
-		g_text_values = map[string]string{}
-		g_text_props = map[string]string{}
-		g_text_editors = map[string]TextEditor{}
-		g_text_kinds = map[string]Kind{}
-		g_active_fields = map[string]bool{
-			'field': true
+		previous := activate_custom_window_state(new_custom_window_state())
+		defer {
+			forget_text_state('field')
+			activate_custom_window_state(previous)
 		}
-		g_focused_field = 'field'
-		replace_text_value('field', 'abc')
-		replace_text_editor('field', text_editor('abc'.clone()))
+		root := screen(0xffffff, [Element{ kind: .text_field, id: 'field', text: 'abc' }])
+		update_custom_focus_tree(root)
+		sync_mounted_focus_controls(root, 'root')
+		focus('field')
 		handle_key_down(.left, 0)
 		handle_key_down(.backspace, 0)
 		handle_char_input(`x`)
 		assert text('field') == 'axc'
-		forget_text_state('field')
-		g_active_fields = map[string]bool{}
-		g_focused_field = ''
 	}
 
 	fn test_custom_pointer_callbacks_receive_typed_coordinates() {
@@ -198,11 +198,13 @@ $if ui2_custom_rendering ? {
 			forget_text_state('editor')
 			activate_custom_window_state(previous)
 		}
-		g_active_fields['editor'] = true
-		g_text_kinds['editor'] = .text_field
-		g_focused_field = 'editor'
-		g_hit_targets = [HitTarget{ id: 'editor', text_field: true, on_event: capture_custom_control_event }]
-		replace_text_value('editor', 'café:')
+		root := screen(0xffffff, [Element{ kind: .text_field, id: 'editor', text: 'café:', on_event: capture_custom_control_event }])
+		update_custom_focus_tree(root)
+		sync_mounted_focus_controls(root, 'root')
+		focus('editor')
+		mut editor := g_text_editors['editor'] or { panic('missing editor') }
+		editor.set_caret(editor.text.runes().len)
+		replace_text_editor('editor', editor)
 		custom_control_test_events = []ElementEvent{}
 		handle_char_input(u32(`ñ`))
 		handle_key_down(.enter, 0)

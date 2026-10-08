@@ -2,6 +2,12 @@ module ui2
 
 import math
 
+// A mounted screen fills its backend's logical viewport. Other roots retain
+// their authored frame; DPI and composition scaling are separate projections.
+fn mounted_root_frame(root Element, viewport Rect) Rect {
+	return if root.kind == .screen { viewport } else { root.frame }
+}
+
 // Rounded device edges derive widths from shared boundaries, never independent sizes.
 // Return window-logical coordinates; logical layout stays fractional and untouched.
 pub fn presentation_rect(area Rect, device_scale f64) Rect {

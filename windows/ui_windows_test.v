@@ -176,9 +176,17 @@ $if !ui2_custom_rendering ? {
 		// A composite remains in the flattened tab order even though its container
 		// also exposes children through WS_EX_CONTROLPARENT.
 		C.ui2_win_show(root, 1)
-		assert C.ui2_win_focus_next(field, 0) != 0
+		mut navigation := FocusManager{}
+		navigation.update(Element{kind: .screen, children: [
+			Element{kind: .view, id: 'save', button_behavior: true},
+			Element{kind: .text_field, id: 'edit'},
+		]}, map[string]f64{})
+		assert navigation.set_focus('edit')
+		assert navigation.traverse(false) && navigation.current == 'save'
+		C.ui2_win_focus(button)
 		assert C.ui2_win_focus_handle() == button
-		assert C.ui2_win_focus_next(button, 0) != 0
+		assert navigation.traverse(false) && navigation.current == 'edit'
+		C.ui2_win_focus(field)
 		assert C.ui2_win_focus_handle() == field
 		C.ui2_win_show(root, 0)
 
@@ -489,5 +497,171 @@ $if !ui2_custom_rendering ? {
 		assert windows_control_test_events[1].id == ''
 		st.scroll_callbacks.delete(handle)
 		assert !windows_emit_scroll(hwnd, 90)
+	}
+}
+
+$if windows && !ui2_custom_rendering ? {
+	#include "@VMODROOT/windows/focus_events_windows_test.h"
+	fn C.ui2_win_focus_test_key(hwnd voidptr, message u32, key u32, scan u32, repeated int)
+	fn C.ui2_win_focus_test_deactivate(hwnd voidptr)
+	__global windows_focus_fixture_root Element
+	__global windows_focus_fixture_events = []ElementEvent{}
+	__global windows_focus_fixture_keys = []KeyEvent{}
+	__global windows_focus_fixture_release string
+	fn windows_focus_fixture_build() Element { return windows_focus_fixture_root }
+	fn windows_focus_fixture_event(event ElementEvent) {
+		windows_focus_fixture_events << event
+		if event.id == 'press' && event.kind == .tap {
+			focus('edit')
+			if windows_focus_fixture_release == 'deactivate' { C.ui2_win_focus_test_deactivate(windows_state().root) }
+			if windows_focus_fixture_release == 'dispose' { windows_dispose_all() }
+		}
+	}
+	fn windows_focus_fixture_observer(event KeyEvent) {
+		windows_focus_fixture_keys << event
+		if windows_focus_fixture_release == 'observer' { C.ui2_win_focus_test_deactivate(windows_state().root) }
+	}
+
+	// SendMessageW traverses the real native subclass, EDIT and BUTTON. This is
+	// retained for future Windows execution; Mac source review is not a run.
+	fn test_windows_owned_activation_precedes_new_editor_submit_and_retains_physical_provenance() {
+		assert C.ui2_win_register_classes() != 0
+		mut st := windows_state()
+		previous := *st
+		unsafe { *st = WindowsState{} }
+		title := 'native activation ownership fixture'.to_wide()
+		st.root = C.ui2_win_create_main_window(title, 320, 240)
+		unsafe { free(title) }
+		assert st.root != unsafe { nil }
+		root_window := st.root
+		st.build_screen = windows_focus_fixture_build
+		st.key_event_handler = windows_focus_fixture_observer
+		windows_focus_fixture_release = ''
+		defer {
+			windows_dispose_all()
+			C.ui2_win_destroy(root_window)
+			unsafe { *st = previous }
+		}
+		C.ui2_win_show(root_window, 1)
+		for kind in [Kind.text_field, .text_area] {
+			for scan in [u32(0x1c), u32(0x11c), u32(0x39)] {
+				key := if scan == 0x39 { u32(0x20) } else { u32(0x0d) }
+				character := if key == 0x20 { u32(32) } else { u32(13) }
+				windows_focus_fixture_root = screen(0xffffff, [
+					Element{kind: kind, id: 'edit', text: 'café ñ', on_event: windows_focus_fixture_event, frame: rect(10, 10, 180, 80)},
+					Element{kind: .button, id: 'press', text: 'Press', on_event: windows_focus_fixture_event, frame: rect(10, 110, 100, 30)},
+				])
+				refresh()
+				set_text('edit', 'café ñ')
+				focus('press')
+				windows_focus_fixture_events = []ElementEvent{}
+				windows_focus_fixture_keys = []KeyEvent{}
+				button := st.views['press'] or { panic('missing BUTTON') }
+				C.ui2_win_focus_test_key(button, win_wm_key_down, key, scan, 0)
+				assert focused_id() == 'edit'
+				editor := st.views['edit'] or { panic('missing EDIT') }
+				C.ui2_win_set_selection(editor, 2, 5, 0)
+				before := text('edit')
+				selection := windows_native_get_selection(editor)
+				windows_focus_fixture_root = screen(0xeeeeee, [windows_focus_fixture_root.children[0]])
+				refresh() // Removes the button while its physical activation is held.
+				if scan == 0x11c {
+					C.ui2_win_focus_test_key(editor, win_wm_key_up, key, 0x1c, 0)
+					assert st.activation_keys[windows_physical_key(key, scan)] or { false }
+					assert ui2_windows_control_char(13, 0x1c) == 0
+				}
+				for _ in 0 .. 3 {
+					C.ui2_win_focus_test_key(editor, win_wm_key_down, key, scan, 1)
+					C.ui2_win_focus_test_key(editor, win_wm_char, character, scan, 1)
+				}
+				assert windows_focus_fixture_events.filter(it.kind == .tap).len == 1
+				assert windows_focus_fixture_events.filter(it.kind == .submit).len == 0
+				assert windows_focus_fixture_keys.len == 4
+				assert text('edit') == before && windows_native_get_selection(editor) == selection
+				C.ui2_win_focus_test_key(editor, win_wm_char, 0x00f1, 0x31, 0)
+				C.ui2_win_focus_test_key(editor, win_wm_char, 0x00e1, 0, 0)
+				assert text('edit') != before
+				C.ui2_win_focus_test_key(editor, win_wm_key_up, key, scan, 0)
+				assert !(st.activation_keys[windows_physical_key(key, scan)] or { false })
+				value := text('edit')
+				C.ui2_win_focus_test_key(editor, win_wm_key_down, key, scan, 0)
+				C.ui2_win_focus_test_key(editor, win_wm_char, character, scan, 0)
+				if kind == .text_field && key == 0x0d {
+					assert windows_focus_fixture_events.filter(it.kind == .submit).len == 1
+				} else { assert text('edit') != value }
+				C.ui2_win_focus_test_key(editor, win_wm_key_up, key, scan, 0)
+				// Real host deactivation and full disposal release all press state.
+				windows_focus_fixture_root = screen(0xffffff, [
+					windows_focus_fixture_root.children[0],
+					Element{kind: .button, id: 'press', text: 'Press', on_event: windows_focus_fixture_event, frame: rect(10, 110, 100, 30)},
+				])
+				refresh()
+				focus('press')
+				active_button := st.views['press'] or { panic('missing activation source') }
+				C.ui2_win_focus_test_key(active_button, win_wm_key_down, key, scan, 0)
+				assert st.activation_keys.len == 1 && st.suppressed_keys.len == 1
+				C.ui2_win_focus_test_deactivate(root_window)
+				assert st.activation_keys.len == 0 && st.suppressed_keys.len == 0
+				// A deactivate inside the action cannot be followed by a late latch.
+				focus('press')
+				windows_focus_fixture_release = 'deactivate'
+				C.ui2_win_focus_test_key(active_button, win_wm_key_down, key, scan, 0)
+				assert st.activation_keys.len == 0 && st.suppressed_keys.len == 0
+				windows_focus_fixture_release = ''
+			}
+		}
+		button := st.views['press'] or { panic('missing BUTTON for observer release') }
+		focus('press')
+		windows_focus_fixture_release = 'observer'
+		before_taps := windows_focus_fixture_events.filter(it.kind == .tap).len
+		C.ui2_win_focus_test_key(button, win_wm_key_down, 0x20, 0x39, 0)
+		assert windows_focus_fixture_events.filter(it.kind == .tap).len == before_taps
+		assert st.activation_keys.len == 0 && st.suppressed_keys.len == 0
+		windows_focus_fixture_release = 'dispose'
+		C.ui2_win_focus_test_key(button, win_wm_key_down, 0x20, 0x39, 0)
+		assert st.activation_keys.len == 0 && st.suppressed_keys.len == 0
+		assert st.root == unsafe { nil }
+		windows_focus_fixture_release = ''
+	}
+
+	fn test_windows_shared_tab_is_consumed_once_per_control_key_event() {
+		assert C.ui2_win_register_classes() != 0
+		title := 'focus traversal fixture'.to_wide()
+		root := C.ui2_win_create_main_window(title, 320, 200)
+		unsafe { free(title) }
+		empty := ''.to_wide()
+		field := C.ui2_win_create_widget(windows_widget_kind(.text_field), root, 0, 0, 100, 30, empty, 0, 0, 0, 0, 0)
+		button := C.ui2_win_create_widget(windows_widget_kind(.button), root, 0, 40, 100, 30, empty, 0, 0, 0, 0, 0)
+		last := C.ui2_win_create_widget(windows_widget_kind(.button), root, 0, 80, 100, 30, empty, 0, 0, 0, 0, 0)
+		unsafe { free(empty) }
+		mut st := windows_state()
+		previous := *st
+		unsafe { *st = WindowsState{} }
+		st.root = root
+		defer { C.ui2_win_destroy(root); unsafe { *st = previous } }
+		st.views = {'edit': field, 'button': button, 'last': last}
+		st.handle_keys = {windows_handle_id(field): 'i:0', windows_handle_id(button): 'i:1', windows_handle_id(last): 'i:2'}
+		st.node_ids = {'i:0': 'edit', 'i:1': 'button', 'i:2': 'last'}
+		st.node_kinds = {'i:0': Kind.text_field, 'i:1': Kind.button, 'i:2': Kind.button}
+		st.navigation.update(screen(0xffffff, [
+			Element{kind: .text_field, id: 'edit'}, Element{kind: .button, id: 'button'}, Element{kind: .button, id: 'last'},
+		]), map[string]f64{})
+		C.ui2_win_show(root, 1)
+		focus('edit')
+		assert focused_id() == 'edit'
+		assert ui2_windows_control_key(field, 0x09, 0, 0x0f) == 1
+		assert focused_id() == 'button'
+		assert ui2_windows_control_char(9, 0x0f) == 1
+		// Held Tab consumes only its own WM_CHAR, even after focus changes.
+		assert ui2_windows_control_char(97, 0x1e) == 0
+		assert ui2_windows_control_char(0x00f1, 0) == 0
+		assert ui2_windows_control_key_up(0x09, 0x0f) == 1
+		assert ui2_windows_control_char(97, 0x1e) == 0
+		assert ui2_windows_control_key(button, 0x09, 1, 0x0f) == 1
+		assert focused_id() == 'last'
+		assert ui2_windows_control_key(last, 0x09, 0, 0x0f) == 1
+		assert focused_id() == 'edit'
+		assert handle_focus_key(KeyEvent{code: .tab, shift: true}, false)
+		assert focused_id() == 'last'
 	}
 }

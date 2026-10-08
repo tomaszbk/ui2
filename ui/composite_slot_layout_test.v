@@ -470,7 +470,7 @@ $if macos && ui2_custom_rendering ?&& !ui2_headless ? {
 				content := slot_runtime_content(layout)!
 				app.declared_root = slot_composite(composite, rect(0, 0, 320, 200), content)!
 				initial := app.scheduler.begin_frame(0) or { panic('no initial frame') }
-				_ = resolve_custom_layout(mut app, initial, slot_measure)!
+				_ = resolve_custom_layout(mut app, initial, slot_measure, take_custom_layout_patches(mut app))!
 				app.scheduler.finish_frame(initial)
 				replace_text_prop('editor', 'declarado')
 				replace_text_value('editor', 'ñ café🙂')
@@ -483,7 +483,7 @@ $if macos && ui2_custom_rendering ?&& !ui2_headless ? {
 					app.declared_root = slot_composite(composite, size, content)!
 					app.scheduler.invalidate(.build)
 					work := app.scheduler.begin_frame(i64(index + 1)) or { panic('missing rebuild') }
-					resolved := resolve_custom_layout(mut app, work, slot_measure)!
+					resolved := resolve_custom_layout(mut app, work, slot_measure, take_custom_layout_patches(mut app))!
 					app.scheduler.finish_frame(work)
 					slot_rect((slot_find(resolved, 'content') or { panic('missing content') }).frame, slot_expected(composite, size.width, size.height))
 					assert (app.layout_tree.identity('editor') or { panic('missing identity') }).generation == generation

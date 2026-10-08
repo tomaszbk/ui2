@@ -868,6 +868,10 @@ renderer on macOS or Windows.
 
 ## Keyboard events
 
+Keyboard focus, Tab order, scopes, directional navigation and portable semantic
+hooks are documented in [Focus navigation](docs/focus-navigation.md). Try the
+[focus_navigation example](examples/focus_navigation/main.v) in native or custom mode.
+
 Use `on_key_event` when a shortcut should follow a physical key across keyboard
 layouts. `KeyEvent.code` is a portable `KeyCode`; text entry still follows the
 active layout.

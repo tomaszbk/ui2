@@ -27,7 +27,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 			children:    [FlexChild{ element: label }, FlexChild{ element: field }]
 		})!
 		first := app.scheduler.begin_frame(0) or { panic('no initial frame') }
-		_ = resolve_custom_layout(mut app, first, incremental_runtime_measure)!
+		_ = resolve_custom_layout(mut app, first, incremental_runtime_measure, take_custom_layout_patches(mut app))!
 		app.scheduler.finish_frame(first)
 		replace_text_prop('editor', 'declarado')
 		replace_text_value('editor', 'ñ café🙂')
@@ -39,14 +39,14 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		refresh_element('label', Element{ ...label, text_style: TextStyle{ color: 0xff0000 } })
 		work := app.scheduler.begin_frame(1) or { panic('no patch') }
 		assert !work.build && work.reasons == [.layout]
-		_ = resolve_custom_layout(mut app, work, incremental_runtime_measure)!
+		_ = resolve_custom_layout(mut app, work, incremental_runtime_measure, take_custom_layout_patches(mut app))!
 		assert layout_stats().text_measurements == 0
 		assert layout_stats().layout_visits == 0
 		refresh_element('label', Element{ ...label, text: 'cambia' })
 		app.scheduler.finish_frame(work)
 		assert app.scheduler.stats().pending
 		next := app.scheduler.begin_frame(2) or { panic('lost next generation') }
-		root := resolve_custom_layout(mut app, next, incremental_runtime_measure)!
+		root := resolve_custom_layout(mut app, next, incremental_runtime_measure, take_custom_layout_patches(mut app))!
 		app.scheduler.finish_frame(next)
 		assert root.children[0].text == 'cambia'
 		assert root.children[1].text == 'declarado'
@@ -83,13 +83,13 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		g_gg_app = app
 		app.declared_root = screen(0xffffff, [view('tile', rect(0, 0, 40, 30), BoxStyle{}, [])])
 		first := app.scheduler.begin_frame(0) or { panic('no initial frame') }
-		_ = resolve_custom_layout(mut app, first, incremental_runtime_measure)!
+		_ = resolve_custom_layout(mut app, first, incremental_runtime_measure, take_custom_layout_patches(mut app))!
 		app.scheduler.finish_frame(first)
 		start_widget_animation_at('tile', animation(AnimationConfig{ duration: 1, width: 80, background: u32(0x123456) }), animation_now_ms() - 2_000, false)
 		app.scheduler.set_animation_active(true)
 		work := app.scheduler.begin_frame(1) or { panic('no animation frame') }
 		assert work.build && work.reasons == [.animation]
-		root := resolve_custom_layout(mut app, work, incremental_runtime_measure)!
+		root := resolve_custom_layout(mut app, work, incremental_runtime_measure, take_custom_layout_patches(mut app))!
 		app.scheduler.finish_frame(work)
 		assert root.children[0].frame.width == 80
 		assert root.children[0].box.bg == 0x123456

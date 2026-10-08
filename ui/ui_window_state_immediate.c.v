@@ -33,6 +33,8 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		key_event_handler KeyEventFn = unsafe { nil }
 		drop_handler DropFn = unsafe { nil }
 		key_consumed bool
+		input_generation u64
+		keyboard CustomKeyboardState
 		text_values map[string]string
 		text_props map[string]string
 		text_editors map[string]TextEditor
@@ -51,6 +53,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		toggle_groups map[string]string
 		toggle_allow_no_selection map[string]bool
 		focused_field string
+		navigation &FocusManager = &FocusManager{}
 		scroll_targets map[string]HitTarget
 		scroll_offsets map[string]f64
 		scroll_content_h map[string]f64
@@ -125,6 +128,9 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		if previous == state {
 			return previous
 		}
+		previous.input_generation++
+		mut next := unsafe { state }
+		next.input_generation++
 		previous.capture()
 		state.restore()
 		g_active_custom_window_state = state
@@ -137,6 +143,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	// resource caches. Disposing one window also leaves a nested caller intact.
 	fn discard_custom_window_state(state &CustomWindowState) {
 		previous := activate_custom_window_state(state)
+		reset_custom_keyboard()
 		for id in g_text_values.keys() {
 			forget_text_state(id)
 		}
@@ -160,6 +167,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		state.key_event_handler = g_key_event_handler
 		state.drop_handler = g_drop_handler
 		state.key_consumed = g_key_consumed
+		state.keyboard = g_custom_keyboard
 		state.text_values = g_text_values
 		state.text_props = g_text_props
 		state.text_editors = g_text_editors
@@ -178,6 +186,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		state.toggle_groups = g_toggle_groups
 		state.toggle_allow_no_selection = g_toggle_allow_no_selection
 		state.focused_field = g_focused_field
+		state.navigation = g_focus_navigation
 		state.scroll_targets = g_scroll_targets
 		state.scroll_offsets = g_scroll_offsets
 		state.scroll_content_h = g_scroll_content_h
@@ -230,6 +239,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		g_key_event_handler = state.key_event_handler
 		g_drop_handler = state.drop_handler
 		g_key_consumed = state.key_consumed
+		g_custom_keyboard = state.keyboard
 		g_text_values = state.text_values
 		g_text_props = state.text_props
 		g_text_editors = state.text_editors
@@ -248,6 +258,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		g_toggle_groups = state.toggle_groups
 		g_toggle_allow_no_selection = state.toggle_allow_no_selection
 		g_focused_field = state.focused_field
+		g_focus_navigation = state.navigation
 		g_scroll_targets = state.scroll_targets
 		g_scroll_offsets = state.scroll_offsets
 		g_scroll_content_h = state.scroll_content_h

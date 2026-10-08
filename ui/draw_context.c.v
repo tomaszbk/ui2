@@ -18,6 +18,9 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		import ui2.thirdparty.vglyph
 	}
 
+	#include "@VMODROOT/ui/draw_commands.h"
+	fn C.ui2_sgl_discard_commands(context sgl.Context)
+
 	$if android {
 	struct DrawContext {
 	mut:
@@ -63,6 +66,26 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		mut ctx := &DrawContext{inner: inner}
 		ctx.sync_gg()
 		return ctx
+	}
+
+	// Read live logical dimensions without synchronizing drawing resources or
+	// waiting for paint. Owned hosts publish these directly on their context.
+	fn (ctx &DrawContext) logical_viewport(host_window voidptr) Rect {
+		$if macos && ui2_embedder ? {
+			if ctx.owns_surface && host_window != unsafe { nil } {
+				mut metrics := C.ui2_embedder_surface{}
+				C.ui2_embedder_metrics(host_window, &metrics)
+				return rect(0, 0, f64(metrics.width), f64(metrics.height))
+			}
+		}
+		if !ctx.owns_surface && ctx.inner != unsafe { nil } {
+			live := ctx.inner.window_size()
+			if live.width > 0 && live.height > 0 {
+				return rect(0, 0, f64(live.width), f64(live.height))
+			}
+			return rect(0, 0, f64(ctx.inner.width), f64(ctx.inner.height))
+		}
+		return rect(0, 0, f64(ctx.width), f64(ctx.height))
 	}
 
 	fn (mut ctx DrawContext) sync_gg() {
@@ -363,6 +386,14 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		gfx.end_pass()
 		gfx.commit()
 		unsafe { ctx.inner.frame++ }
+	}
+
+	// begin records commands; the GPU pass starts only in end. An invalidated
+	// frame must discard those commands without submitting to its old surface.
+	fn (ctx &DrawContext) cancel() {
+		if ctx.destroyed || !gfx.is_valid() { return }
+		context := if ctx.owns_surface { ctx.gl_context } else { sgl.default_context() }
+		C.ui2_sgl_discard_commands(context)
 	}
 
 	fn release_draw_device() {

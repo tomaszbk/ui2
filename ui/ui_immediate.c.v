@@ -50,6 +50,9 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 
 	struct TouchState {
 	mut:
+		// The generation that started this gesture, not the current window
+		// generation. An aborted focus reveal must preserve a newer gesture.
+		input_generation   u64
 		// A rebuild can move a dragged view away from the initial press.
 		// Keep its event identity until release instead of hit-testing it again.
 		pointer_captured   bool
@@ -298,9 +301,10 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		}
 		// The drawn menu bar owns the top strip of the window, so the screen
 		// an app lays out is the rest of it.
+		viewport := g_gg_app.ctx.logical_viewport(g_gg_app.native_window)
 		return Rect{
-			width: f64(g_gg_app.ctx.width)
-			height: f64(g_gg_app.ctx.height) - menu_bar_height()
+			width: viewport.width
+			height: viewport.height - menu_bar_height()
 		}
 	}
 
@@ -439,9 +443,11 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			return
 		}
 		replace_text_value(id, t)
-		mut editor := g_text_editors[id] or { text_editor(t.clone()) }
-		editor.set_text(t.clone())
-		replace_text_editor(id, editor)
+		if (g_text_kinds[id] or { Kind.dropdown }) in [.text_field, .text_area] {
+			mut editor := g_text_editors[id] or { text_editor(t.clone()) }
+			editor.set_text(t.clone())
+			replace_text_editor(id, editor)
+		}
 		if g_gg_app.composition.field_id == id {
 			g_gg_app.composition = TextComposition{}
 		}
@@ -533,20 +539,15 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	}
 
 	pub fn focus(id string) {
-		mut focusable := false
-		for target in g_hit_targets {
-			if target.id == id && (target.text_field || target.text_area) {
-				focusable = true
-				break
-			}
-		}
-		if !focusable {
-			return
-		}
+		dispatch := custom_input_dispatch(g_gg_app)
+		if !dispatch.valid() { return }
+		sync_focus_navigation()
+		if !g_focus_navigation.set_focus(id) { return }
+		if g_focused_field != id { g_gg_app.composition = TextComposition{} }
 		g_focused_field = id
-		mut editor := g_text_editors[id] or { text_editor((g_text_values[id] or { '' }).clone()) }
-		editor.set_caret(rune_len(editor.text))
-		replace_text_editor(id, editor)
+		if g_open_dropdown.len > 0 && g_open_dropdown != id { close_dropdown() }
+		reveal_custom_focus(id)
+		if !dispatch.valid() { return }
 		invalidate_custom_paint()
 	}
 
@@ -555,16 +556,14 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	}
 
 	pub fn focused_text_area_id() string {
-		for target in g_hit_targets {
-			if target.id == g_focused_field && target.text_area {
-				return g_focused_field
-			}
-		}
-		return ''
+		node := g_focus_navigation.node(g_focused_field) or { return '' }
+		return if node.el.kind == .text_area { g_focused_field } else { '' }
 	}
 
 	pub fn dismiss_keyboard() {
 		g_focused_field = ''
+		g_focus_navigation.current = ''
+		g_gg_app.composition = TextComposition{}
 		invalidate_custom_paint()
 	}
 
@@ -572,6 +571,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		if g_gg_app.scheduler.is_closed() {
 			return
 		}
+		reset_custom_keyboard()
 		g_gg_app.scheduler.close()
 		$if macos && ui2_embedder ? {
 			C.ui2_embedder_close(g_gg_app.native_window)
@@ -739,6 +739,10 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		reset_widget_animations()
 		g_tooltip = TooltipState{}
 		g_touch = TouchState{}
+		g_focus_navigation = &FocusManager{}
+		g_focused_field = ''
+		reset_custom_keyboard()
+		state.composition = TextComposition{}
 	}
 
 	// The next visual deadline is replaced after every frame. A canceled hover,
@@ -777,38 +781,57 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		app.draining_tasks = false
 	}
 
-	fn resolve_custom_layout(mut app GgApp, work FrameWork, measure LayoutTextMeasureFn) !Element {
+	fn take_custom_layout_patches(mut app GgApp) []LayoutPatch {
+		patches := app.layout_patches
+		app.layout_patches = []LayoutPatch{}
+		return patches
+	}
+
+	fn resolve_custom_layout(mut app GgApp, work FrameWork, measure LayoutTextMeasureFn, patches []LayoutPatch) !Element {
+		dispatch := custom_input_dispatch(&app)
+		ctx := app.ctx
 		animated := apply_custom_widget_animations(app.declared_root)
+		if !dispatch.valid() || app.ctx != ctx || (ctx != unsafe { nil } && !custom_frame_current(dispatch, ctx)) {
+			return error('layout frame canceled')
+		}
 		if work.build || app.layout_tree.root.len == 0 {
 			app.layout_tree.replace(animated)!
 		}
-		// Detach patches before layout/user callbacks. Requests during this frame
-		// survive for the next scheduler generation.
-		patches := app.layout_patches
-		app.layout_patches = []LayoutPatch{}
 		for patch in patches {
-			app.layout_tree.patch(patch.id, apply_custom_widget_animations(patch.element)) or { eprintln('ui2 layout: ${err}'); continue }
+			element := apply_custom_widget_animations(patch.element)
+			if !dispatch.valid() || app.ctx != ctx || (ctx != unsafe { nil } && !custom_frame_current(dispatch, ctx)) {
+				return error('layout frame canceled')
+			}
+			app.layout_tree.patch(patch.id, element) or { eprintln('ui2 layout: ${err}'); continue }
 			app.declared_root = app.layout_tree.declaration()
 		}
-		return app.layout_tree.resolve(LayoutConstraints{}, measure, app.layout_environment)!
+		resolved := app.layout_tree.resolve(LayoutConstraints{}, measure, app.layout_environment)!
+		return effective_element_state(resolved, true)
+	}
+
+	fn custom_frame_current(dispatch CustomInputDispatch, ctx &DrawContext) bool {
+		return dispatch.valid() && dispatch.app.ctx == ctx && !ctx.destroyed
+			&& !dispatch.app.iconified && !dispatch.app.suspended
+			&& !dispatch.scheduler.build_pending()
 	}
 
 	fn on_frame(mut app GgApp) {
 		if app.scheduler.is_closed() || app.ctx == unsafe { nil } || app.draining_tasks { return }
+		dispatch := custom_input_dispatch(&app)
 		drain_custom_tasks(mut app)
-		if app.scheduler.is_closed() { return }
+		if !dispatch.valid() { return }
 		mut ctx := app.ctx
 		if !ctx.owns_surface {
 			ctx.sync_gg()
-			live_size := ctx.inner.window_size()
+			live_size := ctx.logical_viewport(app.native_window)
 			if live_size.width > 0 && live_size.height > 0
 				&& (ctx.width != live_size.width || ctx.height != live_size.height) {
-				ctx.width = live_size.width
-				ctx.height = live_size.height
-				ctx.inner.width = live_size.width
-				ctx.inner.height = live_size.height
-				ctx.inner.window.width = live_size.width
-				ctx.inner.window.height = live_size.height
+				ctx.width = int(live_size.width)
+				ctx.height = int(live_size.height)
+				ctx.inner.width = int(live_size.width)
+				ctx.inner.height = int(live_size.height)
+				ctx.inner.window.width = int(live_size.width)
+				ctx.inner.window.height = int(live_size.height)
 				app.scheduler.invalidate(.surface)
 			}
 			dpi := sapp.dpi_scale()
@@ -818,12 +841,28 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			}
 		}
 		now := renderer_now_ms()
-		work := app.scheduler.begin_frame(now) or { return }
-		defer { app.scheduler.finish_frame(work) }
+		scheduler := app.scheduler
+		work := scheduler.begin_frame(now) or { return }
+		defer { scheduler.finish_frame(work) }
+		// The builder, animation and focus callbacks may enqueue patches. Take
+		// only the batch that existed when this scheduler generation started.
+		patches := take_custom_layout_patches(mut app)
+		mut patches_resolved := false
+		defer {
+			if !patches_resolved && patches.len > 0 && app.scheduler == scheduler && !scheduler.is_closed() {
+				// A canceled frame must not drop its unapplied work. New callback
+				// patches follow it so their newer declarations win next time.
+				mut pending := patches.clone()
+				pending << app.layout_patches
+				app.layout_patches = pending
+				scheduler.invalidate(.layout)
+			}
+		}
 		$if android { ensure_symbol_fallbacks(ctx) }
 		if work.build && voidptr(g_build_screen) != unsafe { nil } {
 			app.scheduler.record_build()
 			declared := g_build_screen()
+			if !custom_frame_current(dispatch, ctx) { return }
 			validate_element_tree(declared) or {
 				eprintln('ui2: ${err}')
 				return
@@ -831,29 +870,32 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			app.declared_root = declared
 			app.has_root = true
 		}
-		if app.scheduler.is_closed() || app.iconified || app.suspended {
+		if !custom_frame_current(dispatch, ctx) {
 			return
 		}
-		root := resolve_custom_layout(mut app, work, measure_layout_text) or { eprintln('ui2 layout: ${err}'); return }
+		root := resolve_custom_layout(mut app, work, measure_layout_text, patches) or { eprintln('ui2 layout: ${err}'); return }
+		patches_resolved = true
 		// Animation callbacks are user code and may close or suspend the window.
-		if app.scheduler.is_closed() || app.iconified || app.suspended {
+		if !custom_frame_current(dispatch, ctx) {
 			return
 		}
 		validate_element_tree(root) or {
 			eprintln('ui2: ${err}')
 			return
 		}
-		$if macos && ui2_embedder ? {
-			if ctx.owns_surface {
-				if !acquire_embedder_surface(mut app) { return }
-				defer { C.ui2_embedder_frame_done(app.native_window) }
-			}
-		}
+
+		// Restoring focus can notify user code. Leave retained input state in
+		// place until ownership is revalidated, so a newer gesture survives.
+		update_custom_focus_tree(root)
+		if !custom_frame_current(dispatch, ctx) || g_focus_navigation.root != root { return }
 		g_hit_targets = []HitTarget{}
 		g_tooltip_targets.clear()
 		g_tooltip_owners = 0
 		app.text_caret = Rect{}
 		reset_scroll_frame()
+		// Paint-time clamping can also notify user code before another pane is
+		// painted. Keep every mounted Scroll available to nested public calls.
+		sync_mounted_scroll_views()
 		g_active_fields = map[string]bool{}
 		app.editable_fields.clear()
 		g_active_sliders = map[string]bool{}
@@ -862,13 +904,32 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		g_active_toggles = map[string]bool{}
 		g_active_scrolls = map[string]bool{}
 		g_active_images = map[string]bool{}
+		sync_mounted_focus_controls(root, 'root')
+		host_window := app.native_window
+		owned_surface := ctx.owns_surface
+		$if macos && ui2_embedder ? {
+			if owned_surface {
+				if !acquire_embedder_surface(mut app) { return }
+			}
+		}
+		// Keep the captured drawable through submission or cancellation. A defer
+		// in the acquisition block would release it before painting starts.
+		defer {
+			$if macos && ui2_embedder ? {
+				if owned_surface { C.ui2_embedder_frame_done(host_window) }
+			}
+		}
 		// Image resources must be available before starting the GPU pass.
 		preload_images(root)
 		ctx.begin()
+		defer {
+			if custom_frame_current(dispatch, ctx) { ctx.end() } else { ctx.cancel() }
+		}
 		if app.has_root {
 			g_dropdown_popup.mounted = false
 			top := menu_bar_height()
 			render_element(ctx, root, 0, top, rect(0, top, f64(ctx.width), f64(ctx.height) - top), '', 'root')
+			if !custom_frame_current(dispatch, ctx) { return }
 			if g_open_dropdown.len > 0 {
 				if g_dropdown_popup.mounted {
 					draw_dropdown_popup(ctx)
@@ -885,11 +946,11 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			}
 		}
 		check_long_press()
+		if !custom_frame_current(dispatch, ctx) { return }
 		$if android {
 			// Android's legacy gg atlas uploads glyphs introduced by this frame.
 			if ctx.font_inited { ctx.ft.flush() }
 		}
-		ctx.end()
 		app.scheduler.record_draw()
 		app.scheduler.set_deadline(custom_visual_deadline())
 		app.scheduler.set_animation_active(custom_animations_need_frame(app.declared_root))
@@ -905,11 +966,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		state.scheduler.invalidate(if e.typ in [.key_down, .key_up, .char, .files_dropped] { RenderReason.build } else { RenderReason.paint })
 		match e.typ {
 			.mouse_down {
-				g_tooltip.dismiss()
-				if menu_bar_handle_down(f64(e.mouse_x), f64(e.mouse_y)) {
-					return
-				}
-				handle_touch_down(f64(e.mouse_x), f64(e.mouse_y))
+				custom_mouse_down(app, f64(e.mouse_x), f64(e.mouse_y))
 			}
 			.mouse_move {
 				// Recorded before any handler below can claim the move, so the
@@ -969,6 +1026,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 				}
 			}
 			.iconified, .suspended {
+				reset_custom_keyboard()
 				if e.typ == .iconified {
 					state.iconified = true
 				} else {
@@ -992,26 +1050,21 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 				state.scheduler.invalidate(.surface)
 			}
 			.touches_cancelled, .unfocused {
+				if e.typ == .unfocused { reset_custom_keyboard() }
 				g_tooltip.dismiss()
 				cancel_touch()
 			}
 			.char {
-				handle_char_input(e.char_code)
+				custom_character_input(app, e.char_code)
 			}
 			.key_down {
 				g_tooltip.dismiss()
-				if menu_bar_handle_key(e) {
-					return
-				}
-				if g_open_dropdown.len > 0 {
-					if handle_dropdown_key(e.key_code) {
-						return
-					}
-				}
-				if !dispatch_key_event(e) {
+				dispatch := begin_custom_input_dispatch(app)
+				if !custom_key_down(e, false, state.composition.field_id.len > 0, dispatch) && dispatch.valid() {
 					handle_key_down(e.key_code, e.modifiers)
 				}
 			}
+			.key_up { custom_key_up(e.key_code) }
 			.files_dropped {
 				handle_files_dropped(e)
 			}
@@ -1026,8 +1079,29 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		fire_target_event(target, ElementEvent{ kind: kind, id: target.id, x: logical_x, y: logical_y })
 	}
 
-	fn handle_touch_down(x f64, y f64) {
+	fn custom_mouse_down(app &GgApp, x f64, y f64) CustomInputDispatch {
+		dispatch := begin_custom_input_dispatch(app)
+		if !dispatch.valid() { return dispatch }
+		app.scheduler.invalidate(.build)
+		g_tooltip.dismiss()
+		if menu_bar_handle_down(x, y) || !dispatch.valid() { return dispatch }
+		return handle_touch_down(x, y)
+	}
+
+	fn discard_custom_pointer_start(dispatch CustomInputDispatch) {
+		if dispatch.window == g_active_custom_window_state {
+			if g_touch.input_generation == dispatch.generation { g_touch = TouchState{} }
+		} else {
+			mut owner := dispatch.window
+			if owner.touch.input_generation == dispatch.generation { owner.touch = TouchState{} }
+		}
+	}
+
+	fn handle_touch_down(x f64, y f64) CustomInputDispatch {
+		dispatch := begin_custom_input_dispatch(g_gg_app)
+		if !dispatch.valid() { return dispatch }
 		g_touch = TouchState{
+			input_generation: dispatch.generation
 			down: true
 			start_x: x
 			start_y: y
@@ -1039,23 +1113,28 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		}
 		if g_open_dropdown.len > 0 {
 			update_dropdown_hover(x, y)
-			return
+			return dispatch
 		}
 		target := hit_test(x, y)
+		if g_focus_navigation.can_focus(target.id) { focus(target.id) }
+		if !dispatch.valid() {
+			discard_custom_pointer_start(dispatch)
+			return dispatch
+		}
 		g_touch.pointer_target = target
 		g_touch.pointer_captured = target.w > 0 && target.h > 0
 		g_touch.pressed_id = target.id
 		if target.slider {
 			commit_slider(target, x, y)
-			return
+			return dispatch
 		}
 		if target.switch_control {
-			return
+			return dispatch
 		}
 		g_touch.scroll_id = scroll_hit_test(x, y)
 		g_touch.scroll_chain = scroll_ancestor_chain(g_touch.scroll_id)
 		if begin_scrollbar_drag(x, y) {
-			return
+			return dispatch
 		}
 		if voidptr(target.on_event) != unsafe { nil }
 			&& (target.clickable || target.button_behavior || target.draggable) {
@@ -1064,6 +1143,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 				fire_pointer_event(.pointer_down, target, x, y)
 			}
 		}
+		return dispatch
 	}
 
 	fn handle_touch_move(x f64, y f64) {
@@ -1228,11 +1308,12 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		}
 		if target.id.len == 0 && voidptr(target.on_event) == unsafe { nil } {
 			if g_focused_field.len > 0 {
-				g_focused_field = ''
+				dismiss_keyboard()
 			}
 			return
 		}
 		if target.text_field {
+			if !g_focus_navigation.can_focus(target.id) { return }
 			g_focused_field = target.id
 			mut editor := g_text_editors[target.id] or {
 				text_editor((g_text_values[target.id] or { '' }).clone())
@@ -1242,6 +1323,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			return
 		}
 		if target.text_area {
+			if !g_focus_navigation.can_focus(target.id) { return }
 			g_focused_field = target.id
 			mut editor := g_text_editors[target.id] or {
 				text_editor((g_text_values[target.id] or { '' }).clone())
@@ -1421,10 +1503,12 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 
 	// ── Keyboard input ─────────────────────────────────────────────────
 
-	fn dispatch_key_event(e &gg.Event) bool {
+	fn dispatch_key_event(e &gg.Event, dispatch CustomInputDispatch) bool {
+		if !dispatch.valid() { return true }
 		if voidptr(g_key_event_handler) != unsafe { nil } {
 			g_key_consumed = false
 			g_key_event_handler(immediate_key_event(e))
+			if !dispatch.valid() { return true }
 			if g_key_consumed {
 				g_key_consumed = false
 				return true
@@ -1446,6 +1530,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		}
 		g_key_consumed = false
 		g_key_handler(event_key)
+		if !dispatch.valid() { return true }
 		consumed := g_key_consumed
 		g_key_consumed = false
 		return consumed
@@ -1510,9 +1595,12 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	}
 
 	fn handle_char_input(ch u32) {
-		if g_focused_field.len == 0 {
+		if g_focused_field.len == 0 || g_focused_field !in g_text_editors {
 			return
 		}
+		focused_node := g_focus_navigation.node(g_focused_field) or { return }
+		if focused_node.el.kind !in [.text_field, .text_area] { return }
+		if !(g_gg_app.editable_fields[g_focused_field] or { true }) { return }
 		if ch < 32 {
 			return
 		}
@@ -1526,17 +1614,23 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	}
 
 	fn handle_key_down(key gg.KeyCode, modifiers u32) {
-		if g_focused_field.len == 0 {
+		dispatch := custom_input_dispatch(g_gg_app)
+		if !dispatch.valid() { return }
+		if g_focused_field.len == 0 || g_focused_field !in g_text_editors {
 			return
 		}
+		focused_node := g_focus_navigation.node(g_focused_field) or { return }
+		if focused_node.el.kind !in [.text_field, .text_area] { return }
 		mut editor := g_text_editors[g_focused_field] or {
 			text_editor((g_text_values[g_focused_field] or { '' }).clone())
 		}
+		if key in [.backspace, .delete, .enter, .kp_enter] && !(g_gg_app.editable_fields[g_focused_field] or { true }) { return }
 		if key == .backspace {
 			if editor.backspace() {
 				replace_text_value(g_focused_field, editor.text)
 				replace_text_editor(g_focused_field, editor)
 				fire_field_change(g_focused_field)
+				if !dispatch.valid() { return }
 			}
 		}
 		if key == .delete {
@@ -1544,6 +1638,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 				replace_text_value(g_focused_field, editor.text)
 				replace_text_editor(g_focused_field, editor)
 				fire_field_change(g_focused_field)
+				if !dispatch.valid() { return }
 			}
 		}
 		mut navigation_key := match key {
@@ -1558,13 +1653,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			.a { 'a' }
 			else { '' }
 		}
-		mut focused_text_area := false
-		for target in g_hit_targets {
-			if target.id == g_focused_field {
-				focused_text_area = target.text_area
-				break
-			}
-		}
+		focused_text_area := focused_node.el.kind == .text_area
 		if focused_text_area && (navigation_key == 'page_up' || navigation_key == 'page_down') {
 			page_focused_text_area(if navigation_key == 'page_up' { -1 } else { 1 })
 			return
@@ -1607,22 +1696,17 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			g_text_editors[g_focused_field] = editor
 		}
 		if key == .enter || key == .kp_enter {
-			for target in g_hit_targets {
-				if target.id == g_focused_field && target.text_area {
-					editor.insert_text('\n')
-					replace_text_value(g_focused_field, editor.text)
-					replace_text_editor(g_focused_field, editor)
-					fire_field_change(g_focused_field)
-					return
-				}
+			if focused_text_area {
+				editor.insert_text('\n')
+				replace_text_value(g_focused_field, editor.text)
+				replace_text_editor(g_focused_field, editor)
+				fire_field_change(g_focused_field)
+				return
 			}
 			id := g_focused_field
-			g_focused_field = ''
-			for target in g_hit_targets {
-				if target.id == id && target.text_field && voidptr(target.on_event) != unsafe { nil } {
-					fire_target_event(target, ElementEvent{ kind: .submit, id: id, text: text(id) })
-					break
-				}
+			dismiss_keyboard()
+			if focused_node.el.kind == .text_field {
+				fire_target_event(custom_focus_target(focused_node), ElementEvent{ kind: .submit, id: id, text: text(id) })
 			}
 		}
 	}
@@ -1667,11 +1751,8 @@ fn page_focused_text_area(direction int) {
 	}
 
 	fn fire_field_change(id string) {
-		for target in g_hit_targets {
-			if target.id == id && (target.text_field || target.text_area) && voidptr(target.on_event) != unsafe { nil } {
-				fire_target_event(target, ElementEvent{ kind: .change, id: target.id, text: text(id) })
-				return
-			}
+		if node := g_focus_navigation.node(id) {
+			fire_target_event(custom_focus_target(node), ElementEvent{kind: .change, id: id, text: text(id)})
 		}
 	}
 
@@ -1686,7 +1767,7 @@ fn page_focused_text_area(direction int) {
 		}
 		close_dropdown()
 		g_open_dropdown = target.id
-		g_focused_field = ''
+		focus(target.id)
 	}
 
 	fn close_dropdown() {
@@ -2079,7 +2160,9 @@ fn page_focused_text_area(direction int) {
 	// fills the window below its offset, whatever its frame says.
 	fn element_area(ctx &DrawContext, el Element, off_x f64, off_y f64) Rect {
 		if el.kind == .screen {
-			return rect(off_x, off_y, f64(ctx.width) - off_x, f64(ctx.height) - off_y)
+			host_window := if g_gg_app.ctx == ctx { g_gg_app.native_window } else { unsafe { nil } }
+			viewport := ctx.logical_viewport(host_window)
+			return mounted_root_frame(el, rect(off_x, off_y, viewport.width - off_x, viewport.height - off_y))
 		}
 		return rect(el.frame.x + off_x, el.frame.y + off_y, el.frame.width, el.frame.height)
 	}
@@ -2280,6 +2363,7 @@ fn page_focused_text_area(direction int) {
 	}
 
 	fn render_scaled_content(ctx &DrawContext, el Element, off_x f64, off_y f64, clip Rect, scroll_parent_id string, path string) {
+		dispatch := custom_input_dispatch(g_gg_app)
 		if el.hidden { return }
 		viewport := rect(el.frame.x+off_x,el.frame.y+off_y,el.frame.width,el.frame.height)
 		local := contain_content(viewport,el.content_size.width,el.content_size.height) or { return }
@@ -2287,15 +2371,20 @@ fn page_focused_text_area(direction int) {
 		window_clip := outer.project(intersect_rect(viewport,clip))
 		// Draw the viewport's fill/interaction at its normal size before entering content.
 		render_element(ctx, Element{...el, children:[], content_size:LayoutSize{}}, off_x, off_y, clip, scroll_parent_id, path)
+		if !custom_frame_current(dispatch, ctx) { return }
 		transform := outer.compose(local)
 		unsafe { ctx.content_transform = transform }
 		defer { unsafe { ctx.content_transform = outer } }
 		content_clip := intersect_rect(rect(0,0,el.content_size.width,el.content_size.height), transform.inverse_rect(window_clip))
 		if content_clip.width <= 0 || content_clip.height <= 0 { return }
-		for index, child in el.children { render_element(ctx,child,0,0,content_clip,scroll_parent_id,reconciliation_child_key(path,index,child)) }
+		for index, child in el.children {
+			render_element(ctx,child,0,0,content_clip,scroll_parent_id,reconciliation_child_key(path,index,child))
+			if !custom_frame_current(dispatch, ctx) { return }
+		}
 	}
 
 	fn render_element(ctx &DrawContext, declared_el Element, off_x f64, off_y f64, clip Rect, scroll_parent_id string, path string) {
+		dispatch := custom_input_dispatch(g_gg_app)
 		if declared_el.content_size.width > 0 || declared_el.content_size.height > 0 {
 			render_scaled_content(ctx, declared_el, off_x, off_y, clip, scroll_parent_id, path)
 			return
@@ -2304,9 +2393,11 @@ fn page_focused_text_area(direction int) {
 
 			return
 		}
+		sync_mounted_control(declared_el)
 		apply_clip(ctx, clip)
 		area := element_area(ctx, declared_el, off_x, off_y)
 		el := resolve_custom_visual_style(declared_el, area, clip, ctx.content_transform)
+		if el.id.len > 0 { g_focus_navigation.set_geometry(el.id, ctx.content_transform.project(area)) }
 		if el.box.outline_width > 0 {
 			outline_frame, outline_box := box_outline_geometry(area, el.box)
 			draw_box_borders(ctx, outline_frame.x, outline_frame.y, outline_frame.width, outline_frame.height, outline_box)
@@ -2328,16 +2419,18 @@ fn page_focused_text_area(direction int) {
 				g_tooltip_owners--
 			}
 		}
+		if el.id.len > 0 && el.id == g_focused_field && el.kind !in [.text_field, .text_area] {
+			draw_outline(ctx, area.x - 2, area.y - 2, area.width + 4, area.height + 4, 0x2563eb, el.box.radius)
+		}
 		match el.kind {
 			.screen {
-				w := f64(ctx.width)
-				h := f64(ctx.height)
 				if !el.box.transparent {
-					draw_rect(ctx, off_x, off_y, w - off_x, h - off_y, el.box.bg, 0)
+					draw_rect(ctx, area.x, area.y, area.width, area.height, el.box.bg, 0)
 				}
-				draw_box_borders(ctx, off_x, off_y, w - off_x, h - off_y, el.box)
+				draw_box_borders(ctx, area.x, area.y, area.width, area.height, el.box)
 				for index, child in el.children {
 					render_element(ctx, child, off_x, off_y, clip, scroll_parent_id, reconciliation_child_key(path,index,child))
+					if !custom_frame_current(dispatch, ctx) { return }
 				}
 			}
 			.view {
@@ -2368,6 +2461,7 @@ fn page_focused_text_area(direction int) {
 				}
 				for index, child in el.children {
 					render_element(ctx, child, x, y, clip, scroll_parent_id, reconciliation_child_key(path,index,child))
+					if !custom_frame_current(dispatch, ctx) { return }
 				}
 			}
 			.scroll {
@@ -2376,19 +2470,11 @@ fn page_focused_text_area(direction int) {
 				frame := rect(x, y, el.frame.width, el.frame.height)
 				draw_rect(ctx, x, y, el.frame.width, el.frame.height, el.box.bg, 0)
 				draw_box_borders(ctx, x, y, el.frame.width, el.frame.height, el.box)
-				mut content_h := 0.0
-				for index, child in el.children {
-					if !child.hidden && child.frame.y + child.frame.height > content_h {
-						content_h = child.frame.y + child.frame.height
-					}
-				}
-				// Include the bottom inset in both the scroll range and thumb geometry.
-				if content_h > 0 {
-					content_h += 16
-				}
+				content_h := scroll_content_height(el)
 				scroll_id := scroll_view_state_id(el, path)
 				scroll_y := register_scroll_view_in_parent(scroll_id, scroll_parent_id, frame, clip, content_h, el.enabled,
-					true, el.persistent_scrollbars, HitTarget{ id: el.id, on_event: el.on_event })
+					true, el.persistent_scrollbars, HitTarget{ id: el.id, kind: .scroll, on_event: el.on_event })
+				if !custom_frame_current(dispatch, ctx) { return }
 				child_scroll_parent_id := scroll_id
 				child_clip := intersect_rect(frame, clip)
 				for index, child in el.children {
@@ -2397,7 +2483,8 @@ fn page_focused_text_area(direction int) {
 						retain_culled_scroll_state(child, reconciliation_child_key(path, index, child))
 						continue
 					}
-					 render_element(ctx, child, x, y - scroll_y, child_clip, child_scroll_parent_id, reconciliation_child_key(path,index,child))
+					render_element(ctx, child, x, y - scroll_y, child_clip, child_scroll_parent_id, reconciliation_child_key(path,index,child))
+					if !custom_frame_current(dispatch, ctx) { return }
 				}
 				if child_clip.width > 0 && child_clip.height > 0 {
 					apply_clip(ctx, child_clip)
@@ -2477,23 +2564,7 @@ fn page_focused_text_area(direction int) {
 			.toggle_button {
 				x := el.frame.x + off_x
 				y := el.frame.y + off_y
-				mut pressed := el.checked
-				if el.id.len > 0 {
-					g_toggle_groups[el.id] = el.toggle_group
-					g_toggle_allow_no_selection[el.id] = el.toggle_allow_no_selection
-					previous_declared := g_toggle_declared[el.id] or { el.checked }
-					previous_value := g_toggle_values[el.id] or { el.checked }
-					if el.id !in g_toggle_values
-						|| (previous_declared != el.checked && previous_value != el.checked) {
-						g_toggle_values[el.id] = el.checked
-					}
-					pressed = g_toggle_values[el.id] or { el.checked }
-					if pressed {
-						release_custom_toggle_group(el.id)
-					}
-					g_toggle_declared[el.id] = el.checked
-					g_active_toggles[el.id] = true
-				}
+				pressed := g_toggle_values[el.id] or { el.checked }
 				box := if pressed { el.toggle_down_box } else { el.box }
 				style := if pressed { el.toggle_down_text_style } else { el.text_style }
 				if el.native_style && box.bg == unstyled_box_bg {
@@ -2525,18 +2596,7 @@ fn page_focused_text_area(direction int) {
 			.checkbox {
 				x := el.frame.x + off_x
 				y := el.frame.y + off_y
-				mut checked := el.checked
-				if el.id.len > 0 {
-					previous_declared := g_checkbox_declared[el.id] or { el.checked }
-					previous_value := g_checkbox_values[el.id] or { el.checked }
-					if el.id !in g_checkbox_values
-						|| (previous_declared != el.checked && previous_value != el.checked) {
-						g_checkbox_values[el.id] = el.checked
-					}
-					checked = g_checkbox_values[el.id] or { el.checked }
-					g_checkbox_declared[el.id] = el.checked
-					g_active_checkboxes[el.id] = true
-				}
+				checked := g_checkbox_values[el.id] or { el.checked }
 				box_size := if el.frame.height < 18 { el.frame.height } else { 18.0 }
 				box_y := y + (el.frame.height - box_size) / 2
 				fill := if checked {
@@ -2577,16 +2637,6 @@ fn page_focused_text_area(direction int) {
 			.dropdown {
 				x := el.frame.x + off_x
 				y := el.frame.y + off_y
-				previous_prop := g_text_props[el.id] or { el.text }
-				kind_changed := el.id in g_text_kinds && (g_text_kinds[el.id] or { el.kind }) != el.kind
-				if kind_changed || el.id !in g_text_values || (el.text != previous_prop && (g_text_values[el.id] or { '' }) != el.text) {
-					replace_text_value(el.id, el.text)
-				}
-				if el.id !in g_text_props || el.text != previous_prop {
-					replace_text_prop(el.id, el.text)
-				}
-				g_text_kinds[el.id] = el.kind
-				g_active_fields[el.id] = true
 				selected := g_text_values[el.id] or { el.text }
 				list_open := el.enabled && el.id.len > 0 && g_open_dropdown == el.id
 				draw_control_surface(ctx, x, y, el.frame.width, el.frame.height, el.box,
@@ -2629,10 +2679,6 @@ fn page_focused_text_area(direction int) {
 				}
 			}
 			.text_field {
-				g_gg_app.editable_fields[el.id] = el.enabled && !el.readonly
-				if !el.enabled || el.readonly {
-					if g_gg_app.composition.field_id == el.id { g_gg_app.composition = TextComposition{} }
-				}
 				x := el.frame.x + off_x
 				y := el.frame.y + off_y
 				padding_left := if el.padding_left > 0 { el.padding_left } else { f64(0) }
@@ -2641,18 +2687,6 @@ fn page_focused_text_area(direction int) {
 				} else {
 					f64(0)
 				}
-				previous_prop := g_text_props[el.id] or { el.text }
-				kind_changed := el.id in g_text_kinds && (g_text_kinds[el.id] or { el.kind }) != el.kind
-				if kind_changed || el.id !in g_text_values || (el.text != previous_prop && (g_text_values[el.id] or { '' }) != el.text) {
-					if g_gg_app.composition.field_id == el.id { g_gg_app.composition = TextComposition{} }
-					replace_text_value(el.id, el.text)
-					replace_text_editor(el.id, text_editor(el.text.clone()))
-				}
-				if el.id !in g_text_props || el.text != previous_prop {
-					replace_text_prop(el.id, el.text)
-				}
-				g_text_kinds[el.id] = el.kind
-				g_active_fields[el.id] = true
 				current_text := g_text_values[el.id] or { el.text }
 				mut editor := g_text_editors[el.id] or { text_editor(current_text.clone()) }
 				if editor.text != current_text {
@@ -2714,7 +2748,7 @@ fn page_focused_text_area(direction int) {
 					}
 					apply_clip(ctx, clip)
 				}
-				if el.enabled && !el.readonly {
+				if el.enabled {
 					add_hit_target(HitTarget{
 						identity: path
 						kind: el.kind
@@ -2729,29 +2763,13 @@ fn page_focused_text_area(direction int) {
 				}
 			}
 			.text_area {
-				g_gg_app.editable_fields[el.id] = el.enabled && !el.readonly
-				if !el.enabled || el.readonly {
-					if g_gg_app.composition.field_id == el.id { g_gg_app.composition = TextComposition{} }
-				}
 				x := el.frame.x + off_x
 				y := el.frame.y + off_y
-				previous_prop := g_text_props[el.id] or { el.text }
-				kind_changed := el.id in g_text_kinds && (g_text_kinds[el.id] or { el.kind }) != el.kind
-				if kind_changed || el.id !in g_text_values || (el.text != previous_prop && (g_text_values[el.id] or { '' }) != el.text) {
-					if g_gg_app.composition.field_id == el.id { g_gg_app.composition = TextComposition{} }
-					replace_text_value(el.id, el.text)
-					replace_text_editor(el.id, text_editor(el.text.clone()))
-				}
-				if el.id !in g_text_props || el.text != previous_prop {
-					replace_text_prop(el.id, el.text)
-				}
-				g_text_kinds[el.id] = el.kind
-				g_active_fields[el.id] = true
 				current_text := g_text_values[el.id] or { el.text }
 				draw_control_surface(ctx, x, y, el.frame.width, el.frame.height, el.box,
 					g_focused_field == el.id, el.enabled)
 				draw_text_area_content(ctx, el, current_text, x, y, clip, scroll_parent_id)
-				if el.enabled && !el.readonly {
+				if el.enabled {
 					add_hit_target(HitTarget{
 						identity: path
 						kind: el.kind
@@ -2770,21 +2788,7 @@ fn page_focused_text_area(direction int) {
 				y := el.frame.y + off_y
 				frame := rect(x, y, el.frame.width, el.frame.height)
 				spec := slider_spec(el)
-				mut current := el.value
-				if el.id.len > 0 {
-					previous_declared := g_slider_declared[el.id] or { el.value }
-					previous_value := g_slider_values[el.id] or { el.value }
-					if el.id !in g_slider_values
-						|| (previous_declared != el.value && previous_value != el.value) {
-						g_slider_values[el.id] = el.value
-					}
-					current = slider_clamped_value(g_slider_values[el.id] or { el.value },
-						spec.min, spec.max)
-					g_slider_values[el.id] = current
-					g_slider_declared[el.id] = el.value
-					g_slider_specs[el.id] = spec
-					g_active_sliders[el.id] = true
-				}
+				current := g_slider_values[el.id] or { el.value }
 				normalized := slider_value_normalized(current, spec.min, spec.max)
 				track_width := if el.slider_style.track_width > 0 {
 					el.slider_style.track_width
@@ -2854,18 +2858,7 @@ fn page_focused_text_area(direction int) {
 			.switch_control {
 				frame := rect(el.frame.x + off_x, el.frame.y + off_y, el.frame.width,
 					el.frame.height)
-				mut active := el.checked
-				if el.id.len > 0 {
-					previous_declared := g_switch_declared[el.id] or { el.checked }
-					previous_value := g_switch_values[el.id] or { el.checked }
-					if el.id !in g_switch_values
-						|| (previous_declared != el.checked && previous_value != el.checked) {
-						g_switch_values[el.id] = el.checked
-					}
-					active = g_switch_values[el.id] or { el.checked }
-					g_switch_declared[el.id] = el.checked
-					g_active_switches[el.id] = true
-				}
+				active := g_switch_values[el.id] or { el.checked }
 				track := switch_track_frame(frame)
 				thumb := switch_thumb_frame(track, active)
 				track_color := if el.enabled {
