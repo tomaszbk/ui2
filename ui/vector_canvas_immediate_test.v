@@ -93,33 +93,47 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		}
 	}
 
-	fn test_round_join_excluded_geometry_passes_hits_and_tooltips_through() {
+	fn test_round_stroke_excluded_geometry_passes_hits_and_tooltips_through() {
 		old_app := g_gg_app
 		old_targets := g_hit_targets.clone()
 		old_tooltips := g_tooltip_targets.clone()
 		defer { g_gg_app=old_app; g_hit_targets=old_targets.clone(); g_tooltip_targets=old_tooltips.clone() }
-		g_gg_app = &GgApp{ctx:&DrawContext{content_transform:ContentTransform{scale:2,x:10,y:20},scale:1}}
-		for variant in 0 .. 4 {
+		g_gg_app = &GgApp{ctx:&DrawContext{content_transform:ContentTransform{scale:1.75,x:10.25,y:20.5},scale:1}}
+		for variant in 0 .. 7 {
 			mut path := VectorPath{}
 			path.move_to(10,10)
-			path.line_to(11,10)
+			path.line_to(if variant == 4 || variant == 5 { 10.1 } else { 11.0 },10)
 			end := match variant {
 				0 { vector_point(30,10) }
 				1 { vector_point(11,11) }
 				2 { vector_point(11,9) }
+				4, 5 { vector_point(10.1,20) }
 				else { vector_point(10,10) }
 			}
 			path.line_to(end.x,end.y)
-			shape := prepare_vector_shape(path,VectorStyle{stroke:0,stroke_width:4,cap:.butt,join:.round,tolerance:0.001})!
+			if variant == 5 {
+				// Reverse the short angle so its short segment is at the end cap.
+				path = VectorPath{}
+				path.move_to(10.1,20)
+				path.line_to(10.1,10)
+				path.line_to(10,10)
+			}
+			cap := if variant >= 4 { VectorCap.round } else { VectorCap.butt }
+			join := if variant >= 4 { VectorJoin.bevel } else { VectorJoin.round }
+			shape := prepare_vector_shape(path,VectorStyle{stroke:0,stroke_width:4,cap:cap,join:join,tolerance:0.001})!
 			excluded := match variant {
 				1 { vector_point(9.5,9.5) }
 				2 { vector_point(9.5,10.5) }
+				4, 5 { vector_point(11.3,8.7) }
+				6 { vector_point(11.5,10) }
 				else { vector_point(9.5,10) }
 			}
 			painted := match variant {
 				0 { vector_point(20,10) }
 				1 { vector_point(12.3,8.7) }
 				2 { vector_point(12.3,11.3) }
+				4, 5 { vector_point(10.1,21.5) }
+				6 { vector_point(8.5,10) }
 				else { vector_point(12.8,10) }
 			}
 			for mode in [VectorHitMode.paint,.stroke] {
@@ -134,10 +148,10 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 				for dpi in [f32(1),1.25,1.5,2] {
 					g_gg_app.ctx.scale = dpi
 					// Window coordinates include the canvas origin and content transform.
-					ex := 10 + 2 * (3 + excluded.x)
-					ey := 20 + 2 * (4 + excluded.y)
-					px := 10 + 2 * (3 + painted.x)
-					py := 20 + 2 * (4 + painted.y)
+					ex := 10.25 + 1.75 * (3 + excluded.x)
+					ey := 20.5 + 1.75 * (4 + excluded.y)
+					px := 10.25 + 1.75 * (3 + painted.x)
+					py := 20.5 + 1.75 * (4 + painted.y)
 					assert hit_test(ex,ey).id == 'lower'
 					assert tooltip_target_at(g_tooltip_targets,ex,ey).text == 'lower tooltip'
 					assert hit_test(px,py).id == 'upper'

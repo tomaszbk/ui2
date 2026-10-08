@@ -50,7 +50,9 @@ regardless of direction. A painted boundary belongs to the shape.
 Strokes are centered on their segments, with logical `stroke_width` (default 1).
 The offered caps are `.butt` (default), `.round` and `.square`; joins are `.miter`
 (default), `.bevel` and `.round`. A miter longer than `miter_limit` times half the
-width falls back to bevel (default limit 4). Closed contours have joins at the
+width falls back to bevel (default limit 4). Round caps are outward semicircles
+oriented by the first and last nondegenerate flattened segments, including when
+those segments are shorter than half the stroke width. Closed contours have joins at the
 seam and no caps. Consecutive equal points collapse. A zero-length open contour
 paints a disk only with a round cap; butt/square have no defined tangent and
 paint nothing. Zero stroke width paints nothing.

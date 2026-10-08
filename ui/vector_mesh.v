@@ -179,7 +179,14 @@ fn vector_stroke_mesh(contours []VectorContour, style VectorStyle) ![]VectorTria
 		for index in 0 .. points.len {
 			if !contour.closed && (index == 0 || index == points.len - 1) {
 				if style.cap == .round {
-					vector_disk(mut mesh, points[index], radius, style.tolerance)!
+					// Flattening removes repeated points, so these endpoint segments
+					// have tangents. Only the outward half circle belongs to a cap;
+					// an inward half can escape a short segment and its bevel join.
+					d := if index == 0 { vector_sub(points[1], points[0]) } else { vector_sub(points[index], points[index - 1]) }
+					u := vector_mul(d, 1 / vector_length(d))
+					side := if index == 0 { 1.0 } else { -1.0 }
+					n := vector_point(-u.y * radius * side, u.x * radius * side)
+					vector_round_arc(mut mesh, points[index], vector_add(points[index], n), vector_sub(points[index], n), radius, math.pi, style.tolerance)!
 				}
 			} else {
 				vector_stroke_join(mut mesh, points[(index + points.len - 1) % points.len], points[index], points[(index + 1) % points.len], style)!
