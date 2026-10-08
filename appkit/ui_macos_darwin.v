@@ -8,7 +8,6 @@ $if !ui2_custom_rendering ? {
 import encoding.base64
 import macos
 import os
-import time
 
 #flag darwin -framework Cocoa
 
@@ -54,20 +53,6 @@ struct RunConfig {
 	min_height int
 }
 
-struct RefreshDebug {
-mut:
-	active           bool
-	nodes_visited    int
-	nodes_created    int
-	nodes_updated    int
-	tooltips_set     int
-	native_create_ns u64
-	native_update_ns u64
-	label_update_ns  u64
-	view_update_ns   u64
-	other_update_ns  u64
-}
-
 struct AppkitCallbackBinding {
 	id       string
 	on_event ElementCallback = unsafe { nil }
@@ -102,6 +87,8 @@ fn appkit_emit_callback(binding AppkitCallbackBinding, event ElementEvent) bool 
 @[heap]
 struct RuntimeState {
 mut:
+	layout_tree &LayoutTree = &LayoutTree{}
+	layout_environment LayoutEnvironment
 	build_screen        BuildFn = BuildFn(unsafe { nil })
 	key_handler         KeyFn = KeyFn(unsafe { nil })
 	key_event_handler   KeyEventFn = KeyEventFn(unsafe { nil })
@@ -156,7 +143,6 @@ mut:
 	run_config          RunConfig
 	screenshot_pending  bool
 	screenshot_captured bool
-	refresh_debug       RefreshDebug
 }
 
 const runtime_state_singleton = &RuntimeState{
@@ -228,6 +214,7 @@ pub fn run_window(title string, width int, height int, build_fn BuildFn) {
 
 fn run_window_with_min_size(title string, width int, height int, min_width int, min_height int, build_fn BuildFn) {
 	mut st := state()
+	st.layout_tree.clear()
 	st.build_screen = build_fn
 	configure_animation_driver(request_refresh, true)
 	st.run_config = RunConfig{
@@ -256,67 +243,21 @@ pub fn refresh() {
 	schedule_screenshot_capture()
 }
 
-// refresh_element reconciles one existing keyed subtree without rebuilding the
-// rest of the window. It is intended for high-frequency virtualized content
-// such as a spreadsheet surface during native scrollbar tracking.
+// A subtree's intrinsic size can move ancestors and siblings. Reconcile their
+// resulting frames through the existing native identity/edit-preserving path.
 pub fn refresh_element(id string, element Element) {
 	mut st := state()
-	key := st.view_keys[id] or { return }
-	native := st.nodes[key] or { return }
-	parent := NativeView(macos.msg_id(native, 'superview'))
-	if native_is_nil(parent) {
-		return
-	}
-	animated := apply_widget_animations(element)
-	validate_refresh_element_identity(key, animated) or {
-		eprintln('ui2: ${err}')
-		return
-	}
-	started := time.sys_mono_now()
-	st.refresh_debug = RefreshDebug{
-		active: true
-	}
-	clear_subtree_registrations(key)
-	cleared := time.sys_mono_now()
-	mut active := map[string]bool{}
-	render_element(parent, animated, key, mut active)
-	rendered := time.sys_mono_now()
-	remove_stale_nodes_below(key, active)
-	finished := time.sys_mono_now()
-	st.refresh_debug.active = false
+	st.layout_tree.patch(id, apply_widget_animations(element)) or { eprintln('ui2 layout: ${err}'); return }
+	render_mounted_layout()
 	schedule_screenshot_capture()
-	total_ns := finished - started
-	budget := if total_ns > u64(16_666_667) { 'OVER' } else { 'ok' }
-	if os.getenv('UI2_DEBUG_REFRESH') == '1' {
-		println('[ui2 subtree] id=${id} total=${debug_milliseconds(total_ns):.2f}ms ${budget} clear=${debug_milliseconds(cleared - started):.2f}ms render=${debug_milliseconds(rendered - cleared):.2f}ms stale=${debug_milliseconds(finished - rendered):.2f}ms nodes=${st.refresh_debug.nodes_visited} create=${st.refresh_debug.nodes_created}/${debug_milliseconds(st.refresh_debug.native_create_ns):.2f}ms update=${st.refresh_debug.nodes_updated}/${debug_milliseconds(st.refresh_debug.native_update_ns):.2f}ms labels=${debug_milliseconds(st.refresh_debug.label_update_ns):.2f}ms views=${debug_milliseconds(st.refresh_debug.view_update_ns):.2f}ms other=${debug_milliseconds(st.refresh_debug.other_update_ns):.2f}ms tooltips=${st.refresh_debug.tooltips_set}')
-	}
 }
 
-fn validate_refresh_element_identity(root_key string, element Element) ! {
-	validate_element_tree(element)!
-	st := state()
-	prefix := root_key + '/'
-	mut ids := []string{}
-	collect_element_ids(element, mut ids)
-	for id in ids {
-		existing_key := st.view_keys[id] or { continue }
-		if existing_key != root_key && !existing_key.starts_with(prefix) {
-			return error('duplicate element id `${id}` outside refreshed subtree')
-		}
-	}
-}
+pub fn layout_stats() LayoutStats { return state().layout_tree.stats() }
 
-fn collect_element_ids(element Element, mut ids []string) {
-	if element.id.len > 0 {
-		ids << element.id
-	}
-	for child in element.children {
-		collect_element_ids(child, mut ids)
-	}
-}
-
-fn debug_milliseconds(nanoseconds u64) f64 {
-	return f64(nanoseconds) / 1_000_000.0
+pub fn invalidate_layout_environment(environment LayoutEnvironment) {
+	mut st := state()
+	st.layout_environment = environment
+	if st.layout_tree.root.len > 0 { render_mounted_layout() }
 }
 
 // on_key registers a handler for key events that reach the window, plus
@@ -947,11 +888,19 @@ fn element_rect(r Rect) NativeRect {
 }
 
 fn render_root(declared Element) {
-	root := apply_widget_animations(declared)
-	validate_element_tree(root) or {
-		eprintln('ui2: ${err}')
-		return
-	}
+	mut layout_state := state()
+	layout_state.layout_tree.replace(apply_widget_animations(declared)) or { eprintln('ui2 layout: ${err}'); return }
+	root := layout_state.layout_tree.resolve(LayoutConstraints{}, measure_layout_text, layout_state.layout_environment) or { eprintln('ui2 layout: ${err}'); return }
+	render_resolved_root(root)
+}
+
+fn render_mounted_layout() {
+	mut st := state()
+	root := st.layout_tree.resolve(LayoutConstraints{}, measure_layout_text, st.layout_environment) or { eprintln('ui2 layout: ${err}'); return }
+	render_resolved_root(root)
+}
+
+fn render_resolved_root(root Element) {
 	mut st := state()
 	st.views = map[string]NativeView{}
 	st.view_keys = map[string]string{}
@@ -996,9 +945,6 @@ fn render_children(parent NativeView, children []Element, parent_key string, mut
 fn render_element(parent NativeView, el Element, key string, mut active map[string]bool) NativeView {
 	active[key] = true
 	mut st := state()
-	if st.refresh_debug.active {
-		st.refresh_debug.nodes_visited++
-	}
 	mut native := st.nodes[key] or { native_nil_view() }
 	existing_kind := st.node_kinds[key] or { Kind.screen }
 	existing_direct := st.node_text_direct[key] or { false }
@@ -1057,12 +1003,7 @@ fn render_element(parent NativeView, el Element, key string, mut active map[stri
 		}
 		st.node_tooltips.delete(key)
 		st.node_shortened.delete(key)
-		create_started := if st.refresh_debug.active { time.sys_mono_now() } else { u64(0) }
 		native = native_create_element(create_el)
-		if st.refresh_debug.active {
-			st.refresh_debug.nodes_created++
-			st.refresh_debug.native_create_ns += time.sys_mono_now() - create_started
-		}
 		st.nodes[key] = native
 		st.node_kinds[key] = el.kind
 		st.node_interactive[key] = interactive
@@ -1094,24 +1035,7 @@ fn render_element(parent NativeView, el Element, key string, mut active map[stri
 			}
 		}
 	} else {
-		update_started := if st.refresh_debug.active { time.sys_mono_now() } else { u64(0) }
 		native_update_element(native, el, declared_text_changed, content_changed)
-		if st.refresh_debug.active {
-			elapsed := time.sys_mono_now() - update_started
-			st.refresh_debug.nodes_updated++
-			st.refresh_debug.native_update_ns += elapsed
-			match el.kind {
-				.label {
-					st.refresh_debug.label_update_ns += elapsed
-				}
-				.view {
-					st.refresh_debug.view_update_ns += elapsed
-				}
-				else {
-					st.refresh_debug.other_update_ns += elapsed
-				}
-			}
-		}
 	}
 	if el.kind != .screen {
 		border_box := if el.kind == .toggle_button && el.checked {
@@ -1205,9 +1129,6 @@ fn render_element(parent NativeView, el Element, key string, mut active map[stri
 		previous_tooltip := st.node_tooltips[key] or { '' }
 		if previous_tooltip != tooltip {
 			macos.msg_void1(native, 'setToolTip:', macos.nsstring(tooltip))
-			if st.refresh_debug.active {
-				st.refresh_debug.tooltips_set++
-			}
 		}
 		if tooltip.len > 0 {
 			st.node_tooltips[key] = tooltip
@@ -1643,66 +1564,6 @@ fn remove_stale_nodes(active map[string]bool) {
 		if !node_has_ancestor_in_set(key, stale_set) {
 			// Removing a native parent already removes its whole subtree. Avoid
 			// making the same AppKit call again for every stale descendant.
-			native_remove_from_superview(native)
-		}
-	}
-	for key in stale {
-		st.nodes.delete(key)
-		st.node_kinds.delete(key)
-		st.node_text_direct.delete(key)
-		st.node_interactive.delete(key)
-		st.node_label_boxed.delete(key)
-		st.node_secure.delete(key)
-		st.node_declared_text.delete(key)
-		st.node_content_sig.delete(key)
-		st.node_tooltips.delete(key)
-		st.node_shortened.delete(key)
-	}
-}
-
-fn clear_subtree_registrations(root_key string) {
-	mut st := state()
-	prefix := root_key + '/'
-	for key, native in st.nodes {
-		if key == root_key || key.starts_with(prefix) {
-			unregister_node(key, native, st.node_kinds[key] or { Kind.view }, st.node_text_direct[key] or { false })
-		}
-	}
-	mut ids := []string{}
-	for id, key in st.view_keys {
-		if key == root_key || key.starts_with(prefix) {
-			ids << id
-		}
-	}
-	for id in ids {
-		st.views.delete(id)
-		st.view_keys.delete(id)
-		st.view_kinds.delete(id)
-		st.text_area_direct.delete(id)
-		st.label_places.delete(id)
-	}
-}
-
-fn remove_stale_nodes_below(root_key string, active map[string]bool) {
-	mut st := state()
-	prefix := root_key + '/'
-	mut stale := []string{}
-	mut stale_set := map[string]bool{}
-	for key, _ in st.nodes {
-		if key.starts_with(prefix) && key !in active {
-			stale << key
-			stale_set[key] = true
-		}
-	}
-	for key in stale {
-		native := st.nodes[key] or { continue }
-		kind := st.node_kinds[key] or { Kind.view }
-		direct := st.node_text_direct[key] or { false }
-		unregister_node(key, native, kind, direct)
-	}
-	for key in stale {
-		native := st.nodes[key] or { continue }
-		if !node_has_ancestor_in_set(key, stale_set) {
 			native_remove_from_superview(native)
 		}
 	}

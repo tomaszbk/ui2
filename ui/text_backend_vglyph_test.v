@@ -171,3 +171,124 @@ fn test_vglyph_labels_cap_paragraphs_and_report_ellipsis() {
 		}
 	}
 }
+
+fn test_vglyph_paint_colors_reuse_typography_including_rich_run_boundaries() {
+	$if ( linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headless ? {
+		mut engine := new_text_engine(1)!
+		defer { engine.free() }
+		style := TextStyle{ size: 17.25, color: 0x112233 }
+		first := engine.shape('café ñ', style, 80.5, 2, false)!
+		builds := engine.shape_builds
+		paint := engine.shape('café ñ', TextStyle{ ...style, color: 0x3366ff }, 80.5, 2, false)!
+		assert engine.shape_builds == builds
+		assert engine.shape_hits > 0
+		assert paint.size == first.size
+		assert paint.layout.items[0].color == hex_color(0x3366ff)
+		assert first.layout.items[0].color == hex_color(0x112233), 'cached geometry must not be mutated by painting'
+		runs := [TextRun{ text: 'WW', style: TextStyle{ size: 17.25, color: 0x123456 } },
+			TextRun{ text: 'ii', style: TextStyle{ size: 17.25, color: 0xabcdef } }]
+		rich := engine.shape_runs(runs, style, 80.5, 2, false)!
+		rich_builds := engine.shape_builds
+		changed_runs := runs.map(TextRun{ text: it.text, style: TextStyle{ ...it.style, color: 0xff0000 } })
+		rich_paint := engine.shape_runs(changed_runs, style, 80.5, 2, false)!
+		assert engine.shape_builds == rich_builds
+		assert rich_paint.size == rich.size
+		for item in rich_paint.layout.items { assert item.color == hex_color(0xff0000) }
+		for item in rich.layout.items {
+			assert item.color == hex_color(if item.start_index < 2 { u32(0x123456) } else { u32(0xabcdef) })
+		}
+		g_text_font_mutex.lock()
+		engine.invalidate_environment()
+		g_text_font_mutex.unlock()
+		_ = engine.shape_runs(changed_runs, style, 80.5, 2, false)!
+		assert engine.shape_builds == rich_builds + 1
+	}
+}
+
+fn test_vglyph_repaint_counts_compare_identical_scene_with_uncached_shaping() {
+	$if ( linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headless ? {
+		mut reference := new_text_engine(1)!
+		mut retained := new_text_engine(1)!
+		defer { reference.free(); retained.free() }
+		for i in 0 .. 20 {
+			style := TextStyle{ size: 17.25, color: if i % 2 == 0 { u32(0x112233) } else { u32(0x3366ff) } }
+			g_text_font_mutex.lock()
+			before := reference.build_shape_locked('café ñ', [], style, 80.5, 2, false, false)!
+			g_text_font_mutex.unlock()
+			after := retained.shape('café ñ', style, 80.5, 2, false)!
+			assert before.size == after.size
+			assert before.layout.items[0].color == after.layout.items[0].color
+		}
+		assert reference.shape_builds == 20
+		assert retained.shape_builds == 1
+		assert retained.shape_hits == 19
+		println('identical repaint scene: uncached_shape_builds=${reference.shape_builds} retained_shape_builds=${retained.shape_builds} retained_shape_hits=${retained.shape_hits}')
+	}
+}
+
+fn test_vglyph_cached_tail_ellipsis_keeps_visible_run_paint_owner() {
+	$if ( linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headless ? {
+		mut engine := new_text_engine(1)!
+		defer { engine.free() }
+		base := TextStyle{ size: 17.25, color: 0x111111 }
+		for runs in [
+			[TextRun{ text: 'short', style: TextStyle{ ...base, color: 0xff0000 } }, TextRun{ text: '\nhidden', style: TextStyle{ ...base, color: 0x0000ff } }],
+			[TextRun{ text: 'short\n', style: TextStyle{ ...base, color: 0xff0000 } }, TextRun{ text: 'hidden', style: TextStyle{ ...base, color: 0x0000ff } }],
+			[TextRun{ text: 'this part', style: TextStyle{ ...base, color: 0xff0000 } }, TextRun{ text: ' is very long hidden text', style: TextStyle{ ...base, color: 0x0000ff } }],
+		] {
+			g_text_font_mutex.lock()
+			reference := engine.build_shape_locked(text_runs_content(runs), runs, base, 300, 1, true, false)!
+			g_text_font_mutex.unlock()
+			cold := engine.shape_runs(runs, base, 300, 1, true)!
+			builds := engine.shape_builds
+			hit := engine.shape_runs(runs, base, 300, 1, true)!
+			assert engine.shape_builds == builds
+			assert cold.size == reference.size && hit.size == reference.size
+			assert cold.layout.items.len == reference.layout.items.len
+			for i, item in reference.layout.items {
+				assert cold.layout.items[i].color == item.color
+				assert hit.layout.items[i].color == item.color
+			}
+		}
+	}
+}
+
+fn test_vglyph_link_and_external_paint_metadata_reuse_shaping() {
+	$if ( linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headless ? {
+		mut engine := new_text_engine(1)!
+		defer { engine.free() }
+		base := TextStyle{ size: 17.25, color: 0xff0000 }
+		first := engine.shape('visible', base, 300, 1, false)!
+		builds := engine.shape_builds
+		paint := engine.shape('visible', TextStyle{ ...base, link: 'https://example.test/new', shadow: true, outline: true, background_color: 0xffee00 }, 300, 1, false)!
+		assert paint.size == first.size
+		assert engine.shape_builds == builds
+		assert first.layout.items[0].color == hex_color(0xff0000)
+	}
+}
+
+fn test_public_layout_environment_invalidates_cpu_and_window_shaping_once() {
+	$if ( linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headless ? {
+		previous := g_gg_app
+		mut active := new_text_engine(1)!
+		defer { g_gg_app = previous; active.free() }
+		g_gg_app = &GgApp{ scheduler: new_frame_coordinator(), ctx: &DrawContext{ text: active, text_font_generation: 17 } }
+		style := TextStyle{ size: 17.25 }
+		_ = layout_measure_vglyph_text('cpu environment', style, 300.5)!
+		_ = layout_measure_vglyph_text('cpu environment', style, 300.5)!
+		cpu := g_cpu_text_engine
+		before := cpu.shape_builds
+		cpu_version := cpu.environment_version
+		active_version := active.environment_version
+		invalidate_layout_environment(LayoutEnvironment{ font_version: 1 })
+		_ = layout_measure_vglyph_text('cpu environment', style, 300.5)!
+		assert cpu.shape_builds == before + 1
+		assert cpu.environment_version == cpu_version + 1
+		assert active.environment_version == active_version + 1
+		assert g_gg_app.ctx.text_font_generation == -1
+		g_gg_app.ctx.text = cpu
+		aliased := cpu.environment_version
+		invalidate_layout_environment(LayoutEnvironment{ font_version: 2 })
+		assert cpu.environment_version == aliased + 1
+	}
+}

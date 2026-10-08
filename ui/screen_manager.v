@@ -78,10 +78,8 @@ pub fn screen_manager(config ScreenManagerConfig) !Element {
 	mut children := []Element{}
 	if config.screens.len > 0 {
 		index := screen_manager_index(config)!
-		children << Element{
-			...config.screens[index].content
-			frame: rect(0, 0, config.frame.width, config.frame.height)
-		}
+		children << config.screens[index].content.with_layout_frame(rect(0, 0, config.frame.width,
+			config.frame.height))
 	}
 	return view(config.id, config.frame, config.box, children)
 }

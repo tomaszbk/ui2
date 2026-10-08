@@ -275,6 +275,8 @@ struct WindowsPointerBinding {
 @[heap]
 struct WindowsState {
 mut:
+	layout_tree &LayoutTree = &LayoutTree{}
+	layout_environment LayoutEnvironment
 	build_screen       BuildFn = BuildFn(unsafe { nil })
 	key_handler        KeyFn = KeyFn(unsafe { nil })
 	key_event_handler  KeyEventFn = KeyEventFn(unsafe { nil })
@@ -542,12 +544,38 @@ pub fn refresh() {
 	if st.root == unsafe { nil } || st.rendering || voidptr(st.build_screen) == unsafe { nil } {
 		return
 	}
-	declared := st.build_screen()
-	root := apply_widget_animations(declared)
-	validate_element_tree(root) or {
-		eprintln('ui2: ${err}')
-		return
-	}
+	windows_render_declaration(st.build_screen())
+}
+
+pub fn refresh_element(id string, element Element) {
+	mut st := windows_state()
+	st.layout_tree.patch(id, apply_widget_animations(element)) or { eprintln('ui2 layout: ${err}'); return }
+	windows_render_mounted_layout()
+}
+
+pub fn layout_stats() LayoutStats { return windows_state().layout_tree.stats() }
+
+pub fn invalidate_layout_environment(environment LayoutEnvironment) {
+	mut st := windows_state()
+	st.layout_environment = environment
+	if st.layout_tree.root.len > 0 { windows_render_mounted_layout() }
+}
+
+fn windows_render_declaration(declared Element) {
+	mut st := windows_state()
+	st.layout_tree.replace(apply_widget_animations(declared)) or { eprintln('ui2 layout: ${err}'); return }
+	root := st.layout_tree.resolve(LayoutConstraints{}, measure_layout_text, st.layout_environment) or { eprintln('ui2 layout: ${err}'); return }
+	windows_render_resolved(root)
+}
+
+fn windows_render_mounted_layout() {
+	mut st := windows_state()
+	root := st.layout_tree.resolve(LayoutConstraints{}, measure_layout_text, st.layout_environment) or { eprintln('ui2 layout: ${err}'); return }
+	windows_render_resolved(root)
+}
+
+fn windows_render_resolved(root Element) {
+	mut st := windows_state()
 	st.rendering = true
 	st.views = map[string]voidptr{}
 	st.view_keys = map[string]string{}
@@ -1457,6 +1485,7 @@ fn windows_remove_stale(active map[string]bool) {
 }
 
 fn windows_dispose_all() {
+	windows_state().layout_tree.clear()
 	mut st := windows_state()
 	windows_release_all_node_resources()
 	st.nodes = map[string]voidptr{}

@@ -74,6 +74,9 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	mut:
 		ctx &DrawContext = unsafe { nil }
 		scheduler &FrameCoordinator = new_frame_coordinator()
+		layout_tree &LayoutTree = &LayoutTree{}
+		layout_environment LayoutEnvironment
+		layout_patches []LayoutPatch
 		declared_root Element
 		has_root bool
 		iconified bool
@@ -381,8 +384,26 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		g_gg_app.scheduler.invalidate(.build)
 	}
 
-	pub fn refresh_element(_id string, _element Element) {
-		refresh()
+	pub fn refresh_element(id string, element Element) {
+		if g_gg_app.scheduler.is_closed() { return }
+		g_gg_app.layout_patches << LayoutPatch{ id: id, element: element }
+		g_gg_app.scheduler.invalidate(.layout)
+	}
+
+	pub fn layout_stats() LayoutStats { return g_gg_app.layout_tree.stats() }
+
+	pub fn invalidate_layout_environment(environment LayoutEnvironment) {
+		g_gg_app.layout_environment = environment
+		$if !android {
+			g_text_font_mutex.lock()
+			if g_cpu_text_engine != unsafe { nil } { g_cpu_text_engine.invalidate_environment() }
+			if g_gg_app.ctx != unsafe { nil } && g_gg_app.ctx.text != unsafe { nil } {
+				if g_gg_app.ctx.text != g_cpu_text_engine { g_gg_app.ctx.text.invalidate_environment() }
+				g_gg_app.ctx.text_font_generation = -1
+			}
+			g_text_font_mutex.unlock()
+		}
+		g_gg_app.scheduler.invalidate(.layout)
 	}
 
 	fn invalidate_custom_paint() {
@@ -710,6 +731,8 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		state.ctx = unsafe { nil }
 		clear_text_area_layouts()
 		state.declared_root = Element{}
+		state.layout_tree.clear()
+		state.layout_patches.clear()
 		state.has_root = false
 		state.editable_fields.clear()
 		configure_animation_driver(unsafe { nil }, false)
@@ -754,6 +777,22 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		app.draining_tasks = false
 	}
 
+	fn resolve_custom_layout(mut app GgApp, work FrameWork, measure LayoutTextMeasureFn) !Element {
+		animated := apply_custom_widget_animations(app.declared_root)
+		if work.build || app.layout_tree.root.len == 0 {
+			app.layout_tree.replace(animated)!
+		}
+		// Detach patches before layout/user callbacks. Requests during this frame
+		// survive for the next scheduler generation.
+		patches := app.layout_patches
+		app.layout_patches = []LayoutPatch{}
+		for patch in patches {
+			app.layout_tree.patch(patch.id, apply_custom_widget_animations(patch.element)) or { eprintln('ui2 layout: ${err}'); continue }
+			app.declared_root = app.layout_tree.declaration()
+		}
+		return app.layout_tree.resolve(LayoutConstraints{}, measure, app.layout_environment)!
+	}
+
 	fn on_frame(mut app GgApp) {
 		if app.scheduler.is_closed() || app.ctx == unsafe { nil } || app.draining_tasks { return }
 		drain_custom_tasks(mut app)
@@ -795,7 +834,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		if app.scheduler.is_closed() || app.iconified || app.suspended {
 			return
 		}
-		root := apply_custom_widget_animations(app.declared_root)
+		root := resolve_custom_layout(mut app, work, measure_layout_text) or { eprintln('ui2 layout: ${err}'); return }
 		// Animation callbacks are user code and may close or suspend the window.
 		if app.scheduler.is_closed() || app.iconified || app.suspended {
 			return
@@ -861,9 +900,9 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			return
 		}
 		mut state := unsafe { app }
-		// All input can affect local interaction or invoke application handlers.
-		// Legacy builds remain complete; paint-only setters/deadlines reuse root.
-		state.scheduler.invalidate(.build)
+		// Local hover, focus and scroll repaint retained geometry. Business
+		// callbacks request a build; keyboard/drop hooks may mutate the model.
+		state.scheduler.invalidate(if e.typ in [.key_down, .key_up, .char, .files_dropped] { RenderReason.build } else { RenderReason.paint })
 		match e.typ {
 			.mouse_down {
 				g_tooltip.dismiss()

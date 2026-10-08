@@ -1321,6 +1321,14 @@ fn merge_animation_properties(base Element, values Element, properties []string)
 			result = set_color_animation_property(result, property, animation_color_property_value(values, property))
 		}
 	}
+	if properties.any(it in ['x', 'y', 'width', 'height']) {
+		input := base.layout_input or { base.frame }
+		result = Element{ ...result, layout_input: rect(
+			if 'x' in properties { result.frame.x } else { input.x },
+			if 'y' in properties { result.frame.y } else { input.y },
+			if 'width' in properties { result.frame.width } else { input.width },
+			if 'height' in properties { result.frame.height } else { input.height }) }
+	}
 	return result
 }
 

@@ -350,9 +350,13 @@ pub fn flex(config FlexConfig) !Element {
 	mut children := []Element{cap: config.children.len}
 	for index, child in config.children {
 		children << Element{
-			...child.element
+			...layout_declared(child.element)
 			frame: frames[index]
 		}
 	}
-	return view(config.id, config.frame, config.box, children)
+	return Element{
+		...view(config.id, config.frame, config.box, children)
+		layout_input: config.frame
+		layout:       LayoutSpec{ kind: .flex, flex: flex_layout_spec(config) }
+	}
 }

@@ -170,10 +170,7 @@ pub fn tabbed_panel(config TabbedPanelConfig) !Element {
 	if config.tabs.len > 0 {
 		current := tabbed_panel_current(config.current, config.tabs.len)
 		active := config.tabs[current]
-		children << Element{
-			...active.content
-			frame: geometry.content
-		}
+		children << active.content.with_layout_frame(geometry.content)
 	}
 	for index, tab in config.tabs {
 		active := index == tabbed_panel_current(config.current, config.tabs.len)

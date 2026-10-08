@@ -90,8 +90,8 @@ fn layout_constrain_axis(value f64, minimum f64, maximum f64) f64 {
 pub type LayoutTextMeasureFn = fn (string, TextStyle, f64) !LayoutSize
 
 // measure_layout_element keeps positive declared dimensions and measures zero
-// axes from text or children. Existing controls opt in by calling this API;
-// constructing an Element does not change its legacy geometry. Containers with
+// axes from text or children. The retained LayoutTree uses this leaf contract;
+// constructing an Element alone does not open a measurement environment. Containers with
 // a layout algorithm measure/place their children before this extent fallback.
 pub fn measure_layout_element(element Element, constraints LayoutConstraints, measure LayoutTextMeasureFn) !LayoutSize {
 	constraints.validate()!

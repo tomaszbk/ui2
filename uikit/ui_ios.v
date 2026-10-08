@@ -107,6 +107,8 @@ __global g_nodes = map[string]View{}
 __global g_node_kinds = map[string]Kind{}
 __global g_node_gestures = map[string]string{}
 __global g_node_label_boxed = map[string]bool{}
+__global g_layout_tree = &LayoutTree{}
+__global g_layout_environment = LayoutEnvironment{}
 __global g_node_declared_text = map[string]string{}
 __global g_action_callbacks = map[u64]IosCallbackBinding{}
 __global g_button_behavior_views = map[u64]bool{}
@@ -997,12 +999,30 @@ fn remember_scroll_offsets() {
 	}
 }
 
+pub fn refresh_element(id string, element Element) {
+	g_layout_tree.patch(id, apply_widget_animations(element)) or { eprintln('ui2 layout: ${err}'); return }
+	render_mounted_layout()
+}
+
+pub fn layout_stats() LayoutStats { return g_layout_tree.stats() }
+
+pub fn invalidate_layout_environment(environment LayoutEnvironment) {
+	g_layout_environment = environment
+	if g_layout_tree.root.len > 0 { render_mounted_layout() }
+}
+
 fn render_root(declared Element) {
-	root := apply_widget_animations(declared)
-	validate_element_tree(root) or {
-		eprintln('ui2: ${err}')
-		return
-	}
+	g_layout_tree.replace(apply_widget_animations(declared)) or { eprintln('ui2 layout: ${err}'); return }
+	root := g_layout_tree.resolve(LayoutConstraints{}, measure_layout_text, g_layout_environment) or { eprintln('ui2 layout: ${err}'); return }
+	render_resolved_root(root)
+}
+
+fn render_mounted_layout() {
+	root := g_layout_tree.resolve(LayoutConstraints{}, measure_layout_text, g_layout_environment) or { eprintln('ui2 layout: ${err}'); return }
+	render_resolved_root(root)
+}
+
+fn render_resolved_root(root Element) {
 	remember_scroll_offsets()
 	g_views = map[string]View{}
 	g_view_kinds = map[string]Kind{}

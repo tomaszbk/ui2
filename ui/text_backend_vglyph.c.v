@@ -68,6 +68,10 @@ $if (linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ?
 		families map[string]string
 		fallback_families []string
 		font_generation int = -1
+		shape_cache map[string]ShapedText
+		shape_builds u64
+		shape_hits u64
+		environment_version u64
 	}
 
 	// Fontconfig application-font registration is process-wide in vglyph. Guard
@@ -139,6 +143,7 @@ $if (linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ?
 		if engine.context == unsafe { nil } { return }
 		g_text_font_mutex.lock()
 		defer { g_text_font_mutex.unlock() }
+		engine.shape_cache.clear()
 		engine.context.free()
 		engine.context = unsafe { nil }
 		engine.families.clear()
@@ -259,11 +264,66 @@ $if (linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ?
 		return engine.context.layout_rich_text(vglyph.RichText{runs: glyph_runs}, cfg)
 	}
 
+	fn text_shape_style(style TextStyle) TextStyle {
+		return TextStyle{ ...style, font_family: style.font_family.bytes().hex(), vertical_align: style.vertical_align.bytes().hex(), link: '', shadow: false, outline: false, color: 0, background_color: 0 }
+	}
+
+	fn (mut engine TextEngine) shape_cache_key(text string, runs []TextRun, style TextStyle, width f64, lines int, ellipsize bool, word_char bool) string {
+		metrics := runs.map(TextRun{ text: it.text.bytes().hex(), style: text_shape_style(it.style) })
+		return '${text.bytes().hex()}|${metrics}|${text_shape_style(style)}|${width}|${lines}|${ellipsize}|${word_char}|${engine.scale}|${g_text_font_generation}|${engine.environment_version}'
+	}
+
+	fn (mut engine TextEngine) invalidate_environment() {
+		engine.shape_cache.clear()
+		engine.environment_version++
+		if engine.context != unsafe { nil } { engine.context.fonts_changed() }
+	}
+
 	fn (mut engine TextEngine) shape_runs_locked(text string, runs []TextRun, style TextStyle, max_width f64,
+		max_lines int, ellipsize bool, word_char bool) !ShapedText {
+		if engine.context == unsafe { nil } { return error('text context is closed') }
+		if engine.font_generation != g_text_font_generation { engine.shape_cache.clear() }
+		key := engine.shape_cache_key(text, runs, style, max_width, max_lines, ellipsize, word_char)
+		mut shaped := ShapedText{}
+		if cached := engine.shape_cache[key] {
+			engine.shape_hits++
+			shaped = cached
+		} else {
+			// Stable foreground attributes preserve rich-run boundaries while
+			// excluding changing paint colors from shaping dependencies.
+			mut canonical := []TextRun{cap: runs.len}
+			for i, run in runs {
+				canonical << TextRun{ text: run.text, style: TextStyle{ ...run.style, color: u32(i + 1), background_color: 0 } }
+			}
+			shaped = engine.build_shape_locked(text, canonical, TextStyle{ ...style, color: 0, background_color: 0 }, max_width, max_lines, ellipsize, word_char)!
+			if engine.shape_cache.len >= 128 { engine.shape_cache.clear() }
+			// Resolving a new font may advance the process font generation.
+			engine.shape_cache[engine.shape_cache_key(text, runs, style, max_width, max_lines, ellipsize, word_char)] = shaped
+		}
+		mut items := shaped.layout.items.clone()
+		for i, item in items {
+			mut color := style.color
+			if runs.len > 0 {
+				// Pango attributes carry the canonical run owner even for a
+				// synthetic tail ellipsis whose byte index reaches a hidden run.
+				owner := int((u32(item.color.r) << 16) | (u32(item.color.g) << 8) | u32(item.color.b)) - 1
+				if owner >= 0 && owner < runs.len { color = runs[owner].style.color }
+			}
+			items[i] = vglyph.Item{ ...item, color: hex_color(color) }
+		}
+		return ShapedText{ ...shaped, layout: vglyph.Layout{ ...shaped.layout, items: items } }
+	}
+
+	fn (mut engine TextEngine) build_shape_locked(source_text string, runs []TextRun, style TextStyle, max_width f64,
 		max_lines int, ellipsize bool, word_char bool) !ShapedText {
 		layout_validate_text_measurement(style, max_width)!
 		if engine.context == unsafe { nil } { return error('text context is closed') }
 		if max_lines < 0 { return error('text line limit must be nonnegative') }
+		// Editors explicitly free their old buffer on replacement. Own the source
+		// once per build so returned shapes, cached hits and vglyph's retained
+		// text/debug views all survive that replacement without copying on hits.
+		owned_text := source_text.clone()
+		engine.shape_builds++
 		line_height := text_style_line_height(style)
 		cfg := vglyph.TextConfig{
 			style: engine.glyph_style(style)!
@@ -285,19 +345,19 @@ $if (linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ?
 		// Pango height zero can discard later paragraphs without inserting an
 		// ellipsis when the first paragraph fits. Inspect its natural lines in
 		// that case so the omitted paragraphs get an explicit visible marker.
-		initial_cfg := if ellipsize && max_lines == 1 && (text.contains('\n') || text.contains('\r')) {
+		initial_cfg := if ellipsize && max_lines == 1 && (owned_text.contains('\n') || owned_text.contains('\r')) {
 			vglyph.TextConfig{...cfg, block: vglyph.BlockStyle{...cfg.block, ellipsize: false, max_lines: 0}}
 		} else { cfg }
-		mut layout := engine.layout_runs(text, runs, initial_cfg)!
+		mut layout := engine.layout_runs(owned_text, runs, initial_cfg)!
 		if ellipsize && max_lines > 0 && layout.lines.len > max_lines {
 			// Pango's negative height limits each paragraph separately. Keep its
 			// shaped prefix and shape the remaining source as one ellipsized line
 			// to implement UI2's limit across the whole label, including newlines.
 			last_line := layout.lines[max_lines - 1]
-			mut tail_end := math.min(text.len, last_line.start_index + last_line.length)
-			for tail_end > last_line.start_index && text[tail_end - 1] in [u8(10), u8(13)] { tail_end-- }
+			mut tail_end := math.min(owned_text.len, last_line.start_index + last_line.length)
+			for tail_end > last_line.start_index && owned_text[tail_end - 1] in [u8(10), u8(13)] { tail_end-- }
 			tail_runs := text_runs_slice(runs, last_line.start_index, tail_end, true)
-			tail := engine.layout_runs(text[last_line.start_index..tail_end] + '…', tail_runs, vglyph.TextConfig{
+			tail := engine.layout_runs(owned_text[last_line.start_index..tail_end] + '…', tail_runs, vglyph.TextConfig{
 				...cfg
 				block: vglyph.BlockStyle{...cfg.block, max_lines: 1}
 			})!
@@ -306,19 +366,19 @@ $if (linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ?
 		mut lines := []ShapedLine{cap: layout.lines.len}
 		// Build offsets once: a large editor must not scan its entire prefix for
 		// every visual line merely to translate byte indices back to runes.
-		mut rune_offsets := []int{len: text.len + 1}
+		mut rune_offsets := []int{len: owned_text.len + 1}
 		mut rune_count := 0
-		for i, value in text {
+		for i, value in owned_text {
 			rune_offsets[i] = rune_count
 			if value & 0xc0 != 0x80 { rune_count++ }
 		}
-		rune_offsets[text.len] = rune_count
+		rune_offsets[owned_text.len] = rune_count
 		for line in layout.lines {
-			start := math.min(text.len, line.start_index)
-			mut end := math.min(text.len, start + line.length)
-			for end > start && text[end - 1] in [u8(10), u8(13)] { end-- }
+			start := math.min(owned_text.len, line.start_index)
+			mut end := math.min(owned_text.len, start + line.length)
+			for end > start && owned_text[end - 1] in [u8(10), u8(13)] { end-- }
 			lines << ShapedLine{
-				text: text[start..end]
+				text: owned_text[start..end]
 				start: rune_offsets[start]
 				end: rune_offsets[end]
 				x: line.rect.x
@@ -332,8 +392,8 @@ $if (linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ?
 			else { f64(engine.context.font_metrics(cfg)!.ascender) }
 		// The logical size remains fractional and independent of device pixels.
 		return ShapedText{
-			text: text
-			size: LayoutSize{width: f64(layout.width), height: if text.len == 0 { line_height } else { f64(layout.height) }}
+			text: owned_text
+			size: LayoutSize{width: f64(layout.width), height: if owned_text.len == 0 { line_height } else { f64(layout.height) }}
 			baseline: baseline
 			lines: lines
 			truncated: layout.ellipsized

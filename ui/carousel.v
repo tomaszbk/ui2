@@ -143,8 +143,7 @@ pub fn carousel(config CarouselConfig) !Element {
 	mut slides := []Element{cap: config.slides.len}
 	for index, slide in config.slides {
 		slides << Element{
-			...slide
-			frame: frames[index]
+			...slide.with_layout_frame(frames[index])
 			hidden: slide.hidden || index != current
 		}
 	}

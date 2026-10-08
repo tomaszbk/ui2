@@ -500,9 +500,13 @@ pub fn grid(config GridConfig) !Element {
 	mut children := []Element{cap: config.children.len}
 	for index, child in config.children {
 		children << Element{
-			...child
+			...layout_declared(child)
 			frame: frames[index]
 		}
 	}
-	return view(config.id, config.frame, config.box, children)
+	return Element{
+		...view(config.id, config.frame, config.box, children)
+		layout_input: config.frame
+		layout:       LayoutSpec{ kind: .grid, grid: grid_layout_spec(config) }
+	}
 }

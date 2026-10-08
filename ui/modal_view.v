@@ -88,10 +88,7 @@ pub fn modal_view(config ModalViewConfig) !Element {
 	} else {
 		config.content
 	}
-	content := Element{
-		...content_source
-		frame: geometry.content
-	}
+	content := content_source.with_layout_frame(geometry.content)
 	return Element{
 		...view(config.id, config.frame, BoxStyle{ transparent: true }, [backdrop, surface, content])
 		hidden:             !config.open
