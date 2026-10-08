@@ -148,6 +148,9 @@ pub fn measure_layout_element(element Element, constraints LayoutConstraints, me
 		if element.kind == .checkbox {
 			preferred = LayoutSize{ ...preferred, height: math.max(18.0, preferred.height) }
 		}
+	} else if element.kind == .image {
+		element.image_asset.validate()!
+		preferred = element.image_asset.logical_size
 	} else {
 		mut width := 0.0
 		mut height := 0.0

@@ -471,7 +471,9 @@ already exists. `button_view` and `with_button_behavior` leave the raw
 ## Backend capabilities
 
 Call `control_support(kind)` to query support. macOS implements every shared
-control kind. iOS implements every kind, with text areas reported as `partial`
+control kind; native images are `partial` because quad interaction and advanced
+presentation require custom rendering. iOS likewise reports images as `partial`,
+with text areas reported as `partial`
 because rich runs are currently rendered as plain text. Linux, Android, and
 opt-in custom desktop builds implement every kind through custom rendering;
 dropdowns and text areas are `partial` because the dropdown list is drawn by
@@ -796,6 +798,12 @@ retain UI2's explicit symbol fallback chain, the font's ascender/descender
 conversion and monochrome emoji. Their `stb_truetype` rasterizer does not
 apply variable font axes or render bitmap/layered color emoji, so use static
 outline fonts there.
+
+## Images and assets
+
+Custom rendering supports fit modes, source crops, RGBA tint, rotation,
+context-owned atlases and explicit DPI variants. See [images and assets](docs/images-assets.md)
+and the `image_assets` example for the API and resource diagnostics.
 
 ## Charts
 

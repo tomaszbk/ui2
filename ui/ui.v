@@ -408,6 +408,8 @@ pub:
 	text              string
 	checked           bool // checkbox: declared on/off state
 	image_path        string
+	image_asset       ImageAsset
+	image_style       ImageStyle
 	tooltip           string
 	placeholder       string
 	frame             Rect
@@ -472,10 +474,10 @@ pub fn control_support(kind Kind) BackendSupport {
 			else { .supported }
 		}
 	} $else $if macos {
-		return .supported
+		return if kind == .image { .partial } else { .supported }
 	} $else $if ios {
 		return match kind {
-			.text_area, .checkbox { .partial }
+			.text_area, .checkbox, .image { .partial }
 			else { .supported }
 		}
 	} $else $if android || linux {
@@ -508,6 +510,15 @@ pub fn validate_element_tree(root Element) ! {
 }
 
 fn validate_element_node(el Element, path string, mut ids map[string]bool) ! {
+	el.image_asset.validate()!
+	el.image_style.validate()!
+	if el.image_asset != ImageAsset{} || el.image_style != ImageStyle{} {
+		if el.kind !in [.image,.button] { return error('image assets/styles require an Image or raster Button at ${path}') }
+		if el.image_path.starts_with('symbol:') { return error('symbol buttons use text_style, not raster image assets/styles at ${path}') }
+	}
+	$if !( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headless ? {
+		validate_native_image(el)!
+	}
 	if el.content_size.width != 0 || el.content_size.height != 0 {
 		if el.kind != .view { return error('scaled content must be a view at ${path}') }
 		contain_content(el.frame, el.content_size.width, el.content_size.height)!
@@ -758,29 +769,6 @@ pub fn image(id string, path string, frame Rect) Element {
 		id:         id
 		image_path: path
 		frame:      frame
-	}
-}
-
-pub fn transformed_image(id string, path string, frame Rect, rotation f64, clickable bool) Element {
-	return Element{
-		kind:       .image
-		id:         id
-		image_path: path
-		frame:      frame
-		rotation:   rotation
-		clickable:  clickable
-	}
-}
-
-pub fn transformed_image_with_cursor(id string, path string, frame Rect, rotation f64, clickable bool, cursor string) Element {
-	return Element{
-		kind:       .image
-		id:         id
-		image_path: path
-		frame:      frame
-		rotation:   rotation
-		clickable:  clickable
-		cursor:     cursor
 	}
 }
 

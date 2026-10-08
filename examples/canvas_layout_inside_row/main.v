@@ -134,6 +134,10 @@ fn build_inside_row_screen() ui2.Element {
 }
 
 fn main() {
+	$if !(linux || android || ((macos || windows) && ui2_custom_rendering ?)) {
+		eprintln('Canvas Layout Inside Row requires -d ui2_custom_rendering for rotated image interaction.')
+		return
+	}
 	mut state := unsafe { inside_row_state }
 	unsafe {
 		*state = inside_row_demo()

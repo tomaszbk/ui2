@@ -7,7 +7,6 @@ module ui2
 $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
 	import gg
 	import math
-	import os
 	import sokol.sapp
 	import sokol.gfx
 	import time
@@ -16,6 +15,8 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		identity string
 		kind Kind = .view
 		content_transform ContentTransform
+		image_geometry ImageGeometry
+		image_clip Rect
 		id             string
 		on_event       ElementCallback = unsafe { nil }
 		x              f64
@@ -126,6 +127,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		key   string
 		text  string
 		frame Rect
+		image_hit HitTarget
 	}
 
 	// TooltipState follows the pointer. Its cancelable deadline belongs to the
@@ -197,7 +199,6 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	__global g_active_checkboxes = map[string]bool{}
 	__global g_active_toggles = map[string]bool{}
 	__global g_active_scrolls = map[string]bool{}
-	__global g_image_ids = map[string]int{}
 	$if android {
 		__global g_font_metrics = FontMetrics{}
 		__global g_font_files = map[string]string{}
@@ -208,7 +209,6 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		__global g_font_symbol_bases = map[int]bool{}
 		__global g_font_symbol_fons = voidptr(unsafe { nil })
 	}
-	__global g_active_images = map[string]bool{}
 	__global g_open_dropdown = ''
 	__global g_dropdown_popup = DropdownPopup{}
 	__global g_dropdown_hover = -1
@@ -697,7 +697,8 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		// gg/Sokol must receive images during initialization to make their GPU
 		// textures available for the first rendered frame.
 		g_gg_app.scheduler.record_build()
-		preload_images(g_build_screen())
+		ctx.images.begin_frame()
+		preload_images(mut ctx, g_build_screen(), f64(ctx.scale))
 	}
 
 	fn on_cleanup(app &GgApp) {
@@ -822,9 +823,9 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		g_active_checkboxes = map[string]bool{}
 		g_active_toggles = map[string]bool{}
 		g_active_scrolls = map[string]bool{}
-		g_active_images = map[string]bool{}
 		// Image resources must be available before starting the GPU pass.
-		preload_images(root)
+		ctx.images.begin_frame()
+		preload_images(mut ctx, root, f64(ctx.scale))
 		ctx.begin()
 		if app.has_root {
 			g_dropdown_popup.mounted = false
@@ -1253,7 +1254,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	fn hit_test(x f64, y f64) HitTarget {
 		for i := g_hit_targets.len - 1; i >= 0; i-- {
 			t := g_hit_targets[i]
-			if x >= t.x && x <= t.x + t.w && y >= t.y && y <= t.y + t.h {
+			if hit_target_contains(t,x,y) {
 				return t
 			}
 		}
@@ -1261,6 +1262,10 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	}
 
 	fn hit_target_contains(target HitTarget, x f64, y f64) bool {
+		if target.image_geometry.bounds.width > 0 {
+			lx, ly := target.content_transform.inverse(x,y)
+			return box_contains_point(target.image_clip,lx,ly) && target.image_geometry.contains(lx,ly)
+		}
 		return x >= target.x && x <= target.x + target.w && y >= target.y
 			&& y <= target.y + target.h
 	}
@@ -1984,6 +1989,10 @@ fn page_focused_text_area(direction int) {
 	fn tooltip_target_at(targets []TooltipTarget, x f64, y f64) TooltipTarget {
 		for i := targets.len - 1; i >= 0; i-- {
 			frame := targets[i].frame
+			if targets[i].image_hit.image_geometry.bounds.width > 0 {
+				if hit_target_contains(targets[i].image_hit,x,y) { return targets[i] }
+				continue
+			}
 			if x >= frame.x && x < frame.x + frame.width && y >= frame.y
 				&& y < frame.y + frame.height {
 				return targets[i]
@@ -2209,18 +2218,6 @@ fn page_focused_text_area(direction int) {
 				forget_text_area_layout(id)
 			}
 		}
-		mut stale_images := []string{}
-		for path, _ in g_image_ids {
-			if path !in g_active_images {
-				stale_images << path
-			}
-		}
-		mut image_ctx := g_gg_app.ctx
-		for path in stale_images {
-			image_id := g_image_ids[path] or { continue }
-			image_ctx.remove_cached_image_by_idx(image_id)
-			g_image_ids.delete(path)
-		}
 	}
 
 	// ── Rendering ──────────────────────────────────────────────────────
@@ -2277,11 +2274,11 @@ fn page_focused_text_area(direction int) {
 		// before its children, so a child with hover text of its own wins over
 		// it where they overlap. A surface only has anything to hide once some
 		// target has been registered before it.
-		owns_tooltip := el.tooltip.len > 0
+		owns_tooltip := el.tooltip.len > 0 && el.kind != .image
 		if owns_tooltip {
 			add_tooltip_target(tooltip_key(el, area), el.tooltip, area, clip)
 			g_tooltip_owners++
-		} else if g_tooltip_owners == 0 && g_tooltip_targets.len > 0 && tooltip_hides_beneath(el) {
+		} else if g_tooltip_owners == 0 && g_tooltip_targets.len > 0 && tooltip_hides_beneath(el) && el.kind != .image {
 			add_tooltip_target('', '', area, clip)
 		}
 		defer {
@@ -2375,27 +2372,21 @@ fn page_focused_text_area(direction int) {
 				add_full_text_tooltip(el, area, clip, el.text, shortened)
 			}
 			.image {
-				x := el.frame.x + off_x
-				y := el.frame.y + off_y
-				if el.image_path.trim_space().len > 0
-					&& !draw_cached_image(ctx, el.image_path, x, y, el.frame.width, el.frame.height,
-					el.rotation) {
-					draw_rect(ctx, x, y, el.frame.width, el.frame.height, 0xe8ecef, 0)
+				geometry := ctx.image_geometry_for(el,area) or {
+					if el.image_path.len > 0 { draw_rect(ctx,area.x,area.y,area.width,area.height,0xe8ecef,0) }
+					return
 				}
-				if el.enabled && voidptr(el.on_event) != unsafe { nil }
-					&& (el.clickable || el.draggable) {
-					add_hit_target(HitTarget{
-						identity: path
-						kind: el.kind
-						id: el.id
-						on_event: el.on_event
-						x: x
-						y: y
-						w: el.frame.width
-						h: el.frame.height
-						clickable: el.clickable
-						draggable: el.draggable
-					}, clip)
+				ctx.draw_asset_image(el,geometry)
+				if el.tooltip.len > 0 || g_tooltip_targets.len > 0 {
+					g_tooltip_targets << TooltipTarget{key:tooltip_key(el,area),text:el.tooltip,
+						frame:current_presentation_rect(intersect_rect(geometry.bounds,clip)),
+						image_hit:HitTarget{content_transform:ctx.content_transform,image_geometry:geometry,image_clip:clip}}
+				}
+				if el.enabled && voidptr(el.on_event) != unsafe { nil } && (el.clickable || el.draggable) {
+					image_bounds := geometry.bounds
+					add_hit_target(HitTarget{identity:path,kind:el.kind,id:el.id,on_event:el.on_event,
+						x:image_bounds.x,y:image_bounds.y,w:image_bounds.width,h:image_bounds.height,image_geometry:geometry,image_clip:clip,
+						clickable:el.clickable,draggable:el.draggable},clip)
 				}
 			}
 			.button {
@@ -2411,7 +2402,7 @@ fn page_focused_text_area(direction int) {
 				image_layout := button_image_layout(el.frame.width, el.frame.height, el.text,
 					el.image_path)
 				if image_layout.visible {
-					draw_button_image(ctx, el.image_path, x + image_layout.image.x,
+					draw_button_image(ctx, el, x + image_layout.image.x,
 						y + image_layout.image.y, image_layout.image.width, image_layout.image.height,
 						el.text_style)
 				}
@@ -2899,27 +2890,6 @@ fn page_focused_text_area(direction int) {
 		}
 	}
 
-	fn draw_cached_image(ctx &DrawContext, path string, x f64, y f64, width f64, height f64, rotation f64) bool {
-		if !cache_image(path) { return false }
-		image_id := g_image_ids[path] or { return false }
-		mut image_ctx := g_gg_app.ctx
-		cached_image := image_ctx.get_cached_image_by_idx(image_id)
-		if !cached_image.ok {
-			return false
-		}
-		ctx.draw_image_with_config(
-			img: cached_image
-			img_rect: gg.Rect{
-				x: f32(x)
-				y: f32(y)
-				width: f32(width)
-				height: f32(height)
-			}
-			rotation: f32(-rotation)
-		)
-		return true
-	}
-
 	struct ButtonImageLayout {
 		visible bool
 		image   Rect
@@ -2971,7 +2941,8 @@ fn page_focused_text_area(direction int) {
 		}
 	}
 
-	fn draw_button_image(ctx &DrawContext, image_path string, x f64, y f64, width f64, height f64, style TextStyle) {
+	fn draw_button_image(ctx &DrawContext, el Element, x f64, y f64, width f64, height f64, style TextStyle) {
+		image_path := el.image_path
 		if image_path.starts_with('symbol:') {
 			symbol := system_symbol_fallback(image_path['symbol:'.len..])
 			draw_text_centered(ctx, symbol, x, y, width, height, TextStyle{
@@ -2981,7 +2952,12 @@ fn page_focused_text_area(direction int) {
 			})
 			return
 		}
-		if !draw_cached_image(ctx, image_path, x, y, width, height, 0) {
+		image_el := Element{...el, frame:rect(x,y,width,height),rotation:0}
+		geometry := ctx.image_geometry_for(image_el,image_el.frame) or {
+			draw_outline(ctx, x, y, width, height, 0x94a3b8, 2)
+			return
+		}
+		if !ctx.draw_asset_image(image_el, geometry) {
 			draw_outline(ctx, x, y, width, height, 0x94a3b8, 2)
 		}
 	}
@@ -3080,42 +3056,17 @@ fn page_focused_text_area(direction int) {
 		}
 	}
 
-	fn preload_images(el Element) {
-		if el.hidden {
-			return
+	fn preload_images(mut ctx DrawContext, el Element, quality_scale f64) {
+		if el.hidden { return }
+		if el.kind == .image && el.image_path.len > 0 {
+			ctx.prepare_image(el,quality_scale) or { eprintln('ui2: ${err}') }
+		} else if el.kind == .button && el.image_path.len > 0 && !el.image_path.starts_with('symbol:') {
+			layout := button_image_layout(el.frame.width,el.frame.height,el.text,el.image_path)
+			ctx.prepare_image(Element{...el,frame:layout.image,rotation:0},quality_scale) or { eprintln('ui2: ${err}') }
 		}
-		if el.kind == .image
-			|| (el.kind == .button && el.image_path.trim_space().len > 0
-			&& !el.image_path.starts_with('symbol:')) {
-			cache_image(el.image_path)
-		}
-		for child in el.children {
-			preload_images(child)
-		}
-	}
-
-	fn cache_image(path string) bool {
-		if path.trim_space() == '' {
-			return false
-		}
-		g_active_images[path] = true
-		if path in g_image_ids {
-			return true
-		}
-		mut image_ctx := g_gg_app.ctx
-		// `create_image` keeps an uninitialized copy in gg's post-startup image
-		// cache on the Linux renderer. Loading from bytes uses the initialized
-		// cache path, so raster images added after startup are drawable too.
-		image_bytes := os.read_bytes(path) or {
-			eprintln('ui2: could not read image `${path}`: ${err}')
-			return false
-		}
-		loaded_image := image_ctx.create_image_from_byte_array(image_bytes, gg.ImageConfig{}) or {
-			eprintln('ui2: could not load image `${path}`: ${err}')
-			return false
-		}
-		g_image_ids[path] = loaded_image.id
-		return true
+		mut child_scale := quality_scale
+		if el.content_size.width > 0 { child_scale *= contain_content(el.frame,el.content_size.width,el.content_size.height) or { return }.scale }
+		for child in el.children { preload_images(mut ctx,child,child_scale) }
 	}
 
 	// ── Drawing helpers ────────────────────────────────────────────────

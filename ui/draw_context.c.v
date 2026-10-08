@@ -31,7 +31,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		owns_surface bool
 		gl_context sgl.Context
 		swapchain gfx.Swapchain
-		image_ids map[int]bool
+		images ImageResources
 		destroyed bool
 	}
 	} $else {
@@ -49,7 +49,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		owns_surface bool
 		gl_context sgl.Context
 		swapchain gfx.Swapchain
-		image_ids map[int]bool
+		images ImageResources
 		destroyed bool
 	}
 	}
@@ -348,6 +348,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	}
 
 	fn (ctx &DrawContext) end() {
+		unsafe { mut images := &ctx.images; images.commit() }
 		$if !android {
 			if !ctx.destroyed && ctx.text_renderer != unsafe { nil } {
 				mut renderer := ctx.text_renderer
@@ -356,13 +357,18 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 				renderer.commit()
 			}
 		}
-		if !ctx.owns_surface { ctx.inner.end(); return }
+		if !ctx.owns_surface {
+			ctx.inner.end()
+			unsafe { mut images := &ctx.images; images.finish_frame() }
+			return
+		}
 		ctx.activate()
 		gfx.begin_pass(gfx.Pass{action: ctx.inner.clear_pass, swapchain: ctx.swapchain})
 		sgl.draw()
 		gfx.end_pass()
 		gfx.commit()
-		unsafe { ctx.inner.frame++ }
+		unsafe { ctx.inner.frame++
+			mut images := &ctx.images; images.finish_frame() }
 	}
 
 	fn release_draw_device() {
@@ -384,12 +390,11 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			ctx.text = unsafe { nil }
 		}
 		ctx.font_inited = false
+		ctx.images.destroy()
 		if !ctx.owns_surface {
 			ctx.destroyed = true
 			return
 		}
-		for id, _ in ctx.image_ids { ctx.inner.remove_cached_image_by_idx(id) }
-		ctx.image_ids.clear()
 		$if android {
 			if ctx.ft != unsafe { nil } { sfons.destroy(ctx.ft.fons) }
 			ctx.ft = unsafe { nil }
@@ -450,29 +455,5 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		area := ctx.content_transform.project(rect(f64(x),f64(y),0,0))
 		ctx.activate(); ctx.inner.draw_text(int(area.x), int(area.y), text, gg.TextCfg{...config,size:int(f64(config.size)*ctx.content_transform.scale+0.5),max_width:int(f64(config.max_width)*ctx.content_transform.scale)})
 	}
-	}
-	fn (ctx &DrawContext) draw_image_with_config(config gg.DrawImageConfig) {
-		area := ctx.content_transform.project(rect(f64(config.img_rect.x), f64(config.img_rect.y), f64(config.img_rect.width), f64(config.img_rect.height)))
-		ctx.activate(); ctx.inner.draw_image_with_config(gg.DrawImageConfig{...config, img_rect:gg.Rect{x:f32(area.x),y:f32(area.y),width:f32(area.width),height:f32(area.height)}})
-	}
-	fn (mut ctx DrawContext) create_image_from_byte_array(bytes []u8, config gg.ImageConfig) !gg.Image {
-		ctx.activate()
-		loaded := ctx.inner.create_image_from_byte_array(bytes, config)!
-		if ctx.owns_surface {
-			if gfx.query_image_state(loaded.simg) != .valid || gfx.query_sampler_state(loaded.ssmp) != .valid {
-				ctx.inner.remove_cached_image_by_idx(loaded.id)
-				return error('could not allocate the image GPU resources')
-			}
-			ctx.image_ids[loaded.id] = true
-		}
-		return loaded
-	}
-	fn (mut ctx DrawContext) get_cached_image_by_idx(id int) &gg.Image {
-		return ctx.inner.get_cached_image_by_idx(id)
-	}
-	fn (mut ctx DrawContext) remove_cached_image_by_idx(id int) {
-		ctx.activate()
-		ctx.inner.remove_cached_image_by_idx(id)
-		ctx.image_ids.delete(id)
 	}
 }
