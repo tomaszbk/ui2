@@ -74,6 +74,8 @@ mut:
 	subscribers  []&SignalNode
 	cleanups     []fn ()
 	run          fn () ! = unsafe { nil }
+	// Lifetime success is separate from cache validity, which retry/errors reset.
+	has_succeeded bool
 }
 
 // Scopes own nodes and child scopes. Disposal releases graph edges and owned cleanup
@@ -226,10 +228,7 @@ pub fn (mut scope SignalScope) effect(name string, run fn () !) !&SignalEffect {
 	mut node := scope.new_node(.effect, name)!
 	node.run = run
 	scope.runtime.enqueue(mut node)
-	scope.runtime.flush_if_ready() or {
-		node.dispose_node()
-		return err
-	}
+	scope.runtime.flush_if_ready()!
 	return &SignalEffect{ node: node }
 }
 
@@ -417,7 +416,10 @@ fn (mut node SignalNode) refresh() ! {
 		node.initialized = false
 		return error('signals: `${node.name}`: ${err.msg()}')
 	}
-	if node.alive { node.initialized = true }
+	if node.alive {
+		node.initialized = true
+		node.has_succeeded = true
+	}
 }
 
 fn (mut runtime SignalRuntime) flush_if_ready() ! {
@@ -456,7 +458,14 @@ pub fn (mut runtime SignalRuntime) flush() ! {
 				node.dispose_node()
 				continue
 			}
-			node.refresh() or { if first_error == '' { first_error = err.msg() } }
+			node.refresh() or {
+				if first_error == '' { first_error = err.msg() }
+				// Initial failure belongs to this node, even when creation was
+				// deferred. Dispose inside the flush so cleanup writes join later
+				// waves under the same budget. Successful nodes survive other
+				// nodes' errors and their own later failures, including retry().
+				if !node.has_succeeded { node.dispose_node() }
+			}
 		}
 	}
 	if first_error != '' { return error(first_error) }
