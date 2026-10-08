@@ -77,6 +77,11 @@ applies that value, while a refresh with the same declaration preserves the
 current native/local edit, selection, focus, and (on native controls) input
 method composition. Use `set_text` for an explicit imperative replacement.
 
+Explicit typed sources, lazy computed values, effects, batching and lifetime
+cleanup are available through the window-independent signals runtime. See
+[the signals API](docs/signals.md) and [the runnable example](examples/signals/main.v).
+Ordinary V assignments require explicit observable setters to notify this graph.
+
 ## Widget animations
 
 Animations target a mounted element by `id` and are applied after each
