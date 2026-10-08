@@ -34,3 +34,13 @@ static inline void ui2_macos_control_mouse_down(void *control, void *event) {
         sel_registerName("mouseDown:"), (id)event);
     ui2_appkit_control_tracking_end(control);
 }
+
+// Focus navigation runs once at the window's event boundary, before AppKit's
+// field editor/control handling. Unhandled events keep the native IME path.
+static inline void ui2_macos_window_send_event(void *window, void *event) {
+    // AppKit can dynamically subclass a window. Start above our implementation,
+    // rather than above that dynamic subclass (which would re-enter our override).
+    struct objc_super parent = { (id)window, class_getSuperclass(objc_getClass("UI2Window")) };
+    ((void (*)(struct objc_super *, SEL, id))objc_msgSendSuper)(&parent,
+        sel_registerName("sendEvent:"), (id)event);
+}

@@ -300,8 +300,15 @@ fn commit_ios_toggle_button(pointer u64, control View) {
 }
 
 pub fn focus(id string) {
-	view := g_views[id] or { return }
-	macos.msg_bool(view, 'becomeFirstResponder')
+	sync_focus_navigation()
+	if !g_ios_navigation.can_focus(id) { return }
+	native := g_views[id] or { return }
+	if macos.msg_bool(native, 'becomeFirstResponder') { g_ios_navigation.current = id }
+	for request in g_ios_navigation.reveals(id) {
+		if pane := g_views[request.id] {
+			macos.msg_void_rect(pane, 'scrollRectToVisible:', native_rect(request.rect))
+		}
+	}
 }
 
 pub fn focused_id() string {
@@ -998,7 +1005,8 @@ fn remember_scroll_offsets() {
 }
 
 fn render_root(declared Element) {
-	root := apply_widget_animations(declared)
+	previous_focus := focused_id()
+	root := effective_element_state(apply_widget_animations(declared), true)
 	validate_element_tree(root) or {
 		eprintln('ui2: ${err}')
 		return
@@ -1024,6 +1032,10 @@ fn render_root(declared Element) {
 	mut active := map[string]bool{}
 	render_children(g_root_view, root.children, '', mut active)
 	remove_stale_nodes(active)
+	g_ios_navigation.root = root
+	g_ios_navigation.current = previous_focus
+	sync_focus_navigation()
+	if g_ios_navigation.current.len > 0 && focused_id() != g_ios_navigation.current { focus(g_ios_navigation.current) }
 	mut removed_scrolls := []string{}
 	for id, _ in g_scroll_offsets {
 		if id !in g_scroll_ids {

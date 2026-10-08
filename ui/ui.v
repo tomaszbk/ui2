@@ -437,6 +437,12 @@ pub:
 	children                  []Element
 	hidden                    bool
 	enabled                   bool = true
+	// Keyboard identity is id. Negative tab_index permits programmatic focus
+	// while excluding a control from sequential and directional traversal.
+	focus_policy              FocusPolicy
+	tab_index                 int
+	focus_scope               bool
+	accessibility_name        string
 	accessibility_role        string
 	accessibility_label       string
 	accessibility_value       string
@@ -508,6 +514,9 @@ pub fn validate_element_tree(root Element) ! {
 }
 
 fn validate_element_node(el Element, path string, mut ids map[string]bool) ! {
+	if (el.focus_scope || el.focus_policy == .focusable) && el.id.len == 0 {
+		return error('explicit focus targets and scopes require an id at ${path}')
+	}
 	if el.content_size.width != 0 || el.content_size.height != 0 {
 		if el.kind != .view { return error('scaled content must be a view at ${path}') }
 		contain_content(el.frame, el.content_size.width, el.content_size.height)!

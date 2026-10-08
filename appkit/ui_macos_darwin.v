@@ -102,6 +102,12 @@ fn appkit_emit_callback(binding AppkitCallbackBinding, event ElementEvent) bool 
 @[heap]
 struct RuntimeState {
 mut:
+	navigation &FocusManager = &FocusManager{}
+	navigation_paths map[string]string
+	focus_selections map[string]macos.Range
+	typed_key_event voidptr
+	typed_key_timestamp f64 = -1
+	typed_key_consumed bool
 	build_screen        BuildFn = BuildFn(unsafe { nil })
 	key_handler         KeyFn = KeyFn(unsafe { nil })
 	key_event_handler   KeyEventFn = KeyEventFn(unsafe { nil })
@@ -267,7 +273,10 @@ pub fn refresh_element(id string, element Element) {
 	if native_is_nil(parent) {
 		return
 	}
-	animated := apply_widget_animations(element)
+	previous_focus := focused_id()
+	previous_node := st.navigation.node(id) or { return }
+	parent_enabled := if ancestor := st.navigation.path_node(previous_node.parent) { ancestor.enabled } else { true }
+	animated := effective_element_state(apply_widget_animations(element), parent_enabled)
 	validate_refresh_element_identity(key, animated) or {
 		eprintln('ui2: ${err}')
 		return
@@ -282,6 +291,7 @@ pub fn refresh_element(id string, element Element) {
 	render_element(parent, animated, key, mut active)
 	rendered := time.sys_mono_now()
 	remove_stale_nodes_below(key, active)
+	reconcile_appkit_focus(replace_focus_element(st.navigation.root, id, animated), previous_focus)
 	finished := time.sys_mono_now()
 	st.refresh_debug.active = false
 	schedule_screenshot_capture()
@@ -530,18 +540,27 @@ pub fn toggle_button_group_members(id string) []string {
 }
 
 pub fn focus(id string) {
-	st := state()
-	native := st.views[id] or { return }
-	if (st.view_kinds[id] or { Kind.view }) == .text_area {
-		tv := text_area_text_view(native, st.text_area_direct[id] or { false })
-		if !native_focus(tv) {
-			return
+	mut st := state()
+	sync_focus_navigation()
+	if !st.navigation.can_focus(id) { return }
+	previous := focused_id()
+	if previous != id {
+		if old := st.views[previous] {
+			if (st.view_kinds[previous] or { Kind.view }) == .text_field && native_control_is_editing(old) {
+				st.focus_selections[previous] = native_control_selected_range(old)
+			}
 		}
-		return
 	}
-	if !native_focus(native) {
-		return
+	native := st.views[id] or { return }
+	target := if (st.view_kinds[id] or { Kind.view }) == .text_area {
+		text_area_text_view(native, st.text_area_direct[id] or { false })
+	} else { native }
+	if previous != id && !native_focus(target) { return }
+	if previous != id && (st.view_kinds[id] or { Kind.view }) == .text_field {
+		if selection := st.focus_selections[id] { native_restore_control_selection(native, selection.location, selection.length) }
 	}
+	st.navigation.current = id
+	reveal_appkit_focus(id)
 }
 
 // focused_id returns the declarative id of the control that currently owns
@@ -854,17 +873,28 @@ fn text_area_text_view(native NativeView, direct bool) NativeView {
 }
 
 fn ensure_runtime_classes() {
+	for native_class in ['NSTextField', 'NSSecureTextField', 'NSTextView'] {
+		name := 'UI2Focus' + native_class
+		if macos.get_class(name) == unsafe { nil } {
+			cls := macos.allocate_class_pair(macos.get_class(native_class), name)
+			macos.add_method(cls, 'acceptsFirstResponder', voidptr(ui2_focus_accepts_first_responder), 'B@:')
+			macos.register_class_pair(cls)
+		}
+	}
+
 	for native_class in ['NSButton', 'NSSlider', 'NSPopUpButton', 'NSSwitch'] {
 		if macos.get_class(native_class) == unsafe { nil } { continue }
 		tracking_class := 'UI2Tracking' + native_class
 		if macos.get_class(tracking_class) == unsafe { nil } {
 			cls := macos.allocate_class_pair(macos.get_class(native_class), tracking_class)
+			macos.add_method(cls, 'acceptsFirstResponder', voidptr(ui2_focus_accepts_first_responder), 'B@:')
 			macos.add_method(cls, 'mouseDown:', voidptr(ui2_control_mouse_down), 'v@:@')
 			macos.register_class_pair(cls)
 		}
 	}
 	if macos.get_class('UI2FlippedView') == unsafe { nil } {
 		cls := macos.allocate_class_pair(macos.get_class('NSView'), 'UI2FlippedView')
+		macos.add_method(cls, 'acceptsFirstResponder', voidptr(ui2_focus_accepts_first_responder), 'B@:')
 		macos.add_method(cls, 'isFlipped', voidptr(ui2_view_is_flipped), 'B@:')
 		macos.add_method(cls, 'draggingEntered:', voidptr(ui2_dragging_entered), 'Q@:@')
 		macos.add_method(cls, 'performDragOperation:', voidptr(ui2_perform_drag_operation), 'B@:@')
@@ -872,6 +902,7 @@ fn ensure_runtime_classes() {
 	}
 	if macos.get_class('UI2PointerView') == unsafe { nil } {
 		cls := macos.allocate_class_pair(macos.get_class('NSView'), 'UI2PointerView')
+		macos.add_method(cls, 'acceptsFirstResponder', voidptr(ui2_focus_accepts_first_responder), 'B@:')
 		macos.add_method(cls, 'isFlipped', voidptr(ui2_view_is_flipped), 'B@:')
 		macos.add_method(cls, 'mouseDown:', voidptr(ui2_pointer_mouse_down), 'v@:@')
 		macos.add_method(cls, 'mouseDragged:', voidptr(ui2_pointer_mouse_dragged), 'v@:@')
@@ -890,6 +921,7 @@ fn ensure_runtime_classes() {
 	}
 	if macos.get_class('UI2PointerImageView') == unsafe { nil } {
 		cls := macos.allocate_class_pair(macos.get_class('NSImageView'), 'UI2PointerImageView')
+		macos.add_method(cls, 'acceptsFirstResponder', voidptr(ui2_focus_accepts_first_responder), 'B@:')
 		macos.add_method(cls, 'mouseDown:', voidptr(ui2_pointer_mouse_down), 'v@:@')
 		macos.add_method(cls, 'mouseDragged:', voidptr(ui2_pointer_mouse_dragged), 'v@:@')
 		macos.add_method(cls, 'mouseUp:', voidptr(ui2_pointer_mouse_up), 'v@:@')
@@ -898,6 +930,7 @@ fn ensure_runtime_classes() {
 	}
 	if macos.get_class('UI2PointerLabel') == unsafe { nil } {
 		cls := macos.allocate_class_pair(macos.get_class('NSTextField'), 'UI2PointerLabel')
+		macos.add_method(cls, 'acceptsFirstResponder', voidptr(ui2_focus_accepts_first_responder), 'B@:')
 		macos.add_method(cls, 'mouseDown:', voidptr(ui2_pointer_mouse_down), 'v@:@')
 		macos.add_method(cls, 'mouseDragged:', voidptr(ui2_pointer_mouse_dragged), 'v@:@')
 		macos.add_method(cls, 'mouseUp:', voidptr(ui2_pointer_mouse_up), 'v@:@')
@@ -923,6 +956,7 @@ fn ensure_runtime_classes() {
 	}
 	if macos.get_class('UI2Window') == unsafe { nil } {
 		cls := macos.allocate_class_pair(macos.get_class('NSWindow'), 'UI2Window')
+		macos.add_method(cls, 'sendEvent:', voidptr(ui2_window_send_event), 'v@:@')
 		macos.add_method(cls, 'keyDown:', voidptr(ui2_window_key_down), 'v@:@')
 		macos.add_method(cls, 'performKeyEquivalent:', voidptr(ui2_window_perform_key_equiv), 'B@:@')
 		macos.register_class_pair(cls)
@@ -947,7 +981,8 @@ fn element_rect(r Rect) NativeRect {
 }
 
 fn render_root(declared Element) {
-	root := apply_widget_animations(declared)
+	previous_focus := focused_id()
+	root := effective_element_state(apply_widget_animations(declared), true)
 	validate_element_tree(root) or {
 		eprintln('ui2: ${err}')
 		return
@@ -978,6 +1013,7 @@ fn render_root(declared Element) {
 	mut active := map[string]bool{}
 	render_children(st.root_view, root.children, '', mut active)
 	remove_stale_nodes(active)
+	reconcile_appkit_focus(root, previous_focus)
 }
 
 fn render_children(parent NativeView, children []Element, parent_key string, mut active map[string]bool) {
@@ -2359,8 +2395,9 @@ fn native_update_dropdown(popup NativeView, el Element) {
 }
 
 fn native_new_text_field(el Element) NativeView {
+	ensure_runtime_classes()
 	frame := element_rect(el.frame)
-	cls := if el.secure { 'NSSecureTextField' } else { 'NSTextField' }
+	cls := if el.secure { 'UI2FocusNSSecureTextField' } else { 'UI2FocusNSTextField' }
 	field := macos.msg_id_rect(macos.alloc(cls), 'initWithFrame:', appkit_rect(frame))
 	native_update_text_field(field, frame, el.placeholder, el.text, el.box, el.text_style.color,
 		el.text_style.size, true, el.readonly, el.enabled)
@@ -2410,7 +2447,8 @@ fn native_new_text_area(el Element) NativeView {
 }
 
 fn native_new_text_view(frame macos.Rect, el Element) NativeView {
-	tv := macos.msg_id_rect(macos.alloc('NSTextView'), 'initWithFrame:', frame)
+	ensure_runtime_classes()
+	tv := macos.msg_id_rect(macos.alloc('UI2FocusNSTextView'), 'initWithFrame:', frame)
 	macos.msg_void1(tv, 'setFont:', native_text_style_font(el.text_style))
 	macos.msg_void_bool(tv, 'setRichText:', el.text_runs.len > 0)
 	macos.msg_void_bool(tv, 'setAllowsUndo:', true)
@@ -3017,13 +3055,20 @@ fn ui2_window_perform_key_equiv(_self voidptr, _cmd voidptr, event voidptr) bool
 
 fn dispatch_typed_key_event(event macos.Id) bool {
 	mut st := state()
-	if voidptr(st.key_event_handler) == unsafe { nil } {
-		return false
-	}
+	if voidptr(st.key_event_handler) == unsafe { nil } { return false }
+	// AppKit may consult performKeyEquivalent before routing the same event
+	// through sendEvent/keyDown. An observer still receives it exactly once.
+	timestamp := macos.msg_f64(event, 'timestamp')
+	if st.typed_key_event == voidptr(event) && st.typed_key_timestamp == timestamp { return st.typed_key_consumed }
+	st.typed_key_event = voidptr(event)
+	st.typed_key_timestamp = timestamp
 	st.key_consumed = false
+	st.text_key_consumed = false
 	st.key_event_handler(appkit_key_event(event))
-	consumed := st.key_consumed
+	consumed := st.key_consumed || st.text_key_consumed
 	st.key_consumed = false
+	st.text_key_consumed = false
+	st.typed_key_consumed = consumed
 	return consumed
 }
 

@@ -5,6 +5,8 @@
 module ui2
 
 $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
+	__global g_focus_navigation = &FocusManager{}
+
 	struct ScrollbarGeometry {
 		track Rect
 		thumb Rect

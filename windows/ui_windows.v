@@ -84,7 +84,7 @@ fn C.ui2_win_destroy_tooltip(tooltip voidptr)
 
 fn C.ui2_win_focus(hwnd voidptr)
 
-fn C.ui2_win_focus_next(hwnd voidptr, backwards int) int
+fn C.ui2_win_open_dropdown(hwnd voidptr)
 
 fn C.ui2_win_draw_focus_rect(hwnd voidptr)
 
@@ -218,6 +218,9 @@ const win_wm_paint = u32(0x000f)
 const win_wm_close = u32(0x0010)
 const win_wm_erase_background = u32(0x0014)
 const win_wm_key_down = u32(0x0100)
+const win_wm_key_up = u32(0x0101)
+const win_wm_char = u32(0x0102)
+const win_wm_activate_app = u32(0x001c)
 const win_wm_command = u32(0x0111)
 const win_wm_hscroll = u32(0x0114)
 const win_wm_vscroll = u32(0x0115)
@@ -275,6 +278,9 @@ struct WindowsPointerBinding {
 @[heap]
 struct WindowsState {
 mut:
+	navigation &FocusManager = &FocusManager{}
+	navigation_paths map[string]string
+	suppressed_keys map[u32]u32
 	build_screen       BuildFn = BuildFn(unsafe { nil })
 	key_handler        KeyFn = KeyFn(unsafe { nil })
 	key_event_handler  KeyEventFn = KeyEventFn(unsafe { nil })
@@ -538,12 +544,13 @@ fn run_window_with_min_size(title string, width int, height int, min_width int, 
 }
 
 pub fn refresh() {
+	previous_focus := focused_id()
 	mut st := windows_state()
 	if st.root == unsafe { nil } || st.rendering || voidptr(st.build_screen) == unsafe { nil } {
 		return
 	}
 	declared := st.build_screen()
-	root := apply_widget_animations(declared)
+	root := effective_element_state(apply_widget_animations(declared), true)
 	validate_element_tree(root) or {
 		eprintln('ui2: ${err}')
 		return
@@ -576,6 +583,7 @@ pub fn refresh() {
 	}
 	windows_remove_stale(active)
 	st.rendering = false
+	reconcile_windows_focus(root, previous_focus)
 	C.ui2_win_invalidate(st.root)
 }
 
@@ -755,9 +763,12 @@ fn commit_windows_toggle_button(handle u64, hwnd voidptr) {
 }
 
 pub fn focus(id string) {
-	st := windows_state()
+	mut st := windows_state()
+	sync_focus_navigation()
+	if !st.navigation.set_focus(id) { return }
 	hwnd := st.views[id] or { return }
 	C.ui2_win_focus(hwnd)
+	reveal_windows_focus(id)
 }
 
 pub fn focused_id() string {
@@ -1464,6 +1475,9 @@ fn windows_dispose_all() {
 }
 
 fn windows_release_all_node_resources() {
+	mut focus_state := windows_state()
+	focus_state.navigation = &FocusManager{}
+	focus_state.suppressed_keys.clear()
 	st := windows_state()
 	for key, hwnd in st.nodes {
 		windows_cleanup_node_resources(key, hwnd, st.node_kinds[key] or { Kind.view })
@@ -1743,7 +1757,7 @@ fn windows_dispatch_key(virtual_key u32) bool {
 	return windows_dispatch_key_string(virtual_key)
 }
 
-fn windows_dispatch_control_key(hwnd voidptr, virtual_key u32) bool {
+fn windows_dispatch_control_app_key(hwnd voidptr, virtual_key u32) bool {
 	if windows_dispatch_typed_key(virtual_key) {
 		return true
 	}
@@ -1768,6 +1782,11 @@ fn windows_dispatch_control_key(hwnd voidptr, virtual_key u32) bool {
 	st.key_consumed = false
 	st.key_handler('text:${id}:${key_name}')
 	return st.key_consumed
+}
+
+fn windows_dispatch_control_key(hwnd voidptr, virtual_key u32, repeated bool) bool {
+	if windows_dispatch_control_app_key(hwnd, virtual_key) { return true }
+	return handle_focus_key(windows_key_event(virtual_key), repeated)
 }
 
 fn windows_handle_drop(drop voidptr) {
@@ -1925,27 +1944,15 @@ fn ui2_windows_window_proc(hwnd voidptr, message u32, wparam usize, lparam isize
 			return 0
 		}
 		win_wm_key_down {
-			if windows_dispatch_key(u32(wparam)) {
+			if windows_dispatch_key(u32(wparam)) || handle_focus_key(windows_key_event(u32(wparam)), (usize(lparam) & (usize(1) << 30)) != 0) {
+				st.suppressed_keys[u32(wparam)] = u32((usize(lparam) >> 16) & 0x1ff)
 				return 0
-			}
-			if wparam == 0x09
-				&& C.ui2_win_focus_next(hwnd, windows_bool(C.ui2_win_key_down(0x10) != 0)) != 0 {
-				return 0
-			}
-			if wparam in [usize(0x0d), usize(0x20)]
-				&& (usize(lparam) & (usize(1) << 30)) == 0 {
-				binding := st.pointer_bindings[windows_handle_id(hwnd)] or {
-					WindowsPointerBinding{}
-				}
-				available := windows_button_behavior_accessibility_available(binding,
-					C.ui2_win_is_window(hwnd) != 0 && C.ui2_win_is_enabled(hwnd) != 0
-					&& C.ui2_win_is_accessible_button(hwnd) != 0)
-				if available {
-					C.ui2_win_click(hwnd)
-					return 0
-				}
 			}
 		}
+		win_wm_key_up { if ui2_windows_control_key_up(u32(wparam)) != 0 { return 0 } }
+		win_wm_char { if ui2_windows_control_char(u32(wparam), u32((usize(lparam) >> 16) & 0x1ff)) != 0 { return 0 } }
+		win_wm_activate_app { if wparam == 0 { st.suppressed_keys.clear() } }
+
 		win_wm_dropfiles {
 			windows_handle_drop(voidptr(wparam))
 			return 0
@@ -2042,8 +2049,10 @@ fn ui2_windows_edit_submit(hwnd voidptr) int {
 }
 
 @[export: 'ui2_windows_control_key']
-fn ui2_windows_control_key(hwnd voidptr, virtual_key u32) int {
-	return windows_bool(windows_dispatch_control_key(hwnd, virtual_key))
+fn ui2_windows_control_key(hwnd voidptr, virtual_key u32, repeated int, scan_code u32) int {
+	consumed := windows_dispatch_control_key(hwnd, virtual_key, repeated != 0)
+	if consumed { windows_state().suppressed_keys[virtual_key] = scan_code }
+	return windows_bool(consumed)
 }
 
 @[export: 'ui2_windows_context_menu']

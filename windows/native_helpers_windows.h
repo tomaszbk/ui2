@@ -52,7 +52,11 @@ enum {
 extern intptr_t ui2_windows_window_proc(void *hwnd, unsigned int message,
 		uintptr_t wparam, intptr_t lparam);
 extern int ui2_windows_edit_submit(void *hwnd);
-extern int ui2_windows_control_key(void *hwnd, unsigned int virtual_key);
+extern int ui2_windows_control_key_up(unsigned int virtual_key);
+extern int ui2_windows_control_char(unsigned int character, unsigned int scan_code);
+extern void ui2_windows_focus_changed(void *hwnd);
+extern int ui2_windows_control_key(void *hwnd, unsigned int virtual_key, int repeated,
+        unsigned int scan_code);
 extern int ui2_windows_context_menu(void *hwnd, int screen_x, int screen_y);
 extern int ui2_windows_cursor(void *hwnd);
 extern void ui2_windows_control_pointer(void *hwnd, unsigned int message, int x, int y);
@@ -129,54 +133,6 @@ static inline int ui2_win_apply_cursor(void *hwnd) {
 	return 1;
 }
 
-typedef struct ui2_win_tab_order {
-	HWND current;
-	HWND first;
-	HWND last;
-	HWND previous;
-	HWND next;
-	int found;
-} ui2_win_tab_order;
-
-static void ui2_win_visit_tab_order(HWND candidate, ui2_win_tab_order *order) {
-	if (order->first == NULL) order->first = candidate;
-	if (order->found && order->next == NULL) order->next = candidate;
-	if (candidate == order->current) {
-		order->found = 1;
-		order->previous = order->last;
-	}
-	order->last = candidate;
-}
-
-static void ui2_win_collect_tab_order(HWND parent, ui2_win_tab_order *order) {
-	for (HWND child = GetWindow(parent, GW_CHILD); child != NULL;
-			child = GetWindow(child, GW_HWNDNEXT)) {
-		if (!IsWindowVisible(child) || !IsWindowEnabled(child)) continue;
-		LONG_PTR style = GetWindowLongPtrW(child, GWL_STYLE);
-		LONG_PTR ex_style = GetWindowLongPtrW(child, GWL_EXSTYLE);
-		if ((style & WS_TABSTOP) != 0) ui2_win_visit_tab_order(child, order);
-		if ((ex_style & WS_EX_CONTROLPARENT) != 0) {
-			ui2_win_collect_tab_order(child, order);
-		}
-	}
-}
-
-static inline int ui2_win_focus_next(void *hwnd_ptr, int backwards) {
-	HWND hwnd = (HWND)hwnd_ptr;
-	if (hwnd == NULL) return 0;
-	HWND root = GetAncestor(hwnd, GA_ROOT);
-	if (root == NULL) return 0;
-	ui2_win_tab_order order;
-	ZeroMemory(&order, sizeof(order));
-	order.current = hwnd;
-	ui2_win_collect_tab_order(root, &order);
-	HWND next = backwards
-		? (order.found && order.previous != NULL ? order.previous : order.last)
-		: (order.found && order.next != NULL ? order.next : order.first);
-	if (next == NULL || next == hwnd) return 0;
-	SetFocus(next);
-	return GetFocus() == next;
-}
 
 static const wchar_t *ui2_win_accessible_button_property(void) {
 	return L"ui2.accessible_button";
@@ -264,17 +220,20 @@ static LRESULT CALLBACK ui2_win_control_subclass(HWND hwnd, UINT message, WPARAM
 	} else if (message == WM_CAPTURECHANGED && GetPropW(hwnd, L"UI2ControlReleasing") == NULL) {
 		ui2_windows_control_tracking(hwnd, 2);
 	}
+	if (message == WM_SETFOCUS) ui2_windows_focus_changed(hwnd);
 	if (message == WM_KEYDOWN && wparam == VK_RETURN && ui2_windows_edit_submit(hwnd)) {
 		return 0;
 	}
-	if (message == WM_KEYDOWN && ui2_windows_control_key(hwnd, (unsigned int)wparam)) {
-		return 0;
-	}
+	if (message == WM_KEYDOWN && ui2_windows_control_key(hwnd, (unsigned int)wparam,
+            (lparam & ((LPARAM)1 << 30)) != 0,
+            (unsigned int)((lparam >> 16) & 0x1ff))) return 0;
+    // Key-up/char can go to the newly focused HWND after Tab or a scope action.
+    // Suppression belongs to the window runtime, never the originating control.
+    if (message == WM_KEYUP && ui2_windows_control_key_up((unsigned int)wparam)) return 0;
+    if (message == WM_CHAR && ui2_windows_control_char((unsigned int)wparam,
+            (unsigned int)((lparam >> 16) & 0x1ff))) return 0;
 	if (message == WM_KEYDOWN && !IsWindow(hwnd)) return 0;
-	if (message == WM_KEYDOWN && wparam == VK_TAB && ui2_win_focus_next(hwnd,
-			(GetKeyState(VK_SHIFT) & 0x8000) != 0)) {
-		return 0;
-	}
+
 	if (message == WM_SETCURSOR && LOWORD(lparam) == HTCLIENT && ui2_win_apply_cursor(hwnd)) {
 		return TRUE;
 	}
@@ -1876,4 +1835,8 @@ static inline int ui2_win_key_down(int virtual_key) {
 static inline int ui2_win_control_available(void *pointer) {
     HWND hwnd = (HWND)pointer;
     return hwnd != NULL && IsWindow(hwnd) && IsWindowEnabled(hwnd) && IsWindowVisible(hwnd);
+}
+
+static inline void ui2_win_open_dropdown(void *hwnd) {
+    SendMessageW((HWND)hwnd, CB_SHOWDROPDOWN, TRUE, 0);
 }

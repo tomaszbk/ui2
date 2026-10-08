@@ -18,9 +18,9 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 	}
 
 	fn window_state_mount_editor(on_event ElementCallback) {
-		g_active_fields['editor'] = true
-		g_text_kinds['editor'] = .text_area
-		g_hit_targets = [HitTarget{ id: 'editor', on_event: on_event, text_area: true }]
+		root := screen(0xffffff, [Element{ kind: .text_area, id: 'editor', on_event: on_event }])
+		update_custom_focus_tree(root)
+		sync_mounted_focus_controls(root, 'root')
 		register_scroll_view(named_scroll_state_id('pane'), rect(0, 0, 100, 80), rect(0, 0, 100, 80), 500,
 			true, true, false, HitTarget{})
 	}

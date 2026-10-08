@@ -176,9 +176,17 @@ $if !ui2_custom_rendering ? {
 		// A composite remains in the flattened tab order even though its container
 		// also exposes children through WS_EX_CONTROLPARENT.
 		C.ui2_win_show(root, 1)
-		assert C.ui2_win_focus_next(field, 0) != 0
+		mut navigation := FocusManager{}
+		navigation.update(Element{kind: .screen, children: [
+			Element{kind: .view, id: 'save', button_behavior: true},
+			Element{kind: .text_field, id: 'edit'},
+		]}, map[string]f64{})
+		assert navigation.set_focus('edit')
+		assert navigation.traverse(false) && navigation.current == 'save'
+		C.ui2_win_focus(button)
 		assert C.ui2_win_focus_handle() == button
-		assert C.ui2_win_focus_next(button, 0) != 0
+		assert navigation.traverse(false) && navigation.current == 'edit'
+		C.ui2_win_focus(field)
 		assert C.ui2_win_focus_handle() == field
 		C.ui2_win_show(root, 0)
 
@@ -489,5 +497,48 @@ $if !ui2_custom_rendering ? {
 		assert windows_control_test_events[1].id == ''
 		st.scroll_callbacks.delete(handle)
 		assert !windows_emit_scroll(hwnd, 90)
+	}
+}
+
+$if windows && !ui2_custom_rendering ? {
+	fn test_windows_shared_tab_is_consumed_once_per_control_key_event() {
+		assert C.ui2_win_register_classes() != 0
+		title := 'focus traversal fixture'.to_wide()
+		root := C.ui2_win_create_main_window(title, 320, 200)
+		unsafe { free(title) }
+		empty := ''.to_wide()
+		field := C.ui2_win_create_widget(windows_widget_kind(.text_field), root, 0, 0, 100, 30, empty, 0, 0, 0, 0, 0)
+		button := C.ui2_win_create_widget(windows_widget_kind(.button), root, 0, 40, 100, 30, empty, 0, 0, 0, 0, 0)
+		last := C.ui2_win_create_widget(windows_widget_kind(.button), root, 0, 80, 100, 30, empty, 0, 0, 0, 0, 0)
+		unsafe { free(empty) }
+		mut st := windows_state()
+		previous := *st
+		unsafe { *st = WindowsState{} }
+		st.root = root
+		defer { C.ui2_win_destroy(root); unsafe { *st = previous } }
+		st.views = {'edit': field, 'button': button, 'last': last}
+		st.handle_keys = {windows_handle_id(field): 'i:0', windows_handle_id(button): 'i:1', windows_handle_id(last): 'i:2'}
+		st.node_ids = {'i:0': 'edit', 'i:1': 'button', 'i:2': 'last'}
+		st.node_kinds = {'i:0': Kind.text_field, 'i:1': Kind.button, 'i:2': Kind.button}
+		st.navigation.update(screen(0xffffff, [
+			Element{kind: .text_field, id: 'edit'}, Element{kind: .button, id: 'button'}, Element{kind: .button, id: 'last'},
+		]), map[string]f64{})
+		C.ui2_win_show(root, 1)
+		focus('edit')
+		assert focused_id() == 'edit'
+		assert ui2_windows_control_key(field, 0x09, 0, 0x0f) == 1
+		assert focused_id() == 'button'
+		assert ui2_windows_control_char(9, 0x0f) == 1
+		// Held Tab consumes only its own WM_CHAR, even after focus changes.
+		assert ui2_windows_control_char(97, 0x1e) == 0
+		assert ui2_windows_control_char(0x00f1, 0) == 0
+		assert ui2_windows_control_key_up(0x09) == 1
+		assert ui2_windows_control_char(97, 0x1e) == 0
+		assert ui2_windows_control_key(button, 0x09, 1, 0x0f) == 1
+		assert focused_id() == 'last'
+		assert ui2_windows_control_key(last, 0x09, 0, 0x0f) == 1
+		assert focused_id() == 'edit'
+		assert handle_focus_key(KeyEvent{code: .tab, shift: true}, false)
+		assert focused_id() == 'last'
 	}
 }
