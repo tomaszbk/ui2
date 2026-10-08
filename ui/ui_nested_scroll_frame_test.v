@@ -144,11 +144,7 @@ fn test_nested_public_scroll_from_scope_restoration_uses_current_mounted_handler
 	mode_arg := os.args.filter(it.starts_with('--nested-scroll-mode='))
 	if mode_arg.len == 0 {
 		// Closing a Sokol window exits its process. Require every child's business marker.
-		// The paint-time empty-frame case uses GL. Owned Metal cancellation
-		// already fails in Sokol commit without a command buffer, independently
-		// of nested notifications; that resource defect is tracked separately.
-		case_count := $if ui2_embedder ? { 8 } $else { 9 }
-		for mode in 0 .. case_count {
+		for mode in 0 .. 9 {
 			result := os.execute('${os.quoted_path(os.executable())} --nested-scroll-mode=${mode}')
 			eprintln(result.output)
 			assert result.exit_code == 0

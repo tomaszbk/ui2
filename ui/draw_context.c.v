@@ -18,6 +18,9 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		import ui2.thirdparty.vglyph
 	}
 
+	#include "@VMODROOT/ui/draw_commands.h"
+	fn C.ui2_sgl_discard_commands(context sgl.Context)
+
 	$if android {
 	struct DrawContext {
 	mut:
@@ -388,7 +391,9 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	// begin records commands; the GPU pass starts only in end. An invalidated
 	// frame must discard those commands without submitting to its old surface.
 	fn (ctx &DrawContext) cancel() {
-		if !ctx.destroyed && gfx.is_valid() { gfx.commit() }
+		if ctx.destroyed || !gfx.is_valid() { return }
+		context := if ctx.owns_surface { ctx.gl_context } else { sgl.default_context() }
+		C.ui2_sgl_discard_commands(context)
 	}
 
 	fn release_draw_device() {

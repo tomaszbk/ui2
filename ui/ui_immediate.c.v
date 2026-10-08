@@ -839,11 +839,18 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		g_active_scrolls = map[string]bool{}
 		g_active_images = map[string]bool{}
 		sync_mounted_focus_controls(root, 'root')
+		host_window := app.native_window
+		owned_surface := ctx.owns_surface
 		$if macos && ui2_embedder ? {
-			if ctx.owns_surface {
-				host_window := app.native_window
+			if owned_surface {
 				if !acquire_embedder_surface(mut app) { return }
-				defer { C.ui2_embedder_frame_done(host_window) }
+			}
+		}
+		// Keep the captured drawable through submission or cancellation. A defer
+		// in the acquisition block would release it before painting starts.
+		defer {
+			$if macos && ui2_embedder ? {
+				if owned_surface { C.ui2_embedder_frame_done(host_window) }
 			}
 		}
 		// Image resources must be available before starting the GPU pass.

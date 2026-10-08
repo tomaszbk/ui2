@@ -16,6 +16,7 @@ __global scope_frame_verify_posted bool
 __global scope_frame_events = []string{}
 __global scope_frame_scheduler = &FrameCoordinator(unsafe { nil })
 __global scope_frame_draws u64
+__global scope_frame_gpu_frame u32
 __global scope_frame_verified bool
 
 fn scope_frame_old_scroll(event ElementEvent) {
@@ -31,6 +32,7 @@ fn scope_frame_current_scroll(event ElementEvent) {
 	assert event.kind == .scroll && event.id == 'pane' && event.value == expected
 	scope_frame_scheduler = g_gg_app.scheduler
 	scope_frame_draws = render_stats().draws
+	scope_frame_gpu_frame = gfx.query_frame_stats().frame_index
 	match scope_frame_mode {
 		1 { on_event(&gg.Event{typ: .unfocused}, g_gg_app) }
 		2 { on_event(&gg.Event{typ: .suspended}, g_gg_app) }
@@ -68,9 +70,9 @@ fn scope_frame_assert_restoration() {
 	assert scope_frame_scheduler.stats().draws == scope_frame_draws
 	assert !scope_frame_scheduler.stats().in_flight, 'the captured scheduler must finish an aborted frame'
 	if scope_frame_mode >= 10 {
-		// cancel commits an empty command frame rather than opening a GPU pass.
-		assert gfx.query_frame_stats().num_passes == 0
-		assert gfx.query_frame_stats().num_draw == 0
+		// Cancellation never submits a GPU frame. The completed-frame stats
+		// still describe the preceding valid frame.
+		assert gfx.query_frame_stats().frame_index == scope_frame_gpu_frame
 	}
 	if scope_frame_mode == 6 {
 		assert semantic_tree().filter(it.id == 'restore').len == 0
