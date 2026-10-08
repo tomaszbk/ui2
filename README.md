@@ -27,6 +27,10 @@ updates when external state changes. Workers can post changes through a captured
 reuse the declared tree but still repaint because Sokol presents every callback.
 See [scheduling and diagnostics](docs/custom-rendering-scheduler.md).
 
+The custom renderer also supports retained [vector canvases](docs/vector-canvas.md):
+typed paths, quadratic/cubic Bézier curves, concave polygons and holes, stroked
+caps/joins and shape-based pointer hits. See `examples/vector_canvas`.
+
 On macOS, the experimental owned embedder adds native windows, Metal surfaces,
 IME composition and a blocking event loop. Enable it with both
 `-d ui2_custom_rendering -d ui2_embedder` for idle sleep.

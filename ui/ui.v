@@ -414,6 +414,9 @@ pub:
 	box               BoxStyle
 	interaction_style InteractionStyle // custom renderer: sparse visual state overrides
 	content_size      LayoutSize       // custom: fixed logical composition, fit within frame
+	is_vector_canvas  bool            // preserves vector semantics with an empty shapes array
+	vector_shapes     []VectorShape    // custom: retained local geometry, clipped to the view frame
+	vector_hit_mode   VectorHitMode
 	text_style        TextStyle
 	native_style      bool // button: let the platform own bezel and interaction styling
 	// Transient state supplied by split-process backends so their renderer can
@@ -508,6 +511,17 @@ pub fn validate_element_tree(root Element) ! {
 }
 
 fn validate_element_node(el Element, path string, mut ids map[string]bool) ! {
+	if el.is_vector_canvas || el.vector_shapes.len > 0 {
+		if el.kind != .view { return error('vector canvas must be a view at ${path}') }
+		if el.content_size.width != 0 || el.content_size.height != 0 { return error('put vector canvas inside scaled content at ${path}') }
+		validate_layout_frame(el.frame)!
+		for shape in el.vector_shapes {
+			if !shape.prepared { return error('vector canvas needs prepared geometry at ${path}') }
+		}
+		$if !( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headless ? {
+			return error('vector canvas requires the custom renderer at ${path}')
+		}
+	}
 	if el.content_size.width != 0 || el.content_size.height != 0 {
 		if el.kind != .view { return error('scaled content must be a view at ${path}') }
 		contain_content(el.frame, el.content_size.width, el.content_size.height)!
