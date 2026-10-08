@@ -2178,7 +2178,9 @@ fn ui2_windows_control_pointer(hwnd voidptr, message u32, local_x int, local_y i
 			return
 		}
 		if binding.button_behavior {
-			C.ui2_win_focus(target)
+			// Validate eligibility and the active scope before SetFocus, using
+			// the same public focus path as keyboard/semantic navigation.
+			focus(binding.id)
 		}
 		st.pointer_handle = target
 		st.pointer_binding = binding

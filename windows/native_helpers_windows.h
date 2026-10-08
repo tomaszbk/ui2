@@ -300,6 +300,9 @@ static LRESULT CALLBACK ui2_win_control_subclass(HWND hwnd, UINT message, WPARAM
 
 static LRESULT CALLBACK ui2_win_window_proc(HWND hwnd, UINT message, WPARAM wparam,
 		LPARAM lparam) {
+	// View and Scroll use this proc instead of the ordinary control subclass.
+	// Apply the same registry/scope policy to their native focus notifications.
+	if (message == WM_SETFOCUS) ui2_windows_focus_changed(hwnd);
 	if (message == WM_GETOBJECT && ui2_win_is_accessible_button(hwnd)
 		&& (DWORD)lparam == (DWORD)OBJID_CLIENT) {
 		return ui2_win_accessible_button_object(hwnd, wparam);

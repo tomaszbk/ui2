@@ -249,7 +249,11 @@ $if macos && ui2_embedder ? && ui2_custom_rendering ? && !ui2_headless ? {
 		}
 		dispatch_context := custom_input_dispatch(app)
 		if event.typ in [.resized, .restored, .resumed] { app.surface_retry_at = -1 }
-		if event.typ == .key_down {
+		if event.typ == .mouse_down {
+			dispatch := custom_mouse_down(app, f64(event.mouse_x), f64(event.mouse_y))
+			if dispatch.valid() { sync_embedder_text(app) }
+			return false
+		} else if event.typ == .key_down {
 			app.scheduler.invalidate(.build)
 			g_tooltip.dismiss()
 			dispatch := begin_custom_input_dispatch(app)

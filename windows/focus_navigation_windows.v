@@ -79,20 +79,24 @@ $if !ui2_custom_rendering ? {
 		st := windows_state()
 		mut result := []SemanticNode{cap: nodes.len}
 		for node in nodes {
-			el := st.navigation.node(node.id) or {
+			el := st.navigation.path_node(node.path) or {
 				result << node
 				continue
 			}
-			hwnd := st.views[node.id] or {
+			key := st.navigation_paths[node.path] or {
+				result << node
+				continue
+			}
+			hwnd := st.nodes[key] or {
 				result << node
 				continue
 			}
 			mut value := node.value
 			mut checked := node.state.checked
 			if el.el.kind in [.text_field, .text_area, .dropdown] && !el.el.secure && el.el.accessibility_value.len == 0 {
-				value = text(node.id)
+				value = windows_native_text(hwnd)
 			}
-			if el.el.kind == .slider && el.el.accessibility_value.len == 0 { value = slider_value(node.id).str() }
+			if el.el.kind == .slider && el.el.accessibility_value.len == 0 { value = windows_snap_slider_value(hwnd, slider_spec(el.el)).str() }
 			if el.el.kind in [.checkbox, .switch_control, .toggle_button] {
 				checked = C.ui2_win_get_checked(hwnd) != 0
 				if el.el.accessibility_value.len == 0 { value = if checked { 'checked' } else { 'unchecked' } }

@@ -50,6 +50,9 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 
 	struct TouchState {
 	mut:
+		// The generation that started this gesture, not the current window
+		// generation. An aborted focus reveal must preserve a newer gesture.
+		input_generation   u64
 		// A rebuild can move a dragged view away from the initial press.
 		// Keep its event identity until release instead of hit-testing it again.
 		pointer_captured   bool
@@ -869,11 +872,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		state.scheduler.invalidate(.build)
 		match e.typ {
 			.mouse_down {
-				g_tooltip.dismiss()
-				if menu_bar_handle_down(f64(e.mouse_x), f64(e.mouse_y)) {
-					return
-				}
-				handle_touch_down(f64(e.mouse_x), f64(e.mouse_y))
+				custom_mouse_down(app, f64(e.mouse_x), f64(e.mouse_y))
 			}
 			.mouse_move {
 				// Recorded before any handler below can claim the move, so the
@@ -986,8 +985,29 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		fire_target_event(target, ElementEvent{ kind: kind, id: target.id, x: logical_x, y: logical_y })
 	}
 
-	fn handle_touch_down(x f64, y f64) {
+	fn custom_mouse_down(app &GgApp, x f64, y f64) CustomInputDispatch {
+		dispatch := begin_custom_input_dispatch(app)
+		if !dispatch.valid() { return dispatch }
+		app.scheduler.invalidate(.build)
+		g_tooltip.dismiss()
+		if menu_bar_handle_down(x, y) || !dispatch.valid() { return dispatch }
+		return handle_touch_down(x, y)
+	}
+
+	fn discard_custom_pointer_start(dispatch CustomInputDispatch) {
+		if dispatch.window == g_active_custom_window_state {
+			if g_touch.input_generation == dispatch.generation { g_touch = TouchState{} }
+		} else {
+			mut owner := dispatch.window
+			if owner.touch.input_generation == dispatch.generation { owner.touch = TouchState{} }
+		}
+	}
+
+	fn handle_touch_down(x f64, y f64) CustomInputDispatch {
+		dispatch := begin_custom_input_dispatch(g_gg_app)
+		if !dispatch.valid() { return dispatch }
 		g_touch = TouchState{
+			input_generation: dispatch.generation
 			down: true
 			start_x: x
 			start_y: y
@@ -999,24 +1019,28 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		}
 		if g_open_dropdown.len > 0 {
 			update_dropdown_hover(x, y)
-			return
+			return dispatch
 		}
 		target := hit_test(x, y)
 		if g_focus_navigation.can_focus(target.id) { focus(target.id) }
+		if !dispatch.valid() {
+			discard_custom_pointer_start(dispatch)
+			return dispatch
+		}
 		g_touch.pointer_target = target
 		g_touch.pointer_captured = target.w > 0 && target.h > 0
 		g_touch.pressed_id = target.id
 		if target.slider {
 			commit_slider(target, x, y)
-			return
+			return dispatch
 		}
 		if target.switch_control {
-			return
+			return dispatch
 		}
 		g_touch.scroll_id = scroll_hit_test(x, y)
 		g_touch.scroll_chain = scroll_ancestor_chain(g_touch.scroll_id)
 		if begin_scrollbar_drag(x, y) {
-			return
+			return dispatch
 		}
 		if voidptr(target.on_event) != unsafe { nil }
 			&& (target.clickable || target.button_behavior || target.draggable) {
@@ -1025,6 +1049,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 				fire_pointer_event(.pointer_down, target, x, y)
 			}
 		}
+		return dispatch
 	}
 
 	fn handle_touch_move(x f64, y f64) {

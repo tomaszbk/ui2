@@ -341,3 +341,66 @@ fn test_ios_nested_anonymous_and_named_scrolls_use_mounted_paths_for_geometry_an
 		}
 	}
 }
+
+fn ios_anonymous_semantic_event(_event ElementEvent) {}
+
+fn ios_anonymous_semantic(path string) SemanticNode {
+	for node in semantic_tree() { if node.path == path { return node } }
+	panic('missing anonymous UIKit semantics at ${path}')
+}
+
+// Actual UIKit controls and native commands; macOS verification typechecks
+// this fixture only and must never credit it as iOS runtime acceptance.
+fn test_ios_anonymous_semantics_reads_native_values_and_rebuilt_scroll_paths() {
+	begin_ios_semantic_fixture()
+	defer { end_ios_semantic_fixture() }
+	pane := scroll('', rect(0, 0, 300, 440), 0xffffff, [
+		Element{kind: .checkbox, key: 'check', text: 'Choice', on_event: ios_anonymous_semantic_event, frame: rect(0, 0, 180, 30)},
+		Element{kind: .toggle_button, key: 'toggle', text: 'Toggle', on_event: ios_anonymous_semantic_event, frame: rect(0, 35, 180, 30)},
+		Element{kind: .switch_control, key: 'switch', on_event: ios_anonymous_semantic_event, frame: rect(0, 70, 180, 30)},
+		Element{kind: .text_field, key: 'field', text: 'declared', frame: rect(0, 105, 180, 30)},
+		Element{kind: .text_area, key: 'area', text: 'declared area', frame: rect(0, 140, 180, 70)},
+		Element{kind: .dropdown, key: 'choice', text: 'A', menu: [MenuEntry{title: 'A'}, MenuEntry{title: 'B'}], on_event: ios_anonymous_semantic_event, frame: rect(0, 215, 180, 30)},
+		Element{kind: .slider, key: 'slider', value: 2.5, min_value: 0, max_value: 10, step: 0.5, frame: rect(0, 250, 180, 30)},
+		Element{kind: .text_field, key: 'secret', text: 'secret', secure: true, frame: rect(0, 285, 180, 30)},
+		Element{kind: .checkbox, key: 'override', accessibility_value: 'annotation', on_event: ios_anonymous_semantic_event, frame: rect(0, 320, 180, 30)},
+	])
+	render_root(screen(0xffffff, [pane]))
+	for key in ['check', 'toggle', 'override'] {
+		native := g_nodes['i:0/k:' + key.bytes().hex()] or { panic('missing anonymous checkbox') }
+		vui_button_tap(unsafe { nil }, unsafe { nil }, native)
+		assert macos.msg_bool(native, 'isSelected')
+		node := ios_anonymous_semantic('root/i:0/k:' + key.bytes().hex())
+		assert node.id == '' && node.state.checked
+		assert node.state.selected == (key == 'toggle')
+		assert node.value == if key == 'override' { 'annotation' } else { 'checked' }
+	}
+	native_switch := g_nodes['i:0/k:737769746368'] or { panic('missing anonymous UISwitch') }
+	macos.msg_void_bool(native_switch, 'setOn:', true)
+	vui_button_tap(unsafe { nil }, unsafe { nil }, native_switch)
+	assert ios_anonymous_semantic('root/i:0/k:737769746368').state.checked
+	for key in ['field', 'area'] {
+		native := g_nodes['i:0/k:' + key.bytes().hex()] or { panic('missing anonymous editor') }
+		macos.msg_void1(native, 'setText:', macos.nsstring('local café ñ ' + key))
+		assert ios_anonymous_semantic('root/i:0/k:' + key.bytes().hex()).value == 'local café ñ ' + key
+	}
+	choice := g_nodes['i:0/k:63686f696365'] or { panic('missing anonymous dropdown') }
+	commands := macos.msg_id(macos.msg_id(choice, 'menu'), 'children')
+	command := macos.msg_id_u64(commands, 'objectAtIndex:', 1)
+	vui_dropdown_selected(unsafe { nil }, unsafe { nil }, command)
+	assert ios_anonymous_semantic('root/i:0/k:63686f696365').value == 'B'
+	slider_native := g_nodes['i:0/k:736c69646572'] or { panic('missing anonymous UISlider') }
+	slider_set_number(slider_native, 'value', 7.5)
+	assert ios_anonymous_semantic('root/i:0/k:736c69646572').value == '7.5'
+	secret := g_nodes['i:0/k:736563726574'] or { panic('missing anonymous secure field') }
+	macos.msg_void1(secret, 'setText:', macos.nsstring('private local ñ'))
+	secure := ios_anonymous_semantic('root/i:0/k:736563726574')
+	assert secure.value == '' && secure.state.secure
+	render_root(screen(0xffffff, [Element{kind: .label, text: 'Inserted'}, pane]))
+	new_field := g_nodes['i:1/k:6669656c64'] or { panic('missing reordered anonymous editor') }
+	macos.msg_void1(new_field, 'setText:', macos.nsstring('reordered ñ'))
+	assert ios_anonymous_semantic('root/i:1/k:6669656c64').value == 'reordered ñ'
+	assert semantic_tree().filter(it.path == 'root/i:0/k:6669656c64').len == 0
+	render_root(screen(0xffffff, []))
+	assert semantic_tree().filter(it.path == 'root/i:1/k:6669656c64').len == 0
+}

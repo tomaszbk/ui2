@@ -152,13 +152,20 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 	}
 
 	fn sync_mounted_control(el Element) {
-		if el.kind in [.text_field, .text_area, .dropdown] {
-			kind_changed := el.id in g_text_kinds && (g_text_kinds[el.id] or { el.kind }) != el.kind
-			if kind_changed {
-				forget_text_state(el.id)
-				forget_portable_text_area_selection(el.id)
-				g_gg_app.editable_fields.delete(el.id)
+		kind_changed := el.id in g_text_kinds && (g_text_kinds[el.id] or { el.kind }) != el.kind
+		if kind_changed {
+			// Remove the old editor before pruning, even when the replacement is
+			// not a text control. Its eligible id can still own navigation focus.
+			forget_text_state(el.id)
+			forget_portable_text_area_selection(el.id)
+			g_gg_app.editable_fields.delete(el.id)
+			g_active_fields.delete(el.id)
+			if g_gg_app.composition.field_id == el.id {
+				g_gg_app.composition = TextComposition{}
 			}
+			if g_open_dropdown == el.id { close_dropdown() }
+		}
+		if el.kind in [.text_field, .text_area, .dropdown] {
 			previous := g_text_props[el.id] or { el.text }
 			if kind_changed || el.id !in g_text_values || (el.text != previous && (g_text_values[el.id] or { '' }) != el.text) {
 				if g_gg_app.composition.field_id == el.id {

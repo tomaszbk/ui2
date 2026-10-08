@@ -30,11 +30,15 @@ fn sync_focus_navigation() {
 fn live_semantic_nodes(nodes []SemanticNode) []SemanticNode {
 	mut result := []SemanticNode{cap: nodes.len}
 	for node in nodes {
-		el := g_ios_navigation.node(node.id) or {
+		el := g_ios_navigation.path_node(node.path) or {
 			result << node
 			continue
 		}
-		native := g_views[node.id] or {
+		key := g_ios_navigation_paths[node.path] or {
+			result << node
+			continue
+		}
+		native := g_nodes[key] or {
 			result << node
 			continue
 		}
@@ -45,9 +49,9 @@ fn live_semantic_nodes(nodes []SemanticNode) []SemanticNode {
 			actions = actions.filter(it != .activate)
 		}
 		if el.el.kind in [.text_field, .text_area, .dropdown] && !el.el.secure && el.el.accessibility_value.len == 0 {
-			value = text(node.id)
+			value = macos.utf8_string(macos.msg_id(native, if el.el.kind == .dropdown { 'currentTitle' } else { 'text' }))
 		}
-		if el.el.kind == .slider && el.el.accessibility_value.len == 0 { value = slider_value(node.id).str() }
+		if el.el.kind == .slider && el.el.accessibility_value.len == 0 { value = native_snap_slider_value(native, slider_spec(el.el)).str() }
 		if el.el.kind == .switch_control { checked = macos.msg_bool(native, 'isOn') }
 		if el.el.kind in [.checkbox, .toggle_button] {
 			checked = macos.msg_bool(native, 'isSelected')

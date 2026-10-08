@@ -87,20 +87,28 @@ $if !ui2_custom_rendering ? {
 		st := state()
 		mut result := []SemanticNode{cap: nodes.len}
 		for node in nodes {
-			el := st.navigation.node(node.id) or {
+			el := st.navigation.path_node(node.path) or {
 				result << node
 				continue
 			}
-			native := st.views[node.id] or {
+			key := st.navigation_paths[node.path] or {
+				result << node
+				continue
+			}
+			native := st.nodes[key] or {
 				result << node
 				continue
 			}
 			mut value := node.value
 			mut checked := node.state.checked
 			if el.el.kind in [.text_field, .text_area, .dropdown] && !el.el.secure && el.el.accessibility_value.len == 0 {
-				value = text(node.id)
+				value = match el.el.kind {
+					.text_area { macos.utf8_string(macos.msg_id(text_area_text_view(native, el.el.disable_scroll), 'string')) }
+					.dropdown { native_dropdown_text(native) }
+					else { native_text(native) }
+				}
 			}
-			if el.el.kind == .slider && el.el.accessibility_value.len == 0 { value = slider_value(node.id).str() }
+			if el.el.kind == .slider && el.el.accessibility_value.len == 0 { value = native_snap_slider_value(native, slider_spec(el.el)).str() }
 			if el.el.kind in [.checkbox, .switch_control, .toggle_button] {
 				checked = macos.msg_i64(native, 'state') != 0
 				if el.el.accessibility_value.len == 0 { value = if checked { 'checked' } else { 'unchecked' } }
