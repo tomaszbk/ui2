@@ -22,7 +22,11 @@ pub fn absolute_frames(config AbsoluteConfig) ![]Rect {
 
 pub fn absolute(config AbsoluteConfig) !Element {
 	absolute_frames(config)!
-	return view(config.id, config.frame, config.box, config.children)
+	return Element{
+		...view(config.id, config.frame, config.box, config.children)
+		layout_input: config.frame
+		layout:       LayoutSpec{ kind: .absolute }
+	}
 }
 
 // Natural content extent includes positioned children, exposing overflowing

@@ -5,6 +5,7 @@ import sync
 // RenderReason describes why a custom-renderer frame was requested.
 pub enum RenderReason {
 	build
+	layout
 	paint
 	surface
 	animation

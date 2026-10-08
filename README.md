@@ -702,6 +702,9 @@ shared by native backends and the custom renderer.
 See [modern layout](docs/modern-layout.md) for properties, intrinsic measurement,
 limits and the executable `examples/responsive_layout` example.
 
+Retained layout and subtree updates are described in [Incremental layout](docs/incremental-layout.md),
+with a V/compiled-builder example in `examples/incremental_layout`.
+
 A label, button, checkbox, or dropdown whose text is wider than its frame ends
 in an ellipsis rather than running over whatever is beside it: the native
 backends hand their cells `NSLineBreakByTruncatingTail`, and the custom

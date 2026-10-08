@@ -70,7 +70,10 @@ axis fills the available line; wrapped lines use their natural cross-axis size.
 
 For V callers, use `FlexConfig`, `FlexChild`,
 `flex_frames`, `flex`, and `flex_preferred_size`.
-V callers supply measured preferred frames before arranging children.
+Window builders retain authored sizes and measure intrinsic children at allocation time.
+See [Incremental layout](incremental-layout.md) for subtree updates, cache identity,
+relayout boundaries and headless measurement. `flex_frames` remains a pure solver
+for callers supplying measured preferred frames.
 
 ## Responsive grid
 

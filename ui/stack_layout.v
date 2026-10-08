@@ -74,7 +74,11 @@ pub fn stack(config StackConfig) !Element {
 	frames := stack_frames(config)!
 	mut children := []Element{cap: config.children.len}
 	for index, child in config.children {
-		children << Element{ ...child.element, frame: frames[index] }
+		children << Element{ ...layout_declared(child.element), frame: frames[index] }
 	}
-	return view(config.id, config.frame, config.box, children)
+	return Element{
+		...view(config.id, config.frame, config.box, children)
+		layout_input: config.frame
+		layout:       LayoutSpec{ kind: .stack, stack: stack_layout_spec(config) }
+	}
 }

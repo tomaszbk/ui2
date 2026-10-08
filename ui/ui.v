@@ -411,6 +411,9 @@ pub:
 	tooltip           string
 	placeholder       string
 	frame             Rect
+	// Authored geometry is retained separately from the resolved frame.
+	layout_input      ?Rect
+	layout            LayoutSpec
 	box               BoxStyle
 	interaction_style InteractionStyle // custom renderer: sparse visual state overrides
 	content_size      LayoutSize       // custom: fixed logical composition, fit within frame
