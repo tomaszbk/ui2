@@ -7,6 +7,35 @@ $if macos && ui2_embedder ?&& ui2_custom_rendering ?&& !ui2_headless ? {
 	import sokol.sgl
 	import ui2.thirdparty.vglyph
 
+	#flag -DSOKOL_TRACE_HOOKS
+	#include "@VMODROOT/ui/testdata/text_atlas_upload_probe.h"
+
+	fn C.ui2_test_atlas_start()
+	fn C.ui2_test_atlas_stop()
+	fn C.ui2_test_atlas_watch(u32, u32, &u8, usize) bool
+	fn C.ui2_test_atlas_passed() bool
+	fn C.ui2_test_atlas_drawn(u32) bool
+
+	fn text_gpu_test_atlas_generations(ctx &DrawContext, first int) []gg.Image {
+		mut last := first
+		for image in ctx.text_renderer.atlas_images() {
+			if image.id > last { last = image.id }
+		}
+		mut images := []gg.Image{}
+		for id in first .. last + 1 {
+			images << *ctx.inner.get_cached_image_by_idx(id)
+		}
+		return images
+	}
+
+	fn text_gpu_test_bitmap(width int, height int, color [4]u8) vglyph.Bitmap {
+		mut pixels := []u8{len: width * height * 4}
+		for i in 0 .. width * height {
+			for channel in 0 .. 4 { pixels[i * 4 + channel] = color[channel] }
+		}
+		return vglyph.Bitmap{width: width, height: height, channels: 4, data: pixels}
+	}
+
 	fn text_gpu_test_environment() gfx.Environment {
 		return gfx.Environment{
 			defaults: gfx.EnvironmentDefaults{ color_format: .bgra8, depth_format: .@none, sample_count: 1 }
@@ -151,10 +180,27 @@ fn test_text_atlas_uploads_new_glyphs_before_on_demand_submission_and_releases_g
 		assert grown.ssmp == small.ssmp
 		assert gfx.query_image_state(small.simg) == .valid
 		assert gfx.query_image_info(grown.simg).upd_frame_index == 0
+		first_generations := text_gpu_test_atlas_generations(ctx, small.id)
+		C.ui2_test_atlas_start()
+		defer { C.ui2_test_atlas_stop() }
+		for image in first_generations {
+			assert gfx.query_image_state(image.simg) == .valid
+			assert image.ssmp == grown.ssmp
+			if image.simg != grown.simg {
+				assert gfx.query_image_info(image.simg).upd_frame_index == 1
+			}
+			assert C.ui2_test_atlas_watch(image.simg.id, 1, unsafe { nil }, 0)
+		}
 		ctx.end()
+		assert C.ui2_test_atlas_passed()
+		assert C.ui2_test_atlas_drawn(grown.simg.id)
+		C.ui2_test_atlas_stop()
+		for image in first_generations {
+			assert gfx.query_image_state(image.simg) == .valid
+		}
 		C.ui2_embedder_frame_done(window)
 		// No extra frame is required for text introduced by a worker/tooltip.
-		assert gfx.query_image_info(grown.simg).upd_frame_index > 0
+		assert gfx.query_image_info(grown.simg).upd_frame_index == 1
 		assert ctx.inner.frame == 1
 		assert gfx.query_sampler_state(grown.ssmp) == .valid
 
@@ -164,10 +210,40 @@ fn test_text_atlas_uploads_new_glyphs_before_on_demand_submission_and_releases_g
 		ctx.draw_shaped(next, 5, 5)
 		assert gfx.query_image_state(small.simg) != .valid
 		assert gfx.query_sampler_state(grown.ssmp) == .valid
-		before := gfx.query_image_info(grown.simg).upd_frame_index
+		for image in first_generations {
+			if image.simg != grown.simg { assert gfx.query_image_state(image.simg) != .valid }
+		}
+		// Glyph insertion may replace the borrowed first-frame image. Observe
+		// the live image after drawing and keep retired generations separate.
+		live := ctx.text_renderer.atlas_images()[0]
+		before := gfx.query_image_info(live.simg).upd_frame_index
+		assert before < 2
+		second_generations := text_gpu_test_atlas_generations(ctx, grown.id)
+		mut retired_updates := []u32{}
+		C.ui2_test_atlas_start()
+		for image in second_generations {
+			assert gfx.query_image_state(image.simg) == .valid
+			assert image.ssmp == live.ssmp
+			update := gfx.query_image_info(image.simg).upd_frame_index
+			retired_updates << update
+			if image.simg != live.simg { assert update > 0 }
+			assert C.ui2_test_atlas_watch(image.simg.id,
+				if image.simg == live.simg { u32(2) } else { update }, unsafe { nil }, 0)
+		}
 		ctx.end()
+		assert C.ui2_test_atlas_passed()
+		assert C.ui2_test_atlas_drawn(live.simg.id)
+		C.ui2_test_atlas_stop()
 		C.ui2_embedder_frame_done(window)
-		assert gfx.query_image_info(grown.simg).upd_frame_index > before
+		assert ctx.text_renderer.atlas_images()[0].simg == live.simg
+		assert gfx.query_image_info(live.simg).upd_frame_index > before
+		assert gfx.query_image_info(live.simg).upd_frame_index == 2
+		for i, image in second_generations {
+			assert gfx.query_image_state(image.simg) == .valid
+			if image.simg != live.simg {
+				assert gfx.query_image_info(image.simg).upd_frame_index == retired_updates[i]
+			}
+		}
 		assert ctx.inner.frame == 2
 
 		// Resizing at the same DPI keeps atlas ownership; changing DPI replaces
@@ -179,6 +255,10 @@ fn test_text_atlas_uploads_new_glyphs_before_on_demand_submission_and_releases_g
 		ctx.set_surface(640, 360, 1.25, gfx.Swapchain{})
 		assert gfx.query_image_state(previous.simg) != .valid
 		assert gfx.query_sampler_state(previous.ssmp) != .valid
+		for image in second_generations {
+			assert gfx.query_image_state(image.simg) != .valid
+			assert gfx.query_sampler_state(image.ssmp) != .valid
+		}
 		assert ctx.shape_text('DPI stable geometry', style, -1, 1, false)!.size.width == width
 		current := ctx.text_renderer.atlas_images()[0]
 		ctx.destroy()
@@ -187,6 +267,157 @@ fn test_text_atlas_uploads_new_glyphs_before_on_demand_submission_and_releases_g
 		assert ctx.text_renderer == unsafe { nil }
 		assert current.simg.id != 0
 		ctx.destroy()
+	}
+}
+
+fn test_new_glyph_uploads_in_the_submission_frame_without_atlas_growth() {
+	$if macos && ui2_embedder ?&& ui2_custom_rendering ?&& !ui2_headless ? {
+		mut ctx := new_surface_draw_context(gg.Config{width: 320, height: 240}, text_gpu_test_environment())!
+		defer { ctx.destroy() }
+		window := C.ui2_embedder_create(&C.ui2_embedder_config{
+			title: c'UI2 glyph upload verification'
+			width: 320
+			height: 240
+			visible: false
+		}, &C.ui2_embedder_callbacks{}, unsafe { nil })
+		assert window != unsafe { nil }
+		defer { C.ui2_embedder_close(window) }
+		text_gpu_test_surface(mut ctx, window)
+		assert gfx.query_backend() == .metal_macos
+		image := ctx.text_renderer.atlas_images()[0]
+		style := TextStyle{
+			size: 16
+			font_family: os.join_path(@VMODROOT, 'assets', 'fonts', 'Roboto-Regular.ttf')
+		}
+		defer { C.ui2_test_atlas_stop() }
+		for i, value in ['A', 'B'] {
+			if i > 0 { text_gpu_test_surface(mut ctx, window) }
+			ctx.begin()
+			ctx.draw_shaped(ctx.shape_text(value, style, -1, 1, false)!, 5, 5)
+			assert ctx.text_renderer.atlas_images()[0].simg == image.simg
+			assert gfx.query_image_info(image.simg).upd_frame_index == u32(i)
+			C.ui2_test_atlas_start()
+			assert C.ui2_test_atlas_watch(image.simg.id, u32(i + 1), unsafe { nil }, 0)
+			ctx.end()
+			assert C.ui2_test_atlas_passed()
+			assert C.ui2_test_atlas_drawn(image.simg.id)
+			C.ui2_test_atlas_stop()
+			C.ui2_embedder_frame_done(window)
+			assert gfx.query_image_info(image.simg).upd_frame_index == u32(i + 1)
+			assert ctx.inner.frame == u64(i + 1)
+			assert gfx.query_sampler_state(image.ssmp) == .valid
+			assert sgl.error() == .no_error
+		}
+	}
+}
+
+fn test_atlas_growth_submits_retired_and_live_pixels_and_releases_only_retired_images() {
+	$if macos && ui2_embedder ?&& ui2_custom_rendering ?&& !ui2_headless ? {
+		config := gg.Config{width: 320, height: 240}
+		environment := text_gpu_test_environment()
+		mut ctx := new_surface_draw_context(config, environment)!
+		defer { ctx.destroy() }
+		mut guard := new_surface_draw_context(config, environment)!
+		defer { guard.destroy() }
+		guard_image := guard.text_renderer.atlas_images()[0]
+		window := C.ui2_embedder_create(&C.ui2_embedder_config{
+			title: c'UI2 atlas growth verification'
+			width: 320
+			height: 240
+			visible: false
+		}, &C.ui2_embedder_callbacks{}, unsafe { nil })
+		assert window != unsafe { nil }
+		defer { C.ui2_embedder_close(window) }
+		text_gpu_test_surface(mut ctx, window)
+		assert gfx.query_backend() == .metal_macos
+		ctx.text_renderer.free()
+		ctx.text_renderer = vglyph.new_renderer_atlas_size(mut ctx.inner, 8, 8, ctx.scale)
+		retired := ctx.text_renderer.atlas_images()[0]
+		red := text_gpu_test_bitmap(8, 4, [u8(255), 0, 0, 255]!)
+		green := text_gpu_test_bitmap(8, 4, [u8(0), 255, 0, 255]!)
+		blue := text_gpu_test_bitmap(8, 8, [u8(0), 0, 255, 255]!)
+		ctx.begin()
+		ctx.text_renderer.debug_insert_bitmap(red, 0, 0)!
+		ctx.inner.draw_image_with_config(gg.DrawImageConfig{
+			img_id: retired.id
+			img_rect: gg.Rect{ x: 5, y: 5, width: 8, height: 4 }
+			part_rect: gg.Rect{ width: 8, height: 4 }
+		})
+		assert ctx.text_renderer.atlas_images()[0].simg == retired.simg
+		assert gfx.query_image_info(retired.simg).upd_frame_index == 0
+		C.ui2_test_atlas_start()
+		defer { C.ui2_test_atlas_stop() }
+		assert C.ui2_test_atlas_watch(retired.simg.id, 1, unsafe { nil }, 0)
+		ctx.end()
+		assert C.ui2_test_atlas_passed()
+		assert C.ui2_test_atlas_drawn(retired.simg.id)
+		C.ui2_test_atlas_stop()
+		C.ui2_embedder_frame_done(window)
+
+		text_gpu_test_surface(mut ctx, window)
+		ctx.begin()
+		ctx.text_renderer.debug_insert_bitmap(green, 0, 0)!
+		assert ctx.text_renderer.atlas_images()[0].simg == retired.simg
+		assert gfx.query_image_info(retired.simg).upd_frame_index == 1
+		// Queue the old generation before growth. Its newly inserted green
+		// pixels must survive until this frame's Metal submission.
+		ctx.inner.draw_image_with_config(gg.DrawImageConfig{
+			img_id: retired.id
+			img_rect: gg.Rect{ x: 5, y: 5, width: 8, height: 8 }
+		})
+		ctx.text_renderer.debug_insert_bitmap(blue, 0, 0)!
+		live := ctx.text_renderer.atlas_images()[0]
+		assert retired.height == 8
+		assert live.height == 16
+		assert live.simg != retired.simg
+		assert live.ssmp == retired.ssmp
+		assert gfx.query_image_state(retired.simg) == .valid
+		assert gfx.query_image_info(retired.simg).upd_frame_index == 2
+		assert gfx.query_image_info(live.simg).upd_frame_index == 0
+		ctx.inner.draw_image_with_config(gg.DrawImageConfig{
+			img_id: live.id
+			img_rect: gg.Rect{ x: 25, y: 5, width: 8, height: 8 }
+			part_rect: gg.Rect{ y: 8, width: 8, height: 8 }
+		})
+		mut retired_pixels := red.data.clone()
+		retired_pixels << green.data
+		mut live_pixels := retired_pixels.clone()
+		live_pixels << blue.data
+		C.ui2_test_atlas_start()
+		assert C.ui2_test_atlas_watch(retired.simg.id, 2, retired_pixels.data, usize(retired_pixels.len))
+		assert C.ui2_test_atlas_watch(live.simg.id, 2, live_pixels.data, usize(live_pixels.len))
+		ctx.end()
+		assert C.ui2_test_atlas_passed()
+		assert C.ui2_test_atlas_drawn(retired.simg.id)
+		assert C.ui2_test_atlas_drawn(live.simg.id)
+		C.ui2_test_atlas_stop()
+		C.ui2_embedder_frame_done(window)
+		assert ctx.inner.frame == 2
+		assert gfx.query_image_info(retired.simg).upd_frame_index == 2
+		assert gfx.query_image_info(live.simg).upd_frame_index == 2
+		assert gfx.query_image_state(retired.simg) == .valid
+		assert gfx.query_image_state(live.simg) == .valid
+		assert gfx.query_sampler_state(live.ssmp) == .valid
+		assert sgl.error() == .no_error
+
+		// The next draw cleans up submitted generations without another
+		// render frame, and must leave the live image's shared sampler alive.
+		ctx.draw_shaped(ShapedText{}, 0, 0)
+		assert gfx.query_image_state(retired.simg) != .valid
+		assert gfx.query_image_state(live.simg) == .valid
+		assert gfx.query_sampler_state(live.ssmp) == .valid
+		ctx.destroy()
+		assert gfx.query_image_state(live.simg) != .valid
+		assert gfx.query_sampler_state(live.ssmp) != .valid
+		assert gfx.query_image_state(guard_image.simg) == .valid
+		assert gfx.query_sampler_state(guard_image.ssmp) == .valid
+		guard.destroy()
+		assert !gfx.is_valid()
+		mut reopened := new_surface_draw_context(config, environment)!
+		defer { reopened.destroy() }
+		assert gfx.query_image_state(reopened.text_renderer.atlas_images()[0].simg) == .valid
+		reopened.destroy()
+		assert !gfx.is_valid()
 	}
 }
 
