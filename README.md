@@ -46,7 +46,7 @@ updates and dispatchers. See [the embedder contract and acceptance tests](docs/c
 ## Requirements
 
 `ui2` uses the published `tomaszbk/v` compiler revision
-[`80bffb6`](https://github.com/tomaszbk/v/commit/80bffb6af279210c3dca80c155bffb538f11ade7),
+[`9f8f0a7`](https://github.com/tomaszbk/v/commit/9f8f0a71339b8c74932e5108d68fe6530273e78c),
 which includes the compiled VML visual and structural lowering. The V 0.5.2 release binary is insufficient;
 CI bootstraps the verified source revision with pinned `vc` and Boehm GC assets using
 [the shared setup action](.github/actions/setup-v/action.yml).
