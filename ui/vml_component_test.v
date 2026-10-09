@@ -403,7 +403,9 @@ fn test_anonymous_declarations_keep_public_ids_empty_and_private_ownership_stabl
 	first_document.publish = fn (_ string, _ Element) {}
 	second_document.publish = fn (_ string, _ Element) {}
 	mut first := first_document.element(Element{ kind: .label, key: 'item' }, identity: 'source:0')!
-	mut second := second_document.element(Element{ kind: .label, key: 'item' }, identity: 'source:0')!
+	mut second := second_document.element(Element{ kind: .label, key: 'item' },
+		identity: 'source:0'
+	)!
 	assert first.element().id == '' && second.element().id == ''
 	assert first.identity() != second.identity()
 	assert first.identity().starts_with('/compiled:')
@@ -425,4 +427,28 @@ fn test_anonymous_declarations_keep_public_ids_empty_and_private_ownership_stabl
 	assert composite.children[0].identity() != composite.children[1].identity()
 	first_document.dispose()!
 	second_document.dispose()!
+}
+
+fn test_anonymous_ref_is_readable_and_imperative_commands_require_authored_id() ! {
+	mut owner := new_vml_document('anonymous refs')!
+	owner.publish = fn (_ string, _ Element) {}
+	mut reference := owner.ref[VmlTextInput]('field')!
+	mut node := owner.element(Element{ kind: .text_field, text: 'readable' }, identity: 'field')!
+	reference.bind(node)!
+	node.mount()!
+	assert reference.is_available()
+	assert reference.id()! == ''
+	assert reference.element()!.text == 'readable'
+	mut rejected := 0
+	reference.focus() or {
+		assert err.msg().contains('explicit authored id')
+		rejected++
+	}
+	reference.set_text('replacement') or {
+		assert err.msg().contains('explicit authored id')
+		rejected++
+	}
+	assert rejected == 2
+	assert reference.element()!.text == 'readable'
+	owner.dispose()!
 }
