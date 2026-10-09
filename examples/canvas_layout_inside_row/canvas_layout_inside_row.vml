@@ -75,6 +75,8 @@ Screen {
                     cursor: "pointing_hand"
                     tooltip: "Drag me across the divider"
                     rotation: app.rotation
+                    origin_x: 36
+                    origin_y: 36
                     x: app.logo_x
                     y: app.logo_y
                     width: 72

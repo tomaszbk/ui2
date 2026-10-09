@@ -26,6 +26,8 @@ struct FocusNode {
 	enabled     bool
 	scopes      []string
 	transform   ContentTransform
+	parent_transform ContentTransform
+	clip ClipRegion
 	local_frame Rect
 	scrolls     []string
 mut:
@@ -80,20 +82,20 @@ fn (mut manager FocusManager) update(root Element, offsets map[string]f64) {
 }
 
 fn (mut manager FocusManager) update_presented(root Element, offsets map[string]f64, transform ContentTransform) {
-	manager.update_geometry(root, offsets, transform, root.frame)
+	manager.update_geometry(root, offsets, transform, root.frame, ClipRegion{})
 }
 
 fn (mut manager FocusManager) update_mounted(root Element, offsets map[string]f64, viewport Rect, transform ContentTransform) {
-	manager.update_geometry(root, offsets, transform, mounted_root_frame(root, viewport))
+	manager.update_geometry(root, offsets, transform, mounted_root_frame(root, viewport), transformed_clip(viewport, transform))
 }
 
-fn (mut manager FocusManager) update_geometry(root Element, offsets map[string]f64, transform ContentTransform, root_frame Rect) {
+fn (mut manager FocusManager) update_geometry(root Element, offsets map[string]f64, transform ContentTransform, root_frame Rect, clip ClipRegion) {
 	manager.root = root
 	manager.scroll_offsets = offsets.clone()
 	manager.nodes.clear()
 	manager.node_indices.clear()
 	manager.path_indices.clear()
-	manager.collect(root, root_frame, 'root', '', 0, 0, transform, false, true, []string{}, []string{})
+	manager.collect(root, root_frame, 'root', '', 0, 0, transform, clip, false, true, []string{}, []string{})
 	// Validate the complete active chain: a surviving inner scope may have
 	// moved out of its parent, or that parent may have disappeared entirely.
 	mut valid_scopes := 0
@@ -119,11 +121,13 @@ fn (mut manager FocusManager) update_geometry(root Element, offsets map[string]f
 }
 
 fn (mut manager FocusManager) collect(el Element, frame Rect, path string, parent string,
-	off_x f64, off_y f64, transform ContentTransform, ancestor_hidden bool,
+	off_x f64, off_y f64, outer ContentTransform, clip ClipRegion, ancestor_hidden bool,
 	ancestor_enabled bool, scopes []string, scrolls []string) {
 	hidden := ancestor_hidden || el.hidden
 	enabled := ancestor_enabled && el.enabled
 	local := rect(off_x + frame.x, off_y + frame.y, frame.width, frame.height)
+	visual := el.visual_transform().matrix(local) or { return }
+	transform := outer.compose(visual)
 	mut child_scopes := scopes.clone()
 	if el.focus_scope { child_scopes << el.id }
 	index := manager.nodes.len
@@ -139,30 +143,36 @@ fn (mut manager FocusManager) collect(el Element, frame Rect, path string, paren
 		scopes:      child_scopes
 		frame:       transform.project(local)
 		transform:   transform
+		parent_transform: outer
+		clip: clip
 		local_frame: local
 		scrolls:     scrolls
 	}
 	mut child_x := local.x
 	mut child_y := local.y
 	mut child_transform := transform
+	mut child_clip := clip
 	mut child_scrolls := scrolls.clone()
 	if el.kind == .screen {
+		child_clip = clip.intersect(transformed_clip(local, transform))
 		child_x = off_x
 		child_y = off_y
 	}
 	if el.content_size.width > 0 && el.content_size.height > 0 {
 		fit := contain_content(local, el.content_size.width, el.content_size.height) or { return }
 		child_transform = transform.compose(fit)
+		child_clip = clip.intersect(transformed_clip(local, transform))
 		child_x = 0
 		child_y = 0
 	}
 	if el.kind == .scroll {
+		child_clip = child_clip.intersect(transformed_clip(local, transform))
 		child_y -= manager.scroll_offsets[path] or { 0.0 }
 		child_scrolls << path
 	}
 	for i, child in el.children {
 		manager.collect(child, child.frame, reconciliation_child_key(path, i, child), path,
-			child_x, child_y, child_transform, hidden, enabled, child_scopes, child_scrolls)
+			child_x, child_y, child_transform, child_clip, hidden, enabled, child_scopes, child_scrolls)
 	}
 }
 
@@ -308,23 +318,22 @@ fn (mut manager FocusManager) directional(direction FocusDirection) bool {
 fn (manager &FocusManager) reveals(id string) []FocusReveal {
 	node := manager.node(id) or { return []FocusReveal{} }
 	mut result := []FocusReveal{}
-	// Reveal inside out, carrying the control's visible rect after each planned
-	// scroll. Revealing the whole inner viewport would lose targets when that
-	// viewport is taller than its outer ancestor.
-	mut target := node.frame
+	// Carry exact window corners inside out. Only the local Rect scrolling
+	// API needs a bound; the ancestor receives the shifted/clipped polygon.
+	mut target := transformed_clip(node.local_frame, node.transform)
 	for i := node.scrolls.len - 1; i >= 0; i-- {
 		path := node.scrolls[i]
 		pane := manager.path_node(path) or { continue }
-		local := pane.transform.inverse_rect(target)
+		inverse := pane.transform.inverted() or { continue }
+		local_points := target.points.map(inverse.point(it.x, it.y))
+		if local_points.len == 0 { break }
+		local := point_bounds(local_points)
 		offset := manager.scroll_offsets[path] or { 0.0 }
 		request := rect(local.x - pane.local_frame.x, local.y - pane.local_frame.y + offset, local.width, local.height)
-		result << FocusReveal{
-			id:   pane.el.id
-			path: path
-			rect: request
-		}
+		result << FocusReveal{ id: pane.el.id, path: path, rect: request }
 		next := math.min(focus_scroll_maximum(pane.el), focus_reveal_offset(offset, pane.el.frame.height, request))
-		target = intersect_rect(pane.transform.project(rect(local.x, local.y + offset - next, local.width, local.height)), pane.frame)
+		shifted := local_points.map(pane.transform.point(it.x, it.y + offset - next))
+		target = ClipRegion{ bounded: true, points: shifted }.intersect(transformed_clip(pane.local_frame, pane.transform))
 	}
 	return result
 }

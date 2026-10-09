@@ -16,6 +16,20 @@ pub:
 	data     []u8
 }
 
+// A host may clip transformed glyph/background/decoration quads before SGL
+// submission. Vertices are in logical coordinates under the text projection;
+// texture binding and pipeline remain owned by this renderer.
+pub struct QuadVertex {
+pub:
+	x     f32
+	y     f32
+	u     f32
+	v     f32
+	color gg.Color
+}
+
+pub type QuadSink = fn (voidptr, []QuadVertex)
+
 pub struct Renderer {
 mut:
 	ctx               &gg.Context
@@ -26,6 +40,13 @@ mut:
 	scale_factor      f32              = 1.0
 	scale_inv         f32              = 1.0
 	ft_stroker        &C.FT_StrokerRec = unsafe { nil }
+pub mut:
+	quad_sink     QuadSink = unsafe { nil }
+	quad_userdata voidptr
+mut:
+	quad_vertices [4]QuadVertex
+	quad_count    int
+	quad_color    gg.Color
 pub mut:
 	// Profile timing fields - only accessed when -d profile is used
 	rasterize_time_ns     i64
@@ -534,7 +555,7 @@ fn gradient_color_at(stops []GradientStop, t f32) gg.Color {
 
 // emit_decoration_quad emits an untextured quad with optional gradient.
 // Used for underline/strikethrough decorations.
-fn emit_decoration_quad(transform AffineTransform, ox f32, oy f32, lx f32, ly f32,
+fn (mut renderer Renderer) emit_decoration_quad(transform AffineTransform, ox f32, oy f32, lx f32, ly f32,
 	lw f32, lh f32, color gg.Color, use_gradient bool, gradient &GradientConfig,
 	grad_w f32, grad_h f32, grad_x_off f32, grad_y_off f32) {
 	x0, y0 := transform_layout_point(transform, ox, oy, lx, ly)
@@ -548,34 +569,34 @@ fn emit_decoration_quad(transform AffineTransform, ox f32, oy f32, lx f32, ly f3
 			t_right := (lx + lw - grad_x_off) / grad_w
 			c_left := gradient_color_at(gradient.stops, t_left)
 			c_right := gradient_color_at(gradient.stops, t_right)
-			sgl.c4b(c_left.r, c_left.g, c_left.b, c_left.a)
-			sgl.v2f(x0, y0)
-			sgl.c4b(c_right.r, c_right.g, c_right.b, c_right.a)
-			sgl.v2f(x1, y1)
-			sgl.c4b(c_right.r, c_right.g, c_right.b, c_right.a)
-			sgl.v2f(x2, y2)
-			sgl.c4b(c_left.r, c_left.g, c_left.b, c_left.a)
-			sgl.v2f(x3, y3)
+			renderer.quad_color_bytes(c_left.r, c_left.g, c_left.b, c_left.a)
+			renderer.quad_vertex(x0, y0)
+			renderer.quad_color_bytes(c_right.r, c_right.g, c_right.b, c_right.a)
+			renderer.quad_vertex(x1, y1)
+			renderer.quad_color_bytes(c_right.r, c_right.g, c_right.b, c_right.a)
+			renderer.quad_vertex(x2, y2)
+			renderer.quad_color_bytes(c_left.r, c_left.g, c_left.b, c_left.a)
+			renderer.quad_vertex(x3, y3)
 		} else {
 			t_top := (ly - grad_y_off) / grad_h
 			t_bottom := (ly + lh - grad_y_off) / grad_h
 			c_top := gradient_color_at(gradient.stops, t_top)
 			c_bottom := gradient_color_at(gradient.stops, t_bottom)
-			sgl.c4b(c_top.r, c_top.g, c_top.b, c_top.a)
-			sgl.v2f(x0, y0)
-			sgl.c4b(c_top.r, c_top.g, c_top.b, c_top.a)
-			sgl.v2f(x1, y1)
-			sgl.c4b(c_bottom.r, c_bottom.g, c_bottom.b, c_bottom.a)
-			sgl.v2f(x2, y2)
-			sgl.c4b(c_bottom.r, c_bottom.g, c_bottom.b, c_bottom.a)
-			sgl.v2f(x3, y3)
+			renderer.quad_color_bytes(c_top.r, c_top.g, c_top.b, c_top.a)
+			renderer.quad_vertex(x0, y0)
+			renderer.quad_color_bytes(c_top.r, c_top.g, c_top.b, c_top.a)
+			renderer.quad_vertex(x1, y1)
+			renderer.quad_color_bytes(c_bottom.r, c_bottom.g, c_bottom.b, c_bottom.a)
+			renderer.quad_vertex(x2, y2)
+			renderer.quad_color_bytes(c_bottom.r, c_bottom.g, c_bottom.b, c_bottom.a)
+			renderer.quad_vertex(x3, y3)
 		}
 	} else {
-		sgl.c4b(color.r, color.g, color.b, color.a)
-		sgl.v2f(x0, y0)
-		sgl.v2f(x1, y1)
-		sgl.v2f(x2, y2)
-		sgl.v2f(x3, y3)
+		renderer.quad_color_bytes(color.r, color.g, color.b, color.a)
+		renderer.quad_vertex(x0, y0)
+		renderer.quad_vertex(x1, y1)
+		renderer.quad_vertex(x2, y2)
+		renderer.quad_vertex(x3, y3)
 	}
 }
 
@@ -898,7 +919,7 @@ fn (mut renderer Renderer) draw_layout_impl(layout Layout, x f32, y f32,
 	sgl.load_pipeline(renderer.ctx.pipeline.alpha)
 
 	// 1. Draw Backgrounds (Untextured)
-	sgl.begin_quads()
+	renderer.begin_host_quads()
 	for item in layout.items {
 		if item.has_bg_color {
 			run_x := f32(item.x)
@@ -913,14 +934,14 @@ fn (mut renderer Renderer) draw_layout_impl(layout Layout, x f32, y f32,
 			x1, y1 := transform_layout_point(transform, x, y, bg_x + bg_w, bg_y)
 			x2, y2 := transform_layout_point(transform, x, y, bg_x + bg_w, bg_y + bg_h)
 			x3, y3 := transform_layout_point(transform, x, y, bg_x, bg_y + bg_h)
-			sgl.c4b(c.r, c.g, c.b, c.a)
-			sgl.v2f(x0, y0)
-			sgl.v2f(x1, y1)
-			sgl.v2f(x2, y2)
-			sgl.v2f(x3, y3)
+			renderer.quad_color_bytes(c.r, c.g, c.b, c.a)
+			renderer.quad_vertex(x0, y0)
+			renderer.quad_vertex(x1, y1)
+			renderer.quad_vertex(x2, y2)
+			renderer.quad_vertex(x3, y3)
 		}
 	}
-	sgl.end()
+	renderer.end_host_quads()
 
 	// 2. Pre-compute stroke radii and ensure stroker for stroked items
 	for item in layout.items {
@@ -935,7 +956,7 @@ fn (mut renderer Renderer) draw_layout_impl(layout Layout, x f32, y f32,
 	for page_idx, page in renderer.atlas.pages {
 		sgl.enable_texture()
 		sgl.texture(page.image.simg, page.image.ssmp)
-		sgl.begin_quads()
+		renderer.begin_host_quads()
 
 		for item in layout.items {
 			if !item.has_stroke || item.use_original_color {
@@ -991,17 +1012,17 @@ fn (mut renderer Renderer) draw_layout_impl(layout Layout, x f32, y f32,
 					x3, y3 := transform_layout_point(transform, x, y, dst_x, dst_y + dst_h)
 
 					sc := item.stroke_color
-					sgl.c4b(sc.r, sc.g, sc.b, sc.a)
-					sgl.v2f_t2f(x0, y0, u0, v0)
-					sgl.v2f_t2f(x1, y1, u1, v0)
-					sgl.v2f_t2f(x2, y2, u1, v1)
-					sgl.v2f_t2f(x3, y3, u0, v1)
+					renderer.quad_color_bytes(sc.r, sc.g, sc.b, sc.a)
+					renderer.quad_textured_vertex(x0, y0, u0, v0)
+					renderer.quad_textured_vertex(x1, y1, u1, v0)
+					renderer.quad_textured_vertex(x2, y2, u1, v1)
+					renderer.quad_textured_vertex(x3, y3, u0, v1)
 				}
 				cx += f32(glyph.x_advance)
 				cy -= f32(glyph.y_advance)
 			}
 		}
-		sgl.end()
+		renderer.end_host_quads()
 		sgl.disable_texture()
 	}
 
@@ -1009,7 +1030,7 @@ fn (mut renderer Renderer) draw_layout_impl(layout Layout, x f32, y f32,
 	for page_idx, page in renderer.atlas.pages {
 		sgl.enable_texture()
 		sgl.texture(page.image.simg, page.image.ssmp)
-		sgl.begin_quads()
+		renderer.begin_host_quads()
 
 		for item in layout.items {
 			// Skip hollow items (stroke-only with transparent fill)
@@ -1094,46 +1115,46 @@ fn (mut renderer Renderer) draw_layout_impl(layout Layout, x f32, y f32,
 							t_right := (dst_x + dst_w - grad_x_off) / grad_w
 							c_left := gradient_color_at(gradient.stops, t_left)
 							c_right := gradient_color_at(gradient.stops, t_right)
-							sgl.c4b(c_left.r, c_left.g, c_left.b, c_left.a)
-							sgl.v2f_t2f(x0, y0, u0, v0)
-							sgl.c4b(c_right.r, c_right.g, c_right.b, c_right.a)
-							sgl.v2f_t2f(x1, y1, u1, v0)
-							sgl.c4b(c_right.r, c_right.g, c_right.b, c_right.a)
-							sgl.v2f_t2f(x2, y2, u1, v1)
-							sgl.c4b(c_left.r, c_left.g, c_left.b, c_left.a)
-							sgl.v2f_t2f(x3, y3, u0, v1)
+							renderer.quad_color_bytes(c_left.r, c_left.g, c_left.b, c_left.a)
+							renderer.quad_textured_vertex(x0, y0, u0, v0)
+							renderer.quad_color_bytes(c_right.r, c_right.g, c_right.b, c_right.a)
+							renderer.quad_textured_vertex(x1, y1, u1, v0)
+							renderer.quad_color_bytes(c_right.r, c_right.g, c_right.b, c_right.a)
+							renderer.quad_textured_vertex(x2, y2, u1, v1)
+							renderer.quad_color_bytes(c_left.r, c_left.g, c_left.b, c_left.a)
+							renderer.quad_textured_vertex(x3, y3, u0, v1)
 						} else {
 							t_top := (dst_y - grad_y_off) / grad_h
 							t_bottom := (dst_y + dst_h - grad_y_off) / grad_h
 							c_top := gradient_color_at(gradient.stops, t_top)
 							c_bottom := gradient_color_at(gradient.stops, t_bottom)
-							sgl.c4b(c_top.r, c_top.g, c_top.b, c_top.a)
-							sgl.v2f_t2f(x0, y0, u0, v0)
-							sgl.c4b(c_top.r, c_top.g, c_top.b, c_top.a)
-							sgl.v2f_t2f(x1, y1, u1, v0)
-							sgl.c4b(c_bottom.r, c_bottom.g, c_bottom.b, c_bottom.a)
-							sgl.v2f_t2f(x2, y2, u1, v1)
-							sgl.c4b(c_bottom.r, c_bottom.g, c_bottom.b, c_bottom.a)
-							sgl.v2f_t2f(x3, y3, u0, v1)
+							renderer.quad_color_bytes(c_top.r, c_top.g, c_top.b, c_top.a)
+							renderer.quad_textured_vertex(x0, y0, u0, v0)
+							renderer.quad_color_bytes(c_top.r, c_top.g, c_top.b, c_top.a)
+							renderer.quad_textured_vertex(x1, y1, u1, v0)
+							renderer.quad_color_bytes(c_bottom.r, c_bottom.g, c_bottom.b, c_bottom.a)
+							renderer.quad_textured_vertex(x2, y2, u1, v1)
+							renderer.quad_color_bytes(c_bottom.r, c_bottom.g, c_bottom.b, c_bottom.a)
+							renderer.quad_textured_vertex(x3, y3, u0, v1)
 						}
 					} else {
-						sgl.c4b(c.r, c.g, c.b, c.a)
-						sgl.v2f_t2f(x0, y0, u0, v0)
-						sgl.v2f_t2f(x1, y1, u1, v0)
-						sgl.v2f_t2f(x2, y2, u1, v1)
-						sgl.v2f_t2f(x3, y3, u0, v1)
+						renderer.quad_color_bytes(c.r, c.g, c.b, c.a)
+						renderer.quad_textured_vertex(x0, y0, u0, v0)
+						renderer.quad_textured_vertex(x1, y1, u1, v0)
+						renderer.quad_textured_vertex(x2, y2, u1, v1)
+						renderer.quad_textured_vertex(x3, y3, u0, v1)
 					}
 				}
 				cx += f32(glyph.x_advance)
 				cy -= f32(glyph.y_advance)
 			}
 		}
-		sgl.end()
+		renderer.end_host_quads()
 		sgl.disable_texture()
 	}
 
 	// 3. Draw Text Decorations (Untextured)
-	sgl.begin_quads()
+	renderer.begin_host_quads()
 	for item in layout.items {
 		if item.has_underline || item.has_strikethrough {
 			run_x := f32(item.x)
@@ -1145,7 +1166,7 @@ fn (mut renderer Renderer) draw_layout_impl(layout Layout, x f32, y f32,
 				line_w := f32(item.width)
 				line_h := f32(item.underline_thickness)
 
-				emit_decoration_quad(transform, x, y, line_x, line_y, line_w, line_h, item.color,
+				renderer.emit_decoration_quad(transform, x, y, line_x, line_y, line_w, line_h, item.color,
 
 					has_gradient && !item.use_original_color, gradient, grad_w, grad_h, grad_x_off,
 					grad_y_off)
@@ -1157,14 +1178,14 @@ fn (mut renderer Renderer) draw_layout_impl(layout Layout, x f32, y f32,
 				line_w := f32(item.width)
 				line_h := f32(item.strikethrough_thickness)
 
-				emit_decoration_quad(transform, x, y, line_x, line_y, line_w, line_h, item.color,
+				renderer.emit_decoration_quad(transform, x, y, line_x, line_y, line_w, line_h, item.color,
 
 					has_gradient && !item.use_original_color, gradient, grad_w, grad_h, grad_x_off,
 					grad_y_off)
 			}
 		}
 	}
-	sgl.end()
+	renderer.end_host_quads()
 
 	sgl.pop_matrix() // Pop Modelview
 
@@ -1229,4 +1250,35 @@ pub fn (mut renderer Renderer) draw_layout_with_composition(layout Layout, x f32
 	// or shader support. The underlines provide sufficient visual distinction.
 	// Full opacity reduction deferred to future enhancement.
 	renderer.draw_layout(layout, x, y)
+}
+
+fn (mut renderer Renderer) begin_host_quads() {
+	renderer.quad_count = 0
+	if voidptr(renderer.quad_sink) == unsafe { nil } { sgl.begin_quads() }
+}
+
+fn (renderer &Renderer) end_host_quads() {
+	if voidptr(renderer.quad_sink) == unsafe { nil } { sgl.end() }
+}
+
+fn (mut renderer Renderer) quad_color_bytes(r u8, g u8, b u8, a u8) {
+	renderer.quad_color = gg.Color{r, g, b, a}
+	if voidptr(renderer.quad_sink) == unsafe { nil } { sgl.c4b(r, g, b, a) }
+}
+
+fn (mut renderer Renderer) quad_vertex(x f32, y f32) {
+	renderer.quad_textured_vertex(x, y, 0, 0)
+}
+
+fn (mut renderer Renderer) quad_textured_vertex(x f32, y f32, u f32, v f32) {
+	if voidptr(renderer.quad_sink) == unsafe { nil } {
+		sgl.v2f_t2f(x, y, u, v)
+		return
+	}
+	renderer.quad_vertices[renderer.quad_count] = QuadVertex{ x: x, y: y, u: u, v: v, color: renderer.quad_color }
+	renderer.quad_count++
+	if renderer.quad_count == 4 {
+		renderer.quad_sink(renderer.quad_userdata, renderer.quad_vertices[..])
+		renderer.quad_count = 0
+	}
 }

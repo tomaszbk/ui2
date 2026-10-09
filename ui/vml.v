@@ -1,5 +1,7 @@
 module ui2
 
+import strconv
+
 pub struct VNode {
 pub mut:
 	tag      string
@@ -814,7 +816,13 @@ fn node_to_element(node &VNode, frame Rect) !Element {
 		draggable:           node.prop_bool('draggable')
 		long_press:          node.prop_bool('long_press')
 		swipe_left:          node.prop_bool('swipe_left')
-		rotation:            node.prop_or('rotation', '0').f64()
+		translate_x:         v_visual_number(node, 'translate_x', 0)!
+		translate_y:         v_visual_number(node, 'translate_y', 0)!
+		scale_x:             v_visual_number(node, 'scale_x', 1)!
+		scale_y:             v_visual_number(node, 'scale_y', 1)!
+		rotation:            v_visual_number(node, 'rotation', 0)!
+		origin_x:            v_visual_number(node, 'origin_x', 0)!
+		origin_y:            v_visual_number(node, 'origin_y', 0)!
 		cursor:              node.prop('cursor')
 		tooltip:             node.prop('tooltip')
 		hidden:              el.hidden || node.prop_bool('hidden')
@@ -828,6 +836,7 @@ fn node_to_element(node &VNode, frame Rect) !Element {
 		autocorrect:         node.prop('autocorrect') != 'false'
 		padding_left:        node.prop_or('pad_left', el.padding_left.str()).f64()
 	}
+	result.visual_transform().matrix(result.frame)!
 	return if result.button_behavior { with_button_behavior(result) } else { result }
 }
 
@@ -1741,4 +1750,21 @@ fn validate_widget_vnode(node &VNode) ! {
 		}
 	}
 	for child in node.children { validate_widget_vnode(child)! }
+}
+
+const vml_visual_properties = ['translate_x', 'translate_y', 'scale_x', 'scale_y', 'rotation',
+	'origin_x', 'origin_y']
+
+fn v_visual_number(node &VNode, name string, fallback f64) !f64 {
+	raw := node.props[name] or { return fallback }
+	if expression := node.expressions[name] {
+		if expression.kind == .literal && expression.quoted {
+			return error('${name} requires a number at line ${node.line}')
+		}
+	}
+	value := strconv.atof64(raw) or { return error('${name} requires a number at line ${node.line}') }
+	if !finite_number(value) {
+		return error('${name} requires a finite number at line ${node.line}')
+	}
+	return value
 }

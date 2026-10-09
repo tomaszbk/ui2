@@ -850,7 +850,11 @@ fn v_eval_node(node &VNode, incoming_scope map[string]VValue, frame Rect, mut ev
 			|| key in vml_event_properties {
 			continue
 		}
-		resolved.props[key] = v_eval(expr, scope)!.string_value()
+		value := v_eval(expr, scope)!
+		if key in vml_visual_properties && (value.kind != .number || !finite_number(value.number)) {
+			return error('${key} requires a finite number at line ${expr.line}')
+		}
+		resolved.props[key] = value.string_value()
 	}
 	for key, expr in node.expressions {
 		if !key.starts_with('bind.') {
@@ -1111,7 +1115,10 @@ fn v_validate_node_schema[T](node &VNode, incoming_scope map[string]VSchema) ! {
 			|| key in vml_event_properties {
 			continue
 		}
-		v_schema_expression(expr, scope)!
+		schema := v_schema_expression(expr, scope)!
+		if key in vml_visual_properties && schema.kind != .number {
+			return error('${key} requires a number at line ${expr.line}')
+		}
 	}
 	for key, expr in node.expressions {
 		if !key.starts_with('bind.') {

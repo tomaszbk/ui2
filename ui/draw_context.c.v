@@ -4,7 +4,7 @@
 @[has_globals]
 module ui2
 
-$if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
+$if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headless ? {
 	import gg
 	import math
 	import sokol.gfx
@@ -22,39 +22,47 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	fn C.ui2_sgl_discard_commands(context sgl.Context)
 
 	$if android {
-	struct DrawContext {
-	mut:
-		inner &gg.Context = unsafe { nil }
-		width int
-		height int
-		scale f32 = 1
-		content_transform ContentTransform
-		ft &gg.FT = unsafe { nil }
-		font_inited bool
-		owns_surface bool
-		gl_context sgl.Context
-		swapchain gfx.Swapchain
-		image_ids map[int]bool
-		destroyed bool
-	}
+		struct DrawContext {
+		mut:
+			inner               &gg.Context = unsafe { nil }
+			width               int
+			height              int
+			scale               f32 = 1
+			content_transform   ContentTransform
+			clip_base           ClipRegion
+			clip_region         ClipRegion
+			interaction_enabled bool               = true
+			submitted_polygon   fn ([]PaintVertex) = unsafe { nil }
+			ft                  &gg.FT             = unsafe { nil }
+			font_inited         bool
+			owns_surface        bool
+			gl_context          sgl.Context
+			swapchain           gfx.Swapchain
+			image_ids           map[int]bool
+			destroyed           bool
+		}
 	} $else {
-	struct DrawContext {
-	mut:
-		inner &gg.Context = unsafe { nil }
-		width int
-		height int
-		scale f32 = 1
-		content_transform ContentTransform
-		text &TextEngine = unsafe { nil }
-		text_renderer &vglyph.Renderer = unsafe { nil }
-		text_font_generation int = -1
-		font_inited bool
-		owns_surface bool
-		gl_context sgl.Context
-		swapchain gfx.Swapchain
-		image_ids map[int]bool
-		destroyed bool
-	}
+		struct DrawContext {
+		mut:
+			inner                &gg.Context = unsafe { nil }
+			width                int
+			height               int
+			scale                f32 = 1
+			content_transform    ContentTransform
+			clip_base            ClipRegion
+			clip_region          ClipRegion
+			interaction_enabled  bool               = true
+			submitted_polygon    fn ([]PaintVertex) = unsafe { nil }
+			text                 &TextEngine        = unsafe { nil }
+			text_renderer        &vglyph.Renderer   = unsafe { nil }
+			text_font_generation int                = -1
+			font_inited          bool
+			owns_surface         bool
+			gl_context           sgl.Context
+			swapchain            gfx.Swapchain
+			image_ids            map[int]bool
+			destroyed            bool
+		}
 	}
 
 	__global g_draw_device_users = 0
@@ -322,9 +330,23 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 
 		fn (ctx &DrawContext) draw_transformed_layout(mut renderer vglyph.Renderer, layout vglyph.Layout, x f64, y f64) {
 			t := ctx.content_transform
-			if t == ContentTransform{} { renderer.draw_layout(layout, f32(x), f32(y)); return }
-			renderer.draw_layout_transformed(layout, f32(t.x+x*t.scale), f32(t.y+y*t.scale),
-				vglyph.AffineTransform{xx:f32(t.scale), yy:f32(t.scale)})
+			origin := t.point(x, y)
+			renderer.quad_sink = draw_glyph_quad
+			renderer.quad_userdata = voidptr(ctx)
+			renderer.draw_layout_transformed(layout, f32(origin.x), f32(origin.y),
+				vglyph.AffineTransform{ xx: f32(t.xx), xy: f32(t.xy), yx: f32(t.yx), yy: f32(t.yy) })
+			renderer.quad_sink = unsafe { nil }
+			renderer.quad_userdata = unsafe { nil }
+		}
+
+		fn draw_glyph_quad(userdata voidptr, quad []vglyph.QuadVertex) {
+			ctx := unsafe { &DrawContext(userdata) }
+			mut vertices := []PaintVertex{cap: 4}
+			for v in quad {
+				vertices << PaintVertex{ x: f64(v.x), y: f64(v.y), u: f64(v.u), v: f64(v.v), r: f64(v.color.r), g: f64(v.color.g), b: f64(v.color.b), a: f64(v.color.a) }
+			}
+			// vglyph uses a logical projection; do not apply device DPI a second time.
+			ctx.emit_window_polygon(vertices, 1)
 		}
 
 		fn (ctx &DrawContext) prepare_text_draw() {
@@ -360,7 +382,10 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	}
 
 	fn (ctx &DrawContext) begin() {
-		if !ctx.owns_surface { ctx.inner.begin(); return }
+		if !ctx.owns_surface {
+			ctx.inner.begin()
+			return
+		}
 		ctx.activate()
 		$if android {
 			if ctx.font_inited { ctx.ft.flush() }
@@ -379,9 +404,12 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 				renderer.commit()
 			}
 		}
-		if !ctx.owns_surface { ctx.inner.end(); return }
+		if !ctx.owns_surface {
+			ctx.inner.end()
+			return
+		}
 		ctx.activate()
-		gfx.begin_pass(gfx.Pass{action: ctx.inner.clear_pass, swapchain: ctx.swapchain})
+		gfx.begin_pass(gfx.Pass{ action: ctx.inner.clear_pass, swapchain: ctx.swapchain })
 		sgl.draw()
 		gfx.end_pass()
 		gfx.commit()
@@ -434,58 +462,152 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		release_draw_device()
 	}
 
+	fn color_vertex(p Point, c gg.Color) PaintVertex {
+		return PaintVertex{ x: p.x, y: p.y, r: f64(c.r), g: f64(c.g), b: f64(c.b), a: f64(c.a) }
+	}
+	fn (ctx &DrawContext) emit_window_polygon(vertices []PaintVertex, dpi f64) {
+		clipped := ctx.clip_region.clip_polygon(vertices)
+		if clipped.len < 3 { return }
+		$if ui2_geometry_capture ? {
+			if voidptr(ctx.submitted_polygon) != unsafe { nil } { ctx.submitted_polygon(clipped) }
+		}
+		sgl.begin_triangles()
+		for i in 1 .. clipped.len - 1 {
+			for v in [clipped[0], clipped[i], clipped[i + 1]] {
+				sgl.c4b(u8(math.clamp(v.r, 0.0, 255.0)), u8(math.clamp(v.g, 0.0, 255.0)), u8(math.clamp(v.b, 0.0, 255.0)), u8(math.clamp(v.a, 0.0, 255.0)))
+				sgl.v2f_t2f(f32(v.x * dpi), f32(v.y * dpi), f32(v.u), f32(v.v))
+			}
+		}
+		sgl.end()
+	}
+	fn (ctx &DrawContext) draw_local_polygon(points []Point, c gg.Color) {
+		ctx.activate()
+		sgl.load_pipeline(ctx.inner.pipeline.alpha)
+		sgl.disable_texture()
+		vertices := points.map(color_vertex(ctx.content_transform.point(it.x, it.y), c))
+		ctx.emit_window_polygon(vertices, f64(ctx.scale))
+	}
 	fn (ctx &DrawContext) draw_rect_filled(x f32, y f32, w f32, h f32, c gg.Color) {
-		area := presentation_rect(ctx.content_transform.project(rect(f64(x), f64(y), f64(w), f64(h))), f64(ctx.scale))
-		ctx.activate(); ctx.inner.draw_rect_filled(f32(area.x), f32(area.y), f32(area.width), f32(area.height), c)
+		if w <= 0 || h <= 0 { return }
+		area := ctx.content_transform.rounded_local_rect(rect(f64(x), f64(y), f64(w), f64(h)), f64(ctx.scale))
+		ctx.draw_local_polygon(ContentTransform{}.quad(area), c)
 	}
 	fn (ctx &DrawContext) draw_rect_empty(x f32, y f32, w f32, h f32, c gg.Color) {
-		area := presentation_rect(ctx.content_transform.project(rect(f64(x), f64(y), f64(w), f64(h))), f64(ctx.scale))
-		ctx.activate(); ctx.inner.draw_rect_empty(f32(area.x), f32(area.y), f32(area.width), f32(area.height), c)
+		ctx.draw_rounded_rect_empty(x, y, w, h, 0, c)
 	}
 	fn (ctx &DrawContext) draw_rounded_rect_filled(x f32, y f32, w f32, h f32, radius f32, c gg.Color) {
-		area := presentation_rect(ctx.content_transform.project(rect(f64(x), f64(y), f64(w), f64(h))), f64(ctx.scale))
-		ctx.activate(); ctx.inner.draw_rounded_rect_filled(f32(area.x), f32(area.y), f32(area.width), f32(area.height), radius * f32(ctx.content_transform.scale), c)
+		if w <= 0 || h <= 0 { return }
+		if radius <= 0 {
+			ctx.draw_rect_filled(x, y, w, h, c)
+			return
+		}
+		area := ctx.content_transform.rounded_local_rect(rect(f64(x), f64(y), f64(w), f64(h)), f64(ctx.scale))
+		r := math.max(0.0, math.min(f64(radius), math.min(area.width, area.height) / 2))
+		mut points := []Point{}
+		for corner in 0 .. 4 {
+			for index in 0 .. 17 {
+				p := border_corner_point(area, corner, r, r, 180 + f64(corner) * 90 + f64(index) * 90 / 16)
+				points << Point{p.x, p.y}
+			}
+		}
+		ctx.draw_local_polygon(points, c)
 	}
 	fn (ctx &DrawContext) draw_rounded_rect_empty(x f32, y f32, w f32, h f32, radius f32, c gg.Color) {
-		area := presentation_rect(ctx.content_transform.project(rect(f64(x), f64(y), f64(w), f64(h))), f64(ctx.scale))
-		ctx.activate(); ctx.inner.draw_rounded_rect_empty(f32(area.x), f32(area.y), f32(area.width), f32(area.height), radius * f32(ctx.content_transform.scale), c)
+		area := ctx.content_transform.rounded_local_rect(rect(f64(x), f64(y), f64(w), f64(h)), f64(ctx.scale))
+		box_ := BoxStyle{ radius: f64(radius), border_left: 1, border_top: 1, border_right: 1, border_bottom: 1 }
+		for triangle in box_border_triangles(area, box_) {
+			ctx.draw_local_polygon([Point{triangle.a.x, triangle.a.y},
+				Point{triangle.b.x, triangle.b.y}, Point{triangle.c.x, triangle.c.y}], c)
+		}
 	}
 	fn (ctx &DrawContext) draw_triangle_filled(x f32, y f32, x2 f32, y2 f32, x3 f32, y3 f32, c gg.Color) {
-		a := ctx.content_transform.project(rect(f64(x), f64(y), 0, 0))
-		b := ctx.content_transform.project(rect(f64(x2), f64(y2), 0, 0))
-		d := ctx.content_transform.project(rect(f64(x3), f64(y3), 0, 0))
-		ctx.activate(); ctx.inner.draw_triangle_filled(f32(a.x), f32(a.y), f32(b.x), f32(b.y), f32(d.x), f32(d.y), c)
+		ctx.draw_local_polygon([Point{f64(x), f64(y)}, Point{f64(x2), f64(y2)}, Point{f64(x3), f64(y3)}], c)
 	}
 	fn (ctx &DrawContext) draw_line_with_config(x f32, y f32, x2 f32, y2 f32, config gg.PenConfig) {
-		a := ctx.content_transform.project(rect(f64(x), f64(y), 0, 0))
-		b := ctx.content_transform.project(rect(f64(x2), f64(y2), 0, 0))
-		ctx.activate(); ctx.inner.draw_line_with_config(f32(a.x), f32(a.y), f32(b.x), f32(b.y), gg.PenConfig{...config, thickness:config.thickness*f32(ctx.content_transform.scale)})
+		dx := f64(x2 - x)
+		dy := f64(y2 - y)
+		length := math.sqrt(dx * dx + dy * dy)
+		if length <= 0 || config.thickness <= 0 { return }
+		nx := -dy / length * f64(config.thickness) / 2
+		ny := dx / length * f64(config.thickness) / 2
+		ctx.draw_local_polygon([Point{f64(x) + nx, f64(y) + ny}, Point{f64(x2) + nx, f64(y2) + ny},
+			Point{f64(x2) - nx, f64(y2) - ny}, Point{f64(x) - nx, f64(y) - ny}], config.color)
 	}
 	fn (ctx &DrawContext) scissor_rect(x f64, y f64, w f64, h f64) {
-		area := presentation_rect(ctx.content_transform.project(rect(x, y, w, h)), f64(ctx.scale))
+		region := ctx.clip_base.intersect(transformed_clip(rect(x, y, w, h), ctx.content_transform))
+		unsafe { ctx.clip_region = region }
+		ctx.sync_scissor()
+	}
+	fn (ctx &DrawContext) sync_scissor() {
+		// Scissor only accelerates the exact polygon clipper, never defines the clip.
+		// Restoring a paint scope must also restore this backend state, including
+		// an unbounded parent, before another primitive is submitted.
+		area := if ctx.clip_region.bounded { ctx.clip_region.bounds() } else { rect(0, 0, f64(ctx.width), f64(ctx.height)) }
 		ctx.activate()
-		sgl.scissor_rect(int(math.round(area.x * ctx.scale)), int(math.round(area.y * ctx.scale)),
-			int(math.round(area.width * ctx.scale)), int(math.round(area.height * ctx.scale)), true)
+		left := math.floor(area.x * ctx.scale)
+		top := math.floor(area.y * ctx.scale)
+		right := math.ceil((area.x + area.width) * ctx.scale)
+		bottom := math.ceil((area.y + area.height) * ctx.scale)
+		sgl.scissor_rect(int(left), int(top), int(right - left), int(bottom - top), true)
 	}
+
 	$if android {
-	fn (ctx &DrawContext) set_text_cfg(config gg.TextCfg) {
-		ctx.activate(); ctx.inner.set_text_cfg(config)
-	}
-	fn (ctx &DrawContext) text_width(text string) int {
-		ctx.activate(); return ctx.inner.text_width(text)
-	}
-	fn (ctx &DrawContext) text_width_f(text string) f32 {
-		ctx.activate(); return ctx.inner.text_width_f(text)
-	}
-	fn (ctx &DrawContext) draw_text(x int, y int, text string, config gg.TextCfg) {
-		area := ctx.content_transform.project(rect(f64(x),f64(y),0,0))
-		ctx.activate(); ctx.inner.draw_text(int(area.x), int(area.y), text, gg.TextCfg{...config,size:int(f64(config.size)*ctx.content_transform.scale+0.5),max_width:int(f64(config.max_width)*ctx.content_transform.scale)})
-	}
+		fn (ctx &DrawContext) set_text_cfg(config gg.TextCfg) {
+			ctx.activate()
+			ctx.inner.set_text_cfg(config)
+		}
+		fn (ctx &DrawContext) text_width(text string) int {
+			ctx.activate()
+			return ctx.inner.text_width(text)
+		}
+		fn (ctx &DrawContext) text_width_f(text string) f32 {
+			ctx.activate()
+			return ctx.inner.text_width_f(text)
+		}
+		fn (ctx &DrawContext) draw_text(x int, y int, text string, config gg.TextCfg) {
+			area := ctx.content_transform.project(rect(f64(x), f64(y), 0, 0))
+			ctx.activate()
+			ctx.inner.draw_text(int(area.x), int(area.y), text, gg.TextCfg{ ...config, size: int(f64(config.size) * ctx.content_transform.footprint_scale() + 0.5), max_width: int(f64(config.max_width) * ctx.content_transform.footprint_scale()) })
+		}
 	}
 	fn (ctx &DrawContext) draw_image_with_config(config gg.DrawImageConfig) {
-		area := ctx.content_transform.project(rect(f64(config.img_rect.x), f64(config.img_rect.y), f64(config.img_rect.width), f64(config.img_rect.height)))
-		ctx.activate(); ctx.inner.draw_image_with_config(gg.DrawImageConfig{...config, img_rect:gg.Rect{x:f32(area.x),y:f32(area.y),width:f32(area.width),height:f32(area.height)}})
+		img := if config.img != unsafe { nil } {
+			config.img
+		} else {
+			ctx.inner.get_cached_image_by_idx(config.img_id)
+		}
+		if !img.ok || !img.simg_ok || img.width <= 0 || img.height <= 0 { return }
+		area := rect(f64(config.img_rect.x), f64(config.img_rect.y), f64(config.img_rect.width), f64(config.img_rect.height))
+		mut part := config.part_rect
+		if part.width == 0 && part.height == 0 {
+			part = gg.Rect{ width: f32(img.width), height: f32(img.height) }
+		}
+		mut u0 := f64(part.x) / img.width
+		mut u1 := f64(part.x + part.width) / img.width
+		mut v0 := f64(part.y) / img.height
+		mut v1 := f64(part.y + part.height) / img.height
+		if config.flip_x { u0, u1 = u1, u0 }
+		if config.flip_y { v0, v1 = v1, v0 }
+		// Images arrive in local geometry; Element rotation is owned by the common matrix.
+		if config.rotation != 0 { panic('ui2: image rotation must use VisualTransform') }
+		quad := ctx.content_transform.quad(area)
+		uv := [Point{u0, v0}, Point{u1, v0}, Point{u1, v1}, Point{u0, v1}]
+		mut vertices := []PaintVertex{cap: 4}
+		for i, p in quad {
+			vertices << PaintVertex{ ...color_vertex(p, config.color), u: uv[i].x, v: uv[i].y }
+		}
+		ctx.activate()
+		sgl.load_pipeline(if config.effect == .add {
+			ctx.inner.pipeline.add
+		} else {
+			ctx.inner.pipeline.alpha
+		})
+		sgl.enable_texture()
+		sgl.texture(img.simg, img.ssmp)
+		ctx.emit_window_polygon(vertices, f64(ctx.scale))
+		sgl.disable_texture()
 	}
+
 	fn (mut ctx DrawContext) create_image_from_byte_array(bytes []u8, config gg.ImageConfig) !gg.Image {
 		ctx.activate()
 		loaded := ctx.inner.create_image_from_byte_array(bytes, config)!

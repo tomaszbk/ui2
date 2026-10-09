@@ -40,6 +40,7 @@ fn layout_declared(element Element) Element {
 // change without changing a declaration. Device DPI is a presentation concern.
 pub struct LayoutEnvironment {
 	backend_font_version    u64
+	backend_measure_version u64
 	backend_context_version u64
 pub:
 	version      u64
@@ -328,7 +329,7 @@ fn layout_effective_environment(environment LayoutEnvironment, measure LayoutTex
 			} else {
 				u64(0)
 			}
-			return LayoutEnvironment{ ...environment, backend_font_version: u64(g_text_font_generation), backend_context_version: context_version }
+			return LayoutEnvironment{ ...environment, backend_font_version: u64(g_text_font_generation), backend_context_version: context_version, backend_measure_version: if g_cpu_text_engine != unsafe { nil } { g_cpu_text_engine.environment_version } else { u64(0) } }
 		}
 	}
 	return environment

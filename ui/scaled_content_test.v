@@ -4,21 +4,21 @@ import math
 
 fn test_contain_fixed_composition_geometry() {
 	small := contain_content(rect(0, 0, 640, 480), 1280, 720)!
-	assert small == ContentTransform{ scale: 0.5, x: 0, y: 60 }
+	assert small == ContentTransform{ xx: 0.5, yy: 0.5, x: 0, y: 60 }
 	large := contain_content(rect(0, 0, 1920, 1080), 1280, 720)!
-	assert large == ContentTransform{ scale: 1.5 }
+	assert large == ContentTransform{ xx: 1.5, yy: 1.5 }
 	wide := contain_content(rect(0, 0, 1440, 900), 1280, 720)!
-	assert wide == ContentTransform{ scale: 1.125, x: 0, y: 45 }
+	assert wide == ContentTransform{ xx: 1.125, yy: 1.125, x: 0, y: 45 }
 	logical := rect(72, 64, 1136, 592)
 	assert small.project(logical) == rect(36, 92, 568, 296)
 	assert small.inverse_rect(small.project(logical)) == logical
 }
 
 fn test_nested_content_transforms_and_rounding() {
-	outer := ContentTransform{ scale: 0.5, x: 10, y: 20 }
-	inner := ContentTransform{ scale: 1.5, x: 30, y: 40 }
+	outer := ContentTransform{ xx: 0.5, yy: 0.5, x: 10, y: 20 }
+	inner := ContentTransform{ xx: 1.5, yy: 1.5, x: 30, y: 40 }
 	nested := outer.compose(inner)
-	assert nested == ContentTransform{ scale: 0.75, x: 25, y: 40 }
+	assert nested == ContentTransform{ xx: 0.75, yy: 0.75, x: 25, y: 40 }
 	x, y := nested.inverse(100, 115)
 	assert x == 100 && y == 100
 	for dpi in [1.0, 1.25, 1.5, 2.0] {

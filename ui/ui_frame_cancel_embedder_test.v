@@ -58,6 +58,7 @@ $if macos && ui2_custom_rendering ? && ui2_embedder ? && !ui2_headless ? {
 				g_gg_app.ctx = new_surface_draw_context(gg.Config{width: 320, height: 240}, g_draw_device_environment) or { panic(err) }
 				g_gg_app.scheduler.invalidate(.paint)
 			}
+			5 { set_visual_transform('pane', VisualTransform{rotation: 17}) or { panic(err) } }
 			else { panic('unknown cancellation mode') }
 		}
 	}
@@ -74,7 +75,7 @@ $if macos && ui2_custom_rendering ? && ui2_embedder ? && !ui2_headless ? {
 	fn test_owned_paint_callback_cancellation_keeps_frame_and_window_lifetimes() {
 		mode_arg := os.args.filter(it.starts_with('--frame-cancel-mode='))
 		if mode_arg.len == 0 {
-			for mode in 0 .. 5 {
+			for mode in 0 .. 6 {
 				result := os.execute('${os.quoted_path(os.executable())} --frame-cancel-mode=${mode}')
 				eprintln(result.output)
 				assert result.exit_code == 0
@@ -109,6 +110,7 @@ $if macos && ui2_custom_rendering ? && ui2_embedder ? && !ui2_headless ? {
 			frame_cancel_phase = 1
 		})
 		composition := window.app.composition
+		presented := window.app.visual_geometries.clone()
 		draws := scheduler.stats().draws
 		frames := ctx.inner.frame
 		C.ui2_test_watch_drawable(handle)
@@ -118,6 +120,7 @@ $if macos && ui2_custom_rendering ? && ui2_embedder ? && !ui2_headless ? {
 		assert !scheduler.stats().in_flight
 		assert scheduler.stats().draws == draws
 		assert ctx.inner.frame == frames
+		assert window.app.visual_geometries == presented
 		assert gfx.query_frame_stats().frame_index == frame_cancel_gpu_frame
 		assert C.ui2_test_drawable_release_count() == 1
 		assert !C.ui2_test_has_drawable(handle)

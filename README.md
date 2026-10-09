@@ -738,6 +738,8 @@ using the same units as geometry. The default size of 15 means a 15-unit em
 square. Device DPI scales presentation separately; it does not change layout,
 text sizes or line breaks. There is no unit profile or `units` VML property.
 See [logical units](docs/logical-units.md) for migration and rounding rules.
+For affine presentation, exact clipping and pan/zoom, see
+[visual transforms](docs/visual-transforms.md).
 
 The custom desktop renderer uses vglyph/Pango for layout and shaping and
 FreeType for rasterization. Its CPU measurement works before opening a window
