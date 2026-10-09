@@ -42,9 +42,9 @@ updates and dispatchers. See [the embedder contract and acceptance tests](docs/c
 
 ## Requirements
 
-`ui2` requires V development revision
-[`3005dc3`](https://github.com/vlang/v/commit/3005dc383743bb2e2b3642f44307b6e75e7b37e3)
-or a compatible newer compiler. The V 0.5.2 release binary is insufficient;
+`ui2` uses the published `tomaszbk/v` compiler revision
+[`80bffb6`](https://github.com/tomaszbk/v/commit/80bffb6af279210c3dca80c155bffb538f11ade7),
+which includes the compiled VML visual and structural lowering. The V 0.5.2 release binary is insufficient;
 CI bootstraps the verified source revision with pinned `vc` and Boehm GC assets using
 [the shared setup action](.github/actions/setup-v/action.yml).
 The module is split across `ui/`, `appkit/`,

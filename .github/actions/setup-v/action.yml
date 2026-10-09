@@ -5,9 +5,12 @@ inputs:
   c-compiler:
     description: System C compiler used for the bootstrap
     required: true
+  v-repository:
+    description: Repository containing the pinned compiler (including fork-only VML revisions)
+    default: tomaszbk/v
   v-revision:
     description: Verified V source revision
-    default: 3005dc383743bb2e2b3642f44307b6e75e7b37e3
+    default: 80bffb6af279210c3dca80c155bffb538f11ade7
   vc-revision:
     description: Compatible generated C bootstrap snapshot
     default: 8af812feb76c678abd86a8e682fd9ab2790e519c
@@ -21,7 +24,7 @@ runs:
     - name: Check out pinned V sources
       uses: actions/checkout@v4
       with:
-        repository: vlang/v
+        repository: ${{ inputs.v-repository }}
         ref: ${{ inputs.v-revision }}
         path: v-toolchain
         persist-credentials: false
