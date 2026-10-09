@@ -480,3 +480,80 @@ fn test_text_input_and_text_area_refs_require_their_exact_control_kind() ! {
 	owner.dispose()!
 	assert !input_ref.is_available() && !area_ref.is_available()
 }
+
+fn imported_component_runner_build(mut model VmlRunnerFixture) Element {
+	model.builds++
+	mut document := new_vml_document('imported root') or { panic(err) }
+	document.publish = fn (_ string, _ Element) {}
+	model.owner = document
+	document.on_cleanup('closed', fn [mut model] () { model.updates++ }) or { panic(err) }
+	mut owner := document.child('Card') or { panic(err) }
+	_ := owner.state('expanded', false) or { panic(err) }
+	mut node := owner.element(Element{ kind: .label, id: 'caption' }) or { panic(err) }
+	node.effect('text', fn [owner, mut model] (element Element) !Element {
+		owner.watch_app()!
+		return Element{ ...element, text: model.text }
+	}) or { panic(err) }
+	return node.element()
+}
+
+fn test_dispose_document_reaches_implicit_owner_and_keeps_component_removal_local() ! {
+	mut document := new_vml_document('scope removal')!
+	document.publish = fn (_ string, _ Element) {}
+	mut card := document.child('Card')!
+	mut sibling := document.child('Sibling')!
+	_ := document.state('document state', 1)!
+	_ := card.state('card state', 2)!
+	_ := sibling.state('sibling state', 3)!
+	mut node := card.element(Element{ kind: .view, id: 'root' })!
+	node.mount()!
+	card.dispose()!
+	assert !document.is_disposed() && !sibling.is_disposed()
+	node.dispose_document()!
+	assert document.is_disposed() && sibling.is_disposed()
+	assert document.runtime.stats() == SignalStats{}
+	node.dispose_document()!
+}
+
+fn test_runner_shutdown_disposes_the_document_of_an_imported_component_root() ! {
+	mut runtime := compiled_vml_runtime()
+	previous := runtime.controller
+	previous_root := runtime.root
+	defer {
+		runtime.controller = previous
+		runtime.root = previous_root
+	}
+	mut model := &VmlRunnerFixture{ text: 'before' }
+	mut controller := &CompiledVmlController[VmlRunnerFixture]{ model: model, build: imported_component_runner_build }
+	runtime.controller = voidptr(controller)
+	assert compiled_vml_controller_build[VmlRunnerFixture]().text == 'before'
+	assert controller.node.component != model.owner
+	model.text = 'after'
+	assert compiled_vml_controller_build[VmlRunnerFixture]().text == 'after'
+	assert model.builds == 1
+	dispose_compiled_vml()
+	assert model.owner.runtime.stats() == SignalStats{}
+	assert model.updates == 1
+	dispose_compiled_vml()
+	assert model.updates == 1
+}
+
+fn test_validation_failure_disposes_an_imported_root_document_before_returning() ! {
+	mut model := &VmlRunnerFixture{ text: 'invalid root' }
+	run_compiled_vml(CompiledVmlRunConfig[VmlRunnerFixture]{
+		model: model
+		build: fn (mut app VmlRunnerFixture) Element {
+			declaration := imported_component_runner_build(mut app)
+			return Element{ ...declaration, children: [
+				Element{ kind: .label, id: 'duplicate' },
+				Element{ kind: .label, id: 'duplicate' },
+			] }
+		}
+	}) or {
+		assert err.msg().contains('duplicate')
+		assert model.owner.runtime.stats() == SignalStats{}
+		assert model.updates == 1
+		return
+	}
+	assert false
+}

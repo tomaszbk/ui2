@@ -64,7 +64,7 @@ pub fn dispose_compiled_vml() {
 	if runtime.root == unsafe { nil } { return }
 	mut root := runtime.root
 	runtime.root = unsafe { nil }
-	root.component.dispose() or { eprintln('ui2 compiled VML cleanup failed: ${err}') }
+	root.dispose_document() or { eprintln('ui2 compiled VML cleanup failed: ${err}') }
 }
 
 // The compiled builder attaches its callbacks while borrowing this live model.
@@ -79,7 +79,7 @@ pub fn run_compiled_vml[T](config CompiledVmlRunConfig[T]) ! {
 	runtime.initial_bounds = none
 	validate_element_tree(declaration) or {
 		if declaration.compiled_node != unsafe { nil } {
-			declaration.compiled_node.component.dispose()!
+			declaration.compiled_node.dispose_document()!
 		}
 		return err
 	}
