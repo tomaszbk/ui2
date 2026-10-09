@@ -85,7 +85,9 @@ entre snapshots; leer contadores no equivale a medir consumo de CPU o energía.
 
 | Contador | Qué cuenta |
 | --- | --- |
-| `callbacks` | Entradas al callback del renderer, incluso cuando omite el trabajo |
+| `callbacks` | Intentos de comenzar un frame del scheduler, después de la espera Linux |
+| `loop_callbacks` | Entradas al callback UI2 antes de esperar |
+| `waits`, `event_wakeups`, `worker_wakeups`, `deadline_wakeups` | Esperas Linux completadas y sus causas; ver la guía Linux |
 | `builds` | Ejecuciones de la función declarativa de construcción |
 | `draws` | Presentaciones completas emitidas por el renderer |
 | `flushes` | Ciclos de presentación completados |
@@ -93,26 +95,24 @@ entre snapshots; leer contadores no equivale a medir consumo de CPU o energía.
 | `coalesced` | Solicitudes agrupadas cuando ya había trabajo pendiente |
 | `presentation_required` | La superficie exige volver a pintar en cada callback, aunque no haya build |
 
-Esta entrega implementa **1A: omitir trabajo de UI**, del plan de renderizado,
-con una limitación de superficie: cero builds/draws en reposo se verifica en
-Metal. En GL/EGL/D3D el loop de Sokol intercambia o descarta buffers incluso si
-UI2 omite su callback de dibujo. Reutilizar el contenido anterior no es seguro;
-se conserva el árbol y se vuelve a pintar sin construir, con
-`presentation_required = true`. Suprimir esas presentaciones exige que el
-embedder sea dueño del ciclo de presentación.
+En GL/EGL/D3D el loop de Sokol intercambia o descarta buffers cuando retorna el
+callback. Reutilizar el contenido anterior no es seguro: cada callback visible
+que retorna pinta el árbol completo, con `presentation_required = true`. Metal
+puede omitir el dibujo sin ese requisito. Linux bloquea dentro del callback
+antes de dibujar hasta recibir un evento, una tarea o un deadline; durante la
+espera tampoco hay intercambio de buffers. La medición distingue este reposo
+de una omisión de trabajo que siga retornando a cada intervalo.
 
-No se completa **1B: dejar de despertar el event loop**. El camino `gg`/`sokol_app`
-sigue recibiendo callbacks a la cadencia de plataforma; UI2 los usa para drenar
-la cola segura y comprobar deadlines. Una app estática debe tener
-cero nuevos builds y, en Metal, cero draws, aunque `callbacks` siga creciendo.
+Linux completa la espera de eventos/deadlines con el host X11 existente:
+[contrato, API y medición](linux-idle-wait.md). Un callback en reposo bloquea
+antes de dibujar; cada callback visible que retorna sigue repintando GL completo.
+Workers despiertan mediante `eventfd` y sus callbacks se entregan en UI. No se
+consume entrada desde el worker ni se modifica `gg.refresh_ui`.
 
-Se evaluó `gg.ui_mode` en V `3005dc3`: su callback retorna antes de `update_fn`
-cuando no hay refresh, `refresh_ui()` escribe estado sin sincronización y gg
-limpia `needs_refresh` al terminar `frame_fn`. Activarlo sin un wakeup seguro
-bloquearía la entrega de workers/timers o perdería solicitudes reentrantes.
-UI2 mantiene el callback activo y hace el filtrado en su propio coordinador;
-no modifica el checkout de V ni escribe en gg desde workers. La espera real
-por eventos y deadlines corresponde al embedder propio de F2.
+Los demás caminos gg/Sokol mantienen su cadencia de plataforma. Metal omite
+trabajo, pero no demuestra suspensión del loop; el embedder macOS propio sí
+implementa espera. `gg.ui_mode` sigue desactivado para conservar entrega de tareas,
+deadlines e invalidaciones reentrantes.
 
 ## Reproducción de aceptación
 

@@ -2,6 +2,15 @@ module ui2
 
 import sync
 
+// Platform wake resource captured by a coordinator closure. The signal lock
+// protects its descriptor lifetime independently of the renderer/window.
+@[heap]
+struct HostWakeSignal {
+	mutex &sync.Mutex = sync.new_mutex()
+mut:
+	fd int = -1
+}
+
 // RenderReason describes why a custom-renderer frame was requested.
 pub enum RenderReason {
 	build
@@ -21,6 +30,12 @@ pub enum RenderReason {
 // does not imply that the platform event loop stopped waking up.
 pub struct RenderStats {
 pub:
+	loop_callbacks        u64
+	waits                 u64
+	event_wakeups         u64
+	worker_wakeups        u64
+	deadline_wakeups      u64
+	interrupted_waits     u64
 	callbacks             u64
 	builds                u64
 	draws                 u64
@@ -59,6 +74,12 @@ struct FrameWork {
 struct FrameCoordinator {
 	mutex &sync.Mutex = sync.new_mutex()
 mut:
+	loop_callbacks        u64
+	waits                 u64
+	event_wakeups         u64
+	worker_wakeups        u64
+	deadline_wakeups      u64
+	interrupted_waits     u64
 	callbacks             u64
 	builds                u64
 	draws                 u64
@@ -242,6 +263,24 @@ fn (mut coordinator FrameCoordinator) record_draw() {
 	coordinator.draws++
 }
 
+fn (mut coordinator FrameCoordinator) record_loop_callback() {
+	coordinator.mutex.lock()
+	defer { coordinator.mutex.unlock() }
+	coordinator.loop_callbacks++
+}
+
+// The Linux host reports poll outcomes separately from renderer work. A poll
+// can observe both an X11 event and a worker signal; these are not draw counts.
+fn (mut coordinator FrameCoordinator) record_wait(outcome int) {
+	coordinator.mutex.lock()
+	defer { coordinator.mutex.unlock() }
+	coordinator.waits++
+	if outcome > 0 && outcome & 1 != 0 { coordinator.event_wakeups++ }
+	if outcome > 0 && outcome & 2 != 0 { coordinator.worker_wakeups++ }
+	if outcome == 0 { coordinator.deadline_wakeups++ }
+	if outcome == -2 { coordinator.interrupted_waits++ }
+}
+
 // A negative deadline cancels the pending visual timer. The renderer combines
 // its tooltip, cursor and other visual timers into the earliest deadline.
 fn (mut coordinator FrameCoordinator) set_deadline(at i64) {
@@ -305,6 +344,12 @@ fn (mut coordinator FrameCoordinator) is_closed() bool {
 	return coordinator.closed
 }
 
+fn (mut coordinator FrameCoordinator) is_flushing() bool {
+	coordinator.mutex.lock()
+	defer { coordinator.mutex.unlock() }
+	return coordinator.active_serial != 0
+}
+
 fn (mut coordinator FrameCoordinator) post(task fn ()) bool {
 	coordinator.mutex.lock()
 	mut wake := false
@@ -342,6 +387,12 @@ fn (mut coordinator FrameCoordinator) stats() RenderStats {
 	coordinator.mutex.lock()
 	defer { coordinator.mutex.unlock() }
 	return RenderStats{
+		loop_callbacks:        coordinator.loop_callbacks
+		waits:                 coordinator.waits
+		event_wakeups:         coordinator.event_wakeups
+		worker_wakeups:        coordinator.worker_wakeups
+		deadline_wakeups:      coordinator.deadline_wakeups
+		interrupted_waits:     coordinator.interrupted_waits
 		callbacks:             coordinator.callbacks
 		builds:                coordinator.builds
 		draws:                 coordinator.draws

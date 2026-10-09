@@ -106,6 +106,8 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		window_state &CustomWindowState = unsafe { nil }
 		native_window voidptr
 		last_frame i64 = -1
+		linux_signal &HostWakeSignal = unsafe { nil }
+		frame_interval i64
 		surface_retry_at i64 = -1
 		callback_depth int
 		cleanup_pending bool
@@ -736,6 +738,10 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 	// ── Frame & event loop ─────────────────────────────────────────────
 
 	fn on_init(app &GgApp) {
+		$if linux {
+			mut state := unsafe { app }
+			setup_linux_idle(mut state)
+		}
 		mut ctx := app.ctx
 		ctx.sync_gg()
 		// Sokol's GL/EGL/D3D loops swap even when frame_fn returns early. Their
@@ -750,6 +756,9 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		app.scheduler.close()
 		g_drag_registry = DragRegistry{}
 		mut state := unsafe { app }
+		$if linux {
+			if state.linux_signal != unsafe { nil } { state.linux_signal.close() }
+		}
 		if state.ctx != unsafe { nil } {
 			mut ctx := state.ctx
 			ctx.destroy()
@@ -912,8 +921,13 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 	}
 
 	fn on_frame(mut app GgApp) {
+		app.scheduler.record_loop_callback()
 		if app.scheduler.is_closed() || app.ctx == unsafe { nil } || app.draining_tasks { return }
 		dispatch := custom_input_dispatch(&app)
+		$if linux {
+			wait_linux_idle(mut app)
+			if !dispatch.valid() { return }
+		}
 		drain_custom_tasks(mut app)
 		if !dispatch.valid() { return }
 		mut ctx := app.ctx
@@ -1059,6 +1073,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 			if ctx.font_inited { ctx.ft.flush() }
 		}
 		app.scheduler.record_draw()
+		app.last_frame = renderer_now_ms()
 		app.scheduler.set_deadline(custom_visual_deadline())
 		app.scheduler.set_animation_active(custom_animations_need_frame(app.declared_root))
 	}
