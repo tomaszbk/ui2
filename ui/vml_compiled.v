@@ -2,7 +2,7 @@ module ui2
 
 pub struct CompiledVmlRunConfig[T] {
 pub:
-	model      T
+	model      &T                 = unsafe { nil }
 	build      fn (mut T) Element = unsafe { nil }
 	title      string             = 'App'
 	width      int                = 400
@@ -15,7 +15,7 @@ pub:
 struct CompiledVmlController[T] {
 	build fn (mut T) Element = unsafe { nil }
 mut:
-	model T
+	model &T               = unsafe { nil }
 	node  &CompiledVmlNode = unsafe { nil }
 }
 
@@ -66,6 +66,7 @@ pub fn dispose_compiled_vml() {
 
 // The compiled builder attaches its callbacks while borrowing this live model.
 pub fn run_compiled_vml[T](config CompiledVmlRunConfig[T]) ! {
+	if config.model == unsafe { nil } { return error('compiled VML requires a live model') }
 	if config.build == unsafe { nil } { return error('compiled VML requires a build function') }
 	mut controller := &CompiledVmlController[T]{ build: config.build, model: config.model }
 	mut runtime := compiled_vml_runtime()

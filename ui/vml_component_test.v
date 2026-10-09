@@ -264,20 +264,21 @@ fn test_runner_retains_component_builder_and_invalidates_external_app_reads() ! 
 		runtime.controller = previous
 		runtime.root = previous_root
 	}
+	mut model := &VmlRunnerFixture{ text: 'before' }
 	mut controller := &CompiledVmlController[VmlRunnerFixture]{
 		build: component_runner_build
-		model: VmlRunnerFixture{ text: 'before' }
+		model: model
 	}
 	runtime.controller = voidptr(controller)
 	assert compiled_vml_controller_build[VmlRunnerFixture]().text == 'before'
-	controller.model.text = 'after'
+	model.text = 'after'
 	assert compiled_vml_controller_build[VmlRunnerFixture]().text == 'after'
 	assert controller.model.builds == 1
 	dispose_compiled_vml()
 	assert controller.model.owner.runtime.stats() == SignalStats{}
 	mut ordinary := &CompiledVmlController[VmlRunnerFixture]{
 		build: ordinary_runner_build
-		model: VmlRunnerFixture{ text: 'old' }
+		model: &VmlRunnerFixture{ text: 'old' }
 	}
 	runtime.controller = voidptr(ordinary)
 	assert compiled_vml_controller_build[VmlRunnerFixture]().text == 'old'
@@ -322,4 +323,12 @@ fn test_numeric_control_binding_preserves_destination_type() {
 	assert vml_binding_number(0, 3.8) == 3
 	assert vml_binding_number(f64(0), 3.8) == f64(3.8)
 	assert vml_binding_number(f32(0), 3.8) == f32(3.8)
+}
+
+fn test_runner_rejects_missing_model_before_building() {
+	run_compiled_vml(CompiledVmlRunConfig[VmlRunnerFixture]{ build: ordinary_runner_build }) or {
+		assert err.msg() == 'compiled VML requires a live model'
+		return
+	}
+	assert false
 }
