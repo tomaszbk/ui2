@@ -9,6 +9,9 @@ pub enum RenderReason {
 	paint
 	surface
 	animation
+	// Event callbacks may update the model after animation evaluation. Build
+	// their next snapshot without canceling the current animated presentation.
+	animation_follow_up
 	timer
 	worker
 	presentation
@@ -202,7 +205,7 @@ fn (mut coordinator FrameCoordinator) begin_frame(now i64) ?FrameWork {
 	coordinator.active_serial = coordinator.next_serial
 	mut build := false
 	for reason in reasons {
-		if reason in [.build, .surface, .animation, .worker] {
+		if reason in [.build, .surface, .animation, .animation_follow_up, .worker] {
 			build = true
 			break
 		}

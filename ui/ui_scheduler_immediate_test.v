@@ -292,7 +292,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		g_gg_app = app
 		g_scheduler_immediate_events = []string{}
 		g_scheduler_element_events = []ElementEvent{}
-		configure_animation_driver(request_refresh, false)
+		configure_animation_driver(refresh_animation_frame, false)
 		root := screen(0xffffff, [view('animated', rect(0, 0, 40, 40), BoxStyle{}, [])])
 		start_widget_animation_at('animated', animation(AnimationConfig{
 			duration: 1
@@ -315,7 +315,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		// request another build even though the animation no longer needs frames.
 		follow_up := app.scheduler.begin_frame(2_001) or { panic('completion lost its model update') }
 		assert follow_up.build
-		assert follow_up.reasons == [.build]
+		assert follow_up.reasons == [.animation_follow_up]
 		apply_custom_widget_animations_at(root, 2_001)
 		app.scheduler.finish_frame(follow_up)
 		assert g_scheduler_immediate_events == ['completed']
@@ -343,7 +343,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		g_gg_app = app
 		g_scheduler_immediate_events = []string{}
 		g_scheduler_element_events = []ElementEvent{}
-		configure_animation_driver(request_refresh, false)
+		configure_animation_driver(refresh_animation_frame, false)
 		root := screen(0xffffff, [view('animated', rect(0, 0, 40, 40), BoxStyle{}, [])])
 		start_widget_animation_at('animated', animation(AnimationConfig{
 			duration: 1

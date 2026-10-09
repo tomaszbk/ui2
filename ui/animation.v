@@ -100,7 +100,7 @@ pub:
 
 pub type AnimationEventFn = fn (AnimationEvent)
 
-type AnimationRefreshFn = fn ()
+type AnimationRefreshFn = fn (follow_up bool)
 
 // AnimationConfig describes the final values of interpolatable Element
 // properties. Duration and step are seconds, matching Kivy. A zero step updates
@@ -410,7 +410,7 @@ pub fn clear_animation(id string) {
 	runtime.mutex.lock()
 	runtime.runs.delete(id)
 	runtime.mutex.unlock()
-	request_animation_refresh()
+	request_animation_refresh(false)
 }
 
 fn animation_config_properties(config AnimationConfig) []string {
@@ -625,7 +625,7 @@ fn finish_animation(id string, property string, completing bool) {
 	}
 	runtime.mutex.unlock()
 	dispatch_animation_events(pending)
-	request_animation_refresh()
+	request_animation_refresh(false)
 }
 
 fn finish_all_animations(id string, properties []string, completing bool) {
@@ -645,7 +645,7 @@ fn finish_all_animations(id string, properties []string, completing bool) {
 }
 
 fn schedule_animation_frames() {
-	request_animation_refresh()
+	request_animation_refresh(false)
 	mut runtime := g_animation_runtime
 	runtime.mutex.lock()
 	start_driver := runtime.drive_frames && !runtime.driver_running
@@ -664,12 +664,12 @@ fn animation_frame_driver() {
 		if !animations_need_frames(animation_now_ms()) {
 			// The first trailing refresh completes an animation whose deadline was
 			// crossed; the second reflects any application state its callback changed.
-			request_animation_refresh()
+			request_animation_refresh(false)
 			time.sleep(16 * time.millisecond)
-			request_animation_refresh()
+			request_animation_refresh(false)
 			return
 		}
-		request_animation_refresh()
+		request_animation_refresh(false)
 	}
 }
 
@@ -681,13 +681,23 @@ fn configure_animation_driver(callback AnimationRefreshFn, drive_frames bool) {
 	runtime.mutex.unlock()
 }
 
-fn request_animation_refresh() {
+// Automatic event notifications update the next model snapshot; explicit
+// animation mutations still invalidate continuation of the current snapshot.
+fn refresh_animation_frame(follow_up bool) {
+	$if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
+		g_gg_app.scheduler.invalidate(if follow_up { RenderReason.animation_follow_up } else { RenderReason.build })
+	} $else {
+		request_refresh()
+	}
+}
+
+fn request_animation_refresh(follow_up bool) {
 	runtime := g_animation_runtime
 	runtime.mutex.lock()
 	callback := runtime.refresh_callback
 	runtime.mutex.unlock()
 	if voidptr(callback) != unsafe { nil } {
-		callback()
+		callback(follow_up)
 	}
 }
 
@@ -881,7 +891,7 @@ fn dispatch_animation_events(pending []PendingAnimationEvent) {
 	// In particular, completion must schedule one more build after the final
 	// animated values have stopped requesting presentation frames.
 	if pending.len > 0 {
-		request_animation_refresh()
+		request_animation_refresh(true)
 	}
 }
 

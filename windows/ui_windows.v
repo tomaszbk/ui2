@@ -515,7 +515,7 @@ pub fn run_window(title string, width int, height int, build_fn BuildFn) {
 fn run_window_with_min_size(title string, width int, height int, min_width int, min_height int, build_fn BuildFn) {
 	mut st := windows_state()
 	st.build_screen = build_fn
-	configure_animation_driver(request_refresh, true)
+	configure_animation_driver(refresh_animation_frame, true)
 	st.run_config = WindowsRunConfig{
 		title: title
 		width: width

@@ -56,6 +56,25 @@ fn test_frame_scheduler_invalidation_during_flush_survives() {
 	assert coordinator.stats().finished_generation == next.generation
 }
 
+fn test_animation_callback_follow_up_build_preserves_current_frame_and_explicit_invalidation() {
+	mut coordinator := new_frame_coordinator()
+	work := coordinator.begin_frame(0) or { panic('missing current frame') }
+	coordinator.invalidate(.animation_follow_up)
+	assert !coordinator.build_pending()
+	assert coordinator.stats().in_flight && coordinator.stats().pending
+	coordinator.finish_frame(work)
+	next := coordinator.begin_frame(1) or { panic('lost callback model update') }
+	assert next.build && next.draw && next.reasons == [.animation_follow_up]
+	coordinator.invalidate(.animation_follow_up)
+	coordinator.invalidate(.build)
+	assert coordinator.build_pending(), 'automatic work must not hide an explicit unsafe refresh'
+	coordinator.finish_frame(next)
+	final := finish_scheduler_test_frame(mut coordinator, 2)
+	assert final.build && final.reasons == [.animation_follow_up, .build]
+	assert !coordinator.build_pending() && !coordinator.stats().pending
+	if _ := coordinator.begin_frame(3) { assert false, 'finished callback work must return to idle' }
+}
+
 fn test_frame_scheduler_paint_deadline_and_animation_return_to_idle() {
 	mut coordinator := new_frame_coordinator()
 	finish_scheduler_test_frame(mut coordinator, 0)

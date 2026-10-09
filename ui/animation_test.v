@@ -10,7 +10,8 @@ fn animation_test_event_handler(event AnimationEvent) {
 	g_animation_test_events << event
 }
 
-fn animation_test_clear_refresh_handler() {
+fn animation_test_clear_refresh_handler(follow_up bool) {
+	assert !follow_up
 	// A refresh callback may inspect animation state, so it must run outside
 	// the runtime mutex and after the retained values have been removed.
 	assert animation_info('tile').status == .idle

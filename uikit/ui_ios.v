@@ -141,7 +141,7 @@ pub fn bounds() Rect {
 
 pub fn run(build_screen BuildFn) {
 	g_build_screen = build_screen
-	configure_animation_driver(request_refresh, true)
+	configure_animation_driver(refresh_animation_frame, true)
 	ensure_runtime_classes()
 	pool := macos.autorelease_pool_new()
 	defer {

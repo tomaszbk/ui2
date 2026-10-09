@@ -227,7 +227,7 @@ fn run_window_with_min_size(title string, width int, height int, min_width int, 
 	mut st := state()
 	st.layout_tree.clear()
 	st.build_screen = build_fn
-	configure_animation_driver(request_refresh, true)
+	configure_animation_driver(refresh_animation_frame, true)
 	st.run_config = RunConfig{
 		title: title
 		width: width

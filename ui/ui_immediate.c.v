@@ -333,7 +333,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			g_gg_app = &GgApp{}
 		}
 		g_build_screen = build_fn
-		configure_animation_driver(request_refresh, false)
+		configure_animation_driver(refresh_animation_frame, false)
 		publish_menu_context(title, unsafe { nil })
 		// Pick the bundled font before constructing either drawing adapter.
 		font_regular, font_bold := font_paths()
