@@ -296,9 +296,14 @@ fn test_compiled_callbacks_accept_void_signatures_and_absent_listener() {
 		refresh: false
 	)
 	value(ElementEvent{ text: 'payload' })
+	canonical := ElementCallback(fn [mut fixture] (event ElementEvent) {
+		fixture.lifecycle << event.text
+	})
+	alias := vml_callback(canonical, refresh: false)
+	alias(ElementEvent{ text: 'alias' })
 	absent := vml_callback(ElementCallback(unsafe { nil }), refresh: false)
 	absent(ElementEvent{})
-	assert fixture.lifecycle == ['zero', 'payload']
+	assert fixture.lifecycle == ['zero', 'payload', 'alias']
 }
 
 fn test_document_ids_hydrate_control_children_and_defer_inactive_mount() ! {
