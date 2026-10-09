@@ -65,6 +65,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		scroll_parents map[string]string
 		scrollbar_geometries map[string]ScrollbarGeometry
 		hit_targets []HitTarget
+		drag_registry DragRegistry
 		touch TouchState
 		active_fields map[string]bool
 		active_sliders map[string]bool
@@ -196,6 +197,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		state.scroll_parents = g_scroll_parents
 		state.scrollbar_geometries = g_scrollbar_geometries
 		state.hit_targets = g_hit_targets
+		state.drag_registry = g_drag_registry
 		state.touch = g_touch
 		state.active_fields = g_active_fields
 		state.active_sliders = g_active_sliders
@@ -266,6 +268,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		g_scroll_parents = state.scroll_parents
 		g_scrollbar_geometries = state.scrollbar_geometries
 		g_hit_targets = state.hit_targets
+		g_drag_registry = state.drag_registry
 		g_touch = state.touch
 		g_active_fields = state.active_fields
 		g_active_sliders = state.active_sliders

@@ -631,7 +631,7 @@ fn (tree &LayoutTree) output(identity string) Element {
 	node := tree.nodes[identity] or { return Element{} }
 	mut children := []Element{cap: node.children.len}
 	for child in node.children { children << tree.output(child) }
-	return Element{ ...node.declaration, frame: node.frame, children: children }
+	return Element{ ...node.declaration, frame: node.frame, children: children, mounted_generation: node.generation }
 }
 
 struct LayoutPatch {

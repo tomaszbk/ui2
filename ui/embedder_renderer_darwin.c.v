@@ -155,6 +155,7 @@ $if macos && ui2_embedder ? && ui2_custom_rendering ? && !ui2_headless ? {
 			activate_custom_window_state(previous_state)
 			g_gg_app = previous_app
 		}
+		cancel_touch()
 		reset_custom_keyboard()
 		app.scheduler.close()
 		app.cleanup_pending = true
@@ -260,6 +261,7 @@ $if macos && ui2_embedder ? && ui2_custom_rendering ? && !ui2_headless ? {
 			return false
 		} else if event.typ == .key_down {
 			app.scheduler.invalidate(.build)
+			if drag_owned_escape(event.key_code) { return true }
 			g_tooltip.dismiss()
 			dispatch := begin_custom_input_dispatch(app)
 			if custom_key_down(&event, native.skip_dispatch,

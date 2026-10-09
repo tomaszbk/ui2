@@ -39,6 +39,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 			gl_context          sgl.Context
 			swapchain           gfx.Swapchain
 			images              ImageResources
+			destroying          bool
 			destroyed           bool
 		}
 	} $else {
@@ -61,6 +62,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 			gl_context           sgl.Context
 			swapchain            gfx.Swapchain
 			images               ImageResources
+			destroying           bool
 			destroyed            bool
 		}
 	}
@@ -438,7 +440,9 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 	}
 
 	fn (mut ctx DrawContext) destroy() {
-		if ctx.destroyed { return }
+		if ctx.destroyed || ctx.destroying { return }
+		ctx.destroying=true
+		if g_gg_app.ctx==&ctx { cancel_touch() }
 		ctx.activate()
 		$if !android {
 			if ctx.text_renderer != unsafe { nil } { ctx.text_renderer.free() }

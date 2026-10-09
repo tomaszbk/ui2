@@ -31,6 +31,9 @@ The custom renderer also supports retained [vector canvases](docs/vector-canvas.
 typed paths, quadratic/cubic Bézier curves, concave polygons and holes, stroked
 caps/joins and shape-based pointer hits. See `examples/vector_canvas`.
 
+Custom windows support [typed drag sources, drop targets and previews](docs/drag-drop.md).
+Run `v -d ui2_custom_rendering run examples/drag_drop` to try the interaction.
+
 On macOS, the experimental owned embedder adds native windows, Metal surfaces,
 IME composition and a blocking event loop. Enable it with both
 `-d ui2_custom_rendering -d ui2_embedder` for idle sleep.

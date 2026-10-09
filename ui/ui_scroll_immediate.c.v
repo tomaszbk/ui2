@@ -55,7 +55,18 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 			g_scroll_parents.delete(id)
 			g_scrollbar_geometries.delete(id)
 		}
+		mut mounted_hits := []HitTarget{}
+		mut mounted_owners := map[string]HitTarget{}
+		g_dropdown_popup.mounted=false
 		for node in g_focus_navigation.nodes {
+			publish_mounted_pointer(node,mut mounted_hits,mut mounted_owners)
+			if node.el.kind==.dropdown && node.el.id==g_open_dropdown && !node.hidden && node.enabled {
+				mut options := []string{}
+				for entry in node.el.menu { options << entry.title }
+				ctx := g_gg_app.ctx
+				window := if ctx!=unsafe { nil } { rect(0,0,f64(ctx.width),f64(ctx.height)) } else { bounds() }
+				track_dropdown_popup_for(node.el,node.local_frame,node.transform,options,g_text_values[node.el.id] or { node.el.text },window)
+			}
 			if node.el.kind != .scroll { continue }
 			id := scroll_view_state_id(node.el, node.path)
 			g_scroll_targets[id] = HitTarget{ id: node.el.id, kind: .scroll,
@@ -73,6 +84,19 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 				g_scrollbar_geometries.delete(id)
 			}
 		}
+		g_drag_registry.owners=mounted_owners
+		// Popup rows are window overlays; all tree targets came from the same
+		// mounted frames/affine/clip above, including offscreen declarations.
+		if g_dropdown_popup.mounted && g_open_dropdown.len>0 {
+			ctx := g_gg_app.ctx
+			window := if ctx!=unsafe { nil } { rect(0,0,f64(ctx.width),f64(ctx.height)) } else { bounds() }
+			list := dropdown_list_frame(g_dropdown_popup,window)
+			for i, _ in g_dropdown_popup.options {
+				target := dropdown_row_target(g_dropdown_popup,i,list)
+				if target.w>0 && target.h>0 { mounted_hits << target }
+			}
+		}
+		unsafe { g_hit_targets=mounted_hits }
 	}
 
 	fn custom_scroll_dispatch_current(dispatch CustomInputDispatch, ctx &DrawContext, root Element) bool {

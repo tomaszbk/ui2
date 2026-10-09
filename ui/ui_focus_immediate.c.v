@@ -53,15 +53,25 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		el := node.el
 		mut options := []string{}
 		for entry in el.menu { options << entry.title }
+		geometry := element_hit_geometry(el,node.local_frame,node.transform,node.clip)
 		return HitTarget{
+			...geometry
 			identity:                  node.path
 			id:                        el.id
 			kind:                      el.kind
 			on_event:                  el.on_event
-			x:                         node.frame.x
-			y:                         node.frame.y
-			w:                         node.frame.width
-			h:                         node.frame.height
+			clickable: el.clickable
+			draggable: el.draggable
+			long_press: el.long_press
+			swipe_left: el.swipe_left
+			drag_source: el.drag_source
+			drop_target: el.drop_target
+			text_field: el.kind == .text_field
+			text_area: el.kind == .text_area
+			slider: el.kind == .slider
+			slider_frame: node.local_frame
+			slider_padding: el.padding
+			slider_spec: slider_spec(el)
 			checkbox:                  el.kind == .checkbox
 			checkbox_state:            el.checked
 			switch_control:            el.kind == .switch_control

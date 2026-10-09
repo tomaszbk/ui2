@@ -210,6 +210,8 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	}
 
 	fn (mut ctx DrawContext) prepare_image(el Element, quality_scale f64) !ImageEntry {
+		if ctx.destroyed || ctx.destroying { return error('image context is closing') }
+		ctx.activate()
 		mut required := quality_scale
 		if el.image_asset.logical_size.width > 0 && el.frame.width > 0 && el.frame.height > 0 {
 			geometry := image_geometry(el.frame,el.image_asset.logical_size,el.image_style)!
