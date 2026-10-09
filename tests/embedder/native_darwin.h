@@ -66,6 +66,46 @@ static void *ui2_fixture_string(const char *value) {
         ui2_fixture_class("NSString"), sel_registerName("stringWithUTF8String:"), value);
 }
 
+/* Supported Cocoa input methods on the actual owned view. Synthetic NSEvents
+ * exercise host conversion and text interpretation, not physical OS input. */
+static bool ui2_fixture_key(void *window, unsigned short code, const char *value,
+        unsigned long modifiers) {
+    void *view = ui2_fixture_view(window);
+    if (!view) return false;
+    long number = ((long (*)(void *, SEL))objc_msgSend)(window, sel_registerName("windowNumber"));
+    for (unsigned long type = 10; type <= 11; type++) {
+        void *characters = ui2_fixture_string(value);
+        void *event = ((void *(*)(void *, SEL, unsigned long, UI2FixturePoint,
+            unsigned long, double, long, void *, void *, void *, bool,
+            unsigned short))objc_msgSend)(ui2_fixture_class("NSEvent"), sel_registerName(
+            "keyEventWithType:location:modifierFlags:timestamp:windowNumber:context:characters:charactersIgnoringModifiers:isARepeat:keyCode:"),
+            type, (UI2FixturePoint){0, 0}, modifiers, 0, number, NULL,
+            characters, characters, false, code);
+        if (!event) return false;
+        ((void (*)(void *, SEL, void *))objc_msgSend)(view,
+            sel_registerName(type == 10 ? "keyDown:" : "keyUp:"), event);
+    }
+    return true;
+}
+
+static bool ui2_fixture_click(void *window, double x, double y) {
+    void *view = ui2_fixture_view(window);
+    if (!view) return false;
+    UI2FixturePoint position = ((UI2FixturePoint (*)(void *, SEL, UI2FixturePoint, void *))objc_msgSend)(
+        view, sel_registerName("convertPoint:toView:"), (UI2FixturePoint){x, y}, NULL);
+    long number = ((long (*)(void *, SEL))objc_msgSend)(window, sel_registerName("windowNumber"));
+    for (unsigned long type = 1; type <= 2; type++) {
+        void *event = ((void *(*)(void *, SEL, unsigned long, UI2FixturePoint, unsigned long,
+            double, long, void *, long, long, float))objc_msgSend)(ui2_fixture_class("NSEvent"),
+            sel_registerName("mouseEventWithType:location:modifierFlags:timestamp:windowNumber:context:eventNumber:clickCount:pressure:"),
+            type, position, 0, 0, number, NULL, 0, 1, 1);
+        if (!event) return false;
+        ((void (*)(void *, SEL, void *))objc_msgSend)(view,
+            sel_registerName(type == 1 ? "mouseDown:" : "mouseUp:"), event);
+    }
+    return true;
+}
+
 /* Inject through NSTextInputClient, rather than calling the V callback. This
  * checks UTF-16 protocol ranges and native composition snapshots end to end;
  * the interactive mode is used to check an actual configured input method. */

@@ -268,7 +268,9 @@ $if macos && ui2_embedder ? && ui2_custom_rendering ? && !ui2_headless ? {
 				return true
 			}
 			if !dispatch.valid() { return true }
-			if !native.text_input && (g_focused_field.len == 0 || app.editable_fields[g_focused_field]) {
+			// Readonly editors still own navigation and selection. The editor
+			// handler guards mutations; Cocoa text input remains editable-only.
+			if !native.text_input {
 				handle_key_down(event.key_code, event.modifiers)
 			}
 			if !dispatch.valid() { return true }
