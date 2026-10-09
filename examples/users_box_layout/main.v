@@ -181,6 +181,10 @@ pub fn (mut app UsersBoxLayoutDemo) about() {
 }
 
 fn main() {
+	$if windows && !ui2_custom_rendering ? {
+		eprintln('Users Box Layout requires -d ui2_custom_rendering on Windows for proportional image fitting.')
+		return
+	}
 	ui2.run_vml[UsersBoxLayoutDemo](
 		source: users_box_vml_source
 		model: users_box_demo()

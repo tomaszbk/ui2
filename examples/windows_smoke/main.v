@@ -45,13 +45,21 @@ fn build_smoke_screen() ui2.Element {
 				text_style: ui2.TextStyle{}
 				multiline:  true
 			) or { panic(err) },
-			ui2.image('image', '', ui2.rect(12, 190, 40, 40)),
+			smoke_image_element(),
 			ui2.scroll('scroll', ui2.rect(66, 190, 272, 54), 0xf8fafc, [
 				ui2.label('scroll-label', 'Native scrolling container', ui2.rect(8, 8, 220, 24), ui2.TextStyle{}),
 				ui2.label('scroll-overflow', 'overflow', ui2.rect(8, 90, 100, 24), ui2.TextStyle{}),
 			]),
 		]),
 	])
+}
+
+fn smoke_image_element() ui2.Element {
+	el := ui2.image('image', '', ui2.rect(12, 190, 40, 40))
+	$if windows && !ui2_custom_rendering ? {
+		return ui2.Element{ ...el, image_style: ui2.ImageStyle{ fit: .fill } }
+	}
+	return el
 }
 
 fn verify_and_close_smoke_window() {

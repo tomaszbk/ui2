@@ -7,12 +7,13 @@ module ui2
 $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headless ? {
 	import gg
 	import math
-	import os
 	import sokol.sapp
 	import sokol.gfx
 	import time
 
 	struct HitTarget {
+		is_image bool
+		image_geometry ImageGeometry
 		is_vector_canvas bool
 		vector_shapes []VectorShape
 		vector_hit_mode VectorHitMode
@@ -137,6 +138,8 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 	// to fit it. A target without text is an opaque surface drawn over earlier
 	// targets, which hides their tooltips just as it hides the targets.
 	struct TooltipTarget {
+		is_image bool
+		image_geometry ImageGeometry
 		is_vector_canvas bool
 		vector_shapes []VectorShape
 		vector_hit_mode VectorHitMode
@@ -221,7 +224,6 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 	__global g_active_checkboxes = map[string]bool{}
 	__global g_active_toggles = map[string]bool{}
 	__global g_active_scrolls = map[string]bool{}
-	__global g_image_ids = map[string]int{}
 	$if android {
 		__global g_font_metrics = FontMetrics{}
 		__global g_font_files = map[string]string{}
@@ -232,7 +234,6 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		__global g_font_symbol_bases = map[int]bool{}
 		__global g_font_symbol_fons = voidptr(unsafe { nil })
 	}
-	__global g_active_images = map[string]bool{}
 	__global g_open_dropdown = ''
 	__global g_dropdown_popup = DropdownPopup{}
 	__global g_dropdown_hover = -1
@@ -730,13 +731,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		// discarded backbuffers need a full paint; only the Metal path can skip
 		// submission safely until UI2 owns presentation in the platform embedder.
 		app.scheduler.set_presentation_required(gfx.query_backend() != .metal_macos)
-		if voidptr(g_build_screen) == unsafe { nil } {
-			return
-		}
-		// gg/Sokol must receive images during initialization to make their GPU
-		// textures available for the first rendered frame.
-		g_gg_app.scheduler.record_build()
-		preload_images(g_build_screen())
+
 	}
 
 	fn on_cleanup(app &GgApp) {
@@ -938,7 +933,6 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		g_active_checkboxes = map[string]bool{}
 		g_active_toggles = map[string]bool{}
 		g_active_scrolls = map[string]bool{}
-		g_active_images = map[string]bool{}
 		sync_mounted_focus_controls(root, 'root')
 		host_window := app.native_window
 		owned_surface := ctx.owns_surface
@@ -955,7 +949,8 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 			}
 		}
 		// Image resources must be available before starting the GPU pass.
-		preload_images(root)
+		ctx.images.begin_frame()
+		preload_images(mut ctx)
 		previous_geometry := app.visual_geometries
 		app.visual_geometries = map[string]VisualGeometry{}
 		defer {
@@ -1439,10 +1434,10 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 	fn hit_target_contains(target HitTarget, x f64, y f64) bool {
 		broad := presentation_bounds_contains(rect(target.x,target.y,target.w,target.h),x,y)
 		if !broad || (target.has_geometry && !transformed_contains(target.local_frame, target.content_transform, target.clip_region, x, y)) { return false }
-		if !target.is_vector_canvas && target.vector_shapes.len == 0 { return true }
 		local_x, local_y := target.content_transform.inverse(x, y)
-		return vector_shapes_contain(target.vector_shapes, local_x - target.vector_origin.x,
-			local_y - target.vector_origin.y, target.vector_hit_mode)
+		if (target.is_vector_canvas || target.vector_shapes.len > 0) && !vector_shapes_contain(target.vector_shapes,
+			local_x - target.vector_origin.x, local_y - target.vector_origin.y, target.vector_hit_mode) { return false }
+		return !target.is_image || target.image_geometry.contains(local_x,local_y)
 	}
 
 	// A semantic press keeps the action chosen on pointer-down, but the surface
@@ -1483,7 +1478,8 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 				local_frame: mounted.local_frame, content_transform: mounted.transform,
 				clip_region: mounted.clip, has_geometry: true,
 				is_vector_canvas: mounted.el.is_vector_canvas, vector_shapes: mounted.el.vector_shapes,
-				vector_hit_mode: mounted.el.vector_hit_mode, vector_origin: mounted.local_frame }
+				vector_hit_mode: mounted.el.vector_hit_mode, vector_origin: mounted.local_frame,
+				is_image: mounted.el.kind == .image, image_geometry: if mounted.el.kind == .image && g_gg_app.ctx != unsafe { nil } { g_gg_app.ctx.image_hit_geometry_for(mounted.el,mounted.local_frame) or { ImageGeometry{} } } else { ImageGeometry{} } }
 		}
 		return current
 	}
@@ -2191,7 +2187,8 @@ fn page_focused_text_area(direction int) {
 				local_frame: target.local_frame, content_transform: target.content_transform,
 				clip_region: target.clip_region, has_geometry: target.has_geometry,
 				is_vector_canvas: target.is_vector_canvas, vector_shapes: target.vector_shapes,
-				vector_hit_mode: target.vector_hit_mode, vector_origin: target.vector_origin}, x, y) {
+				vector_hit_mode: target.vector_hit_mode, vector_origin: target.vector_origin,
+				is_image: target.is_image, image_geometry: target.image_geometry}, x, y) {
 				return targets[i]
 			}
 		}
@@ -2422,18 +2419,6 @@ fn page_focused_text_area(direction int) {
 				forget_text_area_layout(id)
 			}
 		}
-		mut stale_images := []string{}
-		for path, _ in g_image_ids {
-			if path !in g_active_images {
-				stale_images << path
-			}
-		}
-		mut image_ctx := g_gg_app.ctx
-		for path in stale_images {
-			image_id := g_image_ids[path] or { continue }
-			image_ctx.remove_cached_image_by_idx(image_id)
-			g_image_ids.delete(path)
-		}
 	}
 
 	// ── Rendering ──────────────────────────────────────────────────────
@@ -2443,7 +2428,8 @@ fn page_focused_text_area(direction int) {
 		return HitTarget{x: visible.x, y: visible.y, w: visible.width, h: visible.height,
 			local_frame: area, content_transform: transform, clip_region: clip, has_geometry: true,
 			is_vector_canvas: el.is_vector_canvas, vector_shapes: el.vector_shapes,
-			vector_hit_mode: el.vector_hit_mode, vector_origin: area}
+			vector_hit_mode: el.vector_hit_mode, vector_origin: area, is_image: el.kind == .image,
+			image_geometry: if el.kind == .image && g_gg_app.ctx != unsafe { nil } { g_gg_app.ctx.image_hit_geometry_for(el,area) or { ImageGeometry{} } } else { ImageGeometry{} }}
 	}
 
 	fn resolve_custom_visual_style(declared Element, area Rect, clip Rect, transform ContentTransform) Element {
@@ -2550,11 +2536,11 @@ fn page_focused_text_area(direction int) {
 		// before its children, so a child with hover text of its own wins over
 		// it where they overlap. A surface only has anything to hide once some
 		// target has been registered before it.
-		owns_tooltip := el.tooltip.len > 0
+		owns_tooltip := el.tooltip.len > 0 && el.kind != .image
 		if owns_tooltip {
 			add_element_tooltip(tooltip_key(el, area), el.tooltip, el, area, clip)
 			g_tooltip_owners++
-		} else if g_tooltip_owners == 0 && g_tooltip_targets.len > 0 && tooltip_hides_beneath(el) {
+		} else if g_tooltip_owners == 0 && g_tooltip_targets.len > 0 && tooltip_hides_beneath(el) && el.kind != .image {
 			add_element_tooltip('', '', el, area, clip)
 		}
 		defer {
@@ -2655,26 +2641,23 @@ fn page_focused_text_area(direction int) {
 				add_full_text_tooltip(el, area, clip, el.text, shortened)
 			}
 			.image {
-				x := el.frame.x + off_x
-				y := el.frame.y + off_y
-				if el.image_path.trim_space().len > 0
-					&& !draw_cached_image(ctx, el.image_path, x, y, el.frame.width, el.frame.height) {
-					draw_rect(ctx, x, y, el.frame.width, el.frame.height, 0xe8ecef, 0)
+				geometry := ctx.image_geometry_for(el,area) or {
+					if el.image_path.len > 0 { draw_rect(ctx,area.x,area.y,area.width,area.height,0xe8ecef,0) }
+					return
 				}
-				if el.enabled && voidptr(el.on_event) != unsafe { nil }
-					&& (el.clickable || el.draggable) {
-					add_hit_target(HitTarget{
-						identity:  path
-						kind:      el.kind
-						id:        el.id
-						on_event:  el.on_event
-						x:         x
-						y:         y
-						w:         el.frame.width
-						h:         el.frame.height
-						clickable: el.clickable
-						draggable: el.draggable
-					}, clip)
+				ctx.draw_asset_image(el,geometry)
+				if el.tooltip.len > 0 || (g_tooltip_owners == 0 && g_tooltip_targets.len > 0) {
+					count := g_tooltip_targets.len
+					add_tooltip_target(tooltip_key(el,area),el.tooltip,area,clip)
+					if g_tooltip_targets.len > count {
+						last := g_tooltip_targets.last()
+						g_tooltip_targets[g_tooltip_targets.len-1] = TooltipTarget{...last,is_image:true,image_geometry:geometry}
+					}
+				}
+				if el.enabled && voidptr(el.on_event) != unsafe { nil } && (el.clickable || el.draggable) {
+					add_hit_target(HitTarget{identity:path,kind:el.kind,id:el.id,on_event:el.on_event,
+						x:area.x,y:area.y,w:area.width,h:area.height,is_image:true,image_geometry:geometry,
+						clickable:el.clickable,draggable:el.draggable},clip)
 				}
 			}
 			.button {
@@ -2690,7 +2673,7 @@ fn page_focused_text_area(direction int) {
 				image_layout := button_image_layout(el.frame.width, el.frame.height, el.text,
 					el.image_path)
 				if image_layout.visible {
-					draw_button_image(ctx, el.image_path, x + image_layout.image.x,
+					draw_button_image(ctx, el, x + image_layout.image.x,
 						y + image_layout.image.y, image_layout.image.width, image_layout.image.height,
 						el.text_style)
 				}
@@ -3108,26 +3091,6 @@ fn page_focused_text_area(direction int) {
 		}
 	}
 
-	fn draw_cached_image(ctx &DrawContext, path string, x f64, y f64, width f64, height f64) bool {
-		if !cache_image(path) { return false }
-		image_id := g_image_ids[path] or { return false }
-		mut image_ctx := g_gg_app.ctx
-		cached_image := image_ctx.get_cached_image_by_idx(image_id)
-		if !cached_image.ok {
-			return false
-		}
-		ctx.draw_image_with_config(
-			img:      cached_image
-			img_rect: gg.Rect{
-				x:      f32(x)
-				y:      f32(y)
-				width:  f32(width)
-				height: f32(height)
-			}
-		)
-		return true
-	}
-
 	struct ButtonImageLayout {
 		visible bool
 		image   Rect
@@ -3179,7 +3142,8 @@ fn page_focused_text_area(direction int) {
 		}
 	}
 
-	fn draw_button_image(ctx &DrawContext, image_path string, x f64, y f64, width f64, height f64, style TextStyle) {
+	fn draw_button_image(ctx &DrawContext, el Element, x f64, y f64, width f64, height f64, style TextStyle) {
+		image_path := el.image_path
 		if image_path.starts_with('symbol:') {
 			symbol := system_symbol_fallback(image_path['symbol:'.len..])
 			draw_text_centered(ctx, symbol, x, y, width, height, TextStyle{
@@ -3189,7 +3153,12 @@ fn page_focused_text_area(direction int) {
 			})
 			return
 		}
-		if !draw_cached_image(ctx, image_path, x, y, width, height) {
+		image_el := Element{...el, frame:rect(x,y,width,height),rotation:0}
+		geometry := ctx.image_geometry_for(image_el,image_el.frame) or {
+			draw_outline(ctx, x, y, width, height, 0x94a3b8, 2)
+			return
+		}
+		if !ctx.draw_asset_image(image_el, geometry) {
 			draw_outline(ctx, x, y, width, height, 0x94a3b8, 2)
 		}
 	}
@@ -3288,42 +3257,20 @@ fn page_focused_text_area(direction int) {
 		}
 	}
 
-	fn preload_images(el Element) {
-		if el.hidden {
-			return
+	fn preload_images(mut ctx DrawContext) {
+		// The all-mounted producer already resolved frames, scroll and affine
+		// bases. Offscreen consumers use that same current footprint as paint.
+		for node in g_focus_navigation.nodes {
+			if node.hidden { continue }
+			el := node.el
+			quality := f64(ctx.scale) * node.transform.footprint_scale()
+			if el.kind == .image && el.image_path.len > 0 {
+				ctx.prepare_image(el,quality) or { eprintln('ui2: ${err}') }
+			} else if el.kind == .button && el.image_path.len > 0 && !el.image_path.starts_with('symbol:') {
+				layout := button_image_layout(el.frame.width,el.frame.height,el.text,el.image_path)
+				ctx.prepare_image(Element{...el,frame:layout.image},quality) or { eprintln('ui2: ${err}') }
+			}
 		}
-		if el.kind == .image
-			|| (el.kind == .button && el.image_path.trim_space().len > 0
-			&& !el.image_path.starts_with('symbol:')) {
-			cache_image(el.image_path)
-		}
-		for child in el.children {
-			preload_images(child)
-		}
-	}
-
-	fn cache_image(path string) bool {
-		if path.trim_space() == '' {
-			return false
-		}
-		g_active_images[path] = true
-		if path in g_image_ids {
-			return true
-		}
-		mut image_ctx := g_gg_app.ctx
-		// `create_image` keeps an uninitialized copy in gg's post-startup image
-		// cache on the Linux renderer. Loading from bytes uses the initialized
-		// cache path, so raster images added after startup are drawable too.
-		image_bytes := os.read_bytes(path) or {
-			eprintln('ui2: could not read image `${path}`: ${err}')
-			return false
-		}
-		loaded_image := image_ctx.create_image_from_byte_array(image_bytes, gg.ImageConfig{}) or {
-			eprintln('ui2: could not load image `${path}`: ${err}')
-			return false
-		}
-		g_image_ids[path] = loaded_image.id
-		return true
 	}
 
 	// ── Drawing helpers ────────────────────────────────────────────────

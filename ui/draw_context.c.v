@@ -38,7 +38,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 			owns_surface        bool
 			gl_context          sgl.Context
 			swapchain           gfx.Swapchain
-			image_ids           map[int]bool
+			images              ImageResources
 			destroyed           bool
 		}
 	} $else {
@@ -60,7 +60,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 			owns_surface         bool
 			gl_context           sgl.Context
 			swapchain            gfx.Swapchain
-			image_ids            map[int]bool
+			images               ImageResources
 			destroyed            bool
 		}
 	}
@@ -396,6 +396,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 	}
 
 	fn (ctx &DrawContext) end() {
+		unsafe { mut images := &ctx.images; images.commit() }
 		$if !android {
 			if !ctx.destroyed && ctx.text_renderer != unsafe { nil } {
 				mut renderer := ctx.text_renderer
@@ -406,6 +407,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		}
 		if !ctx.owns_surface {
 			ctx.inner.end()
+			unsafe { mut images := &ctx.images; images.finish_frame() }
 			return
 		}
 		ctx.activate()
@@ -413,7 +415,8 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		sgl.draw()
 		gfx.end_pass()
 		gfx.commit()
-		unsafe { ctx.inner.frame++ }
+		unsafe { ctx.inner.frame++
+			mut images := &ctx.images; images.finish_frame() }
 	}
 
 	// begin records commands; the GPU pass starts only in end. An invalidated
@@ -422,6 +425,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		if ctx.destroyed || !gfx.is_valid() { return }
 		context := if ctx.owns_surface { ctx.gl_context } else { sgl.default_context() }
 		C.ui2_sgl_discard_commands(context)
+		unsafe { mut images := &ctx.images; images.cancel_frame() }
 	}
 
 	fn release_draw_device() {
@@ -443,12 +447,11 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 			ctx.text = unsafe { nil }
 		}
 		ctx.font_inited = false
+		ctx.images.destroy()
 		if !ctx.owns_surface {
 			ctx.destroyed = true
 			return
 		}
-		for id, _ in ctx.image_ids { ctx.inner.remove_cached_image_by_idx(id) }
-		ctx.image_ids.clear()
 		$if android {
 			if ctx.ft != unsafe { nil } { sfons.destroy(ctx.ft.fons) }
 			ctx.ft = unsafe { nil }
@@ -569,63 +572,5 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 			ctx.activate()
 			ctx.inner.draw_text(int(area.x), int(area.y), text, gg.TextCfg{ ...config, size: int(f64(config.size) * ctx.content_transform.footprint_scale() + 0.5), max_width: int(f64(config.max_width) * ctx.content_transform.footprint_scale()) })
 		}
-	}
-	fn (ctx &DrawContext) draw_image_with_config(config gg.DrawImageConfig) {
-		img := if config.img != unsafe { nil } {
-			config.img
-		} else {
-			ctx.inner.get_cached_image_by_idx(config.img_id)
-		}
-		if !img.ok || !img.simg_ok || img.width <= 0 || img.height <= 0 { return }
-		area := rect(f64(config.img_rect.x), f64(config.img_rect.y), f64(config.img_rect.width), f64(config.img_rect.height))
-		mut part := config.part_rect
-		if part.width == 0 && part.height == 0 {
-			part = gg.Rect{ width: f32(img.width), height: f32(img.height) }
-		}
-		mut u0 := f64(part.x) / img.width
-		mut u1 := f64(part.x + part.width) / img.width
-		mut v0 := f64(part.y) / img.height
-		mut v1 := f64(part.y + part.height) / img.height
-		if config.flip_x { u0, u1 = u1, u0 }
-		if config.flip_y { v0, v1 = v1, v0 }
-		// Images arrive in local geometry; Element rotation is owned by the common matrix.
-		if config.rotation != 0 { panic('ui2: image rotation must use VisualTransform') }
-		quad := ctx.content_transform.quad(area)
-		uv := [Point{u0, v0}, Point{u1, v0}, Point{u1, v1}, Point{u0, v1}]
-		mut vertices := []PaintVertex{cap: 4}
-		for i, p in quad {
-			vertices << PaintVertex{ ...color_vertex(p, config.color), u: uv[i].x, v: uv[i].y }
-		}
-		ctx.activate()
-		sgl.load_pipeline(if config.effect == .add {
-			ctx.inner.pipeline.add
-		} else {
-			ctx.inner.pipeline.alpha
-		})
-		sgl.enable_texture()
-		sgl.texture(img.simg, img.ssmp)
-		ctx.emit_window_polygon(vertices, f64(ctx.scale))
-		sgl.disable_texture()
-	}
-
-	fn (mut ctx DrawContext) create_image_from_byte_array(bytes []u8, config gg.ImageConfig) !gg.Image {
-		ctx.activate()
-		loaded := ctx.inner.create_image_from_byte_array(bytes, config)!
-		if ctx.owns_surface {
-			if gfx.query_image_state(loaded.simg) != .valid || gfx.query_sampler_state(loaded.ssmp) != .valid {
-				ctx.inner.remove_cached_image_by_idx(loaded.id)
-				return error('could not allocate the image GPU resources')
-			}
-			ctx.image_ids[loaded.id] = true
-		}
-		return loaded
-	}
-	fn (mut ctx DrawContext) get_cached_image_by_idx(id int) &gg.Image {
-		return ctx.inner.get_cached_image_by_idx(id)
-	}
-	fn (mut ctx DrawContext) remove_cached_image_by_idx(id int) {
-		ctx.activate()
-		ctx.inner.remove_cached_image_by_idx(id)
-		ctx.image_ids.delete(id)
 	}
 }

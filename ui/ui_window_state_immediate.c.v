@@ -72,8 +72,6 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		active_checkboxes map[string]bool
 		active_toggles map[string]bool
 		active_scrolls map[string]bool
-		image_ids map[string]int
-		active_images map[string]bool
 		legacy_fonts CustomFontState
 		open_dropdown string
 		dropdown_popup DropdownPopup
@@ -205,8 +203,6 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		state.active_checkboxes = g_active_checkboxes
 		state.active_toggles = g_active_toggles
 		state.active_scrolls = g_active_scrolls
-		state.image_ids = g_image_ids
-		state.active_images = g_active_images
 		$if android {
 			state.legacy_fonts.font_metrics = g_font_metrics
 			state.legacy_fonts.font_files = g_font_files
@@ -277,8 +273,6 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		g_active_checkboxes = state.active_checkboxes
 		g_active_toggles = state.active_toggles
 		g_active_scrolls = state.active_scrolls
-		g_image_ids = state.image_ids
-		g_active_images = state.active_images
 		$if android {
 			g_font_metrics = state.legacy_fonts.font_metrics
 			g_font_files = state.legacy_fonts.font_files

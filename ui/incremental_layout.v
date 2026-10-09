@@ -210,7 +210,7 @@ fn layout_metric_style(style TextStyle) TextStyle {
 fn layout_metric_key(element Element, input Rect) string {
 	runs := element.text_runs.map(TextRun{ text: it.text.bytes().hex(), style: layout_metric_style(it.style) })
 	// Hex-encode user strings so delimiters cannot alias key components.
-	return '${element.kind}|${input}|${element.hidden}|${element.text.bytes().hex()}|${element.placeholder.bytes().hex()}|${layout_metric_style(element.text_style)}|${runs}|${element.layout}|${element.content_size}|${element.padding_left}|${element.disable_scroll}|${element.secure}|${element.image_path.bytes().hex()}'
+	return '${element.kind}|${input}|${element.hidden}|${element.text.bytes().hex()}|${element.placeholder.bytes().hex()}|${layout_metric_style(element.text_style)}|${runs}|${element.layout}|${element.content_size}|${element.padding_left}|${element.disable_scroll}|${element.secure}|${element.image_path.bytes().hex()}|${element.image_asset.logical_size}'
 }
 
 fn (mut tree LayoutTree) reconcile(element Element, parent string, mut active map[string]bool) string {
