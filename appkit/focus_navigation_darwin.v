@@ -47,11 +47,28 @@ $if !ui2_custom_rendering ? {
 
 	fn reveal_appkit_focus(id string) {
 		st := state()
+		window := st.window
+		root_view := st.root_view
+		manager := st.navigation
+		root := manager.root
+		tree := st.layout_tree
+		revision := tree.revision
+		lifecycle := st.keyboard_generation
+		target := st.views[id] or { return }
+		if focused_id() != id || manager.current != id { return }
 		for request in st.navigation.reveals(id) {
 			key := st.navigation_paths[request.path] or { continue }
 			pane_view := st.nodes[key] or { continue }
 			doc := macos.msg_id(pane_view, 'documentView')
 			macos.msg_void_rect(doc, 'scrollRectToVisible:', appkit_rect(element_rect(request.rect)))
+			// Bounds notifications synchronously run application callbacks. A
+			// redirected focus or remount owns its own reveal, including outer panes.
+			if state() != st || st.window != window || st.root_view != root_view
+				|| st.keyboard_generation != lifecycle || st.navigation != manager
+				|| manager.root != root || st.layout_tree != tree || tree.revision != revision
+				|| (st.views[id] or { native_nil_view() }) != target
+				|| (st.nodes[key] or { native_nil_view() }) != pane_view
+				|| manager.current != id || focused_id() != id { return }
 		}
 		sync_focus_navigation()
 	}

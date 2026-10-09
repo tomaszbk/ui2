@@ -306,12 +306,28 @@ pub fn focus(id string) {
 	sync_focus_navigation()
 	if !g_ios_navigation.can_focus(id) { return }
 	native := g_views[id] or { return }
-	if macos.msg_bool(native, 'becomeFirstResponder') { g_ios_navigation.current = id }
+	window := g_window
+	root_view := g_root_view
+	manager := g_ios_navigation
+	root := manager.root
+	tree := g_layout_tree
+	revision := tree.revision
+	if !macos.msg_bool(native, 'becomeFirstResponder') { return }
+	if g_window != window || g_root_view != root_view || g_ios_navigation != manager
+		|| manager.root != root || g_layout_tree != tree || tree.revision != revision
+		|| (g_views[id] or { View(unsafe { nil }) }) != native || focused_id() != id { return }
+	manager.current = id
 	for request in g_ios_navigation.reveals(id) {
 		key := g_ios_navigation_paths[request.path] or { continue }
 		pane := g_nodes[key] or { continue }
 		C.ui2_ios_scroll_rect_visible(pane, request.rect.x, request.rect.y,
 			request.rect.width, request.rect.height, false)
+		// Non-animated scrolling can synchronously invoke the Scroll delegate.
+		if g_window != window || g_root_view != root_view || g_ios_navigation != manager
+			|| manager.root != root || g_layout_tree != tree || tree.revision != revision
+			|| (g_views[id] or { View(unsafe { nil }) }) != native
+			|| (g_nodes[key] or { View(unsafe { nil }) }) != pane
+			|| manager.current != id || focused_id() != id { return }
 	}
 	sync_focus_navigation()
 }

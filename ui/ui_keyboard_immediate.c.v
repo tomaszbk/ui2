@@ -66,12 +66,15 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		return custom_input_dispatch(app)
 	}
 
-	fn (dispatch CustomInputDispatch) valid() bool {
+	fn (dispatch CustomInputDispatch) owner_current() bool {
 		return dispatch.app == g_gg_app
 			&& dispatch.window == g_active_custom_window_state
-			&& dispatch.generation == dispatch.window.input_generation
 			&& dispatch.scheduler == dispatch.app.scheduler
 			&& !dispatch.scheduler.is_closed()
+	}
+
+	fn (dispatch CustomInputDispatch) valid() bool {
+		return dispatch.owner_current() && dispatch.generation == dispatch.window.input_generation
 	}
 
 	fn own_custom_activation(code KeyCode) {

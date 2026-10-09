@@ -1,8 +1,78 @@
 // vfmt off
+@[has_globals]
 module ui2
 
 $if !ui2_custom_rendering ? {
 import macos
+import os
+
+__global native_reveal_mode int
+__global native_reveal_armed bool
+__global native_reveal_events = []string{}
+__global native_reveal_after_callback f64
+
+fn native_reveal_root(replaced bool) Element {
+	return screen(0xffffff, [Element{kind: .scroll, id: 'outer', frame: rect(10, 10, 240, 100), on_event: native_reveal_scroll,
+		children: [
+			Element{kind: .button, id: 'redirect', text: 'Redirect', frame: rect(0, 0, 120, 30)},
+			Element{kind: .scroll, id: 'inner', frame: rect(0, if replaced { 40 } else { 400 }, 180, 100), on_event: native_reveal_scroll,
+				children: [Element{kind: if replaced && native_reveal_mode == 3 { Kind.text_field } else { Kind.button }, id: 'target',
+					text: 'Target ñ', frame: rect(0, if replaced { 0 } else { 400 }, 120, 30)}]},
+			Element{kind: .label, id: 'tail', text: 'extent', frame: rect(0, 900, 120, 30)},
+		]}])
+}
+
+fn native_reveal_scroll(event ElementEvent) {
+	if event.kind != .scroll { return }
+	native_reveal_events << '${event.id}:${event.value}'
+	if !native_reveal_armed || event.id != 'inner' { return }
+	native_reveal_armed = false
+	if native_reveal_mode == 1 {
+		focus('redirect')
+	} else if native_reveal_mode in [2, 3] {
+		render_root(native_reveal_root(true))
+		focus('target')
+	}
+	native_reveal_after_callback = scroll_offset('outer')
+}
+
+fn test_appkit_nested_reveal_stops_after_actual_scroll_callback_redirect_or_replacement() {
+	args := os.args.filter(it.starts_with('--native-reveal-mode='))
+	if args.len == 0 {
+		mut failures := []int{}
+		for mode in 0 .. 4 {
+			result := os.execute('${os.quoted_path(os.executable())} --native-reveal-mode=${mode}')
+			eprintln(result.output)
+			if result.exit_code != 0 || !result.output.contains('native reveal mode=${mode} passed') { failures << mode }
+		}
+		assert failures.len == 0, 'native reveal failures: ${failures}'
+		return
+	}
+	native_reveal_mode = args[0].all_after('=').int()
+	pool := macos.autorelease_pool_new()
+	defer { macos.release(pool) }
+	previous := scroll_semantic_window()
+	defer { close_scroll_semantic_window(previous) }
+	render_root(native_reveal_root(false))
+	focus('redirect')
+	native_reveal_events.clear()
+	native_reveal_armed = true
+	before_target := state().views['target'] or { panic('missing original target') }
+	focus('target')
+	eprintln('native reveal mode=${native_reveal_mode} focused=${focused_id()} inner=${scroll_offset('inner')} outer=${scroll_offset('outer')} after_callback=${native_reveal_after_callback} events=${native_reveal_events}')
+	assert !native_reveal_armed && native_reveal_events.len > 0, 'actual AppKit scrolling must synchronously call the registered Scroll handler'
+	if native_reveal_mode == 0 {
+		assert focused_id() == 'target' && scroll_offset('inner') > 0 && scroll_offset('outer') > 0
+	} else {
+		assert focused_id() == if native_reveal_mode == 1 { 'redirect' } else { 'target' }
+		assert scroll_offset('outer') == native_reveal_after_callback, 'stale outer requests must stop after the inner callback'
+		assert scroll_offset('outer') == 0, 'the new target is already visible in the outer viewport'
+		after_target := state().views['target'] or { panic('missing replacement target') }
+		if native_reveal_mode == 2 { assert after_target == before_target }
+		if native_reveal_mode == 3 { assert after_target != before_target }
+	}
+	eprintln('native reveal mode=${native_reveal_mode} passed callbacks=${native_reveal_events.len}')
+}
 
 fn scroll_semantic_window() RuntimeState {
 	native_current_app()

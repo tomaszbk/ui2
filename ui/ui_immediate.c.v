@@ -81,6 +81,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		layout_environment LayoutEnvironment
 		layout_patches []LayoutPatch
 		declared_root Element
+		declaration_pending bool
 		has_root bool
 		iconified bool
 		suspended bool
@@ -731,6 +732,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		state.ctx = unsafe { nil }
 		clear_text_area_layouts()
 		state.declared_root = Element{}
+		state.declaration_pending = false
 		state.layout_tree.clear()
 		state.layout_patches.clear()
 		state.has_root = false
@@ -794,8 +796,9 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		if !dispatch.valid() || app.ctx != ctx || (ctx != unsafe { nil } && !custom_frame_current(dispatch, ctx)) {
 			return error('layout frame canceled')
 		}
-		if work.build || app.layout_tree.root.len == 0 {
+		if work.build || app.declaration_pending || app.layout_tree.root.len == 0 {
 			app.layout_tree.replace(animated)!
+			app.declaration_pending = false
 		}
 		for patch in patches {
 			element := apply_custom_widget_animations(patch.element)
@@ -813,6 +816,12 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		return dispatch.valid() && dispatch.app.ctx == ctx && !ctx.destroyed
 			&& !dispatch.app.iconified && !dispatch.app.suspended
 			&& !dispatch.scheduler.build_pending()
+	}
+
+	// Only retained work may survive an input-generation change. Presentation
+	// still uses custom_frame_current, and never crosses a replaced owner/context.
+	fn custom_frame_owner_current(dispatch CustomInputDispatch, ctx &DrawContext) bool {
+		return dispatch.owner_current() && dispatch.app.ctx == ctx && !ctx.destroyed
 	}
 
 	fn on_frame(mut app GgApp) {
@@ -857,17 +866,24 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 				app.layout_patches = pending
 				scheduler.invalidate(.layout)
 			}
+			if !custom_frame_current(dispatch, ctx) && custom_frame_owner_current(dispatch, ctx)
+				&& !scheduler.build_pending() && app.has_root {
+				// begin_frame detached the original request. Retry its retained
+				// declaration, not its builder or already delivered business tasks.
+				scheduler.invalidate(.layout)
+			}
 		}
 		$if android { ensure_symbol_fallbacks(ctx) }
 		if work.build && voidptr(g_build_screen) != unsafe { nil } {
 			app.scheduler.record_build()
 			declared := g_build_screen()
-			if !custom_frame_current(dispatch, ctx) { return }
+			if !custom_frame_owner_current(dispatch, ctx) || scheduler.build_pending() { return }
 			validate_element_tree(declared) or {
 				eprintln('ui2: ${err}')
 				return
 			}
 			app.declared_root = declared
+			app.declaration_pending = true
 			app.has_root = true
 		}
 		if !custom_frame_current(dispatch, ctx) {
