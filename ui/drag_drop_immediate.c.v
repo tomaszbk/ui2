@@ -35,13 +35,19 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	fn publish_mounted_pointer(node FocusNode, mut hits []HitTarget, mut owners map[string]HitTarget) {
 		if node.hidden || !node.enabled { return }
 		el := node.el
-		// A newly declared base bitmap may supply its dimensions before paint.
-		// Reuse ImageResources preparation; no second loader or dimension cache.
-		if el.kind==.image && el.image_asset.logical_size.width==0 && el.image_path.len>0 && g_gg_app.ctx!=unsafe { nil } {
+		interactive := el.kind in [.button,.toggle_button,.checkbox,.dropdown,.text_field,.text_area,.slider,.switch_control]
+			|| (el.kind in [.view,.image] && voidptr(el.on_event)!=unsafe { nil }
+				&& (el.clickable || el.button_behavior || el.draggable || el.long_press || el.swipe_left
+					|| el.drag_source!=none || el.drop_target!=none))
+		// Passive consumers prepare with the actual paint surface's DPI. Only
+		// pointer surfaces need availability before that surface is acquired.
+		if !interactive { return }
+		// Current selected-asset validity belongs to the same resource owner as
+		// paint. Logical metadata alone must not make a placeholder interactive.
+		if el.kind==.image {
+			if g_gg_app.ctx==unsafe { nil } { return }
 			mut ctx := g_gg_app.ctx
-			if image_entry_key(el.image_path,el.image_asset.revision) !in ctx.images.entries {
-				ctx.prepare_image(el,f64(ctx.scale)*node.transform.footprint_scale()) or {}
-			}
+			ctx.prepare_image(el,f64(ctx.scale)*node.transform.footprint_scale()) or { return }
 		}
 		mut target := custom_focus_target(node)
 		if el.drag_source!=none || el.drop_target!=none {
@@ -56,11 +62,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			}
 			owners[key]=target
 		}
-		interactive := el.kind in [.button,.toggle_button,.checkbox,.dropdown,.text_field,.text_area,.slider,.switch_control]
-			|| (el.kind in [.view,.image] && voidptr(el.on_event)!=unsafe { nil }
-				&& (el.clickable || el.button_behavior || el.draggable || el.long_press || el.swipe_left
-					|| el.drag_source!=none || el.drop_target!=none))
-		if interactive { hits << target }
+		hits << target
 	}
 
 	fn current_drag_owner(captured HitTarget) ?HitTarget {

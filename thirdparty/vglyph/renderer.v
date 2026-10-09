@@ -953,7 +953,8 @@ fn (mut renderer Renderer) draw_layout_impl(layout Layout, x f32, y f32,
 
 	// 3. Draw Glyphs (Textured) - two passes: stroke first, then fill
 	// Pass 1: Stroke outlines (background layer)
-	for page_idx, page in renderer.atlas.pages {
+	for page_idx := 0; page_idx < renderer.atlas.pages.len; page_idx++ {
+		mut page := renderer.atlas.pages[page_idx]
 		sgl.enable_texture()
 		sgl.texture(page.image.simg, page.image.ssmp)
 		renderer.begin_host_quads()
@@ -993,6 +994,15 @@ fn (mut renderer Renderer) draw_layout_impl(layout Layout, x f32, y f32,
 
 				if cg.page == page_idx && cg.width > 0 && cg.height > 0 && page.width > 0
 					&& page.height > 0 {
+					// Loading this glyph may have grown/replaced the page. Flush
+					// old quads before rebinding, then use live dimensions for UVs.
+					live_page := renderer.atlas.pages[page_idx]
+					if live_page.image.simg != page.image.simg {
+						renderer.end_host_quads()
+						sgl.texture(live_page.image.simg, live_page.image.ssmp)
+						renderer.begin_host_quads()
+					}
+					page = live_page
 					scale_inv := renderer.scale_inv
 					dst_x := gx + f32(cg.left) * scale_inv
 					dst_y := gy - f32(cg.top) * scale_inv
@@ -1027,7 +1037,8 @@ fn (mut renderer Renderer) draw_layout_impl(layout Layout, x f32, y f32,
 	}
 
 	// Pass 2: Fill glyphs (foreground layer)
-	for page_idx, page in renderer.atlas.pages {
+	for page_idx := 0; page_idx < renderer.atlas.pages.len; page_idx++ {
+		mut page := renderer.atlas.pages[page_idx]
 		sgl.enable_texture()
 		sgl.texture(page.image.simg, page.image.ssmp)
 		renderer.begin_host_quads()
@@ -1072,6 +1083,15 @@ fn (mut renderer Renderer) draw_layout_impl(layout Layout, x f32, y f32,
 
 				if cg.page == page_idx && cg.width > 0 && cg.height > 0 && page.width > 0
 					&& page.height > 0 {
+					// Loading this glyph may have grown/replaced the page. Flush
+					// old quads before rebinding, then use live dimensions for UVs.
+					live_page := renderer.atlas.pages[page_idx]
+					if live_page.image.simg != page.image.simg {
+						renderer.end_host_quads()
+						sgl.texture(live_page.image.simg, live_page.image.ssmp)
+						renderer.begin_host_quads()
+					}
+					page = live_page
 					scale_inv := renderer.scale_inv
 
 					mut dst_x := gx + f32(cg.left) * scale_inv

@@ -568,6 +568,10 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 	}
 
 	pub fn focus(id string) {
+		set_custom_focus(id,true)
+	}
+
+	fn set_custom_focus(id string, reveal bool) {
 		dispatch := custom_input_dispatch(g_gg_app)
 		if !dispatch.valid() { return }
 		sync_focus_navigation()
@@ -575,7 +579,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		if g_focused_field != id { g_gg_app.composition = TextComposition{} }
 		g_focused_field = id
 		if g_open_dropdown.len > 0 && g_open_dropdown != id { close_dropdown() }
-		reveal_custom_focus(id)
+		if reveal { reveal_custom_focus(id) }
 		if !dispatch.valid() { return }
 		invalidate_custom_paint()
 	}
@@ -1250,7 +1254,9 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 			return dispatch
 		}
 		target := hit_test(x, y)
-		if g_focus_navigation.can_focus(target.id) { focus(target.id) }
+		// Opening a partially clipped dropdown must not move its surface away
+		// from this press. Keyboard/public focus still reveal it normally.
+		if g_focus_navigation.can_focus(target.id) { set_custom_focus(target.id,!target.dropdown) }
 		if !dispatch.valid() {
 			discard_custom_pointer_start(dispatch)
 			return dispatch
@@ -1947,6 +1953,7 @@ fn page_focused_text_area(direction int) {
 		g_dropdown_hover = -1
 		g_dropdown_scroll = 0.0
 		g_dropdown_popup = DropdownPopup{}
+		g_hit_targets = g_hit_targets.filter(!it.dropdown_option)
 	}
 
 	// While the list is open it owns every release: pick the row under the
@@ -2527,8 +2534,8 @@ fn page_focused_text_area(direction int) {
 			is_vector_canvas: el.is_vector_canvas, vector_shapes: el.vector_shapes,
 			vector_hit_mode: el.vector_hit_mode, vector_origin: area, is_image: el.kind == .image,
 			image_geometry: if el.kind == .image {
-				if el.image_asset.logical_size.width>0 { image_geometry(area,el.image_asset.logical_size,el.image_style) or { ImageGeometry{} } }
-				else if g_gg_app.ctx!=unsafe { nil } { g_gg_app.ctx.image_hit_geometry_for(el,area) or { ImageGeometry{} } } else { ImageGeometry{} }
+				if g_gg_app.ctx!=unsafe { nil } { g_gg_app.ctx.image_hit_geometry_for(el,area,
+					f64(g_gg_app.ctx.scale)*transform.footprint_scale()) or { ImageGeometry{} } } else { ImageGeometry{} }
 			} else { ImageGeometry{} }}
 	}
 

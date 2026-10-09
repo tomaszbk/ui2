@@ -1,10 +1,14 @@
-// vtest vflags: -d ui2_custom_rendering
+// vtest vflags: -d ui2_custom_rendering -d ui2_embedder
 // Common mounted layout/hit producers and synthetic host input; no OS input.
 // vfmt off
 @[has_globals]
 module ui2
 
-$if macos && ui2_custom_rendering ? && !ui2_headless ? {
+$if macos && ui2_custom_rendering ? && ui2_embedder ? && !ui2_headless ? {
+	import gg
+	import os
+	import sokol.gfx
+	__global graphics_drag_context = &DrawContext(unsafe { nil })
 	__global graphics_drag_stage = ''
 	__global graphics_drag_change = ''
 	__global graphics_drag_mutated = false
@@ -38,8 +42,8 @@ $if macos && ui2_custom_rendering ? && !ui2_headless ? {
 		source := with_event(with_drag_source(view('seam-source',rect(10,20,40,40),BoxStyle{},[]),DragSource{}),graphics_drag_record)
 		mut target := view('seam-target',rect(100,20,100,100),BoxStyle{},[])
 		if graphics_drag_change in ['image_fit','image_tint'] {
-			target=Element{...image('seam-target','metadata.png',target.frame),
-				image_asset:ImageAsset{logical_size:LayoutSize{width:200,height:100}},
+			target=Element{...image('seam-target',os.join_path(@VMODROOT,'examples','image_assets','assets','variant1.png'),target.frame),
+				image_asset:ImageAsset{logical_size:LayoutSize{width:32,height:16}},
 				image_style:ImageStyle{align_y:if graphics_drag_mutated && graphics_drag_change=='image_fit' { 1.0 } else { 0.5 },
 					tint:if graphics_drag_mutated { ImageTint{r:7,g:17,b:27} } else { ImageTint{} }}}
 		} else {
@@ -54,7 +58,7 @@ $if macos && ui2_custom_rendering ? && !ui2_headless ? {
 	}
 	fn graphics_drag_mount(stage string, change string) {
 		activate_custom_window_state(new_custom_window_state())
-		g_gg_app=&GgApp{}
+		g_gg_app=&GgApp{ctx:graphics_drag_context}
 		graphics_drag_stage=stage
 		graphics_drag_change=change
 		graphics_drag_mutated=false
@@ -67,6 +71,11 @@ $if macos && ui2_custom_rendering ? && !ui2_headless ? {
 		g_gg_app.scheduler.finish_frame(work)
 	}
 	fn test_common_vector_image_narrow_phase_current_release_and_paint_only_callbacks() {
+		mut ctx:=new_surface_draw_context(gg.Config{width:320,height:240},gfx.Environment{
+			defaults:gfx.EnvironmentDefaults{color_format:.bgra8,depth_format:.@none,sample_count:1},
+			metal:gfx.MetalEnvironment{device:C.ui2_embedder_metal_device()}})!
+		graphics_drag_context=ctx
+		defer { graphics_drag_context=unsafe { nil }; ctx.destroy() }
 		for stage in ['enter','over','accept'] {
 			for change in ['paint','vector','image_fit','image_tint'] {
 				graphics_drag_mount(stage,change)

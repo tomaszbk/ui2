@@ -231,18 +231,10 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		return entry
 	}
 
-	// Hit geometry depends on local fit/dimensions, not the selected GPU page.
-	// Explicit logical metadata also works before a new DPI variant is uploaded.
-	fn (ctx &DrawContext) image_hit_geometry_for(el Element, area Rect) !ImageGeometry {
-		if el.image_asset.logical_size.width > 0 {
-			return image_geometry(area,el.image_asset.logical_size,el.image_style)!
-		}
-		entry := ctx.images.entries[image_entry_key(el.image_path,el.image_asset.revision)] or { return error('image dimensions are not prepared') }
-		return image_geometry(area,entry.size,el.image_style)!
-	}
-
-	fn (ctx &DrawContext) image_geometry_for(el Element, area Rect) !ImageGeometry {
-		mut required := f64(ctx.scale) * ctx.content_transform.footprint_scale()
+	// Paint and mounted hits share selected-variant validity. Logical metadata
+	// stabilizes geometry across DPI variants, but cannot validate a missing file.
+	fn (ctx &DrawContext) image_hit_geometry_for(el Element, area Rect, quality_scale f64) !ImageGeometry {
+		mut required := quality_scale
 		if el.image_asset.logical_size.width > 0 {
 			required *= image_geometry(area,el.image_asset.logical_size,el.image_style)!.density
 		}
@@ -251,6 +243,10 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		validate_image_variant(entry,el.image_asset,variant)!
 		intrinsic := if el.image_asset.logical_size.width > 0 { el.image_asset.logical_size } else { entry.size }
 		return image_geometry(area,intrinsic,el.image_style)!
+	}
+
+	fn (ctx &DrawContext) image_geometry_for(el Element, area Rect) !ImageGeometry {
+		return ctx.image_hit_geometry_for(el,area,f64(ctx.scale)*ctx.content_transform.footprint_scale())!
 	}
 
 	fn (ctx &DrawContext) draw_asset_image(el Element, geometry ImageGeometry) bool {

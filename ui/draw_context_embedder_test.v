@@ -193,6 +193,9 @@ fn test_text_atlas_uploads_new_glyphs_before_on_demand_submission_and_releases_g
 		}
 		ctx.end()
 		assert C.ui2_test_atlas_passed()
+		// Early glyph quads keep their original uploaded image while later
+		// glyphs use the live growth generation, all in the same submission.
+		assert C.ui2_test_atlas_drawn(small.simg.id)
 		assert C.ui2_test_atlas_drawn(grown.simg.id)
 		C.ui2_test_atlas_stop()
 		for image in first_generations {

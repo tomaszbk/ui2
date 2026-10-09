@@ -65,7 +65,10 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 				for entry in node.el.menu { options << entry.title }
 				ctx := g_gg_app.ctx
 				window := if ctx!=unsafe { nil } { rect(0,0,f64(ctx.width),f64(ctx.height)) } else { bounds() }
-				track_dropdown_popup_for(node.el,node.local_frame,node.transform,options,g_text_values[node.el.id] or { node.el.text },window)
+				visible := node.clip.intersect(transformed_clip(node.local_frame,node.transform)).bounds()
+				if options.len>0 && visible.width>0 && visible.height>0 {
+					track_dropdown_popup_for(node.el,node.local_frame,node.transform,options,g_text_values[node.el.id] or { node.el.text },window)
+				}
 			}
 			if node.el.kind != .scroll { continue }
 			id := scroll_view_state_id(node.el, node.path)
@@ -85,6 +88,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 			}
 		}
 		g_drag_registry.owners=mounted_owners
+		if g_open_dropdown.len>0 && !g_dropdown_popup.mounted { close_dropdown() }
 		// Popup rows are window overlays; all tree targets came from the same
 		// mounted frames/affine/clip above, including offscreen declarations.
 		if g_dropdown_popup.mounted && g_open_dropdown.len>0 {

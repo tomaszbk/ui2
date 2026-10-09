@@ -7,6 +7,7 @@ module ui2
 
 $if macos && ui2_custom_rendering ? && ui2_embedder ? && !ui2_headless ? {
 	import gg
+	import os
 	import sokol.gfx
 	import sokol.sgl
 
@@ -17,7 +18,8 @@ $if macos && ui2_custom_rendering ? && ui2_embedder ? && !ui2_headless ? {
 	fn registration_drag_surface(kind Kind, anonymous bool, source bool, x f64) Element {
 		id := if anonymous { '' } else { if source { 'registered-source' } else { 'registered-target' } }
 		base := with_event(Element{kind: kind, id: id, frame: rect(x, 20, 40, 40),
-			box: BoxStyle{transparent: true},image_asset:if kind==.image { ImageAsset{logical_size:LayoutSize{width:40,height:40}} } else { ImageAsset{} }}, registration_drag_record)
+			image_path:if kind==.image { os.join_path(@VMODROOT,'examples','image_assets','assets','variant1.png') } else { '' },
+			box: BoxStyle{transparent: true},image_asset:if kind==.image { ImageAsset{logical_size:LayoutSize{width:32,height:16}} } else { ImageAsset{} }}, registration_drag_record)
 		return if source { with_drag_source(base, DragSource{}) }
 			else { with_drop_target(base, DropTarget{accept: registration_drag_accept}) }
 	}
@@ -141,5 +143,63 @@ $if macos && ui2_custom_rendering ? && ui2_embedder ? && !ui2_headless ? {
 		handle_touch_down(120, 30)
 		handle_touch_up(120, 30)
 		assert registration_drag_events.map(it.kind) == [.tap]
+	}
+
+	fn test_selected_image_asset_validity_controls_current_pointer_and_drop_eligibility() {
+		mut ctx := new_surface_draw_context(gg.Config{width:300,height:100},gfx.Environment{
+			defaults:gfx.EnvironmentDefaults{color_format:.bgra8,depth_format:.@none,sample_count:1},
+			metal:gfx.MetalEnvironment{device:C.ui2_embedder_metal_device()}})!
+		defer { ctx.destroy() }
+		ctx.scale=1
+		folder:=os.join_path(@VMODROOT,'examples','image_assets','assets')
+		base:=os.join_path(folder,'variant1.png')
+		valid:=os.join_path(folder,'variant2.png')
+		corrupt:=os.join_path(os.temp_dir(),'ui2-image-eligibility-${os.getpid()}.png')
+		os.write_file(corrupt,'not an image')!
+		defer { os.rm(corrupt) or {} }
+		source:=registration_drag_surface(.view,false,true,10)
+		underneath:=with_event(with_drop_target(view('underneath',rect(100,20,64,32),BoxStyle{},[]),
+			DropTarget{accept:registration_drag_accept}),registration_drag_record)
+		for selected in [os.join_path(folder,'missing-selected-image.png'),corrupt,base,valid] {
+			registration_drag_reset(ctx)
+			selected_image:=with_event(with_drop_target(Element{...image('selected-image',base,rect(100,20,64,32)),
+				clickable:true,image_asset:ImageAsset{logical_size:LayoutSize{width:32,height:16},
+					variants:[ImageVariant{path:selected,density:2}]}},DropTarget{accept:registration_drag_accept}),registration_drag_record)
+			root:=screen(0,[source,underneath,selected_image])
+			registration_drag_render(ctx,root)
+			available:=selected==valid
+			expected:=if available { 'selected-image' } else { 'underneath' }
+			assert hit_test(120,30).id==expected
+			assert drag_destination(120,30).id==expected
+			assert ('id:selected-image' in g_drag_registry.owners)==available
+			handle_touch_down(120,30); handle_touch_up(120,30)
+			assert registration_drag_events.map(it.kind)==if available {
+				[ElementEventKind.pointer_down,.pointer_up]
+			} else { [ElementEventKind.tap] }
+			assert registration_drag_events.all(it.id==expected)
+			registration_drag_events.clear()
+			handle_touch_down(20,30); handle_touch_up(120,30)
+			drops:=registration_drag_events.filter(it.kind==.drop)
+			assert drops.len==1 && drops[0].id==expected
+			assert !g_touch.pointer_captured && !drag_active()
+		}
+		// An already captured image also loses eligibility when the selected
+		// variant changes to an unavailable one before the next rendered frame.
+		registration_drag_reset(ctx)
+		image_source:=with_event(with_drag_source(Element{...image('image-source',base,rect(10,20,64,32)),
+			image_asset:ImageAsset{logical_size:LayoutSize{width:32,height:16},
+				variants:[ImageVariant{path:valid,density:2}]}},DragSource{}),registration_drag_record)
+		registration_drag_render(ctx,screen(0,[image_source,underneath]))
+		handle_touch_down(20,30); handle_touch_move(120,30)
+		assert drag_active()
+		missing_source:=Element{...image_source,image_asset:ImageAsset{logical_size:LayoutSize{width:32,height:16},
+			variants:[ImageVariant{path:os.join_path(folder,'missing-selected-image.png'),density:2}]}}
+		g_gg_app.declared_root=screen(0,[missing_source,underneath])
+		g_gg_app.declaration_pending=true
+		handle_touch_up(120,30)
+		assert registration_drag_events.filter(it.kind==.drop).len==0
+		cancels:=registration_drag_events.filter(it.kind==.drag_cancel)
+		assert cancels.len==1 && (cancels[0].drag or { panic('cancel') }).reason==.source_removed
+		assert !g_touch.pointer_captured && !drag_active()
 	}
 }
