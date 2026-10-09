@@ -52,6 +52,16 @@ fn test_component_instances_lazy_computed_batch_and_property_patches() ! {
 	assert a.element().id != b.element().id
 	assert root.child('left')! == left
 	assert left.state('count', 999)! == left.state('count', 0)!
+	mut initializations := &VmlComponentFixture{}
+	left.state_factory('once', fn [mut initializations] () !int {
+		initializations.builds++
+		return 42
+	})!
+	left.state_factory('once', fn [mut initializations] () !int {
+		initializations.builds++
+		return 0
+	})!
+	assert initializations.builds == 1
 	assert left.element(Element{ kind: .button, id: 'counter', text: 'reset' })! == a
 	callback := a.element().on_event
 	root.dispose()!
@@ -142,9 +152,10 @@ fn test_ref_type_mount_availability_and_slot_author_scope() ! {
 	mut text_ref := author.ref[VmlTextInput]('edit')!
 	assert !button_ref.is_available()
 	mut host := author.child('host')!
+	mut slot := author.slot_child(mut host, 'content')!
 	mut root := host.element(Element{ kind: .view, id: 'host' })!
-	mut button := author.element(Element{ kind: .button, id: 'submit', text: 'slot content' })!
-	mut edit := author.element(Element{ kind: .text_area, id: 'edit' })!
+	mut button := slot.element(Element{ kind: .button, id: 'submit', text: 'slot content' })!
+	mut edit := slot.element(Element{ kind: .text_area, id: 'edit' })!
 	button_ref.bind(button)!
 	text_ref.bind(edit)!
 	button_ref.bind(edit) or { assert err.msg().contains('expects') }
@@ -153,15 +164,49 @@ fn test_ref_type_mount_availability_and_slot_author_scope() ! {
 	assert button_ref.is_available()
 	assert text_ref.is_available()
 	assert button_ref.element()!.text == 'slot content'
-	assert button.component == author
+	assert button.component == slot
 	assert button_ref.id()! == root.element().children[0].id
 	root.set_children([edit])!
 	assert !button_ref.is_available()
 	button_ref.id() or { assert err.msg().contains('unavailable') }
 	root.set_children([button, edit])!
 	assert button_ref.is_available()
+	host.dispose()!
+	assert slot.is_disposed()
+	assert !author.is_disposed()
+	assert !button_ref.is_available() && !text_ref.is_available()
 	author.dispose()!
 	assert !button_ref.is_available() && !text_ref.is_available()
+}
+
+fn test_slot_lexical_author_values_and_receiving_component_cleanup() ! {
+	mut author := new_vml_component('slot lifecycle')!
+	author.publish = fn (_ string, _ Element) {}
+	mut value := author.state('value', 'author')!
+	mut host := author.child('receiver')!
+	mut slot := author.slot_child(mut host, 'content')!
+	mut fixture := &VmlComponentFixture{}
+	mut content := slot.element(Element{ kind: .label, id: 'content' })!
+	content.effect('text', fn [mut value, mut fixture] (element Element) !Element {
+		text := value.get()!
+		fixture.values << text
+		return Element{ ...element, text: text }
+	})!
+	slot.on_mount('mount', fn [mut fixture] () ! { fixture.lifecycle << 'mount' })!
+	slot.on_unmount('unmount', fn [mut fixture] () { fixture.lifecycle << 'unmount' })!
+	slot.on_cleanup('resource', fn [mut fixture] () { fixture.lifecycle << 'cleanup' })!
+	mut receiver := host.element(Element{ kind: .view, id: 'receiver' })!
+	receiver.set_children([content])!
+	receiver.mount()!
+	value.set('updated by author')!
+	assert content.element().text == 'updated by author'
+	host.dispose()!
+	assert fixture.lifecycle == ['mount', 'cleanup', 'unmount']
+	value.set('author remains alive')!
+	assert fixture.values == ['author', 'updated by author']
+	assert value.get()! == 'author remains alive'
+	author.dispose()!
+	assert author.runtime.stats() == SignalStats{}
 }
 
 fn test_task_cancellation_discards_queued_worker_delivery_on_unmount() ! {

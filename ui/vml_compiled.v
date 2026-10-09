@@ -22,13 +22,21 @@ mut:
 @[heap]
 struct CompiledVmlRuntime {
 mut:
-	controller voidptr
-	root       &CompiledVmlNode = unsafe { nil }
+	controller     voidptr
+	root           &CompiledVmlNode = unsafe { nil }
+	initial_bounds ?Rect
 }
 
 const compiled_vml_runtime_singleton = &CompiledVmlRuntime{}
 
 fn compiled_vml_runtime() &CompiledVmlRuntime { return unsafe { compiled_vml_runtime_singleton } }
+
+// Before a native window exists, compile validation uses its configured logical
+// viewport. Ordinary builders and explicit template frames still use bounds().
+pub fn vml_bounds() Rect {
+	if frame := compiled_vml_runtime().initial_bounds { return frame }
+	return bounds()
+}
 
 fn compiled_vml_controller_build[T]() Element {
 	runtime := compiled_vml_runtime()
@@ -60,7 +68,10 @@ pub fn dispose_compiled_vml() {
 pub fn run_compiled_vml[T](config CompiledVmlRunConfig[T]) ! {
 	if config.build == unsafe { nil } { return error('compiled VML requires a build function') }
 	mut controller := &CompiledVmlController[T]{ build: config.build, model: config.model }
+	mut runtime := compiled_vml_runtime()
+	runtime.initial_bounds = rect(0, 0, config.width, config.height)
 	declaration := controller.build(mut controller.model)
+	runtime.initial_bounds = none
 	validate_element_tree(declaration) or {
 		if declaration.compiled_node != unsafe { nil } {
 			declaration.compiled_node.component.dispose()!
@@ -68,7 +79,6 @@ pub fn run_compiled_vml[T](config CompiledVmlRunConfig[T]) ! {
 		return err
 	}
 	controller.node = declaration.compiled_node
-	mut runtime := compiled_vml_runtime()
 	dispose_compiled_vml()
 	runtime.controller = voidptr(controller)
 	runtime.root = controller.node

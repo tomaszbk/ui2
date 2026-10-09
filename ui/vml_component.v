@@ -105,6 +105,30 @@ pub fn (mut component CompiledVmlComponent) state[T](name string, initial T) !&S
 	return value
 }
 
+struct VmlInitialValue[T] {
+mut:
+	value T
+}
+
+// The compiler uses a factory rather than an eager argument, so preferred-size
+// passes cannot repeat initialization or its application side effects.
+pub fn (mut component CompiledVmlComponent) state_factory[T](name string, initialize fn () !T) !&Signal[T] {
+	component.require_alive()!
+	key := 'state:' + name
+	if value := component.values[key] {
+		if component.value_types[key] != T.name {
+			return error('compiled VML state `${name}` changed type')
+		}
+		return unsafe { &Signal[T](value) }
+	}
+	if initialize == unsafe { nil } { return error('compiled VML state initializer is nil') }
+	mut initial := &VmlInitialValue[T]{}
+	component.runtime.untracked(fn [mut initial, initialize] [T]() ! {
+		initial.value = initialize()!
+	})!
+	return component.state(name, initial.value)!
+}
+
 pub fn (mut component CompiledVmlComponent) computed[T](name string, compute fn () !T) !&Memo[T] {
 	component.require_alive()!
 	key := 'computed:' + name
