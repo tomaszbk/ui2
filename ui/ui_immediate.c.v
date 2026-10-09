@@ -760,6 +760,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 
 	fn on_cleanup(app &GgApp) {
 		cancel_drag_session(.cancelled)
+		dispose_compiled_vml()
 		app.scheduler.close()
 		g_drag_registry = DragRegistry{}
 		mut state := unsafe { app }

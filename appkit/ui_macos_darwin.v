@@ -2462,6 +2462,7 @@ fn native_end_editing(view NativeView) {
 }
 
 fn native_terminate_app() {
+	dispose_compiled_vml()
 	macos.msg_void1(native_current_app(), 'terminate:', macos.Id(unsafe { nil }))
 }
 
@@ -2571,6 +2572,7 @@ fn ui2_view_is_flipped(_self voidptr, _cmd voidptr) bool {
 
 @[export: 'ui2_app_should_terminate_after_last_window_closed']
 fn ui2_app_should_terminate_after_last_window_closed(_self voidptr, _cmd voidptr, _sender voidptr) bool {
+	dispose_compiled_vml()
 	return true
 }
 

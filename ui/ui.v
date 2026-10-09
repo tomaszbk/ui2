@@ -409,6 +409,9 @@ pub struct Element {
 	// Produced by the retained layout owner, excluded from authored inputs.
 	mounted_generation u64
 pub:
+	// Compiled components retain their declaration owner independently of layout.
+	// It is not an authored property or a model/binding value.
+	compiled_node &CompiledVmlNode = unsafe { nil }
 	// kind is readable from outside the module so a renderer can live in
 	// another package: dispatching on it is the first thing any backend does.
 	kind              Kind
