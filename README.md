@@ -26,6 +26,9 @@ updates when external state changes. Workers can post changes through a captured
 `ui2.ui_dispatcher()`. Idle drawing currently stops on macOS Metal. GL/EGL/D3D
 reuse the declared tree but still repaint because Sokol presents every callback.
 See [scheduling and diagnostics](docs/custom-rendering-scheduler.md).
+For Windows custom setup, retained D3D presentation and the typecheck
+verification scope, see [Windows custom runtime](docs/windows-custom-runtime.md)
+and `examples/windows_custom_runtime`.
 
 The custom renderer also supports retained [vector canvases](docs/vector-canvas.md):
 typed paths, quadratic/cubic Bézier curves, concave polygons and holes, stroked

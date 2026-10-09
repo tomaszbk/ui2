@@ -112,18 +112,51 @@ jobs:
           pkg-config --modversion @modules
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+      # These are typechecks on an actual Windows runner. They do not open a
+      # window or establish interactive D3D/Win32 runtime acceptance.
+      - name: Typecheck Windows native backend
+        if: runner.os == 'Windows' && !matrix.custom
+        shell: pwsh
+        working-directory: ui2
+        run: |
+          v -cc gcc -enable-globals -shared -os windows -check .
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          v -cc gcc -enable-globals -os windows -check windows/ui_windows_test.v
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          v -cc gcc -os windows -check examples/windows_custom_runtime
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Typecheck Windows custom backend and runtime fixtures
+        if: runner.os == 'Windows' && matrix.custom
+        shell: pwsh
+        working-directory: ui2
+        run: |
+          v -cc gcc -d ui2_custom_rendering -shared -os windows -check .
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $fixtures = @('ui/ui_custom_test.v', 'ui/ui_custom_runtime_test.v', 'ui/ui_scheduler_immediate_test.v', 'ui/ui_pointer_capture_immediate_test.v', 'ui/ui_scroll_immediate_test.v', 'ui/ui_window_state_immediate_test.v', 'ui/text_backend_vglyph_test.v', 'ui/text_composition_test.v', 'ui/presentation_geometry_test.v', 'ui/frame_scheduler_test.v')
+          foreach ($fixture in $fixtures) {
+            v -cc gcc -d ui2_custom_rendering -os windows -check $fixture
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+          v -cc gcc -d ui2_custom_rendering -os windows -check examples/windows_custom_runtime
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
       - name: Test VML menu declarations
         run: v ${{ matrix.compiler_flags }} ${{ matrix.custom && '-d ui2_custom_rendering' || '' }} test ui2/ui/vml_menu_test.v
 
       - name: Test immediate scrolling
         if: runner.os == 'Linux' || matrix.custom
+        shell: bash
         run: |
+          set -eu
           v ${{ matrix.compiler_flags }} ${{ matrix.custom && '-d ui2_custom_rendering' || '' }} test ui2/ui/ui_scroll_immediate_test.v
           v ${{ matrix.compiler_flags }} ${{ matrix.custom && '-d ui2_custom_rendering' || '' }} test ui2/examples/scrollview
 
       - name: Test custom text measurement and vendored runtime
         if: runner.os == 'Linux' || matrix.custom
+        shell: bash
         run: |
+          set -eu
           v ${{ matrix.compiler_flags }} ${{ matrix.custom && '-d ui2_custom_rendering' || '' }} test ui2/ui/text_backend_vglyph_test.v
           v ${{ matrix.compiler_flags }} ${{ matrix.custom && '-d ui2_custom_rendering' || '' }} test ui2/thirdparty/vglyph/ui2_context_test.v
           v ${{ matrix.compiler_flags }} ${{ matrix.custom && '-d ui2_custom_rendering' || '' }} test ui2/thirdparty/vglyph/ui2_host_ime_test.v

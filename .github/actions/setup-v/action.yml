@@ -13,7 +13,10 @@ inputs:
     default: 80bffb6af279210c3dca80c155bffb538f11ade7
   vc-revision:
     description: Compatible generated C bootstrap snapshot
-    default: 8af812feb76c678abd86a8e682fd9ab2790e519c
+    # Use the snapshot preceding the verified V source pin. The October 1
+    # snapshot misgenerates Windows CreatePipe output pointers and fails with
+    # SetHandleInformation before UI2 can be checked.
+    default: 08ee621c4d106318467bb1b316a0e592fca4bc83
   tcc-revision:
     description: Platform bundle supplying V's default Boehm GC library
     required: true

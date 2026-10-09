@@ -737,6 +737,13 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 
 	// ── Frame & event loop ─────────────────────────────────────────────
 
+	fn configure_custom_presentation(app &GgApp, backend gfx.Backend) {
+		// Sokol's GL/EGL/D3D loops swap even when frame_fn returns early. Their
+		// discarded backbuffers need a full paint; only the Metal path can skip
+		// submission safely until UI2 owns presentation in the platform embedder.
+		app.scheduler.set_presentation_required(backend != .metal_macos)
+	}
+
 	fn on_init(app &GgApp) {
 		$if linux {
 			mut state := unsafe { app }
@@ -744,11 +751,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		}
 		mut ctx := app.ctx
 		ctx.sync_gg()
-		// Sokol's GL/EGL/D3D loops swap even when frame_fn returns early. Their
-		// discarded backbuffers need a full paint; only the Metal path can skip
-		// submission safely until UI2 owns presentation in the platform embedder.
-		app.scheduler.set_presentation_required(gfx.query_backend() != .metal_macos)
-
+		configure_custom_presentation(app, gfx.query_backend())
 	}
 
 	fn on_cleanup(app &GgApp) {
@@ -1767,7 +1770,10 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		focused_node := g_focus_navigation.node(g_focused_field) or { return }
 		if focused_node.el.kind !in [.text_field, .text_area] { return }
 		if !(g_gg_app.editable_fields[g_focused_field] or { true }) { return }
-		if ch < 32 {
+		// gg synthesizes CHAR(127) after Delete on Windows/X11; editing already
+		// happened in KEY_DOWN. C0 controls and DEL are commands, not text. Sokol
+		// supplies Unicode scalars (Win32 surrogate pairs are decoded by the host).
+		if ch < 32 || ch == 127 || ch > 0x10ffff || (ch >= 0xd800 && ch <= 0xdfff) {
 			return
 		}
 		mut editor := g_text_editors[g_focused_field] or {

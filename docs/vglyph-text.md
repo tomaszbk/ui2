@@ -29,7 +29,7 @@ It includes the compiled VML visual and structural lowering. The V 0.5.2 release
 Sokol sampler APIs and does not compile the current UI2 source. CI uses
 [the shared setup action](../.github/actions/setup-v/action.yml) to bootstrap
 that revision with `vc` snapshot
-`8af812feb76c678abd86a8e682fd9ab2790e519c` and the system C compiler.
+`08ee621c4d106318467bb1b316a0e592fca4bc83` and the system C compiler.
 The workflows also pin each platform's official `tccbin` bundle to supply
 V's default Boehm GC library; compilation uses GCC or Clang.
 Only the compiler bootstrap uses `-gc none`; UI2 builds retain the default GC.
