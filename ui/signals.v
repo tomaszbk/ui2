@@ -194,6 +194,9 @@ fn (mut scope SignalScope) new_node(kind SignalNodeKind, name string) !&SignalNo
 	return node
 }
 
+// Scope teardown first closes the scope and disposes its children. Cleanup runs
+// untracked while this scope's state and memos are still readable, before its
+// own nodes are disposed. New work and callbacks are blocked by the closed scope.
 pub fn (mut scope SignalScope) on_cleanup(cleanup fn ()) ! {
 	scope.require_alive()!
 	scope.runtime.require_action()!
@@ -522,17 +525,17 @@ fn (mut scope SignalScope) dispose_scope() {
 		mut child := children[i]
 		child.dispose_scope()
 	}
-	nodes := scope.nodes.clone()
-	for i := nodes.len - 1; i >= 0; i-- {
-		mut node := nodes[i]
-		node.dispose_node()
-	}
 	cleanups := scope.cleanups.clone()
 	scope.cleanups.delete_many(0, scope.cleanups.len)
 	scope.runtime.counts.cleanups -= cleanups.len
 	scope.runtime.untracked_depth++
 	for i := cleanups.len - 1; i >= 0; i-- { cleanups[i]() }
 	scope.runtime.untracked_depth--
+	nodes := scope.nodes.clone()
+	for i := nodes.len - 1; i >= 0; i-- {
+		mut node := nodes[i]
+		node.dispose_node()
+	}
 	scope.runtime.counts.scopes--
 	if scope.parent != unsafe { nil } {
 		for i, child in scope.parent.children {

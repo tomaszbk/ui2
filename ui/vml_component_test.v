@@ -362,3 +362,37 @@ fn test_runner_service_update_borrows_live_model_without_rebuilding() ! {
 	assert model.updates == 2 && model.builds == 1
 	dispose_compiled_vml()
 }
+
+fn test_lifecycle_reads_state_and_lazy_memos_before_nodes_are_disposed() ! {
+	mut root := new_vml_document('lifecycle values')!
+	root.publish = fn (_ string, _ Element) {}
+	mut child := root.child('child')!
+	mut fixture := &VmlComponentFixture{}
+	mut parent_state := root.state('value', 2)!
+	mut value := child.state('value', 3)!
+	mut doubled := child.computed('double', fn [mut value] () !int { return value.get()! * 2 })!
+	root.on_cleanup('parent', fn [mut parent_state, mut fixture] () {
+		fixture.lifecycle << 'parent:${parent_state.get() or { panic(err) }}'
+	})!
+	child.on_unmount('child', fn [mut value, mut doubled, mut fixture] () {
+		fixture.lifecycle << 'child:${value.get() or { panic(err) }}:${doubled.get() or { panic(err) }}'
+	})!
+	child.on_cleanup('resource', fn [mut value, mut fixture] () {
+		value.set(4) or { panic(err) }
+		fixture.lifecycle << 'cleanup'
+	})!
+	mut node := child.element(Element{ kind: .label, id: 'child' })!
+	node.effect('value', fn [mut value, mut fixture] (element Element) !Element {
+		fixture.values << value.get()!.str()
+		return element
+	})!
+	mut parent := root.element(Element{ kind: .view, id: 'parent' })!
+	parent.set_children([node])!
+	parent.mount()!
+	callback := child.callback(fn [mut fixture] (_ ElementEvent) ! { fixture.lifecycle << 'late' })
+	root.dispose()!
+	callback(ElementEvent{})
+	assert fixture.lifecycle == ['cleanup', 'child:4:8', 'parent:2']
+	assert fixture.values == ['3']
+	assert root.runtime.stats() == SignalStats{}
+}

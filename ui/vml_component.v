@@ -244,6 +244,7 @@ pub fn (mut node CompiledVmlNode) set_sources(elements []Element) ! {
 		}
 		children << element.compiled_node
 	}
+	node.component.on_cleanup('sources:' + node.local_id, fn [mut node] () { node.detach_sources() })!
 	if node.has_sources && node.source_children == children { return }
 	for mut old in node.source_children {
 		if old !in children { old.source_owners = old.source_owners.filter(it != &node) }
@@ -254,6 +255,13 @@ pub fn (mut node CompiledVmlNode) set_sources(elements []Element) ! {
 		if &node !in child.source_owners { child.source_owners << &node }
 	}
 	node.children_revision.set(node.children_revision.peek()! + 1)!
+}
+
+fn (mut node CompiledVmlNode) detach_sources() {
+	for mut child in node.source_children {
+		child.source_owners = child.source_owners.filter(it != &node)
+	}
+	node.source_children.clear()
 }
 
 fn vml_declaration_equal(left Element, right Element) bool {

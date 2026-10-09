@@ -96,3 +96,18 @@ fn vml_find_caption(element Element) string {
 	}
 	return ''
 }
+
+fn test_disposed_composite_owner_releases_surviving_author_source_edges() ! {
+	mut author := new_vml_document('author')!
+	author.publish = fn (_ string, _ Element) {}
+	mut source := author.element(Element{ kind: .label, id: 'author' })!
+	mut receiver := author.child('receiver')!
+	mut composite := receiver.element(Element{ kind: .view, id: 'composite' })!
+	composite.set_sources([source.element()])!
+	composite.set_sources([source.element()])!
+	assert source.source_owners == [composite]
+	receiver.dispose()!
+	assert source.source_owners.len == 0
+	source.patch(fn (element Element) Element { return Element{ ...element, text: 'still alive' } })!
+	author.dispose()!
+}
