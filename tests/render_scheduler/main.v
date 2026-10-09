@@ -98,7 +98,7 @@ fn build() ui2.Element {
 			ui2.TextStyle{ size: 20, color: 0x0f172a }),
 		ui2.with_tooltip(ui2.label('status', g_acceptance_message, ui2.rect(24, 52, 590, 28), style),
 			'Tooltip appears after 500 ms with a stationary pointer.'),
-		ui2.text_input(
+		ui2.text_area(
 			id:          'editor'
 			placeholder: 'Type, select, then refresh'
 			text:        ''
@@ -106,7 +106,6 @@ fn build() ui2.Element {
 			box:         box
 			text_style:  style
 			keyboard:    0
-			multiline:   true
 		) or { panic(err) },
 		ui2.with_event(ui2.button('refresh', 'Refresh', ui2.rect(380, 96, 100, 34), box, style), fn (event ui2.ElementEvent) {
 			if event.kind == .tap { ui2.refresh() }

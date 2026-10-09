@@ -1,7 +1,7 @@
 module ui2
 
-fn test_text_input_defaults_to_multiline_editor() {
-	el := text_input(
+fn test_text_area_preserves_multiline_content_and_events() {
+	el := text_area(
 		id:          'notes'
 		frame:       rect(0, 0, 240, 120)
 		text:        'One\nTwo'
@@ -14,13 +14,22 @@ fn test_text_input_defaults_to_multiline_editor() {
 	assert voidptr(el.on_event) != unsafe { nil }
 }
 
+fn test_text_input_defaults_to_single_line() {
+	el := text_input(text: 'José', placeholder: 'Name') or { panic(err) }
+	assert el.kind == .text_field
+	assert el.text == 'José'
+	assert el.placeholder == 'Name'
+	assert el.enabled && el.autocorrect
+	assert !el.secure && !el.readonly && !el.disable_scroll
+	assert el.text_runs.len == 0
+}
+
 fn test_text_input_single_line_supports_submit_and_password() {
 	el := text_input(
 		id:           'password'
 		frame:        rect(0, 0, 200, 36)
 		text:         'secret'
 		placeholder:  'Password'
-		multiline:    false
 		password:     true
 		on_event:     fn (_ ElementEvent) {}
 		autocorrect:  false
@@ -35,23 +44,28 @@ fn test_text_input_single_line_supports_submit_and_password() {
 
 fn test_text_input_preserves_readonly_and_disabled_state() {
 	el := text_input(
-		id:        'preview'
-		frame:     rect(0, 0, 200, 36)
-		multiline: false
-		readonly:  true
-		enabled:   false
+		id:       'preview'
+		frame:    rect(0, 0, 200, 36)
+		readonly: true
+		enabled:  false
 	) or { panic(err) }
 	assert el.kind == .text_field
 	assert el.readonly
 	assert !el.enabled
 }
 
-fn test_text_input_rejects_multiline_password_mode() {
-	if _ := text_input(TextInputConfig{ password: true }) {
-		assert false, 'multiline secure entry must fail explicitly'
-	} else {
-		assert err.msg().contains('single-line')
-	}
+fn test_text_area_preserves_disabled_editing_and_keyboard_configuration() {
+	el := text_area(
+		readonly:     true
+		enabled:      false
+		autocorrect:  false
+		keyboard:     2
+		padding_left: 8
+	) or { panic(err) }
+	assert el.kind == .text_area
+	assert el.readonly && !el.enabled && !el.autocorrect
+	assert el.keyboard == 2 && el.padding_left == 8
+	assert !el.secure
 }
 
 fn test_single_line_content_viewport_respects_padding_and_parent_clip() {
@@ -71,14 +85,13 @@ fn test_single_line_content_viewport_clamps_empty_and_tiny_controls() {
 	assert text_field_content_rect(rect(0, 0, 20, 36), 30).width == 0
 }
 
-fn test_text_input_rich_multiline_preserves_runs_and_disables_scroll() {
+fn test_text_area_preserves_rich_runs_and_disables_scroll() {
 	runs := [TextRun{ text: 'Hello', style: TextStyle{ weight: 700 } },
 		TextRun{ text: ' world', style: TextStyle{ italic: true } }]
-	input := text_input(
+	input := text_area(
 		id:             'body'
 		text:           'Hello world'
 		text_runs:      runs
-		multiline:      true
 		readonly:       true
 		disable_scroll: true
 		on_event:       fn (_ ElementEvent) {}
@@ -88,45 +101,33 @@ fn test_text_input_rich_multiline_preserves_runs_and_disables_scroll() {
 	assert input.readonly
 	assert input.disable_scroll
 	assert voidptr(input.on_event) != unsafe { nil }
-	if _ := text_input(text_runs: runs, multiline: false) {
-		assert false
-	}
 }
 
-fn test_text_input_and_scroll_are_the_only_input_and_scroll_vml_names() {
-	for tag in ['TextField', 'TextArea', 'ScrollView'] {
-		if _ := parse_vml('${tag} {}') {
-			assert false, 'removed tag must be rejected'
-		}
-	}
-	for property in ['hint_text: "Name"', 'on_text: changed', 'on_text_validate: submit',
-		'editable: false', 'emit_change: true'] {
-		if _ := parse_vml('TextInput { ${property} }') {
-			assert false, 'removed property must be rejected'
-		}
-	}
-	field := element_from_vml_with_callbacks('TextInput { id: name multiline: false placeholder: "Name" on_change: changed on_submit: submit }', rect(0, 0, 180, 32), {
-		'changed': fn (_ ElementEvent) {}
-		'submit':  fn (_ ElementEvent) {}
-	})!
+fn test_compiled_text_input_text_area_and_scroll_keep_distinct_controls() {
+	mut invoked := &[]string{}
+	changed := fn [mut invoked] (event ElementEvent) { invoked << 'changed:${event.text}' }
+	submit := fn [mut invoked] (event ElementEvent) { invoked << 'submit:${event.text}' }
+	field := compiled_text_input_3(rect(0, 0, 180, 32), changed, submit)
 	assert field.kind == .text_field
 	assert field.placeholder == 'Name'
 	assert voidptr(field.on_event) != unsafe { nil }
-	assert voidptr(field.on_event) != unsafe { nil }
-	area := element_from_vml('TextInput { multiline: true readonly: true disable_scroll: true }', rect(0, 0, 180, 100))!
+	field.on_event(ElementEvent{ kind: .change, text: 'José' })
+	field.on_event(ElementEvent{ kind: .submit, text: 'José' })
+	assert *invoked == ['changed:José', 'submit:José']
+	area := compiled_text_input_2(rect(0, 0, 180, 100))
 	assert area.kind == .text_area
 	assert area.readonly
 	assert area.disable_scroll
-	viewport := element_from_vml('Scroll { id: pane }', rect(0, 0, 180, 100))!
+	viewport := compiled_text_input_1(rect(0, 0, 180, 100))
 	assert viewport.kind == .scroll
 }
 
-struct InputRoutingItem {
+pub struct InputRoutingItem {
 pub:
 	id int
 }
 
-struct InputRoutingModel {
+pub struct InputRoutingModel {
 pub mut:
 	items    []InputRoutingItem
 	selected int
@@ -137,29 +138,22 @@ pub fn (mut model InputRoutingModel) select(id int) {
 }
 
 fn test_text_input_repeated_actions_keep_identity_separate_from_routing() {
-	source := 'Column { Repeater { model: app.items key: item.id
-		TextInput { multiline: false width: 100 height: 32 on_change: app.select(item.id) }
-	} }'
-	mut app := new_vml_app(source, InputRoutingModel{
+	mut app := InputRoutingModel{
 		items: [InputRoutingItem{ id: 1 }, InputRoutingItem{ id: 2 }]
-	})!
-	root := app.build(rect(0, 0, 200, 100))!
+	}
+	root := $vml('fixtures/text_input_routing.vml', rect(0, 0, 200, 100))
 	assert root.children.len == 2
 	assert root.children[0].key == '1'
 	assert root.children[1].key == '2'
 	assert root.children[0].key != root.children[1].key
 	root.children[1].on_event(ElementEvent{ kind: .change })
-	assert app.state().selected == 2
+	assert app.selected == 2
 	root.children[0].on_event(ElementEvent{ kind: .change })
-	assert app.state().selected == 1
+	assert app.selected == 1
 }
 
-fn test_vml_text_input_preserves_rich_runs_and_typography_inheritance() {
-	input := element_from_vml('TextInput { id: rich readonly: true disable_scroll: true
-		font_size: 18 color: #123456
-		Run { text: "Hola " weight: 700 }
-		Run { text: "ñ" italic: true }
-	}', rect(0, 0, 240, 100))!
+fn test_vml_text_area_preserves_rich_runs_and_typography_inheritance() {
+	input := compiled_text_input_0(rect(0, 0, 240, 100))
 	assert input.kind == .text_area
 	assert input.text == 'Hola ñ'
 	assert input.text_runs.len == 2
@@ -169,7 +163,20 @@ fn test_vml_text_input_preserves_rich_runs_and_typography_inheritance() {
 	assert input.text_runs[1].style.color == u32(0x123456)
 	assert input.readonly
 	assert input.disable_scroll
-	if _ := element_from_vml('TextInput { multiline: false Run { text: "Rich" } }', rect(0, 0, 240, 32)) {
-		assert false, 'rich input requires multiline'
-	}
+}
+
+fn compiled_text_input_0(frame Rect) Element {
+	return $vml('fixtures/text_input_0.vml', frame)
+}
+
+fn compiled_text_input_1(frame Rect) Element {
+	return $vml('fixtures/text_input_1.vml', frame)
+}
+
+fn compiled_text_input_2(frame Rect) Element {
+	return $vml('fixtures/text_input_2.vml', frame)
+}
+
+fn compiled_text_input_3(frame Rect, callback_changed ElementCallback, callback_submit ElementCallback) Element {
+	return $vml('fixtures/text_input_3.vml', frame)
 }

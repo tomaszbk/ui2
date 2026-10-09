@@ -10,11 +10,9 @@ pub struct VmlLabel {}
 
 pub struct VmlImage {}
 
-pub struct VmlTextField {}
+pub struct VmlTextInput {}
 
 pub struct VmlTextArea {}
-
-pub struct VmlTextInput {}
 
 pub struct VmlScroll {}
 
@@ -44,12 +42,10 @@ fn vml_ref_kind[T]() Kind {
 		return .label
 	} $else $if T is VmlImage {
 		return .image
-	} $else $if T is VmlTextField {
+	} $else $if T is VmlTextInput {
 		return .text_field
 	} $else $if T is VmlTextArea {
 		return .text_area
-	} $else $if T is VmlTextInput {
-		return .text_field
 	} $else $if T is VmlScroll {
 		return .scroll
 	} $else $if T is VmlCheckbox {
@@ -85,7 +81,7 @@ pub fn (mut component CompiledVmlComponent) ref[T](name string) !&VmlRef[T] {
 
 pub fn (mut ref VmlRef[T]) bind(node &CompiledVmlNode) ! {
 	ref.owner.require_alive()!
-	valid := $if T is VmlTextInput { node.element().kind in [.text_field, .text_area] } $else { node.element().kind == vml_ref_kind[T]() }
+	valid := node.element().kind == vml_ref_kind[T]()
 	if !valid {
 		return error('compiled VML ref expects `${vml_ref_kind[T]()}`, got `${node.element().kind}`')
 	}
@@ -119,7 +115,7 @@ fn (ref &VmlRef[T]) command_id() !string {
 }
 
 pub fn (ref &VmlRef[T]) focus() ! {
-	$if T is VmlButton || T is VmlView || T is VmlTextField || T is VmlTextArea || T is VmlTextInput || T is VmlCheckbox || T is VmlDropdown || T is VmlSlider || T is VmlSwitch || T is VmlToggleButton {
+	$if T is VmlButton || T is VmlView || T is VmlTextInput || T is VmlTextArea || T is VmlCheckbox || T is VmlDropdown || T is VmlSlider || T is VmlSwitch || T is VmlToggleButton {
 		focus(ref.command_id()!)
 	} $else {
 		$compile_error('VML ref target does not support focus')
@@ -129,7 +125,7 @@ pub fn (ref &VmlRef[T]) focus() ! {
 // set_text is an explicit edit-buffer replacement, preserving the distinction
 // between a declared text effect and an imperative replacement of local edits.
 pub fn (ref &VmlRef[T]) set_text(text string) ! {
-	$if T is VmlTextField || T is VmlTextArea || T is VmlTextInput {
+	$if T is VmlTextInput || T is VmlTextArea {
 		set_text(ref.command_id()!, text)
 	} $else {
 		$compile_error('VML ref target does not support set_text')

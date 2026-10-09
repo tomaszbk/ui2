@@ -630,8 +630,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		reset_scroll_test_state()
 		mut events := &[]ElementEvent{}
 		callback := fn [mut events] (event ElementEvent) { events << event }
-		pane := element_from_vml_with_callbacks('Scroll { id: pane on_scroll: changed }',
-			rect(0, 0, 100, 100), { 'changed': callback }) or { panic(err) }
+		pane := compiled_ui_scroll_immediate_3(rect(0, 0, 100, 100), callback)
 		register_scroll_view(named_scroll_state_id(pane.id), pane.frame, pane.frame, 500, true, true, false,
 			HitTarget{ id: pane.id, on_event: pane.on_event })
 		handle_mouse_scroll_vector(50, 50, 0, -1)
@@ -649,8 +648,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		reset_scroll_test_state()
 		mut events := &[]ElementEvent{}
 		callback := fn [mut events] (event ElementEvent) { events << event }
-		pane := element_from_vml_with_callbacks('Scroll { key: pane on_scroll: changed }',
-			rect(0, 0, 100, 100), { 'changed': callback }) or { panic(err) }
+		pane := compiled_ui_scroll_immediate_2(rect(0, 0, 100, 100), callback)
 		path := reconciliation_child_key('root', 0, pane)
 		id := scroll_view_state_id(pane, path)
 		assert id.len > 0
@@ -687,13 +685,11 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		defer { reset_scroll_test_state() }
 		mut events := &[]ElementEvent{}
 		callback := fn [mut events] (event ElementEvent) { events << event }
-		anonymous := element_from_vml_with_callbacks('Scroll { key: first on_scroll: changed }',
-			rect(0, 0, 100, 100), { 'changed': callback }) or { panic(err) }
+		anonymous := compiled_ui_scroll_immediate_1(rect(0, 0, 100, 100), callback)
 		anonymous_path := reconciliation_child_key('root', 0, anonymous)
 		anonymous_id := scroll_view_state_id(anonymous, anonymous_path)
 		// Private spelling cannot reserve an otherwise valid authored identity.
-		named := element_from_vml_with_callbacks('Scroll { id: "${anonymous_id}" on_scroll: changed }',
-			rect(120, 0, 100, 100), { 'changed': callback }) or { panic(err) }
+		named := compiled_ui_scroll_immediate_0(rect(120, 0, 100, 100), callback, anonymous_id)
 		validate_element_tree(screen(0xffffff, [anonymous, named])) or { panic(err) }
 		named_id := scroll_view_state_id(named, reconciliation_child_key('root', 1, named))
 		assert named.id == anonymous_id
@@ -736,11 +732,11 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	fn test_named_multiline_input_id_can_equal_an_anonymous_input_private_key() {
 		reset_scroll_test_state()
 		defer { reset_scroll_test_state() }
-		input := text_input(TextInputConfig{ multiline: true,
+		input := text_area(TextAreaConfig{
 			frame: rect(0, 0, 100, 100) }) or { panic(err) }
 		anonymous := Element{ ...input, key: 'first' }
 		anonymous_id := text_area_scroll_id(anonymous)
-		named := text_input(TextInputConfig{ id: anonymous_id, multiline: true,
+		named := text_area(TextAreaConfig{ id: anonymous_id,
 			frame: rect(120, 0, 100, 100) }) or { panic(err) }
 		validate_element_tree(screen(0xffffff, [anonymous, named])) or { panic(err) }
 		named_id := text_area_scroll_id(named)
@@ -758,4 +754,20 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		assert scroll_test_payloads.map(it.id) == ['', named.id]
 		assert scroll_test_payloads.map(it.value) == [48.0, 60.5]
 	}
+}
+
+fn compiled_ui_scroll_immediate_0(frame Rect, callback_changed ElementCallback, fixture_id string) Element {
+	return Element{ ...$vml('fixtures/ui_scroll_immediate_0.vml', frame), id: fixture_id }
+}
+
+fn compiled_ui_scroll_immediate_1(frame Rect, callback_changed ElementCallback) Element {
+	return $vml('fixtures/ui_scroll_immediate_1.vml', frame)
+}
+
+fn compiled_ui_scroll_immediate_2(frame Rect, callback_changed ElementCallback) Element {
+	return $vml('fixtures/ui_scroll_immediate_2.vml', frame)
+}
+
+fn compiled_ui_scroll_immediate_3(frame Rect, callback_changed ElementCallback) Element {
+	return $vml('fixtures/ui_scroll_immediate_3.vml', frame)
 }

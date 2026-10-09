@@ -40,7 +40,6 @@ fn test_text_input_password_preserves_input_configuration() {
 		box:         BoxStyle{ bg: 0xfafafa }
 		text_style:  TextStyle{ size: 14 }
 		on_event:    ui_modifier_test_callback
-		multiline:   false
 		password:    true
 	) or { panic(err) }
 	secure := field

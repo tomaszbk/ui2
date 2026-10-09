@@ -127,13 +127,12 @@ fn test_custom_intrinsic_editor_matches_wrapping_content_width_before_window_cre
 		for padding_left in [0.0, 12.0] {
 			for scrolling in [true, false] {
 				area := Element{
-					...text_input(
+					...text_area(
 						id:         'notes'
 						text:       'MMMMM\r\n\r\nM\n'
 						frame:      Rect{}
 						box:        BoxStyle{}
 						text_style: style
-						multiline:  true
 					) or { panic(err) }
 					padding_left:   padding_left
 					disable_scroll: !scrolling

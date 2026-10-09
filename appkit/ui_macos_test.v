@@ -202,15 +202,13 @@ fn test_macos_transparent_box_controls_disable_native_backgrounds() {
 		box: transparent_box
 		text_style: TextStyle{}
 		keyboard: keyboard_default
-		multiline: false
 	) or { panic(err) })
-	text_area_view := native_new_text_area(text_input(
+	text_area_view := native_new_text_area(text_area(
 		id: 'clear-area'
 		text: ''
 		frame: rect(0, 0, 120, 80)
 		box: transparent_box
 		text_style: TextStyle{}
-		multiline: true
 	) or { panic(err) })
 	defer {
 		macos.release(button_view)
@@ -253,7 +251,6 @@ fn test_macos_text_field_uses_native_bezel_without_layer_mask() {
 	}
 		text_style: TextStyle{}
 		keyboard: keyboard_default
-		multiline: false
 	) or { panic(err) })
 	defer {
 		macos.release(field)

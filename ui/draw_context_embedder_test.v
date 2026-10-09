@@ -534,7 +534,6 @@ fn test_scaled_composition_gpu_submission_keeps_caret_and_layout_on_resize() {
 			box:         BoxStyle{ bg: 0xffffff }
 			text_style:  style
 			keyboard:    keyboard_default
-			multiline:   false
 		) or { panic(err) }
 		rich := rich_label('rich', [
 			TextRun{ text: 'Baseline ', style: TextStyle{ ...style, size: 48, weight: 800 } },

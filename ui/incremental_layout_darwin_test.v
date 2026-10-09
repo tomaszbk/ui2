@@ -29,7 +29,7 @@ $if macos && !ui2_custom_rendering ?&& !ui2_headless ? {
 			unsafe { *st = previous }
 		}
 		caption := label('caption', 'breve', Rect{}, TextStyle{ lines: 20 })
-		editor := text_input(TextInputConfig{ id: 'editor', text: 'declarado', disable_scroll: true, frame: rect(0, 0, 0, 60) })!
+		editor := text_area(TextAreaConfig{ id: 'editor', text: 'declarado', disable_scroll: true, frame: rect(0, 0, 0, 60) })!
 		column := flex(FlexConfig{
 			id:          'column'
 			frame:       rect(0, 0, 100, 260)

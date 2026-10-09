@@ -20,10 +20,9 @@ fn build() ui2.Element {
 		vector_runtime_started = true
 		spawn verify(ui2.ui_dispatcher())
 	}
-	mut children := [ui2.text_input(
+	mut children := [ui2.text_area(
 		id:         'edit'
 		text:       'declarado: ñ, á'
-		multiline:  true
 		frame:      ui2.rect(15, 15, 300, 70)
 		box:        ui2.BoxStyle{ bg: 0xffffff }
 		text_style: ui2.TextStyle{ size: 15 }

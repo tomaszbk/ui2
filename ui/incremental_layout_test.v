@@ -588,7 +588,7 @@ fn incremental_other_measurer(_text string, _style TextStyle, _width f64) !Layou
 
 fn test_incremental_measurer_placeholder_insets_rich_runs_and_explicit_inputs() {
 	mut tree := LayoutTree{}
-	field := text_input(TextInputConfig{ id: 'field', multiline: false, placeholder: 'WW' })!
+	field := text_input(TextInputConfig{ id: 'field', placeholder: 'WW' })!
 	tree.replace(field)!
 	initial := incremental_resolve(mut tree)!
 	assert initial.frame == rect(0, 0, 44, 32)
@@ -629,7 +629,8 @@ fn incremental_compiled_build(mut model IncrementalCompiledModel) Element {
 }
 
 fn test_compiled_builder_uses_retained_layout_without_interpreter_nodes() {
-	mut controller := &CompiledVmlController[IncrementalCompiledModel]{ build: incremental_compiled_build }
+	mut model := IncrementalCompiledModel{}
+	mut controller := &CompiledVmlController[IncrementalCompiledModel]{ build: incremental_compiled_build, model: &model }
 	mut runtime := compiled_vml_runtime()
 	previous := runtime.controller
 	defer { runtime.controller = previous }

@@ -152,7 +152,7 @@ fn test_ref_type_mount_availability_and_slot_author_scope() ! {
 	mut author := new_vml_component('author')!
 	author.publish = fn (_ string, _ Element) {}
 	mut button_ref := author.ref[VmlButton]('submit')!
-	mut text_ref := author.ref[VmlTextInput]('edit')!
+	mut text_ref := author.ref[VmlTextArea]('edit')!
 	assert !button_ref.is_available()
 	mut host := author.child('host')!
 	mut slot := author.slot_child(mut host, 'content')!
@@ -451,4 +451,32 @@ fn test_anonymous_ref_is_readable_and_imperative_commands_require_authored_id() 
 	assert rejected == 2
 	assert reference.element()!.text == 'readable'
 	owner.dispose()!
+}
+
+fn test_text_input_and_text_area_refs_require_their_exact_control_kind() ! {
+	mut owner := new_vml_document('typed editors')!
+	owner.publish = fn (_ string, _ Element) {}
+	mut input := owner.element(text_input(id: 'input')!)!
+	mut area := owner.element(text_area(id: 'area')!)!
+	mut input_ref := owner.ref[VmlTextInput]('input')!
+	mut area_ref := owner.ref[VmlTextArea]('area')!
+	if _ := input_ref.bind(area) {
+		assert false
+	} else {
+		assert err.msg().contains('expects `text_field`')
+	}
+	if _ := area_ref.bind(input) {
+		assert false
+	} else {
+		assert err.msg().contains('expects `text_area`')
+	}
+	input_ref.bind(input)!
+	area_ref.bind(area)!
+	mut root := owner.element(Element{kind: .view, id: 'root'})!
+	root.set_children([input, area])!
+	root.mount()!
+	assert input_ref.element()!.kind == .text_field
+	assert area_ref.element()!.kind == .text_area
+	owner.dispose()!
+	assert !input_ref.is_available() && !area_ref.is_available()
 }
