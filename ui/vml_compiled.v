@@ -4,6 +4,7 @@ pub struct CompiledVmlRunConfig[T] {
 pub:
 	model      &T                 = unsafe { nil }
 	build      fn (mut T) Element = unsafe { nil }
+	update     fn (mut T)         = unsafe { nil }
 	title      string             = 'App'
 	width      int                = 400
 	height     int                = 800
@@ -13,7 +14,8 @@ pub:
 
 @[heap]
 struct CompiledVmlController[T] {
-	build fn (mut T) Element = unsafe { nil }
+	build  fn (mut T) Element = unsafe { nil }
+	update fn (mut T)         = unsafe { nil }
 mut:
 	model &T               = unsafe { nil }
 	node  &CompiledVmlNode = unsafe { nil }
@@ -41,6 +43,7 @@ pub fn vml_bounds() Rect {
 fn compiled_vml_controller_build[T]() Element {
 	runtime := compiled_vml_runtime()
 	mut controller := unsafe { &CompiledVmlController[T](runtime.controller) }
+	if controller.update != unsafe { nil } { controller.update(mut controller.model) }
 	if controller.node == unsafe { nil } {
 		declaration := controller.build(mut controller.model)
 		if declaration.compiled_node == unsafe { nil } { return declaration }
@@ -68,9 +71,10 @@ pub fn dispose_compiled_vml() {
 pub fn run_compiled_vml[T](config CompiledVmlRunConfig[T]) ! {
 	if config.model == unsafe { nil } { return error('compiled VML requires a live model') }
 	if config.build == unsafe { nil } { return error('compiled VML requires a build function') }
-	mut controller := &CompiledVmlController[T]{ build: config.build, model: config.model }
+	mut controller := &CompiledVmlController[T]{ build: config.build, update: config.update, model: config.model }
 	mut runtime := compiled_vml_runtime()
 	runtime.initial_bounds = rect(0, 0, config.width, config.height)
+	if controller.update != unsafe { nil } { controller.update(mut controller.model) }
 	declaration := controller.build(mut controller.model)
 	runtime.initial_bounds = none
 	validate_element_tree(declaration) or {

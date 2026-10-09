@@ -233,9 +233,10 @@ fn test_task_cancellation_discards_queued_worker_delivery_on_unmount() ! {
 
 struct VmlRunnerFixture {
 mut:
-	builds int
-	text   string
-	owner  &CompiledVmlComponent = unsafe { nil }
+	builds  int
+	updates int
+	text    string
+	owner   &CompiledVmlComponent = unsafe { nil }
 }
 
 fn component_runner_build(mut model VmlRunnerFixture) Element {
@@ -331,4 +332,28 @@ fn test_runner_rejects_missing_model_before_building() {
 		return
 	}
 	assert false
+}
+
+fn test_runner_service_update_borrows_live_model_without_rebuilding() ! {
+	mut runtime := compiled_vml_runtime()
+	previous := runtime.controller
+	previous_root := runtime.root
+	defer {
+		runtime.controller = previous
+		runtime.root = previous_root
+	}
+	mut model := &VmlRunnerFixture{}
+	mut controller := &CompiledVmlController[VmlRunnerFixture]{
+		model:  model
+		build:  component_runner_build
+		update: fn (mut state VmlRunnerFixture) {
+			state.updates++
+			state.text = state.updates.str()
+		}
+	}
+	runtime.controller = voidptr(controller)
+	assert compiled_vml_controller_build[VmlRunnerFixture]().text == '1'
+	assert compiled_vml_controller_build[VmlRunnerFixture]().text == '2'
+	assert model.updates == 2 && model.builds == 1
+	dispose_compiled_vml()
 }
