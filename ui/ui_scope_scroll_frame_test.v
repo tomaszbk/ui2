@@ -120,8 +120,9 @@ fn scope_frame_setup() {
 
 fn scope_frame_root() Element {
 	scope_frame_builds++
-	// The initial preload build precedes mounting. Setup belongs to build #2.
-	if scope_frame_builds >= 2 && !scope_frame_setup_posted {
+	// The first retained frame mounts the declaration; its posted setup runs
+	// on the next callback. Idle GL presentation does not rebuild the model.
+	if scope_frame_builds == 1 && !scope_frame_setup_posted {
 		gfx.enable_frame_stats()
 		g_gg_app.ctx.inner.config = gg.Config{...g_gg_app.ctx.inner.config, cleanup_fn: scope_frame_cleanup}
 		scope_frame_setup_posted = true

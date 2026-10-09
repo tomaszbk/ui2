@@ -308,7 +308,7 @@ pub fn focus(id string) {
 	native := g_views[id] or { return }
 	window := g_window
 	root_view := g_root_view
-	manager := g_ios_navigation
+	mut manager := g_ios_navigation
 	root := manager.root
 	tree := g_layout_tree
 	revision := tree.revision

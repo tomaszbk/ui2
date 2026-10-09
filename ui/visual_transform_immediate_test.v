@@ -7,36 +7,49 @@ $if ( linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headl
 	import math
 	__global transform_callback_events = []ElementEvent{}
 	fn capture_transform_event(event ElementEvent) { transform_callback_events << event }
-	fn transform_explicit_build_event(_event ElementEvent) {
+	fn transform_explicit_build_event(event ElementEvent) {
+		transform_callback_events << event
 		set_visual_transform('tile', VisualTransform{rotation: 30}) or { panic(err) }
 		refresh()
 	}
-	fn transform_presentation_event(_event ElementEvent) {
+	fn transform_presentation_event(event ElementEvent) {
+		transform_callback_events << event
 		set_visual_transform('tile', VisualTransform{ rotation: 30 }) or { panic(err) }
 	}
 	fn test_actual_pointer_dispatch_does_not_rebuild_transform_callbacks() {
 		previous := g_gg_app
 		previous_touch := g_touch
 		previous_tooltip := g_tooltip
-		g_gg_app = &GgApp{ ctx: &DrawContext{}, has_root: true, declared_root: screen(0xffffff, [view('tile', rect(0, 0, 100, 100), BoxStyle{}, []Element{})]) }
+		previous_focus := g_focus_navigation
+		previous_events := transform_callback_events.clone()
+		g_focus_navigation = &FocusManager{}
+		transform_callback_events.clear()
+		tile := Element{kind: .view, id: 'tile', frame: rect(0, 0, 100, 100),
+			clickable: true, draggable: true, on_event: transform_presentation_event}
+		g_gg_app = &GgApp{ ctx: &DrawContext{width: 320, height: 240}, has_root: true, declared_root: screen(0xffffff, [tile]) }
 		defer {
 			g_gg_app = previous
 			g_touch = previous_touch
 			g_tooltip = previous_tooltip
+			g_focus_navigation = previous_focus
+			transform_callback_events = previous_events.clone()
 			g_hit_targets = []HitTarget{}
 		}
 		initial := g_gg_app.scheduler.begin_frame(0) or { panic('initial frame') }
 		g_gg_app.scheduler.finish_frame(initial)
-		g_hit_targets = [HitTarget{ id: 'tile', on_event: transform_presentation_event, clickable: true, draggable: true, w: 100, h: 100 }]
+		// Presented targets route through the current mounted declaration.
+		g_hit_targets = [HitTarget{ id: 'tile', kind: .view, on_event: tile.on_event, clickable: true, draggable: true, w: 100, h: 100 }]
 		on_event(&gg.Event{ typ: .mouse_down, mouse_x: 20, mouse_y: 30 }, g_gg_app)
 		on_event(&gg.Event{ typ: .mouse_move, mouse_x: 25, mouse_y: 32 }, g_gg_app)
 		on_event(&gg.Event{ typ: .mouse_up, mouse_x: 25, mouse_y: 32 }, g_gg_app)
+		assert transform_callback_events.map(it.kind) == [ElementEventKind.pointer_down, .pointer_drag, .pointer_up]
 		work := g_gg_app.scheduler.begin_frame(1) or { panic('missing paint') }
 		assert !work.build && work.draw && RenderReason.build !in work.reasons
 		g_gg_app.scheduler.finish_frame(work)
 		assert !g_gg_app.scheduler.stats().pending
-		g_hit_targets = [HitTarget{ id: 'tile', on_event: transform_explicit_build_event, clickable: true, w: 100, h: 100 }]
+		refresh_element('tile', Element{...tile, on_event: transform_explicit_build_event})
 		on_event(&gg.Event{typ: .mouse_down, mouse_x: 20, mouse_y: 30}, g_gg_app)
+		assert transform_callback_events.len == 4 && transform_callback_events.last().kind == .pointer_down
 		explicit := g_gg_app.scheduler.begin_frame(2) or { panic('explicit build') }
 		assert explicit.build && RenderReason.build in explicit.reasons
 		g_gg_app.scheduler.finish_frame(explicit)

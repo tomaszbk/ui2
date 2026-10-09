@@ -109,15 +109,12 @@ fn nested_scroll_verify() {
 }
 fn nested_scroll_build() Element {
 	nested_scroll_build_count++
-	$if ui2_embedder ? {
-		// The owned host has no preload build. Request a second mounted build
-		// before running the same public API controls used by the GL host.
-		if nested_scroll_build_count == 1 { assert ui_dispatcher().post(refresh) }
-	}
-	// Retain the root-corrected timing: on_init preload build #1 is unmounted.
-	if nested_scroll_build_count >= 2 && !nested_scroll_setup_posted { nested_scroll_setup_posted = true; assert ui_dispatcher().post(nested_scroll_setup) }
+	// Both hosts build their first declaration in the retained frame. Posted
+	// controls run at the next callback, after that frame mounted its inputs.
+	// Idle presentation does not request another builder invocation.
+	if nested_scroll_build_count == 1 && !nested_scroll_setup_posted { nested_scroll_setup_posted = true; assert ui_dispatcher().post(nested_scroll_setup) }
 	if nested_scroll_removed && !nested_scroll_verify_posted
-		&& (nested_scroll_mode !in [4, 7] || nested_scroll_build_count >= 4) {
+		&& (nested_scroll_mode !in [4, 7] || nested_scroll_build_count >= 3) {
 		nested_scroll_verify_posted = true
 		assert ui_dispatcher().post(nested_scroll_verify)
 	}

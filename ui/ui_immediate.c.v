@@ -889,6 +889,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 	fn sync_custom_input_geometry(dispatch CustomInputDispatch) bool {
 		if !dispatch.valid() || (dispatch.app.ctx!=unsafe { nil } && (dispatch.app.ctx.destroyed || dispatch.app.ctx.destroying)) { return false }
 		mut app := dispatch.app
+		ctx := app.ctx
 		stats := app.scheduler.stats()
 		if stats.suspended || app.suspended || app.iconified || app.building_declaration { return false }
 		if stats.in_flight { return dispatch.valid() }
@@ -906,8 +907,14 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 			}
 			return false
 		}
-		if !dispatch.valid() { return false }
+		if !dispatch.valid() || app.ctx != ctx
+			|| (ctx != unsafe { nil } && !custom_layout_owner_current(dispatch, ctx, true)) { return false }
+		// Input adopts the same declaration as paint. Publish its editor buffers,
+		// edit permissions and live control state before focus can notify user code.
+		reconcile_mounted_focus_controls(root)
 		update_custom_focus_tree(root)
+		if !dispatch.valid() || app.ctx != ctx || g_focus_navigation.root != root
+			|| (ctx != unsafe { nil } && !custom_layout_owner_current(dispatch, ctx, true)) { return false }
 		return dispatch.valid()
 	}
 
@@ -993,8 +1000,9 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 			return
 		}
 
-		// Restoring focus can notify user code. Leave retained input state in
-		// place until ownership is revalidated, so a newer gesture survives.
+		// Restoring focus can notify user code. Its mounted control state must
+		// already agree with the new root, including editors outside the viewport.
+		reconcile_mounted_focus_controls(root)
 		update_custom_focus_tree(root)
 		if !custom_frame_current(dispatch, ctx) || g_focus_navigation.root != root { return }
 		g_hit_targets = []HitTarget{}
@@ -1005,14 +1013,6 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		// Paint-time clamping can also notify user code before another pane is
 		// painted. Keep every mounted Scroll available to nested public calls.
 		sync_mounted_scroll_views()
-		g_active_fields = map[string]bool{}
-		app.editable_fields.clear()
-		g_active_sliders = map[string]bool{}
-		g_active_switches = map[string]bool{}
-		g_active_checkboxes = map[string]bool{}
-		g_active_toggles = map[string]bool{}
-		g_active_scrolls = map[string]bool{}
-		sync_mounted_focus_controls(root, 'root')
 		host_window := app.native_window
 		owned_surface := ctx.owns_surface
 		$if macos && ui2_embedder ? {

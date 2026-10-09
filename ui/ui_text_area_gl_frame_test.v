@@ -115,7 +115,8 @@ $if macos && ui2_custom_rendering ? && darwin_sokol_glcore33 ? && !ui2_headless 
 
 	fn area_gl_root() Element {
 		area_gl_builds++
-		if area_gl_builds >= 2 && !area_gl_setup_posted {
+		// The first retained build is mounted; initialization no longer preloads a tree.
+		if area_gl_builds == 1 && !area_gl_setup_posted {
 			area_gl_setup_posted = true
 			gfx.enable_frame_stats()
 			g_gg_app.ctx.inner.config = gg.Config{...g_gg_app.ctx.inner.config, cleanup_fn: area_gl_cleanup}

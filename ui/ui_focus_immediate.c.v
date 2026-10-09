@@ -153,6 +153,17 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 
 	// This pass retains every mounted input, including culled subtrees. Editor
 	// reconciliation lives here, so scrolling never discards local edits/IME.
+	fn reconcile_mounted_focus_controls(root Element) {
+		g_active_fields.clear()
+		g_gg_app.editable_fields.clear()
+		g_active_sliders.clear()
+		g_active_switches.clear()
+		g_active_checkboxes.clear()
+		g_active_toggles.clear()
+		g_active_scrolls.clear()
+		sync_mounted_focus_controls(root, 'root')
+	}
+
 	fn sync_mounted_focus_controls(el Element, path string) {
 		sync_mounted_control(el)
 		if el.kind == .scroll {
