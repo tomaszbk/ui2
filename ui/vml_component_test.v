@@ -396,3 +396,33 @@ fn test_lifecycle_reads_state_and_lazy_memos_before_nodes_are_disposed() ! {
 	assert fixture.values == ['3']
 	assert root.runtime.stats() == SignalStats{}
 }
+
+fn test_anonymous_declarations_keep_public_ids_empty_and_private_ownership_stable() ! {
+	mut first_document := new_vml_document('same file')!
+	mut second_document := new_vml_document('same file')!
+	first_document.publish = fn (_ string, _ Element) {}
+	second_document.publish = fn (_ string, _ Element) {}
+	mut first := first_document.element(Element{ kind: .label, key: 'item' }, identity: 'source:0')!
+	mut second := second_document.element(Element{ kind: .label, key: 'item' }, identity: 'source:0')!
+	assert first.element().id == '' && second.element().id == ''
+	assert first.identity() != second.identity()
+	assert first.identity().starts_with('/compiled:')
+	assert first_document.element(Element{ kind: .label, key: 'item' }, identity: 'source:0')! == first
+	first_document.element(Element{ kind: .label }) or { assert err.msg().contains('local declaration identity') }
+	mut nested := first_document.child('nested')!
+	mut named := nested.element(Element{ kind: .view, id: 'public' }, identity: 'source:1')!
+	assert named.element().id == nested.namespace + ':' + 'public'.bytes().hex()
+	assert named.identity() != first.identity()
+	first_document.element(Element{ kind: .button }, identity: 'source:0') or { assert err.msg().contains('kind') }
+	mut composite := first_document.element(view('', Rect{}, BoxStyle{}, [
+		Element{ kind: .label },
+		Element{ kind: .label },
+	]),
+		identity: 'source:2'
+	)!
+	assert composite.element().id == ''
+	assert composite.element().children[0].id == '' && composite.element().children[1].id == ''
+	assert composite.children[0].identity() != composite.children[1].identity()
+	first_document.dispose()!
+	second_document.dispose()!
+}

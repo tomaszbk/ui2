@@ -5,9 +5,10 @@ module ui2
 @[heap]
 pub struct CompiledVmlComponent {
 pub:
-	runtime   &SignalRuntime
-	scope     &SignalScope
-	namespace string
+	runtime            &SignalRuntime
+	scope              &SignalScope
+	namespace          string
+	identity_namespace string
 mut:
 	parent       &CompiledVmlComponent = unsafe { nil }
 	name         string
@@ -31,6 +32,7 @@ pub:
 mut:
 	declaration       Element
 	local_id          string
+	authored_id       string
 	parent            &CompiledVmlNode = unsafe { nil }
 	children          []&CompiledVmlNode
 	children_revision &Signal[u64]
@@ -56,11 +58,12 @@ fn new_vml_owner(name string, namespace string) !&CompiledVmlComponent {
 	mut scope := runtime.scope()!
 	revision := new_signal(mut scope, u64(0), name: '@app')!
 	return &CompiledVmlComponent{
-		runtime:      runtime
-		scope:        scope
-		name:         name
-		namespace:    namespace
-		app_revision: revision
+		runtime:            runtime
+		scope:              scope
+		name:               name
+		namespace:          namespace
+		identity_namespace: next_vml_owner_id()
+		app_revision:       revision
 	}
 }
 
@@ -80,17 +83,18 @@ pub fn (mut component CompiledVmlComponent) child(name string) !&CompiledVmlComp
 	}
 	scope := component.scope.child()!
 	child := &CompiledVmlComponent{
-		runtime:      component.runtime
-		scope:        scope
-		namespace:    if component.namespace.len == 0 {
+		runtime:            component.runtime
+		scope:              scope
+		namespace:          if component.namespace.len == 0 {
 			'vml:' + name.bytes().hex()
 		} else {
 			component.namespace + '/' + name.bytes().hex()
 		}
-		parent:       &component
-		name:         name
-		publish:      component.publish
-		app_revision: component.app_revision
+		identity_namespace: component.identity_namespace + '/' + name.bytes().hex()
+		parent:             &component
+		name:               name
+		publish:            component.publish
+		app_revision:       component.app_revision
 	}
 	component.children[name] = child
 	return child
@@ -163,12 +167,16 @@ pub fn (mut component CompiledVmlComponent) computed[T](name string, compute fn 
 	return value
 }
 
-pub fn (mut component CompiledVmlComponent) element(declaration Element) !&CompiledVmlNode {
+pub fn (mut component CompiledVmlComponent) element(declaration Element, config VmlNodeConfig) !&CompiledVmlNode {
 	component.require_alive()!
-	if declaration.id.len == 0 {
+	local_id := if config.identity.len > 0 { config.identity } else { declaration.id }
+	if local_id.len == 0 {
 		return error('compiled VML element requires a local declaration identity')
 	}
-	if mut node := component.nodes[declaration.id] {
+	if mut node := component.nodes[local_id] {
+		if node.authored_id != declaration.id || node.declaration.kind != declaration.kind {
+			return error('compiled VML local identity changed its authored id or kind')
+		}
 		if !node.mounted {
 			// Preferred-size passes and allocated-size passes share one instance.
 			// Only authored geometry follows the latter; effects retain values.
@@ -185,13 +193,14 @@ pub fn (mut component CompiledVmlComponent) element(declaration Element) !&Compi
 	}
 	mut node := &CompiledVmlNode{
 		component:         &component
-		local_id:          declaration.id
+		local_id:          local_id
+		authored_id:       declaration.id
 		children_revision: new_signal(mut component.scope, u64(0),
-			name: '@children:' + declaration.id
+			name: '@children:' + local_id
 		)!
 		declaration:       Element{
 			...declaration
-			id:       if component.namespace.len == 0 {
+			id:       if declaration.id.len == 0 || component.namespace.len == 0 {
 				declaration.id
 			} else {
 				component.namespace + ':' + declaration.id.bytes().hex()
@@ -199,7 +208,7 @@ pub fn (mut component CompiledVmlComponent) element(declaration Element) !&Compi
 			children: []
 		}
 	}
-	component.nodes[declaration.id] = node
+	component.nodes[local_id] = node
 	node.set_element_children(declaration.children)!
 	return node
 }
@@ -213,12 +222,7 @@ pub fn (mut node CompiledVmlNode) set_element_children(declarations []Element) !
 			// Composite control APIs manufacture headers/backdrops and other
 			// internal controls. Retain them with the same ownership as authored
 			// declarations, without adding a second widget implementation.
-			local_id := if child.id.len > 0 {
-				child.id
-			} else {
-				node.local_id + '/internal:' + index.str()
-			}
-			children << node.component.element(Element{ ...child, id: local_id })!
+			children << node.component.element(child, identity: node.internal_identity(child, index))!
 		}
 	}
 	node.set_children(children)!
@@ -303,7 +307,7 @@ fn (mut node CompiledVmlNode) reconcile_structure(replacement Element, publish b
 	if replacement.kind != node.declaration.kind {
 		return error('compiled VML structural effect must preserve element kind')
 	}
-	if replacement.id !in [node.local_id, node.declaration.id] {
+	if replacement.id !in [node.authored_id, node.declaration.id] {
 		return error('compiled VML structural effect must preserve id')
 	}
 	before := node.element()
@@ -320,14 +324,10 @@ fn (mut node CompiledVmlNode) reconcile_structure(replacement Element, publish b
 			}
 			children << child
 		} else {
-			local_id := if element.id.len > 0 {
-				element.id
-			} else {
-				node.local_id + '/internal:' + index.str()
-			}
-			declaration := Element{ ...element, id: local_id }
-			mut child := node.component.element(Element{ ...declaration, children: [] })!
-			child.reconcile_structure(declaration, false)!
+			mut child := node.component.element(Element{ ...element, children: [] },
+				identity: node.internal_identity(element, index)
+			)!
+			child.reconcile_structure(element, false)!
 			children << child
 		}
 	}
