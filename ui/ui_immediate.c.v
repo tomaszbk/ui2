@@ -13,6 +13,10 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 	import time
 
 	struct HitTarget {
+		is_vector_canvas bool
+		vector_shapes []VectorShape
+		vector_hit_mode VectorHitMode
+		vector_origin Rect
 		identity                  string
 		kind                      Kind = .view
 		content_transform         ContentTransform
@@ -133,6 +137,10 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 	// to fit it. A target without text is an opaque surface drawn over earlier
 	// targets, which hides their tooltips just as it hides the targets.
 	struct TooltipTarget {
+		is_vector_canvas bool
+		vector_shapes []VectorShape
+		vector_hit_mode VectorHitMode
+		vector_origin Rect
 		// key tells the pointer resting on one target apart from moving on to
 		// another, across frames that rebuild every target from scratch.
 		key               string
@@ -754,6 +762,8 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		g_focused_field = ''
 		reset_custom_keyboard()
 		state.composition = TextComposition{}
+		g_hit_targets = []HitTarget{}
+		g_tooltip_targets = []TooltipTarget{}
 	}
 
 	// The next visual deadline is replaced after every frame. A canceled hover,
@@ -1428,7 +1438,11 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 
 	fn hit_target_contains(target HitTarget, x f64, y f64) bool {
 		broad := presentation_bounds_contains(rect(target.x,target.y,target.w,target.h),x,y)
-		return broad && (!target.has_geometry || transformed_contains(target.local_frame, target.content_transform, target.clip_region, x, y))
+		if !broad || (target.has_geometry && !transformed_contains(target.local_frame, target.content_transform, target.clip_region, x, y)) { return false }
+		if !target.is_vector_canvas && target.vector_shapes.len == 0 { return true }
+		local_x, local_y := target.content_transform.inverse(x, y)
+		return vector_shapes_contain(target.vector_shapes, local_x - target.vector_origin.x,
+			local_y - target.vector_origin.y, target.vector_hit_mode)
 	}
 
 	// A semantic press keeps the action chosen on pointer-down, but the surface
@@ -1467,7 +1481,9 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 			return HitTarget{ ...current, identity: mounted.path, on_event: mounted.el.on_event,
 				x: frame.x, y: frame.y, w: frame.width, h: frame.height,
 				local_frame: mounted.local_frame, content_transform: mounted.transform,
-				clip_region: mounted.clip, has_geometry: true }
+				clip_region: mounted.clip, has_geometry: true,
+				is_vector_canvas: mounted.el.is_vector_canvas, vector_shapes: mounted.el.vector_shapes,
+				vector_hit_mode: mounted.el.vector_hit_mode, vector_origin: mounted.local_frame }
 		}
 		return current
 	}
@@ -2171,8 +2187,11 @@ fn page_focused_text_area(direction int) {
 		for i := targets.len - 1; i >= 0; i-- {
 			frame := targets[i].frame
 			target := targets[i]
-			if presentation_bounds_contains(frame,x,y)
-				&& (!target.has_geometry || transformed_contains(target.local_frame, target.content_transform, target.clip_region, x, y)) {
+			if hit_target_contains(HitTarget{x: frame.x, y: frame.y, w: frame.width, h: frame.height,
+				local_frame: target.local_frame, content_transform: target.content_transform,
+				clip_region: target.clip_region, has_geometry: target.has_geometry,
+				is_vector_canvas: target.is_vector_canvas, vector_shapes: target.vector_shapes,
+				vector_hit_mode: target.vector_hit_mode, vector_origin: target.vector_origin}, x, y) {
 				return targets[i]
 			}
 		}
@@ -2225,7 +2244,7 @@ fn page_focused_text_area(direction int) {
 	// view, which always paints its background. Without one, a truncated label
 	// underneath would still answer for the pointer through it.
 	fn tooltip_hides_beneath(el Element) bool {
-		return (el.kind == .view && !el.box.transparent) || el.kind == .scroll
+		return (el.kind == .view && (!el.box.transparent || el.vector_shapes.len > 0)) || el.kind == .scroll
 	}
 
 	// element_area is where an element is drawn in the window. The screen
@@ -2419,15 +2438,24 @@ fn page_focused_text_area(direction int) {
 
 	// ── Rendering ──────────────────────────────────────────────────────
 
+	fn element_hit_geometry(el Element, area Rect, transform ContentTransform, clip ClipRegion) HitTarget {
+		visible := clip.intersect(transformed_clip(area, transform)).bounds()
+		return HitTarget{x: visible.x, y: visible.y, w: visible.width, h: visible.height,
+			local_frame: area, content_transform: transform, clip_region: clip, has_geometry: true,
+			is_vector_canvas: el.is_vector_canvas, vector_shapes: el.vector_shapes,
+			vector_hit_mode: el.vector_hit_mode, vector_origin: area}
+	}
+
 	fn resolve_custom_visual_style(declared Element, area Rect, clip Rect, transform ContentTransform) Element {
 		region := current_clip_region(clip)
-		hovered := g_tooltip.pointer_in && transformed_contains(area,transform,region,g_tooltip.pointer_x,g_tooltip.pointer_y)
+		geometry := element_hit_geometry(declared, area, transform, region)
+		hovered := g_tooltip.pointer_in && hit_target_contains(geometry,g_tooltip.pointer_x,g_tooltip.pointer_y)
 		focused := declared.focused || (declared.id.len > 0 && declared.id == g_focused_field)
 		style_pressed := g_touch.down && declared.id.len > 0
 			&& (declared.id == g_touch.pressed_id || declared.id == g_touch.pointer_target.id)
 			&& (!g_touch.pointer_captured || declared.kind == g_touch.pointer_target.kind)
 			&& !g_touch.moved && !g_touch.scrollbar_drag
-			&& transformed_contains(area,transform,region,g_touch.current_x,g_touch.current_y)
+			&& hit_target_contains(geometry,g_touch.current_x,g_touch.current_y)
 		return Element{...declared,
 			box: interaction_box(declared, hovered, focused, style_pressed)
 			text_style: interaction_text_style(declared, hovered, focused, style_pressed)}
@@ -2524,10 +2552,10 @@ fn page_focused_text_area(direction int) {
 		// target has been registered before it.
 		owns_tooltip := el.tooltip.len > 0
 		if owns_tooltip {
-			add_tooltip_target(tooltip_key(el, area), el.tooltip, area, clip)
+			add_element_tooltip(tooltip_key(el, area), el.tooltip, el, area, clip)
 			g_tooltip_owners++
 		} else if g_tooltip_owners == 0 && g_tooltip_targets.len > 0 && tooltip_hides_beneath(el) {
-			add_tooltip_target('', '', area, clip)
+			add_element_tooltip('', '', el, area, clip)
 		}
 		defer {
 			if owns_tooltip {
@@ -2555,6 +2583,13 @@ fn page_focused_text_area(direction int) {
 					draw_rect(ctx, x, y, el.frame.width, el.frame.height, el.box.bg, el.box.radius)
 				}
 				draw_box_borders(ctx, x, y, el.frame.width, el.frame.height, el.box)
+				if el.vector_shapes.len > 0 {
+					region := ctx.clip_region
+					apply_clip(ctx, intersect_rect(area, clip))
+					draw_vector_shapes(ctx, el.vector_shapes, x, y)
+					unsafe { ctx.clip_region = region }
+					ctx.sync_scissor()
+				}
 				if el.enabled && voidptr(el.on_event) != unsafe { nil }
 					&& (el.clickable || el.button_behavior || el.draggable || el.long_press
 						|| el.swipe_left) {
@@ -2572,6 +2607,10 @@ fn page_focused_text_area(direction int) {
 						clickable:       el.clickable
 						button_behavior: el.button_behavior
 						draggable:       el.draggable
+						vector_shapes: el.vector_shapes
+						is_vector_canvas: el.is_vector_canvas
+						vector_hit_mode: el.vector_hit_mode
+						vector_origin: area
 					}, clip)
 				}
 				for index, child in el.children {
