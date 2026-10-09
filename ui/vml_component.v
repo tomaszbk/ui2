@@ -30,6 +30,7 @@ pub:
 	component &CompiledVmlComponent
 mut:
 	declaration Element
+	local_id    string
 	parent      &CompiledVmlNode = unsafe { nil }
 	children    []&CompiledVmlNode
 	effects     map[string]&SignalEffect
@@ -37,6 +38,16 @@ mut:
 }
 
 pub fn new_vml_component(name string) !&CompiledVmlComponent {
+	return new_vml_owner(name, 'vml:' + name.bytes().hex())
+}
+
+// A document preserves application-facing ids. Reusable components below it
+// have their own namespace, so two instances cannot collide.
+pub fn new_vml_document(name string) !&CompiledVmlComponent {
+	return new_vml_owner(name, '')
+}
+
+fn new_vml_owner(name string, namespace string) !&CompiledVmlComponent {
 	mut runtime := new_signal_runtime()
 	mut scope := runtime.scope()!
 	revision := new_signal(mut scope, u64(0), name: '@app')!
@@ -44,7 +55,7 @@ pub fn new_vml_component(name string) !&CompiledVmlComponent {
 		runtime:      runtime
 		scope:        scope
 		name:         name
-		namespace:    'vml:' + name.bytes().hex()
+		namespace:    namespace
 		app_revision: revision
 	}
 }
@@ -67,7 +78,11 @@ pub fn (mut component CompiledVmlComponent) child(name string) !&CompiledVmlComp
 	child := &CompiledVmlComponent{
 		runtime:      component.runtime
 		scope:        scope
-		namespace:    component.namespace + '/' + name.bytes().hex()
+		namespace:    if component.namespace.len == 0 {
+			'vml:' + name.bytes().hex()
+		} else {
+			component.namespace + '/' + name.bytes().hex()
+		}
 		parent:       &component
 		name:         name
 		publish:      component.publish
@@ -166,18 +181,36 @@ pub fn (mut component CompiledVmlComponent) element(declaration Element) !&Compi
 	}
 	mut node := &CompiledVmlNode{
 		component:   &component
-		declaration: Element{ ...declaration, id: component.namespace + ':' + declaration.id.bytes().hex(), children: [] }
+		local_id:    declaration.id
+		declaration: Element{ ...declaration, id: if component.namespace.len == 0 {
+			declaration.id
+		} else {
+			component.namespace + ':' + declaration.id.bytes().hex()
+		}, children: [] }
 	}
 	component.nodes[declaration.id] = node
+	node.set_element_children(declaration.children)!
+	return node
+}
+
+pub fn (mut node CompiledVmlNode) set_element_children(declarations []Element) ! {
 	mut children := []&CompiledVmlNode{}
-	for child in declaration.children {
-		if child.compiled_node == unsafe { nil } {
-			return error('compiled VML children must retain their declaration owner')
+	for index, child in declarations {
+		if child.compiled_node != unsafe { nil } {
+			children << child.compiled_node
+		} else {
+			// Composite control APIs manufacture headers/backdrops and other
+			// internal controls. Retain them with the same ownership as authored
+			// declarations, without adding a second widget implementation.
+			local_id := if child.id.len > 0 {
+				child.id
+			} else {
+				node.local_id + '/internal:' + index.str()
+			}
+			children << node.component.element(Element{ ...child, id: local_id })!
 		}
-		children << child.compiled_node
 	}
 	node.set_children(children)!
-	return node
 }
 
 pub fn (node &CompiledVmlNode) element() Element {
@@ -311,7 +344,16 @@ pub fn (mut component CompiledVmlComponent) mount() ! {
 	if component.mounted { return }
 	component.mounted = true
 	for name in component.mount_order { component.runtime.untracked(component.mount_hooks[name])! }
-	for _, mut child in component.children { child.mount()! }
+	for _, mut child in component.children {
+		if child.has_mounted_nodes() { child.mount()! }
+	}
+}
+
+fn (component &CompiledVmlComponent) has_mounted_nodes() bool {
+	if component.is_disposed() { return false }
+	for _, node in component.nodes { if node.mounted { return true } }
+	for _, child in component.children { if child.has_mounted_nodes() { return true } }
+	return false
 }
 
 pub fn (mut component CompiledVmlComponent) dispose() ! {

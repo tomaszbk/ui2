@@ -79,8 +79,11 @@ fn test_component_lifecycle_cleanup_and_late_callback_are_owned_once() ! {
 	child.on_unmount('unmount', fn [mut fixture] () { fixture.lifecycle << 'unmount' })!
 	child.on_cleanup('resource', fn [mut fixture] () { fixture.lifecycle << 'cleanup' })!
 	callback := child.callback(fn [mut fixture] (_ ElementEvent) ! { fixture.lifecycle << 'event' })
-	root.mount()!
-	root.mount()!
+	mut child_node := child.element(Element{ kind: .label, id: 'child' })!
+	mut root_node := root.element(Element{ kind: .view, id: 'root' })!
+	root_node.set_children([child_node])!
+	root_node.mount()!
+	root_node.mount()!
 	callback(ElementEvent{})
 	child.dispose()!
 	child.dispose()!
@@ -294,4 +297,29 @@ fn test_compiled_callbacks_accept_void_signatures_and_absent_listener() {
 	absent := vml_callback(ElementCallback(unsafe { nil }), refresh: false)
 	absent(ElementEvent{})
 	assert fixture.lifecycle == ['zero', 'payload']
+}
+
+fn test_document_ids_hydrate_control_children_and_defer_inactive_mount() ! {
+	mut owner := new_vml_document('document')!
+	owner.publish = fn (_ string, _ Element) {}
+	mut fixture := &VmlComponentFixture{}
+	mut dormant := owner.child('inactive')!
+	dormant.on_mount('mount', fn [mut fixture] () ! { fixture.lifecycle << 'mount' })!
+	mut content := dormant.element(Element{ kind: .label, id: 'content' })!
+	mut node := owner.element(view('public', rect(0, 0, 200, 100), BoxStyle{}, [button('helper', 'Header', Rect{}, BoxStyle{}, TextStyle{})]))!
+	node.mount()!
+	assert node.element().id == 'public'
+	assert node.element().children[0].id == 'helper'
+	assert node.element().children[0].compiled_node != unsafe { nil }
+	assert content.element().id != 'content'
+	assert fixture.lifecycle.len == 0
+	node.set_children([content])!
+	assert fixture.lifecycle == ['mount']
+	owner.dispose()!
+}
+
+fn test_numeric_control_binding_preserves_destination_type() {
+	assert vml_binding_number(0, 3.8) == 3
+	assert vml_binding_number(f64(0), 3.8) == f64(3.8)
+	assert vml_binding_number(f32(0), 3.8) == f32(3.8)
 }
