@@ -24,8 +24,9 @@ grapheme, and complete bidirectional editing, remain separate work.
 ## Build dependencies
 
 Use the published `tomaszbk/v` compiler revision
-[`9f8f0a71339b8c74932e5108d68fe6530273e78c`](https://github.com/tomaszbk/v/commit/9f8f0a71339b8c74932e5108d68fe6530273e78c).
-It includes the compiled VML visual and structural lowering. The V 0.5.2 release binary lacks required
+[`96be588`](https://github.com/tomaszbk/v/commit/96be588403ea7bb794a15dd0c5d306f0cad0eef4).
+It includes compiled VML visual and structural lowering and numeric `text` values.
+The V 0.5.2 release binary lacks required
 Sokol sampler APIs and does not compile the current UI2 source. CI uses
 [the shared setup action](../.github/actions/setup-v/action.yml) to bootstrap
 that revision with `vc` snapshot
@@ -135,7 +136,8 @@ result; the adapter's request/result types are internal.
 
 Typography uses the same [logical units](logical-units.md) as geometry on every
 platform. A size of 18 means an 18-unit em square; there is no platform point
-conversion or selectable profile. Device DPI applies separately, when glyphs are rasterized and presented; it does
+conversion or selectable profile. Device DPI applies separately, when glyphs are rasterized
+and presented; it does
 not change logical line breaks. [Fixed composition scaling](scaled-content.md)
 also preserves the original layout. [VML typography](vml-typography.md) documents
 numeric weights, tracking, line height and styled label runs.

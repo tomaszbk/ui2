@@ -46,8 +46,9 @@ updates and dispatchers. See [the embedder contract and acceptance tests](docs/c
 ## Requirements
 
 `ui2` uses the published `tomaszbk/v` compiler revision
-[`9f8f0a7`](https://github.com/tomaszbk/v/commit/9f8f0a71339b8c74932e5108d68fe6530273e78c),
-which includes the compiled VML visual and structural lowering. The V 0.5.2 release binary is insufficient;
+[`96be588`](https://github.com/tomaszbk/v/commit/96be588403ea7bb794a15dd0c5d306f0cad0eef4),
+which includes compiled VML visual and structural lowering and numeric `text` values.
+The V 0.5.2 release binary is insufficient;
 CI bootstraps the verified source revision with pinned `vc` and Boehm GC assets using
 [the shared setup action](.github/actions/setup-v/action.yml).
 The module is split across `ui/`, `appkit/`,
@@ -86,6 +87,14 @@ Text inputs use controlled-on-change semantics: changing the declared `text`
 applies that value, while a refresh with the same declaration preserves the
 current native/local edit, selection, focus, and (on native controls) input
 method composition. Use `set_text` for an explicit imperative replacement.
+
+Compiled VML `text` declarations accept strings and numbers without explicit
+interpolation: `Label { text: app.count }` displays a numeric field, and
+`Label { text: app.count + 1 }` displays a numeric expression. Strings pass through
+unchanged; numbers use V's `.str()` formatting, selected at compile time.
+Use interpolation for combined captions such as `"Count: ${app.count}"`.
+`bind.text` remains string-typed for editor writeback, and other properties and
+expressions keep their normal V types.
 
 Explicit typed sources, lazy computed values, effects, batching and lifetime
 cleanup are available through the window-independent signals runtime. See
