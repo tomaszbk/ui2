@@ -60,6 +60,9 @@ Flex(orientation: horizontal, gap: 12, wrap: true, align_items: center) {
 The parent owns the resulting frame: a preferred width of 200 may shrink or grow.
 Descendant layout sees the allocated dimensions. Element geometry expressions
 are valid only for direct children of Absolute.
+An explicit VML `width: 0` or `height: 0` supplies a zero preference; an omitted
+dimension uses content measurement. Generic View content with omitted dimensions
+follows its parent's positive allocated dimensions, including after resizing.
 Min/max bounds freeze an item at its limit and redistribute the remaining space.
 Explicit minima and `flex_shrink: 0` can intentionally overflow a small parent.
 Use a scroll container when the content cannot fit. Without wrapping, the cross
@@ -85,6 +88,9 @@ Grid(auto_columns_min_width: 240, max_columns: 3, spacing: 16) {
 Automatic mode requires omitted `columns` and `rows`. The column count follows
 the available inner width and spacing, up to `max_columns` if set. It uses at
 least one column, which shrinks below the requested minimum on narrow windows.
+Intrinsic sizing selects the Grid width from the parent's offer, then measures
+its height at that selected width. Absolute offers its width to automatic content
+while preserving explicitly authored child dimensions and positions.
 Alternatively bind `columns: app.columns` for an explicit breakpoint chosen
 by the application.
 
