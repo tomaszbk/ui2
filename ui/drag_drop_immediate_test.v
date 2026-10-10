@@ -228,14 +228,14 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	fn test_drag_wins_content_scroll_but_scrollbar_and_raw_draggable_keep_their_capture() {
 		reset_drag_fixture()
 		frame := rect(0, 0, 300, 100)
-		register_scroll_view(named_scroll_state_id('pane'), frame, frame, 600, true, true, true, HitTarget{})
+		register_scroll_view_in_parent(named_scroll_state_id('pane'), '', frame, frame, 600, true, true, true, HitTarget{})
 		handle_touch_down(20, 30)
 		handle_touch_move(120, 60)
 		assert scroll_offset('pane') == 0
 		handle_touch_up(120, 60)
 		assert ElementEventKind.drop in drag_kinds()
 		reset_drag_fixture()
-		register_scroll_view(named_scroll_state_id('pane'), frame, frame, 600, true, true, true, HitTarget{})
+		register_scroll_view_in_parent(named_scroll_state_id('pane'), '', frame, frame, 600, true, true, true, HitTarget{})
 		bar := scrollbar_geometry(frame, 600, 0, true)
 		handle_touch_down(bar.thumb.x + 1, bar.thumb.y + 1)
 		assert g_touch.scrollbar_drag && !g_touch.drag.pending

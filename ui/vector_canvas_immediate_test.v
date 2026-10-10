@@ -4,6 +4,10 @@
 module ui2
 
 $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
+	fn vector_element_contains(el Element, area Rect, x f64, y f64) bool {
+		return (!el.is_vector_canvas && el.vector_shapes.len == 0) || vector_shapes_contain(el.vector_shapes, x - area.x, y - area.y, el.vector_hit_mode)
+	}
+
 	fn vector_test_shape() VectorShape {
 		return prepare_vector_shape(vector_polygon([vector_point(0,0), vector_point(20,0),
 			vector_point(20,5), vector_point(5,5), vector_point(5,20), vector_point(0,20)]),

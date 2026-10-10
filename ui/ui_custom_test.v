@@ -2,6 +2,14 @@
 module ui2
 
 $if ui2_custom_rendering ? {
+	fn set_checkbox_checked(id string, checked bool) {
+		if id !in g_active_checkboxes {
+			return
+		}
+		g_checkbox_values[id] = checked
+		invalidate_custom_paint()
+	}
+
 	__global custom_control_test_events = []ElementEvent{}
 	fn capture_custom_control_event(event ElementEvent) { custom_control_test_events << event }
 

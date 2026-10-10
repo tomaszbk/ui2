@@ -205,11 +205,11 @@ fn test_custom_windows_keep_scroll_callback_declarations_independent() {
 		first_callback := fn [mut first_events] (event ElementEvent) { first_events << event }
 		second_callback := fn [mut second_events] (event ElementEvent) { second_events << event }
 		frame := rect(0, 0, 100, 100)
-		register_scroll_view(named_scroll_state_id('pane'), frame, frame, 500, true, true, false,
+		register_scroll_view_in_parent(named_scroll_state_id('pane'), '', frame, frame, 500, true, true, false,
 			HitTarget{ id: 'pane', on_event: first_callback })
 		scroll_to_offset('pane', 12.25)
 		activate_custom_window_state(second)
-		register_scroll_view(named_scroll_state_id('pane'), frame, frame, 500, true, true, false,
+		register_scroll_view_in_parent(named_scroll_state_id('pane'), '', frame, frame, 500, true, true, false,
 			HitTarget{ id: 'pane', on_event: second_callback })
 		scroll_to_offset('pane', 42.5)
 		activate_custom_window_state(first)

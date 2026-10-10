@@ -43,6 +43,3 @@ fn vector_shapes_contain(shapes []VectorShape, x f64, y f64, mode VectorHitMode)
 	return false
 }
 
-fn vector_element_contains(el Element, area Rect, x f64, y f64) bool {
-	return (!el.is_vector_canvas && el.vector_shapes.len == 0) || vector_shapes_contain(el.vector_shapes, x - area.x, y - area.y, el.vector_hit_mode)
-}

@@ -119,11 +119,6 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		return if content_height > frame.height { content_height - frame.height } else { 0.0 }
 	}
 
-	fn register_scroll_view(id string, frame Rect, clip Rect, content_height f64, enabled bool, show_scrollbar bool, persistent bool, target HitTarget) f64 {
-		return register_scroll_view_in_parent(id, '', frame, clip, content_height, enabled,
-			show_scrollbar, persistent, target)
-	}
-
 	fn register_scroll_view_in_parent(id string, parent_id string, frame Rect, clip Rect, content_height f64, enabled bool, show_scrollbar bool, persistent bool, target HitTarget) f64 {
 		dispatch := custom_input_dispatch(g_gg_app)
 		ctx := dispatch.app.ctx

@@ -118,10 +118,6 @@ fn menu_app_name() string {
 	return menu_state().app_name
 }
 
-fn menu_window() voidptr {
-	return menu_state().window
-}
-
 // install_declared_menus applies what was declared before the window existed.
 // Backends call it once there is something to attach a menu to. The menu bar
 // is installed even when nothing was declared, because macOS still needs its

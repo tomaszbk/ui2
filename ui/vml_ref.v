@@ -33,6 +33,8 @@ mut:
 	node &CompiledVmlNode = unsafe { nil }
 }
 
+// Called from the generic ref methods, which a program without refs never instantiates.
+@[markused]
 fn vml_ref_kind[T]() Kind {
 	$if T is VmlButton {
 		return .button
