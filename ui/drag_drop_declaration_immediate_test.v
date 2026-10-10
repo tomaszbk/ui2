@@ -117,7 +117,7 @@ $if macos && ui2_custom_rendering ? && !ui2_headless ? {
 			HitTarget{...target, x: 100, y: 20, w: 60, h: 50}]
 		if case_name == 'scroll_target' {
 			frame := rect(0, 0, 300, 100)
-			register_scroll_view(named_scroll_state_id('release-pane'), frame, frame, 600, true, true, true, HitTarget{})
+			register_scroll_view_in_parent(named_scroll_state_id('release-pane'), '', frame, frame, 600, true, true, true, HitTarget{})
 		}
 	}
 	fn declaration_drag_assert_terminal(dropped bool) {

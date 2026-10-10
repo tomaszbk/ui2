@@ -554,14 +554,6 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		return g_checkbox_values[id] or { false }
 	}
 
-	fn set_checkbox_checked(id string, checked bool) {
-		if id !in g_active_checkboxes {
-			return
-		}
-		g_checkbox_values[id] = checked
-		invalidate_custom_paint()
-	}
-
 	pub fn toggle_button_pressed(id string) bool {
 		return g_toggle_values[id] or { false }
 	}
@@ -695,7 +687,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 
 	// scroll_to_offset puts a Scroll element at the given vertical offset. Before the
 	// element has been laid out its range is not known yet, so the offset is stored as
-	// asked and register_scroll_view clamps it to the real range on the next frame.
+	// asked and register_scroll_view_in_parent clamps it to the real range on the next frame.
 	// That is what lets a screen open where it was last left.
 	pub fn scroll_to_offset(id string, offset f64) {
 		if id.len == 0 {

@@ -243,3 +243,7 @@ fn windows_virtual_key(key string) int {
 }
 
 }
+
+fn menu_window() voidptr {
+	return menu_state().window
+}

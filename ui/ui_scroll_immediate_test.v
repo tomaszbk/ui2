@@ -57,7 +57,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	fn test_page_navigation_scrolls_the_focused_text_area() {
 		reset_scroll_test_state()
 		frame := rect(0, 0, 100, 80)
-		register_scroll_view(named_scroll_state_id('notes'), frame, frame, 400, true, true, false, scroll_test_target('notes'))
+		register_scroll_view_in_parent(named_scroll_state_id('notes'), '', frame, frame, 400, true, true, false, scroll_test_target('notes'))
 		g_focused_field = 'notes'
 		page_focused_text_area(1)
 		assert scroll_offset('notes') == 80
@@ -133,8 +133,8 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		clip := rect(0, 0, 300, 200)
 		// Read-only text areas register exactly like editable areas: registration
 		// is outside the editable hit-target branch in render_element.
-		register_scroll_view(named_scroll_state_id('info'), rect(0, 0, 100, 100), clip, 400, true, true, false, scroll_test_target('info'))
-		register_scroll_view(named_scroll_state_id('text'), rect(120, 0, 100, 100), clip, 1000, true, true, false, scroll_test_target('text'))
+		register_scroll_view_in_parent(named_scroll_state_id('info'), '', rect(0, 0, 100, 100), clip, 400, true, true, false, scroll_test_target('info'))
+		register_scroll_view_in_parent(named_scroll_state_id('text'), '', rect(120, 0, 100, 100), clip, 1000, true, true, false, scroll_test_target('text'))
 	}
 
 	fn test_readonly_panes_scroll_independently_with_wheel_and_drag() {
@@ -180,21 +180,21 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		handle_mouse_scroll_vector(150, 50, 0, -2)
 		reset_scroll_frame()
 		clip := rect(0, 0, 500, 500)
-		assert register_scroll_view(named_scroll_state_id('text'), rect(120, 0, 200, 200), clip, 1000, true, true, false, scroll_test_target('text')) == 96
+		assert register_scroll_view_in_parent(named_scroll_state_id('text'), '', rect(120, 0, 200, 200), clip, 1000, true, true, false, scroll_test_target('text')) == 96
 		scroll_test_events = []string{}
 		scroll_test_payloads = []ElementEvent{}
 		reset_scroll_frame()
-		assert register_scroll_view(named_scroll_state_id('text'), rect(120, 0, 200, 950), clip, 1000, true, true, false, scroll_test_target('text')) == 50
+		assert register_scroll_view_in_parent(named_scroll_state_id('text'), '', rect(120, 0, 200, 950), clip, 1000, true, true, false, scroll_test_target('text')) == 50
 		reset_scroll_frame()
-		assert register_scroll_view(named_scroll_state_id('text'), rect(120, 0, 200, 950), clip, 30, true, true, false, scroll_test_target('text')) == 0
+		assert register_scroll_view_in_parent(named_scroll_state_id('text'), '', rect(120, 0, 200, 950), clip, 30, true, true, false, scroll_test_target('text')) == 0
 		assert scroll_test_events == ['text', 'text']
 	}
 
 	fn test_text_area_scroll_hit_testing_uses_visible_clip_and_inner_first_order() {
 		reset_scroll_test_state()
 		clip := rect(0, 0, 300, 300)
-		register_scroll_view(named_scroll_state_id('outer'), clip, clip, 1000, true, true, false, scroll_test_target('outer'))
-		register_scroll_view(named_scroll_state_id('inner'), rect(20, 20, 100, 200), rect(0, 0, 300, 100), 1000,
+		register_scroll_view_in_parent(named_scroll_state_id('outer'), '', clip, clip, 1000, true, true, false, scroll_test_target('outer'))
+		register_scroll_view_in_parent(named_scroll_state_id('inner'), '', rect(20, 20, 100, 200), rect(0, 0, 300, 100), 1000,
 			true, true, false, scroll_test_target('inner'))
 		assert scroll_maximum(named_scroll_state_id('inner')) == 800
 		assert g_scroll_areas[named_scroll_state_id('inner')] == rect(20, 20, 100, 80)
@@ -209,8 +209,8 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	fn test_scroll_hit_testing_falls_through_a_fitted_child_to_its_parent() {
 		reset_scroll_test_state()
 		clip := rect(0, 0, 300, 300)
-		register_scroll_view(named_scroll_state_id('outer'), clip, clip, 1000, true, true, false, scroll_test_target('outer'))
-		register_scroll_view(named_scroll_state_id('inner'), rect(20, 20, 100, 100), clip, 100, true, true,
+		register_scroll_view_in_parent(named_scroll_state_id('outer'), '', clip, clip, 1000, true, true, false, scroll_test_target('outer'))
+		register_scroll_view_in_parent(named_scroll_state_id('inner'), '', rect(20, 20, 100, 100), clip, 100, true, true,
 			false, scroll_test_target('inner'))
 		assert scroll_maximum(named_scroll_state_id('inner')) == 0
 		assert scroll_hit_test(50, 50) == named_scroll_state_id('outer')
@@ -221,7 +221,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 
 	fn nested_scroll_test_panes() {
 		clip := rect(0, 0, 300, 300)
-		register_scroll_view(named_scroll_state_id('outer'), clip, clip, 1200, true, true, false, scroll_test_target('outer'))
+		register_scroll_view_in_parent(named_scroll_state_id('outer'), '', clip, clip, 1200, true, true, false, scroll_test_target('outer'))
 		register_scroll_view_in_parent(named_scroll_state_id('inner'), named_scroll_state_id('outer'), rect(20, 20, 100, 100), clip,
 			200, true, true, false, scroll_test_target('inner'))
 	}
@@ -287,7 +287,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		g_active_scrolls = map[string]bool{}
 		reset_scroll_frame()
 		clip := rect(0, 0, 300, 300)
-		register_scroll_view(named_scroll_state_id('outer'), clip, clip, 1200, true, true, false, scroll_test_target('outer'))
+		register_scroll_view_in_parent(named_scroll_state_id('outer'), '', clip, clip, 1200, true, true, false, scroll_test_target('outer'))
 		retain_culled_scroll_state(Element{
 			kind: .view
 			children: [Element{
@@ -309,7 +309,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		// Re-registering the child after it re-enters the viewport restores its
 		// previous position instead of jumping back to the top.
 		reset_scroll_frame()
-		register_scroll_view(named_scroll_state_id('outer'), clip, clip, 1200, true, true, false, scroll_test_target('outer'))
+		register_scroll_view_in_parent(named_scroll_state_id('outer'), '', clip, clip, 1200, true, true, false, scroll_test_target('outer'))
 		assert register_scroll_view_in_parent(named_scroll_state_id('inner'), named_scroll_state_id('outer'), rect(20, 20, 100,
 			100), clip, 200, true, true, false, scroll_test_target('inner')) == 100
 		handle_touch_up(50, 40)
@@ -328,9 +328,9 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		assert text_area_scroll_id(Element{kind: .text_area}) == ''
 
 		clip := rect(0, 0, 300, 200)
-		register_scroll_view(named_scroll_state_id('outer'), clip, clip, 1000, true, true, false, scroll_test_target('outer'))
-		register_scroll_view(first_id, rect(20, 20, 100, 100), clip, 600, true, true, false, scroll_test_target(first.id))
-		register_scroll_view(second_id, rect(140, 20, 100, 100), clip, 600, true, true, false, scroll_test_target(second.id))
+		register_scroll_view_in_parent(named_scroll_state_id('outer'), '', clip, clip, 1000, true, true, false, scroll_test_target('outer'))
+		register_scroll_view_in_parent(first_id, '', rect(20, 20, 100, 100), clip, 600, true, true, false, scroll_test_target(first.id))
+		register_scroll_view_in_parent(second_id, '', rect(140, 20, 100, 100), clip, 600, true, true, false, scroll_test_target(second.id))
 		handle_mouse_scroll_vector(50, 50, 0, -1)
 		assert scroll_state_offset(first_id) == 48
 		assert scroll_state_offset(second_id) == 0
@@ -344,7 +344,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	fn test_short_disabled_and_hidden_scrollbar_panes() {
 		reset_scroll_test_state()
 		frame := rect(0, 0, 100, 100)
-		register_scroll_view(named_scroll_state_id('short'), frame, frame, 50, true, true, false, scroll_test_target('short'))
+		register_scroll_view_in_parent(named_scroll_state_id('short'), '', frame, frame, 50, true, true, false, scroll_test_target('short'))
 		assert scroll_hit_test(50, 50) == ''
 		scroll_test_events = []string{}
 		scroll_test_payloads = []ElementEvent{}
@@ -352,10 +352,10 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		assert scroll_offset('short') == 0
 		assert scroll_test_events.len == 0
 		reset_scroll_frame()
-		register_scroll_view(named_scroll_state_id('disabled'), frame, frame, 1000, false, true, false, scroll_test_target('disabled'))
+		register_scroll_view_in_parent(named_scroll_state_id('disabled'), '', frame, frame, 1000, false, true, false, scroll_test_target('disabled'))
 		assert scroll_hit_test(50, 50) == ''
 		reset_scroll_frame()
-		register_scroll_view(named_scroll_state_id('hidden-bar'), frame, frame, 1000, true, false, false, scroll_test_target('hidden-bar'))
+		register_scroll_view_in_parent(named_scroll_state_id('hidden-bar'), '', frame, frame, 1000, true, false, false, scroll_test_target('hidden-bar'))
 		assert named_scroll_state_id('hidden-bar') !in g_scrollbar_geometries
 		handle_mouse_scroll_vector(50, 50, 0, -0.5)
 		assert scroll_offset('hidden-bar') == 24
@@ -377,7 +377,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	fn test_scrollbar_thumb_drag_and_track_click_reach_the_bottom() {
 		reset_scroll_test_state()
 		frame := rect(0, 0, 100, 100)
-		register_scroll_view(named_scroll_state_id('text'), frame, frame, 1000, true, true, false, scroll_test_target('text'))
+		register_scroll_view_in_parent(named_scroll_state_id('text'), '', frame, frame, 1000, true, true, false, scroll_test_target('text'))
 		handle_touch_down(94, 10)
 		assert g_touch.scrollbar_drag
 		handle_touch_move(94, 74)
@@ -386,7 +386,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		assert g_focused_field == ''
 		set_scroll_offset(named_scroll_state_id('text'), 0, 900)
 		reset_scroll_frame()
-		register_scroll_view(named_scroll_state_id('text'), frame, frame, 1000, true, true, false, scroll_test_target('text'))
+		register_scroll_view_in_parent(named_scroll_state_id('text'), '', frame, frame, 1000, true, true, false, scroll_test_target('text'))
 		handle_touch_down(94, 90)
 		handle_touch_up(94, 90)
 		assert scroll_offset('text') == 900
@@ -394,7 +394,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 
 	fn test_scroll_to_rect_uses_the_full_viewport_height() {
 		reset_scroll_test_state()
-		register_scroll_view(named_scroll_state_id('text'), rect(0, 0, 100, 100), rect(0, 0, 100, 50), 1000,
+		register_scroll_view_in_parent(named_scroll_state_id('text'), '', rect(0, 0, 100, 100), rect(0, 0, 100, 50), 1000,
 			true, true, false, scroll_test_target('text'))
 		scroll_to_rect('text', 0, 950, 10, 10)
 		assert scroll_offset('text') == 860
@@ -421,7 +421,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	fn test_scroll_to_offset_moves_a_registered_scroll_view() {
 		reset_scroll_test_state()
 		frame := rect(0, 0, 100, 100)
-		register_scroll_view(named_scroll_state_id('notes'), frame, frame, 400, true, true, false, scroll_test_target('notes'))
+		register_scroll_view_in_parent(named_scroll_state_id('notes'), '', frame, frame, 400, true, true, false, scroll_test_target('notes'))
 		scroll_to_offset('notes', 120)
 		assert scroll_offset('notes') == 120
 		// Past the end settles at the end rather than scrolling into nothing.
@@ -436,7 +436,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		// A screen that opens where it was last left asks before anything is laid out.
 		scroll_to_offset('notes', 120)
 		frame := rect(0, 0, 100, 100)
-		register_scroll_view(named_scroll_state_id('notes'), frame, frame, 400, true, true, false, scroll_test_target('notes'))
+		register_scroll_view_in_parent(named_scroll_state_id('notes'), '', frame, frame, 400, true, true, false, scroll_test_target('notes'))
 		assert scroll_offset('notes') == 120
 	}
 
@@ -450,7 +450,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		reset_scroll_frame()
 		prune_unmounted_state()
 		frame := rect(0, 0, 100, 100)
-		register_scroll_view(named_scroll_state_id('notes'), frame, frame, 400, true, true, false, scroll_test_target('notes'))
+		register_scroll_view_in_parent(named_scroll_state_id('notes'), '', frame, frame, 400, true, true, false, scroll_test_target('notes'))
 		assert scroll_offset('notes') == 120
 	}
 
@@ -458,12 +458,12 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		reset_scroll_test_state()
 		scroll_to_offset('notes', 120)
 		frame := rect(0, 0, 100, 100)
-		register_scroll_view(named_scroll_state_id('notes'), frame, frame, 400, true, true, false, scroll_test_target('notes'))
+		register_scroll_view_in_parent(named_scroll_state_id('notes'), '', frame, frame, 400, true, true, false, scroll_test_target('notes'))
 		assert scroll_offset('notes') == 120
 		// The request is not reapplied over a position the user has since scrolled to.
 		set_scroll_offset(named_scroll_state_id('notes'), 40, scroll_maximum(named_scroll_state_id('notes')))
 		reset_scroll_frame()
-		register_scroll_view(named_scroll_state_id('notes'), frame, frame, 400, true, true, false, scroll_test_target('notes'))
+		register_scroll_view_in_parent(named_scroll_state_id('notes'), '', frame, frame, 400, true, true, false, scroll_test_target('notes'))
 		assert scroll_offset('notes') == 40
 	}
 
@@ -471,7 +471,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		reset_scroll_test_state()
 		scroll_to_offset('notes', 10_000)
 		frame := rect(0, 0, 100, 100)
-		register_scroll_view(named_scroll_state_id('notes'), frame, frame, 400, true, true, false, scroll_test_target('notes'))
+		register_scroll_view_in_parent(named_scroll_state_id('notes'), '', frame, frame, 400, true, true, false, scroll_test_target('notes'))
 		// Registering learns the real range, so the stored request is brought inside it.
 		assert scroll_offset('notes') == 300
 	}
@@ -604,7 +604,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		mut events := &[]ElementEvent{}
 		callback := fn [mut events] (event ElementEvent) { events << event }
 		pane := with_event(scroll('pane', rect(0, 0, 100, 100), 0xffffff, []Element{}), callback)
-		register_scroll_view(named_scroll_state_id(pane.id), pane.frame, pane.frame, 500, true, true, false,
+		register_scroll_view_in_parent(named_scroll_state_id(pane.id), '', pane.frame, pane.frame, 500, true, true, false,
 			HitTarget{ id: pane.id, on_event: pane.on_event })
 		scroll_to_offset(pane.id, 72.25)
 		assert events.len == 1
@@ -615,7 +615,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		mut replacement := &[]ElementEvent{}
 		new_callback := fn [mut replacement] (event ElementEvent) { replacement << event }
 		reset_scroll_frame()
-		register_scroll_view(named_scroll_state_id(pane.id), pane.frame, pane.frame, 120, true, true, false,
+		register_scroll_view_in_parent(named_scroll_state_id(pane.id), '', pane.frame, pane.frame, 120, true, true, false,
 			HitTarget{ id: pane.id, on_event: new_callback })
 		assert events.len == 1
 		assert replacement.len == 1
@@ -631,7 +631,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		mut events := &[]ElementEvent{}
 		callback := fn [mut events] (event ElementEvent) { events << event }
 		pane := compiled_ui_scroll_immediate_3(rect(0, 0, 100, 100), callback)
-		register_scroll_view(named_scroll_state_id(pane.id), pane.frame, pane.frame, 500, true, true, false,
+		register_scroll_view_in_parent(named_scroll_state_id(pane.id), '', pane.frame, pane.frame, 500, true, true, false,
 			HitTarget{ id: pane.id, on_event: pane.on_event })
 		handle_mouse_scroll_vector(50, 50, 0, -1)
 		assert events.len == 1
@@ -671,7 +671,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		prune_unmounted_state()
 		assert scroll_state_offset(id) == 72.25
 		assert id in g_scroll_targets
-		register_scroll_view(id, pane.frame, pane.frame, 120, true, true, false,
+		register_scroll_view_in_parent(id, '', pane.frame, pane.frame, 120, true, true, false,
 			HitTarget{ id: pane.id, on_event: pane.on_event })
 		assert events.len == 3
 		assert (*events)[2].id == ''
@@ -698,9 +698,9 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		// A request made by the public id before mounting reaches only that node.
 		scroll_to_offset(named.id, 18.25)
 		clip := rect(0, 0, 240, 100)
-		register_scroll_view(anonymous_id, anonymous.frame, clip, 500, true, true, false,
+		register_scroll_view_in_parent(anonymous_id, '', anonymous.frame, clip, 500, true, true, false,
 			HitTarget{ id: anonymous.id, on_event: anonymous.on_event })
-		register_scroll_view(named_id, named.frame, clip, 500, true, true, false,
+		register_scroll_view_in_parent(named_id, '', named.frame, clip, 500, true, true, false,
 			HitTarget{ id: named.id, on_event: named.on_event })
 		assert scroll_state_offset(anonymous_id) == 0
 		assert scroll_offset(named.id) == 18.25
@@ -721,7 +721,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		assert scroll_offset(named.id) == 72.25
 		assert anonymous_id == scroll_view_state_id(anonymous,
 			reconciliation_child_key('root', 1, anonymous))
-		register_scroll_view(named_id, named.frame, clip, 120, true, true, false,
+		register_scroll_view_in_parent(named_id, '', named.frame, clip, 120, true, true, false,
 			HitTarget{ id: named.id, on_event: named.on_event })
 		assert scroll_offset(named.id) == 20
 		assert scroll_state_offset(anonymous_id) == 48
@@ -743,9 +743,9 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		assert named_id == named_scroll_state_id(named.id)
 		assert anonymous_id != named_id
 		clip := rect(0, 0, 240, 100)
-		register_scroll_view(anonymous_id, anonymous.frame, clip, 500, true, true, false,
+		register_scroll_view_in_parent(anonymous_id, '', anonymous.frame, clip, 500, true, true, false,
 			scroll_test_target(anonymous.id))
-		register_scroll_view(named_id, named.frame, clip, 500, true, true, false,
+		register_scroll_view_in_parent(named_id, '', named.frame, clip, 500, true, true, false,
 			scroll_test_target(named.id))
 		handle_mouse_scroll_vector(50, 50, 0, -1)
 		scroll_to_rect(named.id, 0, 150.5, 10, 10)

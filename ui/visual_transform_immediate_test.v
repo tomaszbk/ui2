@@ -70,7 +70,7 @@ $if ( linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headl
 		add_hit_target(HitTarget{ id: 'diamond', x: 0, y: 0, w: 100, h: 100 }, frame)
 		add_tooltip_target('diamond', 'tip', frame, frame)
 		id := named_scroll_state_id('diamond')
-		register_scroll_view(id, frame, frame, 300, true, true, false, HitTarget{})
+		register_scroll_view_in_parent(id, '', frame, frame, 300, true, true, false, HitTarget{})
 		assert hit_test(-10, -10).id == ''
 		assert tooltip_target_at(g_tooltip_targets, -10, -10).key == ''
 		assert scroll_hit_test(-10, -10) == ''
@@ -88,7 +88,7 @@ $if ( linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headl
 			g_touch = TouchState{}
 		}
 		id := named_scroll_state_id('rotated')
-		register_scroll_view(id, rect(0, 0, 100, 100), rect(0, 0, 100, 100), 300, true, true, false, HitTarget{})
+		register_scroll_view_in_parent(id, '', rect(0, 0, 100, 100), rect(0, 0, 100, 100), 300, true, true, false, HitTarget{})
 		// Window left 40 = local down 20. Window down contributes no local y.
 		apply_scroll_vector([id], -40, 0)
 		assert scroll_state_offset(id) == 20
@@ -97,7 +97,7 @@ $if ( linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headl
 		apply_scroll_vector([id], -1000, 0)
 		assert scroll_state_offset(id) == 200
 		set_scroll_offset(id, 0, 200)
-		register_scroll_view(id, rect(0, 0, 100, 100), rect(0, 0, 100, 100), 300, true, true, false, HitTarget{})
+		register_scroll_view_in_parent(id, '', rect(0, 0, 100, 100), rect(0, 0, 100, 100), 300, true, true, false, HitTarget{})
 		g_touch = TouchState{ scroll_id: id }
 		// Track local x=93, thumb y=4..34.67. Grab local y=10.
 		assert begin_scrollbar_drag(280, 196)

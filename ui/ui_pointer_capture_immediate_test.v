@@ -397,7 +397,7 @@ fn pointer_capture_callback(callback string, remove_on_up bool) ElementCallback 
 	fn test_scrollbar_drag_takes_precedence_over_view_capture() {
 		reset_pointer_capture_test()
 		frame := rect(0, 0, 100, 100)
-		register_scroll_view(named_scroll_state_id('pane'), frame, frame, 400, true, true, true, HitTarget{})
+		register_scroll_view_in_parent(named_scroll_state_id('pane'), '', frame, frame, 400, true, true, true, HitTarget{})
 		g_hit_targets = [HitTarget{identity: 'view', on_event: pointer_capture_callback('view', false), w: 100, h: 100, draggable: true}]
 		bar := scrollbar_geometry(frame, 400, 0, true)
 		handle_touch_down(bar.thumb.x + 1, bar.thumb.y + 1)

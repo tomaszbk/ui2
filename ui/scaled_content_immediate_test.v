@@ -27,7 +27,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
   defer { g_gg_app.ctx = previous; reset_scroll_frame(); g_scroll_offsets.clear() }
   reset_scroll_frame()
   g_scroll_offsets.clear()
-  register_scroll_view(named_scroll_state_id('pane'),rect(0,0,200,100),rect(0,0,1280,720),300,true,true,false,HitTarget{})
+  register_scroll_view_in_parent(named_scroll_state_id('pane'), '',rect(0,0,200,100),rect(0,0,1280,720),300,true,true,false,HitTarget{})
   assert scroll_hit_test(40,80) == named_scroll_state_id('pane')
   assert scroll_hit_test(40,20) == ''
   apply_scroll_vector([named_scroll_state_id('pane')],0,25)
@@ -61,10 +61,10 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
   previous := activate_custom_window_state(first)
   defer { activate_custom_window_state(previous); g_gg_app.ctx = original }
   g_gg_app.ctx = &DrawContext{content_transform:ContentTransform{xx: 0.5, yy: 0.5}}
-  register_scroll_view(named_scroll_state_id('pane'),rect(0,0,200,100),rect(0,0,200,100),300,true,true,false,HitTarget{})
+  register_scroll_view_in_parent(named_scroll_state_id('pane'), '',rect(0,0,200,100),rect(0,0,200,100),300,true,true,false,HitTarget{})
   activate_custom_window_state(second)
   g_gg_app.ctx = &DrawContext{content_transform:ContentTransform{xx: 2, yy: 2}}
-  register_scroll_view(named_scroll_state_id('pane'),rect(0,0,200,100),rect(0,0,200,100),300,true,true,false,HitTarget{})
+  register_scroll_view_in_parent(named_scroll_state_id('pane'), '',rect(0,0,200,100),rect(0,0,200,100),300,true,true,false,HitTarget{})
   apply_scroll_vector([named_scroll_state_id('pane')],0,20)
   assert scroll_offset('pane') == 10
   activate_custom_window_state(first)
