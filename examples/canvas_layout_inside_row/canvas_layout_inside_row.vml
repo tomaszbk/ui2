@@ -30,7 +30,7 @@ Screen(
                 Button(
                     id: "rotate",
                     text: "Rotate",
-                    on_tap: callback_rotate,
+                    on_click: callback_rotate,
                     native: true,
                     x: card.width - 246,
                     y: 13,
@@ -40,7 +40,7 @@ Screen(
                 Button(
                     id: "return",
                     text: "Return to tray",
-                    on_tap: callback_return,
+                    on_click: callback_return,
                     native: true,
                     x: card.width - 142,
                     y: 13,

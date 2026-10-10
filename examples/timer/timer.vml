@@ -86,11 +86,11 @@ Screen(
                 height: 34,
                 transparent: true,
             ) {
-                Button(id: "start", text: app.start_label, on_tap: callback_start, native: true, width: 110, height: 34)
+                Button(id: "start", text: app.start_label, on_click: callback_start, native: true, width: 110, height: 34)
                 Button(
                     id: "pause",
                     text: app.running ? "Pause" : "Resume",
-                    on_tap: callback_pause,
+                    on_click: callback_pause,
                     native: true,
                     enabled: app.elapsed > 0 && app.elapsed < app.duration,
                     width: 110,

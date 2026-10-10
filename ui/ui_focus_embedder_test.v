@@ -53,7 +53,7 @@ $if macos && ui2_custom_rendering ? && ui2_embedder ? && !ui2_headless ? {
 			assert !embedder_event(app, &C.ui2_embedder_event{ kind: 8, key_code: int(key) })
 			assert text('edit') == 'seed'
 		}
-		assert embedder_focus_taps == [ElementEvent{ kind: .tap, id: 'button' }, ElementEvent{ kind: .tap, id: 'button' }, ElementEvent{ kind: .tap, id: 'button' }]
+		assert embedder_focus_taps == [ElementEvent{ kind: .click, id: 'button' }, ElementEvent{ kind: .click, id: 'button' }, ElementEvent{ kind: .click, id: 'button' }]
 		// NSTextInputClient retries an ordinary editing command with skip_dispatch;
 		// the application observer receives its original key-down only once.
 		before := embedder_focus_keys.len
@@ -88,6 +88,6 @@ $if macos && ui2_custom_rendering ? && ui2_embedder ? && !ui2_headless ? {
 		assert !embedder_event(app, &C.ui2_embedder_event{ kind: 7, key_code: int(KeyCode.space), text_input: true })
 		embedder_text(app, &C.ui2_embedder_text_event{ kind: 1, text: ' '.str, replacement_start: -1 })
 		assert text('edit') == 'seedñ '
-		assert embedder_focus_taps == [ElementEvent{ kind: .tap, id: 'button' }]
+		assert embedder_focus_taps == [ElementEvent{ kind: .click, id: 'button' }]
 	}
 }

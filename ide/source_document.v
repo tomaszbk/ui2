@@ -138,7 +138,7 @@ fn (mut reader DesignerSource) node() !DesignerNode {
 		'Option' { ['text'] }
 		else {
 			['id', 'x', 'y', 'width', 'height', 'hidden', 'text', 'placeholder', 'source', 'background',
-				'color', 'font_size', 'checked', 'corner_radius', 'on_tap', 'on_change', 'clickable']
+				'color', 'font_size', 'checked', 'corner_radius', 'on_click', 'on_change', 'clickable']
 		}
 	}
 	for property, _ in props {

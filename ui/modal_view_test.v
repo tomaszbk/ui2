@@ -44,10 +44,10 @@ fn test_modal_view_constructor_builds_blocking_layers_and_content() {
 	assert modal.children[0].id == 'confirm__backdrop'
 	modal_view_test_events = []ElementEvent{}
 	backdrop := modal.children[0]
-	backdrop.on_event(ElementEvent{ kind: .tap, id: backdrop.id })
+	backdrop.on_event(ElementEvent{ kind: .click, id: backdrop.id })
 	assert modal_view_test_events.len == 1
 	assert modal_view_test_events[0].id == backdrop.id
-	assert modal_view_test_events[0].kind == .tap
+	assert modal_view_test_events[0].kind == .click
 	assert modal.children[0].frame == rect(0, 0, 500, 300)
 	assert modal.children[1].id == 'confirm__surface'
 	assert modal.children[1].frame == rect(100, 70, 300, 160)

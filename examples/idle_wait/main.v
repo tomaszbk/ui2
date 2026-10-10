@@ -28,7 +28,7 @@ fn build() ui2.Element {
 }
 
 fn load(event ui2.ElementEvent) {
-	if event.kind != .tap { return }
+	if event.kind != .click { return }
 	$if linux || (macos && ui2_custom_rendering ?) || (windows && ui2_custom_rendering ?) {
 		// Capture on UI; the worker only computes and posts. Local editing and
 		// selection survive the unrelated status rebuild.

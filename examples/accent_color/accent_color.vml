@@ -21,7 +21,7 @@ Screen(
                 Button(
                     id: "reset",
                     text: "Reset",
-                    on_tap: callback_reset,
+                    on_click: callback_reset,
                     native: true,
                     x: card.width - 118,
                     y: 13,
@@ -253,7 +253,7 @@ Screen(
                             id: "subscribe",
                             text: "Subscribe",
                             checked: app.subscribed,
-                            on_tap: callback_subscribe,
+                            on_click: callback_subscribe,
                             x: 202,
                             y: 70,
                             width: 150,

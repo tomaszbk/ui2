@@ -18,8 +18,8 @@ component Counter(title string = "Count", changed event(value int)) {
     Column(gap: 12) {
         Label(text: title)
         Label(text: doubled)
-        Button(text: "Add", on_tap: increment)
-        Button(text: "Reset", on_tap: { count = 0; changed(count) })
+        Button(text: "Add", on_click: increment)
+        Button(text: "Reset", on_click: { count = 0; changed(count) })
     }
 }
 ```
@@ -68,7 +68,7 @@ controls, with `text_input` and `text_area` constructors in the V API.
 ## Handlers and lifetime
 
 Handlers can refer to local functions, contain a short statement such as
-`on_tap: count++`, or contain a block. Writes batch per action. `mount { ... }`
+`on_click: count++`, or contain a block. Writes batch per action. `mount { ... }`
 runs once when an instance enters the mounted tree; `unmount { ... }` runs when
 that mounted instance is disposed. `cleanup { ... }` releases resources owned by its
 scope. Removed keyed instances dispose their effects and cleanups. A callback
@@ -118,7 +118,7 @@ component Editor() {
     ref name_field TextInput
     Column {
         TextInput(id: "name_input", ref: name_field)
-        Button(text: "Focus", on_tap: name_field.focus()!)
+        Button(text: "Focus", on_click: name_field.focus()!)
     }
 }
 ```

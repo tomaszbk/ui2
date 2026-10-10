@@ -30,7 +30,7 @@ Screen(
                     Button(
                         id: "create",
                         text: "New project",
-                        on_tap: app.create_project(),
+                        on_click: app.create_project(),
                         background: #315EEB,
                         color: #FFFFFF,
                         corner_radius: 8,
@@ -82,7 +82,7 @@ Screen(
                         ) {
                             Button(
                                 text: "Create project",
-                                on_tap: app.create_project(),
+                                on_click: app.create_project(),
                                 background: #FFFFFF,
                                 color: #17243D,
                                 corner_radius: 8,

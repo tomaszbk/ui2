@@ -38,10 +38,10 @@ fn test_popup_constructor_composes_modal_layers_and_body() {
 	assert !result.hidden
 	popup_test_events = []ElementEvent{}
 	backdrop := result.children[0]
-	backdrop.on_event(ElementEvent{ kind: .tap, id: backdrop.id })
+	backdrop.on_event(ElementEvent{ kind: .click, id: backdrop.id })
 	assert popup_test_events.len == 1
 	assert popup_test_events[0].id == backdrop.id
-	assert popup_test_events[0].kind == .tap
+	assert popup_test_events[0].kind == .click
 	assert result.children[1].frame == rect(90, 50, 320, 200)
 	surface_content := result.children[2]
 	assert surface_content.frame == rect(90, 50, 320, 200)

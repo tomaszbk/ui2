@@ -82,7 +82,7 @@ Screen(
         }
         Button(
             text: "Previous",
-            on_tap: app.previous(),
+            on_click: app.previous(),
             x: 20,
             y: 290,
             width: 110,
@@ -93,7 +93,7 @@ Screen(
         )
         Button(
             text: "Next",
-            on_tap: app.next(),
+            on_click: app.next(),
             x: root.width - 130,
             y: 290,
             width: 110,

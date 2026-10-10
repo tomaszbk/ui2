@@ -40,7 +40,7 @@ Screen(
                 Button(
                     id: "parent",
                     text: "Parent folder",
-                    on_tap: app.go_parent(),
+                    on_click: app.go_parent(),
                     native: true,
                     x: 18,
                     y: 74,
@@ -50,7 +50,7 @@ Screen(
                 Button(
                     id: "choose",
                     text: "Choose current",
-                    on_tap: app.choose_current(),
+                    on_click: app.choose_current(),
                     native: true,
                     x: card.width - 158,
                     y: 74,
@@ -74,7 +74,7 @@ Screen(
                         ) {
                             Button(
                                 text: "▸  ${item.name}",
-                                on_tap: app.open_entry(item.id),
+                                on_click: app.open_entry(item.id),
                                 native: true,
                                 x: 8,
                                 y: 6 + index * 38,

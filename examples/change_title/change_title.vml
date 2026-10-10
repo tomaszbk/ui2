@@ -52,7 +52,7 @@ Screen(
                 Button(
                     id: "apply_title",
                     text: "Change title",
-                    on_tap: app.apply_title(),
+                    on_click: app.apply_title(),
                     native: true,
                     x: card.width - 126,
                     y: 84,

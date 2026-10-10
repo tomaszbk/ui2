@@ -21,7 +21,7 @@ Screen(
                 Button(
                     id: "store",
                     text: "Store in slot",
-                    on_tap: callback_store,
+                    on_click: callback_store,
                     native: true,
                     x: card.width - 148,
                     y: 13,

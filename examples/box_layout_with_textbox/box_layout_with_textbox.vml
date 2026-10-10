@@ -97,7 +97,7 @@ Screen(
                         Button(
                             id: "show_message",
                             text: "Show message",
-                            on_tap: app.show_message(),
+                            on_click: app.show_message(),
                             native: true,
                             x: canvas.width * 0.68,
                             y: 18,

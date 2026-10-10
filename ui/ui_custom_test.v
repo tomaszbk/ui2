@@ -504,7 +504,7 @@ $if ui2_custom_rendering ? {
 			options:  ['One']
 		})
 		assert g_open_dropdown == ''
-		assert custom_control_test_events == [ElementEvent{ kind: .tap }]
+		assert custom_control_test_events == [ElementEvent{ kind: .click }]
 	}
 
 	fn test_custom_dropdown_keys_move_the_highlight_and_commit() {

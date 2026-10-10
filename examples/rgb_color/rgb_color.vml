@@ -115,7 +115,7 @@ Screen(
                 Button(
                     id: "show_color",
                     text: "Show RGB color",
-                    on_tap: app.show_color(),
+                    on_click: app.show_color(),
                     native: true,
                     x: 16,
                     y: 224,

@@ -103,7 +103,7 @@ Screen(
                 Button(
                     id: "reset_layout",
                     text: "Reset",
-                    on_tap: app.reset_layout(),
+                    on_click: app.reset_layout(),
                     native: true,
                     x: card.width - 118,
                     y: 94,

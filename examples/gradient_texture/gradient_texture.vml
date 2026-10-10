@@ -21,7 +21,7 @@ Screen(
                 Button(
                     id: "previous_hue",
                     text: "Previous",
-                    on_tap: app.previous_hue(),
+                    on_click: app.previous_hue(),
                     native: true,
                     x: card.width - 220,
                     y: 13,
@@ -31,7 +31,7 @@ Screen(
                 Button(
                     id: "next_hue",
                     text: "Next",
-                    on_tap: app.next_hue(),
+                    on_click: app.next_hue(),
                     native: true,
                     x: card.width - 118,
                     y: 13,

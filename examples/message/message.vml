@@ -38,7 +38,7 @@ Screen(
                 Button(
                     id: "show_native_message",
                     text: "Show native message",
-                    on_tap: app.show_native_message(),
+                    on_click: app.show_native_message(),
                     native: true,
                     x: 16,
                     y: 92,
@@ -48,7 +48,7 @@ Screen(
                 Button(
                     id: "ask_native_question",
                     text: "Ask a native question",
-                    on_tap: app.ask_native_question(),
+                    on_click: app.ask_native_question(),
                     native: true,
                     x: 16,
                     y: 136,
@@ -58,7 +58,7 @@ Screen(
                 Button(
                     id: "show_message",
                     text: "Show drawn message",
-                    on_tap: app.show_message(),
+                    on_click: app.show_message(),
                     native: true,
                     x: 16,
                     y: 180,
@@ -84,7 +84,7 @@ Screen(
             text: "This message came from the ui example.",
             dialog_width: 360,
         ) {
-            Button(id: "close_message", text: "OK", on_tap: app.close_message())
+            Button(id: "close_message", text: "OK", on_click: app.close_message())
         }
     }
 }

@@ -201,7 +201,7 @@ Screen(
                                 Button(
                                     id: "apply_palette",
                                     text: "Apply palette",
-                                    on_tap: app.apply_palette(),
+                                    on_click: app.apply_palette(),
                                     native: true,
                                     x: preview.width - 180,
                                     y: preview.height - 86,

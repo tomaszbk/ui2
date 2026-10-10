@@ -128,7 +128,7 @@ $if macos && ui2_custom_rendering ? && !ui2_headless ? {
 		assert kinds.filter(it == .drop).len == if dropped { 1 } else { 0 }
 		assert kinds.filter(it == .drag_end).len == if dropped { 1 } else { 0 }
 		assert kinds.filter(it == .drag_cancel).len == if dropped { 0 } else { 1 }
-		assert ElementEventKind.tap !in kinds
+		assert ElementEventKind.click !in kinds
 		assert !g_touch.down && !g_touch.pointer_captured && !drag_active()
 		assert g_gg_app.scheduler.stats().draws == 0
 		assert g_gg_app.scheduler.stats().flushes == declaration_drag_initial_flushes

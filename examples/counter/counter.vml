@@ -16,8 +16,8 @@ component Counter(title string = "Count", changed event(value int)) {
         Label(id: "value", text: count, height: 28, color: #111827, font_size: 22)
         Label(id: "double", text: doubled, height: 24, color: #64748B, font_size: 15)
         Row(gap: 8, height: 36) {
-            Button(id: "add", text: "Count", on_tap: increment, native: true, flex_grow: 1)
-            Button(id: "reset", text: "Reset", on_tap: { count = 0; changed(count) }, native: true, flex_grow: 1)
+            Button(id: "add", text: "Count", on_click: increment, native: true, flex_grow: 1)
+            Button(id: "reset", text: "Reset", on_click: { count = 0; changed(count) }, native: true, flex_grow: 1)
         }
     }
 }

@@ -51,7 +51,7 @@ Screen(
             color: #FFFFFF,
             font_size: 14,
             corner_radius: 6,
-            on_tap: callback_continue_clicked,
+            on_click: callback_continue_clicked,
         )
         View(id: "accent_panel", x: 390, y: 150, width: 280, height: 210, background: #DBEAFE, corner_radius: 4)
     }

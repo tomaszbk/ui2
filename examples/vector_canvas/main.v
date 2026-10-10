@@ -22,7 +22,7 @@ fn polygon(points []ui2.VectorPoint, style ui2.VectorStyle) ui2.VectorShape {
 }
 
 fn on_shape(event ui2.ElementEvent) {
-	if event.kind == .tap {
+	if event.kind == .click {
 		mut state := unsafe { gallery }
 		state.status = 'Paint hit: ${event.id}'
 	}

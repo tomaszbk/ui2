@@ -10,7 +10,7 @@ fn test_accordion_demo_switches_active_content() {
 
 	security := preferences.children[3]
 	control := security
-	control.on_event(ui2.ElementEvent{ kind: .tap, id: control.id })
+	control.on_event(ui2.ElementEvent{ kind: .click, id: control.id })
 	assert app.current == 2
 	rebuilt := accordion_widget_tree(mut app, ui2.rect(0, 0, accordion_width, accordion_height))
 	assert rebuilt.children[0].children[1].children[0].children[0].children[0].text == 'Review passwords and active sessions.'

@@ -75,7 +75,7 @@ Screen(
                                 ) {
                                     Button(
                                         text: "${item.label}  →",
-                                        on_tap: app.move_right(item.id),
+                                        on_click: app.move_right(item.id),
                                         native: true,
                                         x: 8,
                                         y: 6 + index * 40,
@@ -126,7 +126,7 @@ Screen(
                                 ) {
                                     Button(
                                         text: "←  ${item.label}",
-                                        on_tap: app.move_left(item.id),
+                                        on_click: app.move_left(item.id),
                                         native: true,
                                         x: 8,
                                         y: 6 + index * 40,
@@ -141,7 +141,7 @@ Screen(
                 Button(
                     id: "reset_lists",
                     text: "Reset",
-                    on_tap: app.reset(),
+                    on_click: app.reset(),
                     native: true,
                     x: 18,
                     y: card.height - 62,
@@ -151,7 +151,7 @@ Screen(
                 Button(
                     id: "show_values",
                     text: "Get values",
-                    on_tap: app.show_values(),
+                    on_click: app.show_values(),
                     native: true,
                     x: card.width - 138,
                     y: card.height - 62,

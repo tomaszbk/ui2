@@ -41,9 +41,9 @@ fn test_compiled_nested_repeaters_flatten_and_preserve_independent_keyed_instanc
 	second := children[4]
 	assert first.key != second.key
 	assert app.created == 2
-	first.children[0].on_event(ui2.ElementEvent{ kind: .tap })
-	first.children[0].on_event(ui2.ElementEvent{ kind: .tap })
-	second.children[0].on_event(ui2.ElementEvent{ kind: .tap })
+	first.children[0].on_event(ui2.ElementEvent{ kind: .click })
+	first.children[0].on_event(ui2.ElementEvent{ kind: .click })
+	second.children[0].on_event(ui2.ElementEvent{ kind: .click })
 	creation := root.component.runtime.stats()
 	app.groups = [
 		KeyedContractGroup{ id: 'b', rows: [KeyedContractRow{'x', 'Updated B'}] },
@@ -64,7 +64,7 @@ fn test_compiled_nested_repeaters_flatten_and_preserve_independent_keyed_instanc
 	root.component.invalidate_app()!
 	assert root.element().children[0].children.len == 4
 	assert first.compiled_node.component.is_disposed()
-	first.children[0].on_event(ui2.ElementEvent{ kind: .tap })
+	first.children[0].on_event(ui2.ElementEvent{ kind: .click })
 	assert root.element().children[0].children[2].children[1].text == '1'
 	app.groups << KeyedContractGroup{ id: 'a', rows: [KeyedContractRow{'x', 'New'}] }
 	root.component.invalidate_app()!
@@ -100,9 +100,9 @@ fn test_compiled_keyed_components_keep_instance_state_and_lexical_slot_sources()
 	created_stats := root.component.runtime.stats()
 	first := rows[1]
 	second := rows[2]
-	first.children[0].on_event(ui2.ElementEvent{ kind: .tap })
-	first.children[0].on_event(ui2.ElementEvent{ kind: .tap })
-	second.children[0].on_event(ui2.ElementEvent{ kind: .tap })
+	first.children[0].on_event(ui2.ElementEvent{ kind: .click })
+	first.children[0].on_event(ui2.ElementEvent{ kind: .click })
+	second.children[0].on_event(ui2.ElementEvent{ kind: .click })
 	app.rows = [KeyedContractRow{'b', 'Updated B'}, KeyedContractRow{'a', 'Updated A'}]
 	app.suffix = 'updated author'
 	root.component.invalidate_app()!
@@ -118,7 +118,7 @@ fn test_compiled_keyed_components_keep_instance_state_and_lexical_slot_sources()
 	app.rows = [KeyedContractRow{'a', 'Remaining'}]
 	root.component.invalidate_app()!
 	assert second.compiled_node.component.is_disposed()
-	second.children[0].on_event(ui2.ElementEvent{ kind: .tap })
+	second.children[0].on_event(ui2.ElementEvent{ kind: .click })
 	assert root.element().children[0].children[1].children[1].text == '2'
 	app.rows << KeyedContractRow{'b', 'New B'}
 	root.component.invalidate_app()!

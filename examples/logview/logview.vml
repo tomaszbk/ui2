@@ -53,7 +53,7 @@ Screen(
                 Button(
                     id: "start_scan",
                     text: "Start scan",
-                    on_tap: app.start_scan(),
+                    on_click: app.start_scan(),
                     native: true,
                     x: 16,
                     y: card.height - 50,
@@ -63,7 +63,7 @@ Screen(
                 Button(
                     id: "clear",
                     text: "Clear",
-                    on_tap: app.clear(),
+                    on_click: app.clear(),
                     native: true,
                     enabled: app.log.len > 0,
                     x: card.width - 106,

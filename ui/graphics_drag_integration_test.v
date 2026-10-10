@@ -86,7 +86,7 @@ $if macos && ui2_custom_rendering ? && ui2_embedder ? && !ui2_headless ? {
 				assert graphics_drag_events.filter(it.kind==.drop).len==if valid { 1 } else { 0 }, '${stage}/${change}'
 				assert graphics_drag_events.filter(it.kind==.drag_cancel).len==if valid { 0 } else { 1 }
 				assert !g_touch.down && !g_touch.pointer_captured && !drag_active()
-				assert graphics_drag_events.filter(it.kind==.tap).len==0 && g_gg_app.scheduler.stats().draws==0
+				assert graphics_drag_events.filter(it.kind==.click).len==0 && g_gg_app.scheduler.stats().draws==0
 			}
 		}
 		// Same concave mesh membership for fresh pointer/hover/drop and ancestor clip.
@@ -115,7 +115,7 @@ $if macos && ui2_custom_rendering ? && ui2_embedder ? && !ui2_headless ? {
 				token:=g_touch.drag.token
 				handle_touch_up(120,30)
 				assert graphics_drag_mutated
-				assert graphics_drag_events.filter(it.kind==.drop || it.kind==.tap).len==0
+				assert graphics_drag_events.filter(it.kind==.drop || it.kind==.click).len==0
 				assert graphics_drag_events.filter(it.kind==.drag_cancel).len==1, '${stage}/${change}'
 				if change=='restart' {
 					assert g_touch.down && g_touch.pointer_captured && g_touch.drag.pending && g_touch.drag.token!=token
@@ -145,7 +145,7 @@ $if macos && ui2_custom_rendering ? && ui2_embedder ? && !ui2_headless ? {
 		activate_custom_window_state(first)
 		assert !drag_active() && !g_touch.down
 		handle_touch_up(120,30)
-		assert graphics_drag_events.len==count && graphics_drag_events.filter(it.kind==.drop || it.kind==.tap).len==0
+		assert graphics_drag_events.len==count && graphics_drag_events.filter(it.kind==.drop || it.kind==.click).len==0
 	}
 
 	fn test_current_dropdown_row_font_geometry_comes_from_mounted_producer() {

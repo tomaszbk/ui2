@@ -105,8 +105,8 @@ fn test_with_button_behavior_preserves_a_view_and_explicit_accessibility_role() 
 	assert el.kind == .view
 	assert el.id == 'save_card'
 	ui_modifier_test_events = []ElementEvent{}
-	el.on_event(ElementEvent{ kind: .tap, id: el.id })
-	assert ui_modifier_test_events == [ElementEvent{ kind: .tap, id: 'save_card' }]
+	el.on_event(ElementEvent{ kind: .click, id: el.id })
+	assert ui_modifier_test_events == [ElementEvent{ kind: .click, id: 'save_card' }]
 	assert el.frame == base.frame
 	assert el.box == base.box
 	assert el.children == base.children

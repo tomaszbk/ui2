@@ -16,7 +16,7 @@ fn test_designer_refuses_lossy_dynamic_unknown_and_duplicate_arguments() {
 		'Screen(width: 300, width: 400) { Absolute {} }',
 		'Screen(adaptive: true) { Absolute {} }',
 		'Screen { Absolute { Label(id: "title", text: "\${app.title}") } }',
-		'Screen { Absolute { Button(id: "run", on_tap: app.run()) } }',
+		'Screen { Absolute { Button(id: "run", on_click: app.run()) } }',
 		'Screen { Absolute { Label(id: "a", x: app.offset) } }',
 		'Screen { id: "old" Absolute {} }',
 		'Screen { Absolute { TextInput(multiline: false) } }',

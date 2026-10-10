@@ -28,7 +28,7 @@ fn compiled_diagnostic(source string, index int) !string {
 }
 
 fn test_compiled_vml_diagnoses_removed_syntax_and_invalid_types_at_source() {
-	compiled_diagnostic('Screen { Label(text: app.count, align: right) TextInput(bind.text: app.name) TextArea { Run(text: "rich") } Button(text: "Add", on_tap: app.action()) }', -1)!
+	compiled_diagnostic('Screen { Label(text: app.count, align: right) TextInput(bind.text: app.name) TextArea { Run(text: "rich") } Button(text: "Add", on_click: app.action()) }', -1)!
 	for index, source in [
 		'Label { text: "former syntax" }',
 		'Label(text: "bad", units: "logical")',
@@ -75,12 +75,12 @@ fn test_compiled_vml_diagnoses_removed_syntax_and_invalid_types_at_source() {
 		'TextInput { Run(text: "rich") }',
 		'Checkbox(bind.checked: app.name)',
 		'Slider(bind.value: app.name)',
-		'Button(on_tap: app.unknown())',
-		'Button(on_tap: app.action(1))',
-		'Button(on_tap: wrong_payload)',
-		'Button(on_tap: wrong_return)',
-		'Button(on_tap: "save")',
-		'Button(on_tap: true)',
+		'Button(on_click: app.unknown())',
+		'Button(on_click: app.action(1))',
+		'Button(on_click: wrong_payload)',
+		'Button(on_click: wrong_return)',
+		'Button(on_click: "save")',
+		'Button(on_click: true)',
 		'Label(text: app.unknown)',
 		'Label(font_size: true)',
 		'View(scale_x: 0)',
@@ -115,16 +115,16 @@ fn test_component_contract_rejects_unknown_inputs_readonly_writes_and_bad_events
 	for index, source in [
 		'component Item(title string) { Label(text: title) } Screen { Item(unknown: "x") }',
 		'component Item(title string) { Label(text: title) } Screen { Item {} }',
-		'component Item(title string) { Button(on_tap: title = "x") } Screen { Item(title: "a") }',
-		'component Item() { state count := 0 computed doubled := count * 2 Button(on_tap: doubled = 4) } Screen { Item {} }',
-		'component Item(changed event(value int)) { Button(on_tap: changed("wrong")) } Screen { Item {} }',
-		'component Item(changed event(value int)) { Button(on_tap: changed(true)) } Screen { Item {} }',
-		'component Item(changed event(value int)) { Button(on_tap: changed(1)) } Screen { Item(on_changed: "changed") }',
+		'component Item(title string) { Button(on_click: title = "x") } Screen { Item(title: "a") }',
+		'component Item() { state count := 0 computed doubled := count * 2 Button(on_click: doubled = 4) } Screen { Item {} }',
+		'component Item(changed event(value int)) { Button(on_click: changed("wrong")) } Screen { Item {} }',
+		'component Item(changed event(value int)) { Button(on_click: changed(true)) } Screen { Item {} }',
+		'component Item(changed event(value int)) { Button(on_click: changed(1)) } Screen { Item(on_changed: "changed") }',
 		'component Item(title string) { Label(id: "title", text: title) } Screen { Item(title: "a") }',
 		'component Item(title string) { state title := "other" Label(text: title) } Screen { Item(title: "a") }',
 		'component Item(title string) { TextInput(bind.text: title) } Screen { Item(bind.title: app.name) }',
 		'component Item(bind title string) { TextInput(bind.text: title) } Screen { Item(bind.title: app.count * 2) }',
-		'component Item(changed event(value string)) { Button(on_tap: changed("x")) } Screen { Item(on_changed: wrong_payload) }',
+		'component Item(changed event(value string)) { Button(on_click: changed("x")) } Screen { Item(on_changed: wrong_payload) }',
 		'component Item() { state count := 0 computed bad := app.action() Label(text: bad) } Screen { Item {} }',
 		'component Item() { ref input TextInput Label(ref: input, text: "wrong kind") } Screen { Item {} }',
 		'component Item() { ref input TextInput Label(text: input) } Screen { Item {} }',

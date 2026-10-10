@@ -10,7 +10,7 @@ $if !ui2_custom_rendering ? {
 	__global windows_accessibility_events = []string{}
 
 	fn capture_windows_accessibility_event(event ElementEvent) {
-		assert event.kind == .tap
+		assert event.kind == .click
 		windows_accessibility_events << event.id
 	}
 
@@ -125,7 +125,7 @@ $if !ui2_custom_rendering ? {
 		assert windows_button_behavior_available(anonymous, anonymous, false, false, true)
 		windows_accessibility_events = []string{}
 		if windows_button_behavior_available(captured, current, false, false, true) {
-			windows_emit_callback(captured.on_event, ElementEvent{ id: captured.id, kind: .tap })
+			windows_emit_callback(captured.on_event, ElementEvent{ id: captured.id, kind: .click })
 		}
 		assert windows_accessibility_events == ['original']
 		windows_accessibility_events = []string{}
@@ -417,7 +417,7 @@ $if !ui2_custom_rendering ? {
 	}
 
 	fn test_windows_ordinary_control_press_keeps_callback_and_cancels_without_current_registration() {
-		first := WindowsCallbackBinding{ id: 'same', on_event: capture_windows_control_a, kind: .button, event: .tap }
+		first := WindowsCallbackBinding{ id: 'same', on_event: capture_windows_control_a, kind: .button, event: .click }
 		second := WindowsCallbackBinding{ ...first, on_event: capture_windows_control_b }
 		windows_control_test_handlers = []string{}
 		windows_control_test_events = []ElementEvent{}
@@ -436,7 +436,7 @@ $if !ui2_custom_rendering ? {
 		}
 	}
 	fn test_windows_cancelled_pointer_does_not_swallow_later_keyboard_activation() {
-		first := WindowsCallbackBinding{ id: 'same', on_event: capture_windows_control_a, kind: .button, event: .tap }
+		first := WindowsCallbackBinding{ id: 'same', on_event: capture_windows_control_a, kind: .button, event: .click }
 		current := WindowsCallbackBinding{ ...first, on_event: capture_windows_control_b }
 		cancelled := WindowsControlCapture{ binding: first, cancelled: true }
 		if _ := windows_control_dispatch_binding(current, cancelled, true, true, false) {
@@ -446,7 +446,7 @@ $if !ui2_custom_rendering ? {
 		selected := windows_control_dispatch_binding(current, cancelled, true, true, true) or {
 			panic('independent keyboard action must use current callback')
 		}
-		assert windows_emit_callback(selected.on_event, ElementEvent{ id: selected.id, kind: .tap })
+		assert windows_emit_callback(selected.on_event, ElementEvent{ id: selected.id, kind: .click })
 		assert windows_control_test_handlers == ['b']
 		if _ := windows_control_dispatch_binding(current, cancelled, true, false, true) {
 			assert false, 'disabled/deleted control cannot receive a keyboard action'
@@ -511,7 +511,7 @@ $if windows && !ui2_custom_rendering ? {
 	fn windows_focus_fixture_build() Element { return windows_focus_fixture_root }
 	fn windows_focus_fixture_event(event ElementEvent) {
 		windows_focus_fixture_events << event
-		if event.id == 'press' && event.kind == .tap {
+		if event.id == 'press' && event.kind == .click {
 			focus('edit')
 			if windows_focus_fixture_release == 'deactivate' { C.ui2_win_focus_test_deactivate(windows_state().root) }
 			if windows_focus_fixture_release == 'dispose' { windows_dispose_all() }
@@ -574,7 +574,7 @@ $if windows && !ui2_custom_rendering ? {
 					C.ui2_win_focus_test_key(editor, win_wm_key_down, key, scan, 1)
 					C.ui2_win_focus_test_key(editor, win_wm_char, character, scan, 1)
 				}
-				assert windows_focus_fixture_events.filter(it.kind == .tap).len == 1
+				assert windows_focus_fixture_events.filter(it.kind == .click).len == 1
 				assert windows_focus_fixture_events.filter(it.kind == .submit).len == 0
 				assert windows_focus_fixture_keys.len == 4
 				assert text('edit') == before && windows_native_get_selection(editor) == selection
@@ -613,9 +613,9 @@ $if windows && !ui2_custom_rendering ? {
 		button := st.views['press'] or { panic('missing BUTTON for observer release') }
 		focus('press')
 		windows_focus_fixture_release = 'observer'
-		before_taps := windows_focus_fixture_events.filter(it.kind == .tap).len
+		before_taps := windows_focus_fixture_events.filter(it.kind == .click).len
 		C.ui2_win_focus_test_key(button, win_wm_key_down, 0x20, 0x39, 0)
-		assert windows_focus_fixture_events.filter(it.kind == .tap).len == before_taps
+		assert windows_focus_fixture_events.filter(it.kind == .click).len == before_taps
 		assert st.activation_keys.len == 0 && st.suppressed_keys.len == 0
 		windows_focus_fixture_release = 'dispose'
 		C.ui2_win_focus_test_key(button, win_wm_key_down, 0x20, 0x39, 0)

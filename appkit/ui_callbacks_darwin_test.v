@@ -23,13 +23,13 @@ $if !ui2_custom_rendering ? {
 		appkit_callback_test_handlers = []string{}
 		first := AppkitCallbackBinding{ id: 'same', on_event: capture_appkit_callback_a }
 		second := AppkitCallbackBinding{ id: 'same', on_event: capture_appkit_callback_b }
-		assert appkit_emit_callback(first, ElementEvent{ kind: .tap })
-		assert appkit_emit_callback(second, ElementEvent{ kind: .tap })
+		assert appkit_emit_callback(first, ElementEvent{ kind: .click })
+		assert appkit_emit_callback(second, ElementEvent{ kind: .click })
 		assert appkit_emit_callback(AppkitCallbackBinding{ on_event: capture_appkit_callback_a }, ElementEvent{ kind: .link, target: 'https://example.test/café?q=a:b' })
 		assert appkit_callback_test_handlers == ['a', 'b', 'a']
 		assert appkit_callback_test_events[2].id == ''
 		assert appkit_callback_test_events[2].target == 'https://example.test/café?q=a:b'
-		assert !appkit_emit_callback(AppkitCallbackBinding{ id: 'same' }, ElementEvent{ kind: .tap })
+		assert !appkit_emit_callback(AppkitCallbackBinding{ id: 'same' }, ElementEvent{ kind: .click })
 	}
 
 	fn test_appkit_text_callbacks_receive_change_and_submit_with_native_committed_text() {
@@ -55,7 +55,7 @@ $if !ui2_custom_rendering ? {
 		selected := appkit_pointer_release_binding(captured, current) or { panic('registered surface must release') }
 		appkit_callback_test_handlers = []string{}
 		appkit_callback_test_events = []ElementEvent{}
-		assert appkit_emit_callback(selected, ElementEvent{ kind: .tap })
+		assert appkit_emit_callback(selected, ElementEvent{ kind: .click })
 		assert appkit_callback_test_handlers == ['a']
 		assert appkit_callback_test_events[0].id == 'same'
 		if _ := appkit_pointer_release_binding(captured, AppkitCallbackBinding{}) {
@@ -77,7 +77,7 @@ $if !ui2_custom_rendering ? {
 			st.control_callbacks = old_callbacks
 			st.control_captures = old_captures
 		}
-		first := AppkitCallbackBinding{ id: 'same', on_event: capture_appkit_callback_a, kind: .button, event: .tap }
+		first := AppkitCallbackBinding{ id: 'same', on_event: capture_appkit_callback_a, kind: .button, event: .click }
 		second := AppkitCallbackBinding{ ...first, on_event: capture_appkit_callback_b }
 		st.control_callbacks[pointer] = first
 		ui2_appkit_control_tracking_begin(control)

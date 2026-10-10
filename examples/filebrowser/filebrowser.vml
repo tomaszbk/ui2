@@ -40,7 +40,7 @@ Screen(
                 Button(
                     id: "parent",
                     text: "Parent folder",
-                    on_tap: app.go_parent(),
+                    on_click: app.go_parent(),
                     native: true,
                     x: 18,
                     y: 70,
@@ -74,7 +74,7 @@ Screen(
                         ) {
                             Button(
                                 text: item.directory ? "▸  ${item.name}" : "${item.name}",
-                                on_tap: app.activate(item.id),
+                                on_click: app.activate(item.id),
                                 native: true,
                                 x: 8,
                                 y: 6 + index * 38,
@@ -109,7 +109,7 @@ Screen(
                 Button(
                     id: "cancel",
                     text: "Cancel",
-                    on_tap: app.cancel_selection(),
+                    on_click: app.cancel_selection(),
                     native: true,
                     x: card.width - 222,
                     y: card.height - 68,
@@ -119,7 +119,7 @@ Screen(
                 Button(
                     id: "open",
                     text: "Open",
-                    on_tap: app.confirm_selection(),
+                    on_click: app.confirm_selection(),
                     native: true,
                     x: card.width - 114,
                     y: card.height - 68,

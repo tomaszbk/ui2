@@ -29,14 +29,14 @@ Screen(
                     color: #64748B,
                     font_size: 11,
                 )
-                Button(text: "Top −", on_tap: app.top_less(), native: true, x: card.width - 282, y: 12, width: 60, height: 32)
-                Button(text: "Top +", on_tap: app.top_more(), native: true, x: card.width - 216, y: 12, width: 60, height: 32)
-                Button(text: "Left −", on_tap: app.left_less(), native: true, x: card.width - 150, y: 12, width: 60, height: 32)
-                Button(text: "Left +", on_tap: app.left_more(), native: true, x: card.width - 84, y: 12, width: 66, height: 32)
+                Button(text: "Top −", on_click: app.top_less(), native: true, x: card.width - 282, y: 12, width: 60, height: 32)
+                Button(text: "Top +", on_click: app.top_more(), native: true, x: card.width - 216, y: 12, width: 60, height: 32)
+                Button(text: "Left −", on_click: app.left_less(), native: true, x: card.width - 150, y: 12, width: 60, height: 32)
+                Button(text: "Left +", on_click: app.left_more(), native: true, x: card.width - 84, y: 12, width: 66, height: 32)
                 Button(
                     id: "reset_splits",
                     text: "Reset",
-                    on_tap: app.reset_splits(),
+                    on_click: app.reset_splits(),
                     native: true,
                     x: 18,
                     y: 52,

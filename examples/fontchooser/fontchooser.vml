@@ -87,7 +87,7 @@ Screen(
                 Button(
                     id: "reset_style",
                     text: "Reset",
-                    on_tap: app.reset_style(),
+                    on_click: app.reset_style(),
                     native: true,
                     x: card.width - 118,
                     y: 76,

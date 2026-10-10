@@ -45,7 +45,7 @@ Screen(
                         ) {
                             Button(
                                 text: item.id == app.active_tab ? "• ${item.title}" : item.title,
-                                on_tap: app.select_tab(item.id),
+                                on_click: app.select_tab(item.id),
                                 native: true,
                                 x: 8 + index *((tab_bar.width - 16) / 3),
                                 y: 5,

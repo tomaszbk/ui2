@@ -21,7 +21,7 @@ Screen(
                 Button(
                     id: "reset_sort",
                     text: "Row order",
-                    on_tap: app.reset_sort(),
+                    on_click: app.reset_sort(),
                     native: true,
                     x: card.width - 128,
                     y: 13,
@@ -114,7 +114,7 @@ Screen(
                             id: "edit_worker",
                             text: "worker",
                             bind.checked: app.edit_worker,
-                            on_tap: app.apply_edits(),
+                            on_click: app.apply_edits(),
                             x: (root.width < 680) ? 30 + 2 *((root.width - 200) / 2) : 120 + 4 *((root.width - 288) / 4),
                             y: (root.width < 680) ? 55 : 18,
                             width: 90,
@@ -153,7 +153,7 @@ Screen(
                         ) {
                             Button(
                                 text: item.label,
-                                on_tap: app.sort_by(item.key),
+                                on_click: app.sort_by(item.key),
                                 x: 58 + item.index *((root.width - 124) / 5),
                                 y: 3,
                                 width: ((root.width - 124) / 5) - 4,
@@ -194,7 +194,7 @@ Screen(
                                 ) {
                                     Button(
                                         text: item.number,
-                                        on_tap: app.select_row(item.id),
+                                        on_click: app.select_row(item.id),
                                         x: 4,
                                         y: 3,
                                         width: 48,

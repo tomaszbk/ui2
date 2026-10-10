@@ -92,10 +92,10 @@ fn build() ui2.Element {
 		ui2.label('heading', 'Affine presentation · exact clips · logical layout', ui2.rect(24, 16, 840, 34), ui2.TextStyle{ ...style, size: 25, weight: 700 }),
 		slide,
 		ui2.with_event(ui2.button('zoom-in', 'Zoom +', ui2.rect(24, 610, 110, 38), ui2.BoxStyle{ bg: 0xdbeafe, radius: 6 }, style), fn (event ui2.ElementEvent) {
-			if event.kind == .tap { zoom(1.2) }
+			if event.kind == .click { zoom(1.2) }
 		}),
 		ui2.with_event(ui2.button('zoom-out', 'Zoom −', ui2.rect(148, 610, 110, 38), ui2.BoxStyle{ bg: 0xdbeafe, radius: 6 }, style), fn (event ui2.ElementEvent) {
-			if event.kind == .tap { zoom(1 / 1.2) }
+			if event.kind == .click { zoom(1 / 1.2) }
 		}),
 		ui2.label('hint', 'Drag blue canvas. Wheel follows the rotated scroll axis. Type / select in both editors.', ui2.rect(282, 608, 612, 52), ui2.TextStyle{ ...style, size: 14, lines: 2 }),
 	])

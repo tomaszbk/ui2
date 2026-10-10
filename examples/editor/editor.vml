@@ -55,7 +55,7 @@ Screen(
                 Button(
                     id: "create_file",
                     text: "New",
-                    on_tap: app.create_file(),
+                    on_click: app.create_file(),
                     native: true,
                     x: card.width - 108,
                     y: 13,
@@ -65,7 +65,7 @@ Screen(
                 Button(
                     id: "save_file",
                     text: "Save",
-                    on_tap: app.save_file(),
+                    on_click: app.save_file(),
                     enabled: app.current_path.len > 0,
                     native: true,
                     x: card.width - 60,
@@ -112,7 +112,7 @@ Screen(
                                 ) {
                                     Button(
                                         text: item.name,
-                                        on_tap: app.open_file(item.id),
+                                        on_click: app.open_file(item.id),
                                         native: true,
                                         x: 2,
                                         y: index * 36,

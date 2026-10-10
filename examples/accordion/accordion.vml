@@ -64,7 +64,7 @@ Screen(
                                 ) {
                                     Button(
                                         text: item.id == app.open_id ? "▾  ${item.title}" : "▸  ${item.title}",
-                                        on_tap: app.toggle_section(item.id),
+                                        on_click: app.toggle_section(item.id),
                                         native: true,
                                         x: 4,
                                         y: 3,

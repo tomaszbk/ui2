@@ -77,7 +77,7 @@ fn (mut demo SignalsDemo) build() ui2.Element {
 		children << ui2.with_event(ui2.button(action, caption,
 			ui2.rect(24 + index * 194, 208, 180, 42), ui2.BoxStyle{ bg: 0xdbe9e4, radius: 6 }, style),
 			fn [mut demo, action] (event ui2.ElementEvent) {
-				if event.kind == .tap { demo.change(action) or { eprintln(err) } }
+				if event.kind == .click { demo.change(action) or { eprintln(err) } }
 			})
 	}
 	children << ui2.label('branch', 'Bonus subscription: ${if demo.use_bonus.peek() or { panic(err) } {

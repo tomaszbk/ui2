@@ -77,10 +77,10 @@ fn test_custom_message_box_centres_the_card_and_stacks_buttons_from_the_right() 
 	assert delete_button.native_style
 	message_box_test_events = []ElementEvent{}
 	message_box_test_callbacks = []string{}
-	delete_button.on_event(ElementEvent{ kind: .tap, id: delete_button.id })
+	delete_button.on_event(ElementEvent{ kind: .click, id: delete_button.id })
 	assert delete_button.frame == rect(200, 98, 80, 32)
 	assert cancel_button.id == 'confirm_keep'
-	cancel_button.on_event(ElementEvent{ kind: .tap, id: cancel_button.id })
+	cancel_button.on_event(ElementEvent{ kind: .click, id: cancel_button.id })
 	assert message_box_test_callbacks == ['confirm', 'dismiss']
 	assert message_box_test_events[0].id == 'confirm_delete'
 	assert message_box_test_events[1].id == 'confirm_keep'
@@ -119,9 +119,9 @@ fn test_vml_message_box_turns_button_children_into_dialog_actions() {
 	assert dialog.children[2].native_style
 	message_box_test_events = []ElementEvent{}
 	action := dialog.children[2]
-	action.on_event(ElementEvent{ kind: .tap, id: action.id })
+	action.on_event(ElementEvent{ kind: .click, id: action.id })
 	assert message_box_test_events.len == 1
-	assert message_box_test_events[0].kind == .tap
+	assert message_box_test_events[0].kind == .click
 	assert message_box_test_events[0].id == 'close'
 }
 
