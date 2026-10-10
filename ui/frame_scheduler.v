@@ -2,13 +2,6 @@ module ui2
 
 import sync
 
-// RenderPolicy controls how the custom renderer schedules UI work. Continuous
-// preserves applications that intentionally read changing state during build.
-pub enum RenderPolicy {
-	continuous
-	on_demand
-}
-
 // RenderReason describes why a custom-renderer frame was requested.
 pub enum RenderReason {
 	build
@@ -56,7 +49,6 @@ struct FrameWork {
 struct FrameCoordinator {
 	mutex &sync.Mutex = sync.new_mutex()
 mut:
-	policy                RenderPolicy
 	callbacks             u64
 	builds                u64
 	draws                 u64
@@ -76,22 +68,10 @@ mut:
 	tasks                 []fn ()
 }
 
-fn new_frame_coordinator(policy RenderPolicy) &FrameCoordinator {
-	mut coordinator := &FrameCoordinator{
-		policy: policy
-	}
+fn new_frame_coordinator() &FrameCoordinator {
+	mut coordinator := &FrameCoordinator{}
 	coordinator.invalidate(.surface)
 	return coordinator
-}
-
-fn (mut coordinator FrameCoordinator) set_policy(policy RenderPolicy) {
-	coordinator.mutex.lock()
-	defer { coordinator.mutex.unlock() }
-	if coordinator.closed || coordinator.policy == policy {
-		return
-	}
-	coordinator.policy = policy
-	coordinator.invalidate_locked(.build)
 }
 
 // Some platform loops present their swapchain after every callback, even when
@@ -142,12 +122,10 @@ fn (mut coordinator FrameCoordinator) begin_frame(now i64) ?FrameWork {
 	if coordinator.animation_active {
 		coordinator.invalidate_locked(.animation)
 	}
-	if coordinator.policy == .on_demand && coordinator.pending_reasons.len == 0
-		&& !coordinator.presentation_required {
+	if coordinator.pending_reasons.len == 0 && !coordinator.presentation_required {
 		return none
 	}
-	reasons := if coordinator.policy == .on_demand && coordinator.pending_reasons.len == 0
-		&& coordinator.presentation_required {
+	reasons := if coordinator.pending_reasons.len == 0 && coordinator.presentation_required {
 		// This is a platform presentation requirement, not a new invalidation.
 		// Keep request/generation counters about actual application work.
 		[RenderReason.presentation]
@@ -157,7 +135,7 @@ fn (mut coordinator FrameCoordinator) begin_frame(now i64) ?FrameWork {
 	coordinator.pending_reasons = []RenderReason{}
 	coordinator.next_serial++
 	coordinator.active_serial = coordinator.next_serial
-	mut build := coordinator.policy == .continuous
+	mut build := false
 	for reason in reasons {
 		if reason in [.build, .surface, .animation, .worker] {
 			build = true

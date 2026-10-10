@@ -85,19 +85,19 @@ fn vml_decode_hex(value string) !string {
 fn vml_dispatch_compiled[T](mut model T, name string, arguments []string) ! {
 	$for method in T.methods {
 		if method.name == name {
-			$if method.is_pub && method.typ is fn ( ) {
+			$if method.is_pub && method.typ is fn() {
 				if arguments.len != 0 {
 					return error('app action `${name}` expects no arguments')
 				}
 				model.$method()
 				return
-			} $else $if method.is_pub && method.typ is fn ( int ) {
+			} $else $if method.is_pub && method.typ is fn(int) {
 				if arguments.len != 1 {
 					return error('app action `${name}` expects one int argument')
 				}
 				model.$method(arguments[0].int())
 				return
-			} $else $if method.is_pub && method.typ is fn ( string ) {
+			} $else $if method.is_pub && method.typ is fn(string) {
 				if arguments.len != 1 {
 					return error('app action `${name}` expects one string argument')
 				}
@@ -182,15 +182,13 @@ pub fn handle_compiled_vml_event[T](mut model T, event_id string) !bool {
 // CompiledVmlRunConfig configures a window backed by a typed model and a `$vml()` build function.
 pub struct CompiledVmlRunConfig[T] {
 pub:
-	model  T
-	build  fn (&T) Element = unsafe { nil }
-	title  string = 'App'
-	width  int = 400
-	height int = 800
+	model      T
+	build      fn (&T) Element = unsafe { nil }
+	title      string          = 'App'
+	width      int             = 400
+	height     int             = 800
 	min_width  int
 	min_height int
-	// Custom renderer only; native backends keep their refresh contract.
-	render_policy RenderPolicy = .continuous
 }
 
 @[heap]
@@ -245,9 +243,6 @@ pub fn run_compiled_vml[T](config CompiledVmlRunConfig[T]) ! {
 	validate_element_tree(controller.build(&controller.model))!
 	mut runtime := compiled_vml_runtime()
 	runtime.controller = voidptr(controller)
-	$if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
-		set_render_policy(config.render_policy)
-	}
 	$if macos || windows || linux {
 		run_window_with_min_size(config.title, config.width, config.height, config.min_width,
 			config.min_height, compiled_vml_controller_build[T], compiled_vml_controller_handle[T])

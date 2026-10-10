@@ -70,7 +70,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	struct GgApp {
 	mut:
 		ctx &gg.Context = unsafe { nil }
-		scheduler &FrameCoordinator = new_frame_coordinator(.continuous)
+		scheduler &FrameCoordinator = new_frame_coordinator()
 		declared_root Element
 		has_root bool
 		iconified bool
@@ -339,15 +339,6 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			max_dropped_file_path_length: 4096
 		)
 		g_gg_app.ctx.run()
-	}
-
-	// set_render_policy selects custom-renderer scheduling. Continuous remains
-	// the default. Call on the UI thread, before run or while the window is open.
-	pub fn set_render_policy(policy RenderPolicy) {
-		if g_gg_app.scheduler.is_closed() {
-			g_gg_app = &GgApp{}
-		}
-		g_gg_app.scheduler.set_policy(policy)
 	}
 
 	pub fn render_stats() RenderStats {

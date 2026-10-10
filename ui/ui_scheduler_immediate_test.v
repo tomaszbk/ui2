@@ -2,7 +2,7 @@
 @[has_globals]
 module ui2
 
-$if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headless ? {
+$if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
 	import gg
 
 	__global g_scheduler_immediate_events = []string{}
@@ -36,7 +36,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 			g_event_handler = previous_handler
 			g_scheduler_immediate_events = previous_events.clone()
 		}
-		mut app := &GgApp{ scheduler: new_frame_coordinator(.on_demand) }
+		mut app := &GgApp{ scheduler: new_frame_coordinator() }
 		g_gg_app = app
 		g_event_handler = scheduler_immediate_event
 		g_scheduler_immediate_events = []string{}
@@ -46,7 +46,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 			down:           true
 			current_x:      20
 			current_y:      30
-			pointer_target: HitTarget{ action_id: 'drag' }
+			pointer_target: HitTarget{ action_id: 'drag', draggable: true }
 		}
 		app.scheduler.set_deadline(500)
 		on_event(&gg.Event{ typ: .iconified }, app)
@@ -90,7 +90,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 			g_open_dropdown = previous_dropdown
 			g_menu_open_path = previous_menu.clone()
 		}
-		mut app := &GgApp{ scheduler: new_frame_coordinator(.on_demand) }
+		mut app := &GgApp{ scheduler: new_frame_coordinator() }
 		g_gg_app = app
 		g_tooltip = TooltipState{}
 		g_touch = TouchState{}
@@ -151,7 +151,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 			g_event_handler = previous_handler
 			g_scheduler_immediate_events = previous_events.clone()
 		}
-		mut app := &GgApp{ scheduler: new_frame_coordinator(.on_demand) }
+		mut app := &GgApp{ scheduler: new_frame_coordinator() }
 		g_gg_app = app
 		g_tooltip = TooltipState{}
 		g_event_handler = scheduler_immediate_event
@@ -225,7 +225,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 			g_slider_specs = previous_specs.clone()
 			g_active_sliders = previous_active_sliders.clone()
 		}
-		mut app := &GgApp{ scheduler: new_frame_coordinator(.on_demand) }
+		mut app := &GgApp{ scheduler: new_frame_coordinator() }
 		g_gg_app = app
 		g_text_values = map[string]string{}
 		g_text_editors = map[string]TextEditor{}
@@ -289,7 +289,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 			g_scheduler_immediate_events = previous_events.clone()
 		}
 		reset_widget_animations()
-		mut app := &GgApp{ scheduler: new_frame_coordinator(.on_demand) }
+		mut app := &GgApp{ scheduler: new_frame_coordinator() }
 		g_gg_app = app
 		g_scheduler_immediate_events = []string{}
 		configure_animation_driver(request_refresh, false)
@@ -339,7 +339,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 			g_scheduler_immediate_events = previous_events.clone()
 		}
 		reset_widget_animations()
-		mut app := &GgApp{ scheduler: new_frame_coordinator(.on_demand) }
+		mut app := &GgApp{ scheduler: new_frame_coordinator() }
 		g_gg_app = app
 		g_scheduler_immediate_events = []string{}
 		configure_animation_driver(request_refresh, false)
