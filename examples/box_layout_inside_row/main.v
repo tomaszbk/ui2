@@ -4,7 +4,6 @@ import ui2
 
 const box_row_width = 560
 const box_row_height = 400
-const box_row_vml_source = $embed_file('box_layout_inside_row.vml').to_string()
 
 pub struct BoxLayoutInsideRowDemo {
 pub mut:
@@ -29,11 +28,20 @@ pub fn (mut app BoxLayoutInsideRowDemo) toggle_position() {
 }
 
 fn main() {
-	ui2.run_vml[BoxLayoutInsideRowDemo](
-		source: box_row_vml_source
-		model: initial_box_layout_inside_row()
-		title: 'Box Layout inside Row'
-		width: box_row_width
+	mut app := initial_box_layout_inside_row()
+	ui2.run_compiled_vml[BoxLayoutInsideRowDemo](
+		build:  build_box_layout_inside_row
+		model:  &app
+		title:  'Box Layout inside Row'
+		width:  box_row_width
 		height: box_row_height
 	) or { panic(err) }
+}
+
+fn build_box_layout_inside_row(mut app BoxLayoutInsideRowDemo) ui2.Element {
+	return $vml('box_layout_inside_row.vml')
+}
+
+fn box_layout_inside_row_tree(mut app BoxLayoutInsideRowDemo, frame ui2.Rect) ui2.Element {
+	return $vml('box_layout_inside_row.vml', frame)
 }

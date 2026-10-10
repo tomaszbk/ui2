@@ -35,15 +35,13 @@ fn build_smoke_screen() ui2.Element {
 				box:         ui2.BoxStyle{}
 				text_style:  ui2.TextStyle{}
 				keyboard:    ui2.keyboard_default
-				multiline:   false
 			) or { panic(err) },
-			ui2.text_input(
+			ui2.text_area(
 				id:         'area'
 				text:       'Native multiline EDIT control'
 				frame:      ui2.rect(12, 106, 326, 72)
 				box:        ui2.BoxStyle{}
 				text_style: ui2.TextStyle{}
-				multiline:  true
 			) or { panic(err) },
 			smoke_image_element(),
 			ui2.scroll('scroll', ui2.rect(66, 190, 272, 54), 0xf8fafc, [

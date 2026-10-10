@@ -1,0 +1,7 @@
+Screen(
+    id: "root",
+) {
+    Absolute {
+        View(x: (root.width / 20), width: 20, height: 20)
+    }
+}

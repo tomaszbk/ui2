@@ -1,3 +1,4 @@
+// ui2 profiles: custom (custom font family)
 module main
 
 import os
@@ -5,7 +6,6 @@ import ui2
 
 const editor_width = 900
 const editor_height = 600
-const editor_vml_source = $embed_file('editor.vml').to_string()
 
 pub struct EditorFile {
 pub:
@@ -52,7 +52,7 @@ fn (mut app EditorDemo) refresh_files() ! {
 		path := os.join_path(app.root_path, name)
 		if os.is_file(path) && editor_file_supported(name) {
 			files << EditorFile{
-				id: files.len + 1
+				id:   files.len + 1
 				name: name
 				path: path
 			}
@@ -136,13 +136,22 @@ pub fn (mut app EditorDemo) create_file() {
 }
 
 fn main() {
-	ui2.run_vml[EditorDemo](
-		source: editor_vml_source
-		model: editor_at(os.getwd())
-		title: 'Editor'
-		width: editor_width
+	mut app := editor_at(os.getwd())
+	ui2.run_compiled_vml[EditorDemo](
+		build:  build_editor
+		model:  &app
+		title:  'Editor'
+		width:  editor_width
 		height: editor_height
 	) or {
 		panic(err)
 	}
+}
+
+fn build_editor(mut app EditorDemo) ui2.Element {
+	return $vml('editor.vml')
+}
+
+fn editor_tree(mut app EditorDemo, frame ui2.Rect) ui2.Element {
+	return $vml('editor.vml', frame)
 }

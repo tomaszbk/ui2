@@ -4,7 +4,6 @@ import ui2
 
 const accordion_width = 440
 const accordion_height = 320
-const accordion_vml_source = $embed_file('accordion_widget.vml').to_string()
 
 pub struct AccordionDemo {
 pub mut:
@@ -24,11 +23,20 @@ pub fn (mut app AccordionDemo) show_security() {
 }
 
 fn main() {
-	ui2.run_vml[AccordionDemo](
-		source: accordion_vml_source
-		model: AccordionDemo{}
-		title: 'Accordion'
-		width: accordion_width
+	mut app := AccordionDemo{}
+	ui2.run_compiled_vml[AccordionDemo](
+		build:  build_accordion_widget
+		model:  &app
+		title:  'Accordion'
+		width:  accordion_width
 		height: accordion_height
 	) or { panic(err) }
+}
+
+fn build_accordion_widget(mut app AccordionDemo) ui2.Element {
+	return $vml('accordion_widget.vml')
+}
+
+fn accordion_widget_tree(mut app AccordionDemo, frame ui2.Rect) ui2.Element {
+	return $vml('accordion_widget.vml', frame)
 }

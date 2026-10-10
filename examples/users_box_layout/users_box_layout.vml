@@ -1,112 +1,221 @@
-Screen {
-    id: root
-    background: #F1F5F9
-
-    Column {
-        padding: 16
-        transparent: true
-
-        Column {
-            id: card
-            flex_grow: 1
-            padding: 18
-            gap: 12
-            background: #FFFFFF
-            corner_radius: 10
-
-            Label { text: "Users" height: 28 color: #111827 font_size: 18 bold: true }
-            Label { text: "A fixed form column beside a table pane that grows with the window." height: 18 color: #64748B font_size: 11 }
-
-            Row {
-                flex_grow: 1
-                gap: 32
-                transparent: true
-
-                Column {
-                    id: form
-                    width: 232
-                    flex_shrink: 0
-                    padding: 16
-                    gap: 4
-                    background: #F8FAFC
-                    corner_radius: 9
-
-                    TextInput { multiline: false  id: first_name placeholder: "First name" bind.text: app.first_name on_change: app.first_name_changed() height: 34 background: app.is_error ? #FEE2E2 : #FFFFFF corner_radius: 7 }
-                    TextInput { multiline: false  id: last_name placeholder: "Last name" bind.text: app.last_name on_change: app.last_name_changed() height: 34 background: app.is_error ? #FEE2E2 : #FFFFFF corner_radius: 7 }
-                    TextInput { multiline: false  id: age placeholder: "Age" bind.text: app.age on_change: app.age_changed() keyboard: decimal height: 34 background: app.is_error ? #FEE2E2 : #FFFFFF corner_radius: 7 }
-                    TextInput { multiline: false  id: password placeholder: "Password" bind.text: app.password secure: true height: 34 background: #FFFFFF corner_radius: 7 }
-                    Checkbox { id: online text: "Online registration" checked: app.online on_tap: app.toggle_online() height: 26 color: #1E293B font_size: 12 }
-                    Checkbox { id: subscribed text: "Subscribe to the newsletter" checked: app.subscribed on_tap: app.toggle_subscribed() height: 26 color: #1E293B font_size: 12 }
-                    Label { text: "Country" height: 18 color: #334155 font_size: 12 bold: true }
-                    Repeater {
-                        model: app.countries
-                        key: item.key
-                        Checkbox { text: item.name checked: item.name == app.country on_tap: app.select_country(item.name) height: 26 color: #1E293B font_size: 12 }
+Screen(
+    id: "root",
+    background: #F1F5F9,
+) {
+    Column(
+        padding: 16,
+        transparent: true,
+    ) {
+        Column(
+            id: "card",
+            flex_grow: 1,
+            padding: 18,
+            gap: 12,
+            background: #FFFFFF,
+            corner_radius: 10,
+        ) {
+            Label(text: "Users", height: 28, color: #111827, font_size: 18, bold: true)
+            Label(
+                text: "A fixed form column beside a table pane that grows with the window.",
+                height: 18,
+                color: #64748B,
+                font_size: 11,
+            )
+            Row(
+                flex_grow: 1,
+                gap: 32,
+                transparent: true,
+            ) {
+                Column(
+                    id: "form",
+                    width: 232,
+                    flex_shrink: 0,
+                    padding: 16,
+                    gap: 4,
+                    background: #F8FAFC,
+                    corner_radius: 9,
+                ) {
+                    TextInput(
+                        id: "first_name",
+                        placeholder: "First name",
+                        bind.text: app.first_name,
+                        on_change: app.first_name_changed(),
+                        height: 34,
+                        background: app.is_error ? #FEE2E2 : #FFFFFF,
+                        corner_radius: 7,
+                    )
+                    TextInput(
+                        id: "last_name",
+                        placeholder: "Last name",
+                        bind.text: app.last_name,
+                        on_change: app.last_name_changed(),
+                        height: 34,
+                        background: app.is_error ? #FEE2E2 : #FFFFFF,
+                        corner_radius: 7,
+                    )
+                    TextInput(
+                        id: "age",
+                        placeholder: "Age",
+                        bind.text: app.age,
+                        on_change: app.age_changed(),
+                        keyboard: decimal,
+                        height: 34,
+                        background: app.is_error ? #FEE2E2 : #FFFFFF,
+                        corner_radius: 7,
+                    )
+                    TextInput(
+                        id: "password",
+                        placeholder: "Password",
+                        bind.text: app.password,
+                        secure: true,
+                        height: 34,
+                        background: #FFFFFF,
+                        corner_radius: 7,
+                    )
+                    Checkbox(
+                        id: "online",
+                        text: "Online registration",
+                        checked: app.online,
+                        on_tap: app.toggle_online(),
+                        height: 26,
+                        color: #1E293B,
+                        font_size: 12,
+                    )
+                    Checkbox(
+                        id: "subscribed",
+                        text: "Subscribe to the newsletter",
+                        checked: app.subscribed,
+                        on_tap: app.toggle_subscribed(),
+                        height: 26,
+                        color: #1E293B,
+                        font_size: 12,
+                    )
+                    Label(text: "Country", height: 18, color: #334155, font_size: 12, bold: true)
+                    Repeater(
+                        model: app.countries,
+                        key: item.key,
+                    ) {
+                        Checkbox(
+                            text: item.name,
+                            checked: item.name == app.country,
+                            on_tap: app.select_country(item.name),
+                            height: 26,
+                            color: #1E293B,
+                            font_size: 12,
+                        )
                     }
-                    Row {
-                        height: 34
-                        gap: 6
-                        transparent: true
-                        Button { id: add_user text: "Add user" on_tap: app.add_user() native: true tooltip: "Required fields:\nFirst name, last name, age" flex_grow: 1 }
-                        Button { id: about text: "?" on_tap: app.about() native: true tooltip: "about" width: 44 }
-                        Button { id: reset text: "Clear" on_tap: app.reset() native: true width: 44 }
+                    Row(
+                        height: 34,
+                        gap: 6,
+                        transparent: true,
+                    ) {
+                        Button(
+                            id: "add_user",
+                            text: "Add user",
+                            on_tap: app.add_user(),
+                            native: true,
+                            tooltip: "Required fields:\nFirst name, last name, age",
+                            flex_grow: 1,
+                        )
+                        Button(id: "about", text: "?", on_tap: app.about(), native: true, tooltip: "about", width: 44)
+                        Button(id: "reset", text: "Clear", on_tap: app.reset(), native: true, width: 44)
                     }
-                    View { flex_grow: 1 transparent: true }
-                    ProgressBar { height: 14 value: app.progress max: 1 background: #E2E8F0 color: #2563EB corner_radius: 7 }
-                    Label { id: progress_label text: app.progress_label height: 18 align: center color: #334155 font_size: 11 }
+                    View(flex_grow: 1, transparent: true)
+                    ProgressBar(height: 14, value: app.progress, max: 1, background: #E2E8F0, color: #2563EB, corner_radius: 7)
+                    Label(
+                        id: "progress_label",
+                        text: app.progress_label,
+                        height: 18,
+                        align: center,
+                        color: #334155,
+                        font_size: 11,
+                    )
                 }
-
-                Column {
-                    id: table
-                    flex_grow: 1
-                    padding: 14
-                    gap: 4
-                    background: #FFF0F0
-                    corner_radius: 9
-
-                    Row {
-                        height: 28
-                        padding: 6
-                        background: #334155
-                        corner_radius: 6
-                        Label { text: "First name" flex_basis: 0 flex_grow: 1 color: #F8FAFC font_size: 11 bold: true }
-                        Label { text: "Last name" flex_basis: 0 flex_grow: 1 color: #F8FAFC font_size: 11 bold: true }
-                        Label { text: "Age" flex_basis: 0 flex_grow: 1 color: #F8FAFC font_size: 11 bold: true }
-                        Label { text: "Country" flex_basis: 0 flex_grow: 1 color: #F8FAFC font_size: 11 bold: true }
+                Column(
+                    id: "table",
+                    flex_grow: 1,
+                    padding: 14,
+                    gap: 4,
+                    background: #FFF0F0,
+                    corner_radius: 9,
+                ) {
+                    Row(
+                        height: 28,
+                        padding: 6,
+                        background: #334155,
+                        corner_radius: 6,
+                    ) {
+                        Label(text: "First name", flex_basis: 0, flex_grow: 1, color: #F8FAFC, font_size: 11, bold: true)
+                        Label(text: "Last name", flex_basis: 0, flex_grow: 1, color: #F8FAFC, font_size: 11, bold: true)
+                        Label(text: "Age", flex_basis: 0, flex_grow: 1, color: #F8FAFC, font_size: 11, bold: true)
+                        Label(text: "Country", flex_basis: 0, flex_grow: 1, color: #F8FAFC, font_size: 11, bold: true)
                     }
-                    Scroll {
-                        id: user_rows
-                        flex_grow: 1
-                        background: #FFFFFF
-                        Column {
-                            height: app.users.len * 30
-                            gap: 1
-                            transparent: true
-                            Repeater {
-                                model: app.users
-                                key: item.key
-                                Row {
-                                    height: 29
-                                    flex_shrink: 0
-                                    padding_left: 10
-                                    padding_right: 10
-                                    align_items: center
-                                    background: item.stripe
-                                    Label { text: item.first_name flex_basis: 0 flex_grow: 1 height: 18 color: #0F172A font_size: 12 }
-                                    Label { text: item.last_name flex_basis: 0 flex_grow: 1 height: 18 color: #0F172A font_size: 12 }
-                                    Label { text: item.age flex_basis: 0 flex_grow: 1 height: 18 color: #0F172A font_size: 12 }
-                                    Label { text: item.country flex_basis: 0 flex_grow: 1 height: 18 color: #475569 font_size: 12 }
+                    Scroll(
+                        id: "user_rows",
+                        flex_grow: 1,
+                        background: #FFFFFF,
+                    ) {
+                        Column(
+                            height: app.users.len * 30,
+                            gap: 1,
+                            transparent: true,
+                        ) {
+                            Repeater(
+                                model: app.users,
+                                key: item.key,
+                            ) {
+                                Row(
+                                    height: 29,
+                                    flex_shrink: 0,
+                                    padding_left: 10,
+                                    padding_right: 10,
+                                    align_items: center,
+                                    background: item.stripe,
+                                ) {
+                                    Label(
+                                        text: item.first_name,
+                                        flex_basis: 0,
+                                        flex_grow: 1,
+                                        height: 18,
+                                        color: #0F172A,
+                                        font_size: 12,
+                                    )
+                                    Label(
+                                        text: item.last_name,
+                                        flex_basis: 0,
+                                        flex_grow: 1,
+                                        height: 18,
+                                        color: #0F172A,
+                                        font_size: 12,
+                                    )
+                                    Label(text: item.age, flex_basis: 0, flex_grow: 1, height: 18, color: #0F172A, font_size: 12)
+                                    Label(
+                                        text: item.country,
+                                        flex_basis: 0,
+                                        flex_grow: 1,
+                                        height: 18,
+                                        color: #475569,
+                                        font_size: 12,
+                                    )
                                 }
                             }
                         }
                     }
-                    Row {
-                        height: 56
-                        gap: 12
-                        align_items: center
-                        transparent: true
-                        Label { id: users_status text: app.status flex_grow: 1 height: 20 color: app.is_error ? #991B1B : #166534 font_size: 12 }
-                        Image { id: users_logo source: app.logo_path width: 56 height: 56 }
+                    Row(
+                        height: 56,
+                        gap: 12,
+                        align_items: center,
+                        transparent: true,
+                    ) {
+                        Label(
+                            id: "users_status",
+                            text: app.status,
+                            flex_grow: 1,
+                            height: 20,
+                            color: app.is_error ? #991B1B : #166534,
+                            font_size: 12,
+                        )
+                        Image(id: "users_logo", source: app.logo_path, width: 56, height: 56)
                     }
                 }
             }

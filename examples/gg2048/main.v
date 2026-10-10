@@ -4,7 +4,6 @@ import ui2
 
 const game_2048_width = 600
 const game_2048_height = 680
-const game_2048_vml_source = $embed_file('gg2048.vml').to_string()
 
 pub struct GameCell {
 pub:
@@ -21,8 +20,8 @@ pub:
 	row        int
 	column     int
 	value      int
-	color      string
-	text_color string
+	color      u32
+	text_color u32
 }
 
 pub struct Game2048 {
@@ -41,9 +40,9 @@ fn game_cells() []GameCell {
 	for row in 0 .. 4 {
 		for column in 0 .. 4 {
 			cells << GameCell{
-				id: row * 4 + column
-				key: 'cell-${row * 4 + column}'
-				row: row
+				id:     row * 4 + column
+				key:    'cell-${row * 4 + column}'
+				row:    row
 				column: column
 			}
 		}
@@ -96,19 +95,19 @@ fn game_line_indexes(direction string, line int) []int {
 	}
 }
 
-fn tile_colors(value int) (string, string) {
+fn tile_colors(value int) (u32, u32) {
 	return match value {
-		2 { '#EEE4DA', '#3F3A36' }
-		4 { '#EDE0C8', '#3F3A36' }
-		8 { '#F2B179', '#FFFFFF' }
-		16 { '#F59563', '#FFFFFF' }
-		32 { '#F67C5F', '#FFFFFF' }
-		64 { '#F65E3B', '#FFFFFF' }
-		128 { '#EDCF72', '#FFFFFF' }
-		256 { '#EDCC61', '#FFFFFF' }
-		512 { '#EDC850', '#FFFFFF' }
-		1024 { '#EDC53F', '#FFFFFF' }
-		else { '#EDC22E', '#FFFFFF' }
+		2 { u32(0xeee4da), u32(0x3f3a36) }
+		4 { u32(0xede0c8), u32(0x3f3a36) }
+		8 { u32(0xf2b179), u32(0xffffff) }
+		16 { u32(0xf59563), u32(0xffffff) }
+		32 { u32(0xf67c5f), u32(0xffffff) }
+		64 { u32(0xf65e3b), u32(0xffffff) }
+		128 { u32(0xedcf72), u32(0xffffff) }
+		256 { u32(0xedcc61), u32(0xffffff) }
+		512 { u32(0xedc850), u32(0xffffff) }
+		1024 { u32(0xedc53f), u32(0xffffff) }
+		else { u32(0xedc22e), u32(0xffffff) }
 	}
 }
 
@@ -120,12 +119,12 @@ fn (mut app Game2048) update_tiles() {
 		}
 		color, text_color := tile_colors(value)
 		tiles << GameTile{
-			id: index
-			key: 'tile-${index}'
-			row: index / 4
-			column: index % 4
-			value: value
-			color: color
+			id:         index
+			key:        'tile-${index}'
+			row:        index / 4
+			column:     index % 4
+			value:      value
+			color:      color
 			text_color: text_color
 		}
 	}
@@ -189,13 +188,22 @@ pub fn (mut app Game2048) new_game() {
 }
 
 fn main() {
-	ui2.run_vml[Game2048](
-		source: game_2048_vml_source
-		model: initial_2048()
-		title: '2048'
-		width: game_2048_width
+	mut app := initial_2048()
+	ui2.run_compiled_vml[Game2048](
+		build:  build_gg2048
+		model:  &app
+		title:  '2048'
+		width:  game_2048_width
 		height: game_2048_height
 	) or {
 		panic(err)
 	}
+}
+
+fn build_gg2048(mut app Game2048) ui2.Element {
+	return $vml('gg2048.vml')
+}
+
+fn gg2048_tree(mut app Game2048, frame ui2.Rect) ui2.Element {
+	return $vml('gg2048.vml', frame)
 }

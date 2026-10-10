@@ -1,0 +1,10 @@
+Flex(
+    gap: 10,
+) {
+    Repeater(
+        model: app.items,
+        key: item.id,
+    ) {
+        Button(text: item.title, flex_basis: item.basis, flex_grow: item.grow, on_tap: app.select(item.id))
+    }
+}

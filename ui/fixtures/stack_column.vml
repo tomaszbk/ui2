@@ -1,0 +1,6 @@
+Column(
+    gap: 10,
+) {
+    View(width: 30, height: 20, flex_grow: 1)
+    View(width: 50, height: 20)
+}

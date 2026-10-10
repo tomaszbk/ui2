@@ -4,7 +4,6 @@ import ui2
 
 const canvas_layout_width = 900
 const canvas_layout_height = 660
-const canvas_layout_vml_source = $embed_file('canvas_layout.vml').to_string()
 const canvas_sheet_root_x = 34.0
 const canvas_sheet_root_y = 100.0
 const canvas_sheet_height = 760.0
@@ -26,8 +25,8 @@ pub mut:
 	tile_x       f64    = 24
 	tile_y       f64    = 24
 	theme        string = 'Classic'
-	tile_color   string = '#E2E8F0'
-	tile_text    string = '#0F172A'
+	tile_color   u32    = u32(0xe2e8f0)
+	tile_text    u32    = u32(0x0f172a)
 	pointer_text string = '(0, 0)'
 	menu_hidden  bool   = true
 	menu_label   string = 'Show menu'
@@ -42,13 +41,13 @@ mut:
 
 const canvas_layout_state = &CanvasLayoutDemo{}
 
-fn canvas_theme_colors(theme string) (string, string) {
+fn canvas_theme_colors(theme string) (u32, u32) {
 	return match theme {
-		'Blue' { '#1D4ED8', '#FFFFFF' }
-		'Red' { '#B91C1C', '#FFFFFF' }
-		'Green' { '#15803D', '#FFFFFF' }
-		'Slate' { '#334155', '#FFFFFF' }
-		else { '#E2E8F0', '#0F172A' }
+		'Blue' { u32(0x1d4ed8), u32(0xffffff) }
+		'Red' { u32(0xb91c1c), u32(0xffffff) }
+		'Green' { u32(0x15803d), u32(0xffffff) }
+		'Slate' { u32(0x334155), u32(0xffffff) }
+		else { u32(0xe2e8f0), u32(0x0f172a) }
 	}
 }
 
@@ -203,14 +202,44 @@ fn canvas_layout_callbacks() map[string]ui2.ElementCallback {
 	}
 }
 
-fn build_canvas_layout_screen() ui2.Element {
-	state := unsafe { canvas_layout_state }
-	return ui2.element_from_vml_model_with_callbacks(canvas_layout_vml_source, *state, ui2.bounds(), canvas_layout_callbacks()) or {
-		eprintln('canvas-layout VML failed: ${err}')
-		ui2.screen(0xf1f5f9, [])
-	}
+fn main() {
+	ui2.run_compiled_vml[CanvasLayoutDemo](
+		build:  build_canvas_layout
+		model:  canvas_layout_state
+		title:  'Canvas Layout'
+		width:  canvas_layout_width
+		height: canvas_layout_height
+	) or { panic(err) }
 }
 
-fn main() {
-	ui2.run_window('Canvas Layout', canvas_layout_width, canvas_layout_height, build_canvas_layout_screen)
+fn build_canvas_layout(mut app CanvasLayoutDemo) ui2.Element {
+	callbacks := canvas_layout_callbacks()
+	callback_theme_dropdown := callbacks['theme_dropdown'] or { panic('missing theme_dropdown callback') }
+	callback_about := callbacks['about'] or { panic('missing about callback') }
+	callback_clear_notes := callbacks['clear_notes'] or { panic('missing clear_notes callback') }
+	callback_add_note := callbacks['add_note'] or { panic('missing add_note callback') }
+	callback_reset_tile := callbacks['reset_tile'] or { panic('missing reset_tile callback') }
+	callback_toggle_menu := callbacks['toggle_menu'] or { panic('missing toggle_menu callback') }
+	callback_canvas_sheet := callbacks['canvas_sheet'] or { panic('missing canvas_sheet callback') }
+	callback_menu_delete := callbacks['menu_delete'] or { panic('missing menu_delete callback') }
+	callback_menu_export := callbacks['menu_export'] or { panic('missing menu_export callback') }
+	callback_menu_exit := callbacks['menu_exit'] or { panic('missing menu_exit callback') }
+	callback_canvas_tile := callbacks['canvas_tile'] or { panic('missing canvas_tile callback') }
+	return $vml('canvas_layout.vml')
+}
+
+fn canvas_layout_tree(mut app CanvasLayoutDemo, frame ui2.Rect) ui2.Element {
+	callbacks := canvas_layout_callbacks()
+	callback_theme_dropdown := callbacks['theme_dropdown'] or { panic('missing theme_dropdown callback') }
+	callback_about := callbacks['about'] or { panic('missing about callback') }
+	callback_clear_notes := callbacks['clear_notes'] or { panic('missing clear_notes callback') }
+	callback_add_note := callbacks['add_note'] or { panic('missing add_note callback') }
+	callback_reset_tile := callbacks['reset_tile'] or { panic('missing reset_tile callback') }
+	callback_toggle_menu := callbacks['toggle_menu'] or { panic('missing toggle_menu callback') }
+	callback_canvas_sheet := callbacks['canvas_sheet'] or { panic('missing canvas_sheet callback') }
+	callback_menu_delete := callbacks['menu_delete'] or { panic('missing menu_delete callback') }
+	callback_menu_export := callbacks['menu_export'] or { panic('missing menu_export callback') }
+	callback_menu_exit := callbacks['menu_exit'] or { panic('missing menu_exit callback') }
+	callback_canvas_tile := callbacks['canvas_tile'] or { panic('missing canvas_tile callback') }
+	return $vml('canvas_layout.vml', frame)
 }

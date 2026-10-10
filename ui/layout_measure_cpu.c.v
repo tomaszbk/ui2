@@ -2,7 +2,7 @@
 module ui2
 
 // Retained for native/headless/Android consumers not migrated to vglyph.
-$if !( linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) || ui2_headless ? {
+$if !( linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) || ui2_headless ? || ui2_document_library ? {
 	import fontstash
 	import os
 	import os.font

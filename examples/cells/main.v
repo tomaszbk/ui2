@@ -1,10 +1,10 @@
+// ui2 profiles: custom (custom font family)
 module main
 
 import ui2
 
 const cells_width = 780
 const cells_height = 560
-const cells_vml_source = $embed_file('cells.vml').to_string()
 
 pub struct SheetColumn {
 pub:
@@ -71,10 +71,10 @@ fn initial_cells() CellsDemo {
 		rows << SheetRow{ id: row, row: row, label: (row + 1).str() }
 		for column in 0 .. 5 {
 			cells << SheetCell{
-				id: row * 5 + column
+				id:      row * 5 + column
 				address: sheet_address(column, row)
-				row: row
-				column: column
+				row:     row
+				column:  column
 			}
 		}
 	}
@@ -199,13 +199,22 @@ pub fn (mut app CellsDemo) apply_edit() {
 }
 
 fn main() {
-	ui2.run_vml[CellsDemo](
-		source: cells_vml_source
-		model: initial_cells()
-		title: 'Cells'
-		width: cells_width
+	mut app := initial_cells()
+	ui2.run_compiled_vml[CellsDemo](
+		build:  build_cells
+		model:  &app
+		title:  'Cells'
+		width:  cells_width
 		height: cells_height
 	) or {
 		panic(err)
 	}
+}
+
+fn build_cells(mut app CellsDemo) ui2.Element {
+	return $vml('cells.vml')
+}
+
+fn cells_tree(mut app CellsDemo, frame ui2.Rect) ui2.Element {
+	return $vml('cells.vml', frame)
 }

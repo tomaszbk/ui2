@@ -4,7 +4,6 @@ import ui2
 
 const page_width = 420
 const page_height = 280
-const page_vml_source = $embed_file('page_layout.vml').to_string()
 
 pub struct PageLayoutDemo {
 pub mut:
@@ -20,11 +19,20 @@ pub fn (mut app PageLayoutDemo) next() {
 }
 
 fn main() {
-	ui2.run_vml[PageLayoutDemo](
-		source: page_vml_source
-		model:  PageLayoutDemo{}
+	mut app := PageLayoutDemo{}
+	ui2.run_compiled_vml[PageLayoutDemo](
+		build:  build_page_layout
+		model:  &app
 		title:  'Page Layout'
 		width:  page_width
 		height: page_height
 	) or { panic(err) }
+}
+
+fn build_page_layout(mut app PageLayoutDemo) ui2.Element {
+	return $vml('page_layout.vml')
+}
+
+fn page_layout_tree(mut app PageLayoutDemo, frame ui2.Rect) ui2.Element {
+	return $vml('page_layout.vml', frame)
 }

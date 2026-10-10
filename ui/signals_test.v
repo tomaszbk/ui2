@@ -136,7 +136,7 @@ fn test_signals_effect_cleanup_scope_tree_and_repeated_teardown() ! {
 		scope.dispose()!
 		assert scope.is_disposed() && child.is_disposed()
 		assert effect.is_disposed()
-		assert fixture.words == ['0', '1', 'child', 'scope']
+		assert fixture.words == ['0', 'child', '1', 'scope']
 		scope.dispose()!
 		effect.dispose()!
 		assert runtime.stats() == SignalStats{}

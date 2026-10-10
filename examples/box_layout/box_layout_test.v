@@ -15,7 +15,8 @@ fn find_box_layout_element(element ui2.Element, id string) ?ui2.Element {
 }
 
 fn test_box_layout_vml_keeps_fixed_and_relative_geometry() {
-	root := ui2.element_from_vml_model(box_layout_vml_source, BoxLayoutDemo{}, ui2.rect(0, 0, box_layout_width, box_layout_height)) or { panic(err) }
+	mut compiled_model_1 := BoxLayoutDemo{}
+	root := box_layout_tree(mut compiled_model_1, ui2.rect(0, 0, box_layout_width, box_layout_height))
 	ui2.validate_element_tree(root) or { panic(err) }
 
 	canvas := find_box_layout_element(root, 'canvas') or { panic('missing canvas') }
@@ -35,7 +36,8 @@ fn test_box_layout_vml_keeps_fixed_and_relative_geometry() {
 }
 
 fn test_box_layout_vml_keeps_the_blue_caption_clear_of_the_corner_anchor() {
-	root := ui2.element_from_vml_model(box_layout_vml_source, BoxLayoutDemo{}, ui2.rect(0, 0, box_layout_width, box_layout_height)) or { panic(err) }
+	mut compiled_model_0 := BoxLayoutDemo{}
+	root := box_layout_tree(mut compiled_model_0, ui2.rect(0, 0, box_layout_width, box_layout_height))
 
 	blue := find_box_layout_element(root, 'blue') or { panic('missing anchored rectangle') }
 	caption := find_box_layout_element(root, 'blue_caption') or { panic('missing caption') }

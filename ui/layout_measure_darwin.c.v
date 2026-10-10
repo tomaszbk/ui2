@@ -2,7 +2,7 @@
 // mix AppKit's MRC bridge with Sokol's ARC sources.
 module ui2
 
-$if macos && !ui2_custom_rendering ?&& !ui2_headless ? {
+$if macos && !ui2_custom_rendering ?&& !ui2_headless ? && !ui2_document_library ? {
 	import macos
 
 	fn layout_measure_appkit_text(text string, style TextStyle, max_width f64) !LayoutSize {

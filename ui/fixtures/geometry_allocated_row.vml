@@ -1,0 +1,6 @@
+Row(
+    gap: 4,
+) {
+    View(width: 20, height: 10)
+    View(width: 20, height: 10)
+}

@@ -1,0 +1,15 @@
+Screen {
+    Flex(
+        padding: 24,
+        orientation: vertical,
+    ) {
+        Flex(
+            id: "body",
+            height: 100,
+            gap: 10,
+        ) {
+            Button(text: "First", flex_basis: 0, flex_grow: 1)
+            Button(text: "Second", flex_basis: 0, flex_grow: 1)
+        }
+    }
+}

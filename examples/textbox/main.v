@@ -4,13 +4,12 @@ import ui2
 
 const textbox_width = 640
 const textbox_height = 430
-const textbox_vml_source = $embed_file('textbox.vml').to_string()
 
 pub struct TextboxDemo {
 pub mut:
 	title        string = 'Release notes'
 	notes        string = 'Type multiline text here.\nThe preview stays read-only.'
-	show_preview bool = true
+	show_preview bool   = true
 	status       string = '54 characters'
 }
 
@@ -24,11 +23,20 @@ pub fn (mut app TextboxDemo) clear() {
 }
 
 fn main() {
-	ui2.run_vml[TextboxDemo](
-		source: textbox_vml_source
-		model: TextboxDemo{}
-		title: 'Textbox Demo'
-		width: textbox_width
+	mut app := TextboxDemo{}
+	ui2.run_compiled_vml[TextboxDemo](
+		build:  build_textbox
+		model:  &app
+		title:  'Textbox Demo'
+		width:  textbox_width
 		height: textbox_height
 	) or { panic(err) }
+}
+
+fn build_textbox(mut app TextboxDemo) ui2.Element {
+	return $vml('textbox.vml')
+}
+
+fn textbox_tree(mut app TextboxDemo, frame ui2.Rect) ui2.Element {
+	return $vml('textbox.vml', frame)
 }

@@ -15,7 +15,7 @@ fn find_users_box_element(element ui2.Element, id string) ?ui2.Element {
 }
 
 fn test_users_box_seeds_the_table_and_its_progress_bar() {
-	app := users_box_demo()
+	mut app := users_box_demo()
 	assert app.users.len == 2
 	assert app.users.map(it.key) == ['user-1', 'user-2']
 	assert app.users[0].first_name == 'Sam'
@@ -76,9 +76,9 @@ fn test_users_box_stops_at_capacity() {
 }
 
 fn test_users_box_vml_anchors_the_table_pane_to_the_window() {
-	app := users_box_demo()
+	mut app := users_box_demo()
 	frame := ui2.rect(0, 0, users_box_width, users_box_height)
-	root := ui2.element_from_vml_model(users_box_vml_source, app, frame) or { panic(err) }
+	root := users_box_layout_tree(mut app, frame)
 	ui2.validate_element_tree(root) or { panic(err) }
 	form := find_users_box_element(root, 'form') or { panic('missing form') }
 	table := find_users_box_element(root, 'table') or { panic('missing table') }
@@ -87,7 +87,7 @@ fn test_users_box_vml_anchors_the_table_pane_to_the_window() {
 
 	// Widening the window leaves the form alone and grows only the table.
 	wide := ui2.rect(0, 0, users_box_width + 200, users_box_height)
-	grown := ui2.element_from_vml_model(users_box_vml_source, app, wide) or { panic(err) }
+	grown := users_box_layout_tree(mut app, wide)
 	grown_form := find_users_box_element(grown, 'form') or { panic('missing form') }
 	grown_table := find_users_box_element(grown, 'table') or { panic('missing table') }
 	assert grown_form.frame.width == form.frame.width

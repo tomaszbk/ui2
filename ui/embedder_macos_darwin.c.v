@@ -1,6 +1,6 @@
 module ui2
 
-$if macos && ui2_embedder ?&& !ui2_headless ? {
+$if macos && ui2_embedder ?&& !ui2_headless ? && !ui2_document_library ? {
 	#flag darwin -fobjc-arc
 	#flag darwin -framework Cocoa -framework Metal -framework QuartzCore
 	#include "@VMODROOT/ui/embedder_macos.h"

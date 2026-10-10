@@ -97,8 +97,9 @@ fn test_menubar_log_keeps_only_the_recent_rows() {
 }
 
 fn test_menubar_vml_shows_the_model_state() {
-	root := ui2.element_from_vml_model_with_callbacks(menubar_vml_source, MenubarDemo{}, ui2.rect(0, 0,
-		menubar_width, menubar_height), menubar_callbacks()) or { panic(err) }
+	mut compiled_model_0 := MenubarDemo{}
+	root := menubar_tree(mut compiled_model_0, ui2.rect(0, 0,
+		menubar_width, menubar_height))
 	ui2.validate_element_tree(root) or { panic(err) }
 	assert (find_menubar_element(root, 'details_state') or { panic('missing details chip') }).text == 'on'
 	assert (find_menubar_element(root, 'zoom_state') or { panic('missing zoom chip') }).text == '100%'

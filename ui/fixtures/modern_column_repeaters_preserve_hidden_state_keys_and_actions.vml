@@ -1,0 +1,20 @@
+Screen(
+    id: "root",
+) {
+    Column(
+        gap: 10,
+    ) {
+        Repeater(
+            model: app.items,
+            key: item.id,
+        ) {
+            Flex(
+                height: 100,
+                hidden: index == 1,
+            ) {
+                Button(text: item.title, flex_basis: 0, flex_grow: 1, on_tap: app.select(item.id))
+                Label(text: root.width, flex_basis: 0, flex_grow: 1)
+            }
+        }
+    }
+}

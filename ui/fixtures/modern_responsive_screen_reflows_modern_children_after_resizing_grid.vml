@@ -1,0 +1,16 @@
+Screen {
+    Flex(
+        padding: 24,
+        orientation: vertical,
+    ) {
+        Grid(
+            id: "body",
+            height: 100,
+            columns: 2,
+            spacing: 10,
+        ) {
+            Button(text: "First")
+            Button(text: "Second")
+        }
+    }
+}

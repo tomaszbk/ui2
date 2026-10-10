@@ -1,0 +1,8 @@
+Absolute {
+    Repeater(
+        model: app.rows,
+        key: item,
+    ) {
+        View(x: index * 20.5, y: 3.25, width: 10, height: 12)
+    }
+}

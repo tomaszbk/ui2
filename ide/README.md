@@ -10,13 +10,13 @@ macOS, Windows, Linux, iOS, and Android.
 Run it from the repository root:
 
 ```sh
-v run ide
+v -b c run ide
 ```
 
 Pass a designer VML file (or a directory containing one) to open it immediately:
 
 ```sh
-v run ide ide/sample.vml
+v -b c run ide ide/sample.vml
 ```
 
 The designer provides:
@@ -40,11 +40,23 @@ The designer provides:
 - VML save/open, file drop, safe unsaved-change prompts, `main.v` scaffolding,
   and project checking through the installed V compiler.
 
-The visual loader deliberately accepts one `Absolute` canvas inside `Screen`,
+Preview compiles VML to a declaration library with the same compiler as the designer.
+The designer and its preview libraries use V's C backend for their exported
+struct and callback ABI.
+Entering Preview recompiles the current source and its relative component imports;
+a compilation error keeps the previous preview alive. Retained controls keep
+their component state during unrelated designer updates. Closing or replacing
+the preview disposes its document and lifecycle scopes. The designer supplies
+property publication and ref commands to its active backend; preview libraries
+do not create additional platform controls or renderer instances.
+
+The visual loader accepts one `Absolute` canvas inside `Screen`,
 with plain numeric control coordinates. Dynamic expressions, repeaters, and
 nested `Flex`, `Row`, `Column`, `Grid`, or `Stack` layouts
-remain editable in Source view, but are rejected by the designer instead of
-being flattened or silently lost.
+open in Source view, where they can be edited, saved and compiled for Preview.
+Applying them to the visual canvas reports a diagnostic. Preview callbacks that
+depend on application services require those services in the generated companion
+application; the standalone designer preview supplies only its event callbacks.
 
 Saving a new form will not overwrite an existing VML file that was not opened
 first. `Generate main.v` also leaves an existing companion file untouched.

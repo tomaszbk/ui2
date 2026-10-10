@@ -1,0 +1,8 @@
+Column {
+    Repeater(
+        model: app.items,
+        key: item.id,
+    ) {
+        TextInput(width: 100, height: 32, on_change: app.select(item.id))
+    }
+}

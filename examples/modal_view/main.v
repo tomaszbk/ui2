@@ -4,7 +4,6 @@ import ui2
 
 const modal_view_width = 460
 const modal_view_height = 340
-const modal_view_vml_source = $embed_file('modal_view.vml').to_string()
 
 pub struct ModalViewDemo {
 pub mut:
@@ -28,11 +27,20 @@ pub fn (mut app ModalViewDemo) confirm() {
 }
 
 fn main() {
-	ui2.run_vml[ModalViewDemo](
-		source: modal_view_vml_source
-		model: ModalViewDemo{}
-		title: 'Modal View'
-		width: modal_view_width
+	mut app := ModalViewDemo{}
+	ui2.run_compiled_vml[ModalViewDemo](
+		build:  build_modal_view
+		model:  &app
+		title:  'Modal View'
+		width:  modal_view_width
 		height: modal_view_height
 	) or { panic(err) }
+}
+
+fn build_modal_view(mut app ModalViewDemo) ui2.Element {
+	return $vml('modal_view.vml')
+}
+
+fn modal_view_tree(mut app ModalViewDemo, frame ui2.Rect) ui2.Element {
+	return $vml('modal_view.vml', frame)
 }

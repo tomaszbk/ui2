@@ -198,7 +198,6 @@ fn build_toolbar(layout IdeLayout, app &IdeApp) ui2.Element {
 		}
 		text_style:  text_style(10, color_text, false)
 		keyboard:    ui2.keyboard_default
-		multiline:   false
 	) or { panic(err) }
 	children << ide_button('build_project', 'Build', ui2.rect(path_x + path_width + 8, 8, 72, 30), false)
 	return panel('toolbar', layout.toolbar, 0x172033, children)
@@ -309,7 +308,6 @@ fn inspector_field(id string, label string, value string, y f64, width f64) []ui
 			}
 			text_style:  text_style(10, color_text, false)
 			keyboard:    ui2.keyboard_default
-			multiline:   false
 			on_event:    ide_action(id)
 		) or { panic(err) },
 	]
@@ -598,77 +596,21 @@ fn build_designer_form(layout IdeLayout, app &IdeApp) ui2.Element {
 	}, children), form_pointer_callback)
 }
 
-fn preview_component(component DesignerComponent, scale f64) ui2.Element {
-	frame := ui2.rect(component.x * scale, component.y * scale, component.width * scale, component.height * scale)
-	style := text_style(clamp(component.font_size * scale, 8, 32), component.color, false)
-	box := ui2.BoxStyle{
-		bg:          component.background
-		radius:      5 * scale
-		transparent: component.kind in ['label', 'checkbox']
+fn build_preview_form(layout IdeLayout, mut app IdeApp) ui2.Element {
+	if app.preview_build == unsafe { nil } {
+		return panel('preview_form', layout.form, app.form_background, [])
 	}
-	id := 'preview_${component.id}'
-	element := match component.kind {
-		'label' { ui2.label(id, component.text, frame, style) }
-		'button' { ui2.button(id, component.text, frame, box, style) }
-		'text_field' {
-			ui2.text_input(
-				id:          id
-				placeholder: component.text
-				text:        ''
-				frame:       frame
-				box:         box
-				text_style:  style
-				keyboard:    ui2.keyboard_default
-				multiline:   false
-			) or { panic(err) }
-		}
-		'text_area' {
-			ui2.text_input(
-				id:         id
-				text:       component.text
-				frame:      frame
-				box:        box
-				text_style: style
-				multiline:  true
-			) or { panic(err) }
-		}
-		'checkbox' {
-			ui2.with_event(ui2.checkbox(id, component.text, component.checked, frame, style), ide_action(id))
-		}
-		'dropdown' {
-			ui2.dropdown(id, component.text, ['Option 1', 'Option 2', 'Option 3'], frame, box, style)
-		}
-		'view' { ui2.view(id, frame, box, []) }
-		'image' {
-			if component.text.len > 0 {
-				ui2.image(id, component.text, frame)
-			} else {
-				ui2.view(id, frame, box, [ui2.label('', 'IMAGE', ui2.rect(0, 0, frame.width, frame.height), ui2.TextStyle{
-					color: color_muted
-					size:  10
-					align: .center
-				})])
-			}
-		}
-		else { ui2.view(id, frame, box, []) }
+	root := app.preview_element(ui2.rect(0, 0, app.canvas_width(), app.canvas_height())) or {
+		app.log('Preview failed: ${err}')
+		return panel('preview_form', layout.form, app.form_background, [])
 	}
-	return ui2.with_event(element, ide_action('preview_${component.id}'))
-}
-
-fn build_preview_form(layout IdeLayout, app &IdeApp) ui2.Element {
-	mut children := []ui2.Element{}
-	for raw in app.components {
-		component := raw
-		if component.hidden || component.width <= 0 || component.height <= 0 { continue }
-		children << preview_component(component, layout.scale)
-	}
-	return panel('preview_form', layout.form, app.form_background, children)
+	return ui2.scaled_content('preview_form', layout.form, app.canvas_width(), app.canvas_height(), ui2.BoxStyle{ bg: app.form_background }, [root])
 }
 
 fn build_source_editor(layout IdeLayout, app &IdeApp) []ui2.Element {
 	padding := 10.0
 	apply_width := 116.0
-	mut editor := ui2.text_input(
+	mut editor := ui2.text_area(
 		id:         'source_editor'
 		text:       app.source_text
 		frame:      ui2.rect(layout.stage.x + padding, layout.stage.y + padding, layout.stage.width - padding * 2, layout.stage.height - 54)
@@ -681,7 +623,6 @@ fn build_source_editor(layout IdeLayout, app &IdeApp) []ui2.Element {
 			size:        12
 			font_family: source_code_font_family()
 		}
-		multiline:  true
 	) or { panic(err) }
 	editor = ui2.Element{
 		...editor
@@ -699,7 +640,7 @@ fn build_output(layout IdeLayout, app &IdeApp) []ui2.Element {
 	if layout.output.height <= 0 {
 		return []ui2.Element{}
 	}
-	mut output := ui2.text_input(
+	mut output := ui2.text_area(
 		id:         'build_output'
 		text:       app.messages
 		frame:      ui2.rect(layout.output.x + 6, layout.output.y + 25, layout.output.width - 12, layout.output.height - 30)
@@ -711,7 +652,6 @@ fn build_output(layout IdeLayout, app &IdeApp) []ui2.Element {
 			size:        10
 			font_family: 'Roboto Mono'
 		}
-		multiline:  true
 	) or { panic(err) }
 	output = ui2.Element{
 		...output
@@ -742,7 +682,7 @@ fn build_status(layout IdeLayout, app &IdeApp) ui2.Element {
 	return panel('status_bar', layout.status, 0xe2e8f0, children)
 }
 
-fn build_ide(frame ui2.Rect, app &IdeApp) ui2.Element {
+fn build_ide(frame ui2.Rect, mut app IdeApp) ui2.Element {
 	layout := ide_layout(frame, app)
 	mut children := []ui2.Element{}
 	children << build_toolbar(layout, app)
@@ -752,7 +692,7 @@ fn build_ide(frame ui2.Rect, app &IdeApp) ui2.Element {
 	children << panel('designer_stage', layout.stage, color_stage, [])
 	match app.active_tab {
 		'source' { children << build_source_editor(layout, app) }
-		'preview' { children << build_preview_form(layout, app) }
+		'preview' { children << build_preview_form(layout, mut app) }
 		else { children << build_designer_form(layout, app) }
 	}
 	children << build_preview_toolbar(layout, app)

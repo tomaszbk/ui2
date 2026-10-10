@@ -26,17 +26,17 @@ fn custom_window_uses_transparent_screen() bool {
 	}
 }
 
-fn custom_window_screen_background() string {
+fn custom_window_screen_background() u32 {
 	$if windows && !ui2_custom_rendering ? {
 		// The Win32 adapter treats this otherwise-unused color as transparent.
-		return '#010203'
+		return u32(0x010203)
 	} $else {
-		return '#0F172A'
+		return u32(0x0f172a)
 	}
 }
 
 fn custom_window_platform_note() string {
-	$if ( macos || windows ) && !ui2_custom_rendering ? {
+	$if (macos || windows) && !ui2_custom_rendering ? {
 		return 'The empty area around these cards is the desktop.'
 	} $else {
 		return 'Frameless transparency is demonstrated by the native macOS and Windows backends.'

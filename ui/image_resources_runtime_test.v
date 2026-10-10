@@ -29,7 +29,6 @@ $if ( linux || macos || windows ) && !ui2_headless ?&& ( linux || ui2_custom_ren
 			box:        BoxStyle{}
 			text_style: TextStyle{}
 			keyboard:   keyboard_default
-			multiline:  false
 		) or { panic(err) }]
 		if image_probe_stage < 2 {
 			children << image('one', image_probe_path(), rect(10.25, 70.5, 64, 64))

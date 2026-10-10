@@ -15,8 +15,9 @@ fn find_float_element(element ui2.Element, id string) ?ui2.Element {
 }
 
 fn test_float_layout_demo_centers_fixed_action() {
-	root := ui2.element_from_vml_model(float_vml_source, FloatLayoutDemo{}, ui2.rect(0, 0,
-		float_width, float_height)) or { panic(err) }
+	mut compiled_model_0 := FloatLayoutDemo{}
+	root := float_layout_tree(mut compiled_model_0, ui2.rect(0, 0,
+		float_width, float_height))
 	canvas := find_float_element(root, 'canvas') or { panic('missing float canvas') }
 	action := find_float_element(root, 'center_action') or { panic('missing centered action') }
 	assert canvas.frame.width == 360

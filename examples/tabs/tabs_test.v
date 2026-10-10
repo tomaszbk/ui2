@@ -26,7 +26,7 @@ fn test_tabs_selects_existing_page_only() {
 fn test_tabs_vml_shows_only_active_page() {
 	mut app := initial_tabs()
 	app.select_tab(2)
-	root := ui2.element_from_vml_model(tabs_vml_source, app, ui2.rect(0, 0, tabs_width, tabs_height)) or { panic(err) }
+	root := tabs_tree(mut app, ui2.rect(0, 0, tabs_width, tabs_height))
 	ui2.validate_element_tree(root) or { panic(err) }
 	bar := find_tabs_element(root, 'tab_bar') or { panic('missing tab bar') }
 	assert bar.children[0].children.len == 3

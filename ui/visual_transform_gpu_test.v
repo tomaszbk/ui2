@@ -41,14 +41,13 @@ fn test_full_affine_gpu_submission_clips_glyphs_images_selection_caret_and_sibli
 		assert window != unsafe { nil }
 		defer { C.ui2_embedder_close(window) }
 		style := TextStyle{ size: 20, font_family: 'Inter', color: 0x101010 }
-		editor := text_input(
+		editor := text_area(
 			id:         'edit'
 			text:       'año café selección'
 			frame:      rect(-10, 18, 220, 70)
 			box:        BoxStyle{ bg: 0xffffff }
 			text_style: style
 			keyboard:   0
-			multiline:  true
 		)!
 		field := text_input(
 			id:         'field'
@@ -57,7 +56,6 @@ fn test_full_affine_gpu_submission_clips_glyphs_images_selection_caret_and_sibli
 			box:        BoxStyle{ bg: 0xffffff }
 			text_style: style
 			keyboard:   0
-			multiline:  false
 		)!
 		overflow := view('overflow', rect(0, 220, 160, 40), BoxStyle{ transparent: true }, [with_transform(view('translated-in', rect(10, 0, 50, 24), BoxStyle{ bg: 0xff8800 }, []Element{}), VisualTransform{ translate_y: -200 })])
 		pane := with_transform(scroll('pane', rect(50, 30, 180, 140), 0xdbeafe, [
@@ -183,7 +181,6 @@ fn test_actual_transform_update_preserves_edits_layout_and_returns_to_idle() {
 			box:        BoxStyle{ bg: 0xffffff }
 			text_style: TextStyle{}
 			keyboard:   0
-			multiline:  false
 		)!
 		g_gg_app = &GgApp{
 			ctx:           ctx

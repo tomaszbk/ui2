@@ -1,0 +1,8 @@
+Flex(
+    wrap: true,
+    gap: 9,
+    align_items: start,
+) {
+    Button(id: "first", text: "Publish changes")
+    Button(id: "second", text: "Publish changes")
+}

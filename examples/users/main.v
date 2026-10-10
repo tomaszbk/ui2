@@ -10,7 +10,6 @@ const window_min_width = 700
 const maximum_users = 10
 const users_data_directory = 'ui2-users-example'
 const users_data_filename = 'users.json'
-const users_vml_source = $embed_file('users.vml').to_string()
 
 pub struct User {
 pub:
@@ -32,7 +31,7 @@ pub mut:
 	age                 string
 	password            string
 	country             string = 'United States'
-	online_registration bool = true
+	online_registration bool   = true
 	subscribe           bool
 	show_help           bool
 	is_error            bool
@@ -55,8 +54,8 @@ fn app_with_data_path(data_path string) App {
 	app := App{
 		data_path: data_path
 		logo_path: users_logo_path()
-		users: users
-		next_id: next_user_id(users)
+		users:     users
+		next_id:   next_user_id(users)
 	}
 	if !os.exists(data_path) {
 		app.persist_users()
@@ -67,18 +66,18 @@ fn app_with_data_path(data_path string) App {
 fn default_users() []User {
 	return [
 		User{
-			id: 1
+			id:         1
 			first_name: 'Sam'
-			last_name: 'Johnson'
-			age: 29
-			country: 'United States'
+			last_name:  'Johnson'
+			age:        29
+			country:    'United States'
 		},
 		User{
-			id: 2
+			id:         2
 			first_name: 'Kate'
-			last_name: 'Williams'
-			age: 26
-			country: 'Canada'
+			last_name:  'Williams'
+			age:        26
+			country:    'Canada'
 		},
 	]
 }
@@ -152,11 +151,11 @@ pub fn (mut app App) add_user() {
 		return
 	}
 	app.users << User{
-		id: app.next_id
+		id:         app.next_id
 		first_name: first
-		last_name: last
-		age: age.int()
-		country: app.country
+		last_name:  last
+		age:        age.int()
+		country:    app.country
 	}
 	app.next_id++
 	app.first_name = ''
@@ -186,14 +185,23 @@ fn main() {
 		eprintln('Users requires -d ui2_custom_rendering on Windows for proportional image fitting.')
 		return
 	}
-	ui2.run_vml[App](
-		source: users_vml_source
-		model: initial_app()
-		title: 'V UI Demo'
-		width: window_width
-		height: window_height
+	mut app := initial_app()
+	ui2.run_compiled_vml[App](
+		build:     build_users
+		model:     &app
+		title:     'V UI Demo'
+		width:     window_width
+		height:    window_height
 		min_width: window_min_width
 	) or {
 		panic(err)
 	}
+}
+
+fn build_users(mut app App) ui2.Element {
+	return $vml('users.vml')
+}
+
+fn users_tree(mut app App, frame ui2.Rect) ui2.Element {
+	return $vml('users.vml', frame)
 }

@@ -24,7 +24,7 @@ fn test_radio_demo_keeps_one_country_selected() {
 fn test_radio_vml_reflects_exclusive_and_compact_selection() {
 	mut app := initial_radio_demo()
 	app.select_country('Canada')
-	root := ui2.element_from_vml_model(radio_vml_source, app, ui2.rect(0, 0, radio_width, radio_height)) or { panic(err) }
+	root := demo_radio_tree(mut app, ui2.rect(0, 0, radio_width, radio_height))
 	ui2.validate_element_tree(root) or { panic(err) }
 	choices := find_radio_element(root, 'choices') or { panic('missing choices') }
 	assert choices.children[0].children.len == 4
@@ -43,7 +43,7 @@ fn test_radio_vml_reflects_exclusive_and_compact_selection() {
 fn test_radio_vertical_layout_stays_inside_card() {
 	mut app := initial_radio_demo()
 	app.compact = false
-	root := ui2.element_from_vml_model(radio_vml_source, app, ui2.rect(0, 0, radio_width, radio_height)) or { panic(err) }
+	root := demo_radio_tree(mut app, ui2.rect(0, 0, radio_width, radio_height))
 	card := find_radio_element(root, 'card') or { panic('missing card') }
 	choices := find_radio_element(root, 'choices') or { panic('missing choices') }
 	status := find_radio_element(root, 'selected_country') or { panic('missing status') }

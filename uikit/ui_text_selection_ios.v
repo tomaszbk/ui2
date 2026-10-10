@@ -1,5 +1,7 @@
 module ui2
 
+$if !ui2_document_library ? {
+
 pub fn text_area_set_selection(id string, location int, length int) {
 	view := g_views[id] or { return }
 	selection := clamped_text_area_selection(text(id), location, length)
@@ -18,4 +20,6 @@ pub fn text_area_caret(id string) int {
 pub fn text_area_selection_length(id string) int {
 	view := g_views[id] or { return 0 }
 	return int(native_text_view_selected_range(view).length)
+}
+
 }

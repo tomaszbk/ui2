@@ -1,0 +1,14 @@
+Scroll(
+    id: "viewport",
+) {
+    Absolute(
+        id: "content",
+    ) {
+        Repeater(
+            model: app.items,
+            key: item.id,
+        ) {
+            View(x: 10, y: index * 60, width: 180, height: 50)
+        }
+    }
+}

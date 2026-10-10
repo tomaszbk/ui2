@@ -1,5 +1,7 @@
 module ui2
 
+$if !ui2_document_library ? {
+
 import dl
 import macos
 
@@ -348,4 +350,6 @@ fn native_text_view_selected_range(view View) macos.Range {
 		return macos.range(0, 0)
 	}
 	return selection
+}
+
 }

@@ -1,0 +1,14 @@
+Absolute(
+    id: "canvas",
+) {
+    View(id: "marker", x: 12.5, y: 17.25, width: 30, height: 40)
+    Absolute(
+        id: "nested",
+        x: 50,
+        y: 70,
+        width: 80,
+        height: 50,
+    ) {
+        View(id: "local", x: 7.25, y: 9.5, width: 10, height: 15)
+    }
+}

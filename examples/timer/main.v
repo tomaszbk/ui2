@@ -1,3 +1,4 @@
+// ui2 profiles: custom (custom font family)
 module main
 
 import math
@@ -7,7 +8,6 @@ import ui2
 
 const timer_width = 600
 const timer_height = 380
-const timer_vml_source = $embed_file('timer.vml').to_string()
 
 @[heap]
 pub struct TimerDemo {
@@ -173,16 +173,34 @@ fn timer_callbacks() map[string]ui2.ElementCallback {
 	}
 }
 
-fn build_timer_screen() ui2.Element {
-	mut state := unsafe { timer_state }
-	state.sync_at(time.ticks())
-	if !state.running { cancel_timer_refresh() }
-	return ui2.element_from_vml_model_with_callbacks(timer_vml_source, *state, ui2.bounds(), timer_callbacks()) or {
-		eprintln('timer VML failed: ${err}')
-		ui2.screen(0xf1f5f9, [])
-	}
+fn main() {
+	ui2.run_compiled_vml[TimerDemo](
+		build:  build_timer
+		model:  timer_state
+		title:  'Timer'
+		width:  timer_width
+		height: timer_height
+		update: update_timer
+	) or { panic(err) }
 }
 
-fn main() {
-	ui2.run_window('Timer', timer_width, timer_height, build_timer_screen)
+fn build_timer(mut app TimerDemo) ui2.Element {
+	callbacks := timer_callbacks()
+	callback_duration_slider := callbacks['duration_slider'] or { panic('missing duration_slider callback') }
+	callback_start := callbacks['start'] or { panic('missing start callback') }
+	callback_pause := callbacks['pause'] or { panic('missing pause callback') }
+	return $vml('timer.vml')
+}
+
+fn timer_tree(mut app TimerDemo, frame ui2.Rect) ui2.Element {
+	callbacks := timer_callbacks()
+	callback_duration_slider := callbacks['duration_slider'] or { panic('missing duration_slider callback') }
+	callback_start := callbacks['start'] or { panic('missing start callback') }
+	callback_pause := callbacks['pause'] or { panic('missing pause callback') }
+	return $vml('timer.vml', frame)
+}
+
+fn update_timer(mut app TimerDemo) {
+	app.sync_at(time.ticks())
+	if !app.running { cancel_timer_refresh() }
 }

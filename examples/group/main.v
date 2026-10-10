@@ -4,15 +4,14 @@ import ui2
 
 const group_width = 380
 const group_height = 350
-const group_vml_source = $embed_file('group.vml').to_string()
 
 pub struct GroupDemo {
 pub mut:
 	first_name    string
 	last_name     string
-	registration1 bool = true
-	registration2 bool = true
-	registration3 bool = true
+	registration1 bool   = true
+	registration2 bool   = true
+	registration3 bool   = true
 	message       string = 'Enter a first and last name.'
 }
 
@@ -27,11 +26,20 @@ pub fn (mut app GroupDemo) submit() {
 }
 
 fn main() {
-	ui2.run_vml[GroupDemo](
-		source: group_vml_source
-		model: GroupDemo{}
-		title: 'Group Demo'
-		width: group_width
+	mut app := GroupDemo{}
+	ui2.run_compiled_vml[GroupDemo](
+		build:  build_group
+		model:  &app
+		title:  'Group Demo'
+		width:  group_width
 		height: group_height
 	) or { panic(err) }
+}
+
+fn build_group(mut app GroupDemo) ui2.Element {
+	return $vml('group.vml')
+}
+
+fn group_tree(mut app GroupDemo, frame ui2.Rect) ui2.Element {
+	return $vml('group.vml', frame)
 }

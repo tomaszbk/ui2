@@ -4,8 +4,8 @@ module ui2
 // Runtime calls exist only when the selected platform backend is mounted.
 // Native AppKit/Win32 and UIKit remain available with ui2_headless; the
 // custom backend excludes it. Pure policy and semantic types stay unguarded.
-$if ios || ((macos || windows) && !ui2_custom_rendering ?)
-	|| ((android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ?) {
+$if !ui2_document_library ? && (ios || ((macos || windows) && !ui2_custom_rendering ?)
+	|| ((android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ?)) {
 // Sequential navigation wraps within the active scope, or the whole window.
 pub fn focus_next() bool { return traverse_focus(false) }
 

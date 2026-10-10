@@ -1,0 +1,1 @@
+TextInput(id: "name", placeholder: "Name", on_change: callback_changed, on_submit: callback_submit)

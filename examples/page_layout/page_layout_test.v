@@ -15,20 +15,16 @@ fn find_page_element(element ui2.Element, id string) ?ui2.Element {
 }
 
 fn test_page_layout_demo_navigates_through_model_actions() {
-	mut app := ui2.new_vml_app(page_vml_source, PageLayoutDemo{}) or { panic(err) }
-	initial := app.build(ui2.rect(0, 0, page_width, page_height)) or {
-		panic('initial page build failed: ${err}')
-	}
+	mut app := PageLayoutDemo{}
+	initial := page_layout_tree(mut app, ui2.rect(0, 0, page_width, page_height))
 	pager := find_page_element(initial, 'pager') or { panic('missing pager') }
 	assert pager.children[0].frame == ui2.rect(0, 0, 380, 160)
 
 	next := find_page_element(initial, 'next') or { panic('missing next action') }
 	control := next
 	control.on_event(ui2.ElementEvent{ kind: .tap, id: control.id })
-	assert app.state().page == 1
-	rebuilt := app.build(ui2.rect(0, 0, page_width, page_height)) or {
-		panic('rebuilt page failed: ${err}')
-	}
+	assert app.page == 1
+	rebuilt := page_layout_tree(mut app, ui2.rect(0, 0, page_width, page_height))
 	pager_after := find_page_element(rebuilt, 'pager') or { panic('missing rebuilt pager') }
 	assert pager_after.children[0].frame == ui2.rect(0, 0, 380, 160)
 }

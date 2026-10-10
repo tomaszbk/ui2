@@ -5,13 +5,12 @@ import ui2
 
 const rasterview_width = 560
 const rasterview_height = 500
-const rasterview_vml_source = $embed_file('rasterview.vml').to_string()
 
 pub struct RasterviewDemo {
 pub:
 	image_path string
 pub mut:
-	show_details bool = true
+	show_details bool   = true
 	status       string = 'Bundled repository logo loaded.'
 }
 
@@ -37,11 +36,20 @@ fn main() {
 		eprintln('Raster View requires -d ui2_custom_rendering on Windows for proportional image fitting.')
 		return
 	}
-	ui2.run_vml[RasterviewDemo](
-		source: rasterview_vml_source
-		model: initial_rasterview()
-		title: 'Raster View'
-		width: rasterview_width
+	mut app := initial_rasterview()
+	ui2.run_compiled_vml[RasterviewDemo](
+		build:  build_rasterview
+		model:  &app
+		title:  'Raster View'
+		width:  rasterview_width
 		height: rasterview_height
 	) or { panic(err) }
+}
+
+fn build_rasterview(mut app RasterviewDemo) ui2.Element {
+	return $vml('rasterview.vml')
+}
+
+fn rasterview_tree(mut app RasterviewDemo, frame ui2.Rect) ui2.Element {
+	return $vml('rasterview.vml', frame)
 }

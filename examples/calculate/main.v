@@ -1,3 +1,4 @@
+// ui2 profiles: custom (custom font family)
 module main
 
 import math
@@ -5,7 +6,6 @@ import ui2
 
 const calculate_width = 600
 const calculate_height = 360
-const calculate_vml_source = $embed_file('calculate.vml').to_string()
 
 struct ArithmeticParser {
 	input string
@@ -144,13 +144,22 @@ pub fn (mut app CalculateDemo) load_example(index int) {
 }
 
 fn main() {
-	ui2.run_vml[CalculateDemo](
-		source: calculate_vml_source
-		model: CalculateDemo{}
-		title: 'Calculate'
-		width: calculate_width
+	mut app := CalculateDemo{}
+	ui2.run_compiled_vml[CalculateDemo](
+		build:  build_calculate
+		model:  &app
+		title:  'Calculate'
+		width:  calculate_width
 		height: calculate_height
 	) or {
 		panic(err)
 	}
+}
+
+fn build_calculate(mut app CalculateDemo) ui2.Element {
+	return $vml('calculate.vml')
+}
+
+fn calculate_tree(mut app CalculateDemo, frame ui2.Rect) ui2.Element {
+	return $vml('calculate.vml', frame)
 }

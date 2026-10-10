@@ -4,16 +4,24 @@ import ui2
 
 const float_width = 400
 const float_height = 260
-const float_vml_source = $embed_file('float_layout.vml').to_string()
 
 pub struct FloatLayoutDemo {}
 
 fn main() {
-	ui2.run_vml[FloatLayoutDemo](
-		source: float_vml_source
-		model: FloatLayoutDemo{}
-		title: 'Float Layout'
-		width: float_width
+	mut app := FloatLayoutDemo{}
+	ui2.run_compiled_vml[FloatLayoutDemo](
+		build:  build_float_layout
+		model:  &app
+		title:  'Float Layout'
+		width:  float_width
 		height: float_height
 	) or { panic(err) }
+}
+
+fn build_float_layout(mut app FloatLayoutDemo) ui2.Element {
+	return $vml('float_layout.vml')
+}
+
+fn float_layout_tree(mut app FloatLayoutDemo, frame ui2.Rect) ui2.Element {
+	return $vml('float_layout.vml', frame)
 }

@@ -141,8 +141,35 @@ pub fn (mut tree LayoutTree) patch(id string, element Element) ! {
 	if tree.root.len == 0 { return error('layout tree is empty') }
 	target := tree.find_id(id) or { return error('no mounted element `${id}`') }
 	if element.id != id { return error('subtree replacement must preserve id `${id}`') }
+	tree.patch_identity(target, element)!
+}
+
+// Anonymous compiled declarations keep their authored id empty. The retained
+// handle selects the subtree without reserving an application-facing id.
+pub fn (mut tree LayoutTree) patch_compiled(owner &CompiledVmlNode, element Element) ! {
+	if tree.root.len == 0 { return error('layout tree is empty') }
+	if owner == unsafe { nil } || element.compiled_node != owner {
+		return error('compiled subtree replacement must preserve its owner')
+	}
+	mut target := &RetainedLayoutNode{}
+	mut found := false
+	for _, node in tree.nodes {
+		if node.declaration.compiled_node == owner {
+			if found { return error('compiled declaration is mounted more than once') }
+			target = node
+			found = true
+		}
+	}
+	if !found { return error('compiled declaration is not mounted') }
+	if target.declaration.id != element.id || target.declaration.key != element.key {
+		return error('compiled subtree replacement must preserve id and key')
+	}
+	tree.patch_identity(target, element)!
+}
+
+fn (mut tree LayoutTree) patch_identity(target &RetainedLayoutNode, element Element) ! {
 	mut found := []bool{len: 1}
-	candidate := tree.patch_declaration(tree.root, id, element, mut found)
+	candidate := tree.patch_declaration(tree.root, target.identity, element, mut found)
 	validate_element_tree(candidate)!
 	mut retired := []string{}
 	tree.subtree_identities(target.identity, mut retired)
@@ -177,15 +204,15 @@ fn (tree &LayoutTree) subtree_identities(identity string, mut identities []strin
 	for child in node.children { tree.subtree_identities(child, mut identities) }
 }
 
-fn (tree &LayoutTree) patch_declaration(identity string, id string, replacement Element, mut found []bool) Element {
+fn (tree &LayoutTree) patch_declaration(identity string, target string, replacement Element, mut found []bool) Element {
 	node := tree.nodes[identity] or { return Element{} }
-	if node.declaration.id == id {
+	if identity == target {
 		found[0] = true
 		return replacement
 	}
 	mut children := []Element{cap: node.children.len}
 	for child in node.children {
-		children << tree.patch_declaration(child, id, replacement, mut found)
+		children << tree.patch_declaration(child, target, replacement, mut found)
 	}
 	return Element{ ...node.declaration, frame: node.input, children: children }
 }
@@ -221,6 +248,8 @@ fn (mut tree LayoutTree) reconcile(element Element, parent string, mut active ma
 		'id:' + element.id.bytes().hex()
 	} else if element.key.len > 0 {
 		parent + '/key:' + element.key.bytes().hex()
+	} else if element.compiled_node != unsafe { nil } {
+		parent + '/compiled:' + element.compiled_node.identity().bytes().hex()
 	} else {
 		tree.serial++
 		'anonymous:' + tree.serial.str()
@@ -244,8 +273,12 @@ fn (mut tree LayoutTree) reconcile(element Element, parent string, mut active ma
 		// Snapshot versions before the recursive call mutates retained nodes.
 		child_id := if child.id.len > 0 {
 			'id:' + child.id.bytes().hex()
-		} else {
+		} else if child.key.len > 0 {
 			identity + '/key:' + child.key.bytes().hex()
+		} else if child.compiled_node != unsafe { nil } {
+			identity + '/compiled:' + child.compiled_node.identity().bytes().hex()
+		} else {
+			''
 		}
 		old := tree.nodes[child_id] or { &RetainedLayoutNode{} }
 		previous_version := old.version
@@ -295,7 +328,7 @@ pub fn (mut tree LayoutTree) resolve(constraints LayoutConstraints, measure Layo
 		return error('layout environment scale must be positive and finite')
 	}
 	if tree.root.len == 0 { return error('layout tree is empty') }
-	for _ in 0 .. 3 {
+	for _ in 0 .. 64 {
 		effective := layout_effective_environment(environment, measure)
 		if tree.environment != effective || voidptr(tree.measurer) != voidptr(measure) {
 			for _, mut node in tree.nodes {
@@ -313,14 +346,20 @@ pub fn (mut tree LayoutTree) resolve(constraints LayoutConstraints, measure Layo
 		// A newly resolved font can advance the backend generation during a
 		// cold pass. Stabilize once all fonts used by the tree are registered.
 		if layout_effective_environment(environment, measure) == effective {
-			return tree.output(tree.root)
+			output := tree.output(tree.root)
+			updates := compiled_vml_sync_geometry(output)!
+			if updates.len > 0 {
+				for updated in updates { tree.patch_compiled(updated.compiled_node, updated)! }
+				continue
+			}
+			return output
 		}
 	}
-	return error('measurement environment changed repeatedly during layout')
+	return error('geometry or measurement environment changed repeatedly during layout')
 }
 
 fn layout_effective_environment(environment LayoutEnvironment, measure LayoutTextMeasureFn) LayoutEnvironment {
-	$if ( linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headless ? {
+	$if ( linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headless ? && !ui2_document_library ? {
 		if voidptr(measure) == voidptr(measure_layout_text) {
 			context_version := if g_gg_app.ctx != unsafe { nil } && g_gg_app.ctx.text != unsafe { nil } {
 				g_gg_app.ctx.text.environment_version
@@ -454,6 +493,32 @@ fn (mut tree LayoutTree) measure_assigned_height_widths(node &RetainedLayoutNode
 }
 
 fn (mut tree LayoutTree) container_geometry(node &RetainedLayoutNode, available Rect, sizes []Rect, measuring bool, constraints LayoutConstraints) !([]Rect, Rect) {
+	if node.declaration.kind == .scroll {
+		mut frames := []Rect{cap: sizes.len}
+		mut width := 0.0
+		mut height := 0.0
+		for i, child in node.children {
+			child_node := tree.nodes[child] or { return error('missing scroll content') }
+			if child_node.declaration.hidden {
+				frames << Rect{}
+				continue
+			}
+			// Automatic content fills the viewport horizontally and keeps its
+			// natural height. Authored widths can intentionally overflow it.
+			content_width := if child_node.input.width > 0 { sizes[i].width } else {
+				math.max(0.0, available.width - sizes[i].x)
+			}
+			measured := tree.measure_node(child, LayoutConstraints{
+				min_width: content_width
+				max_width: content_width
+			})!
+			frame := rect(sizes[i].x, sizes[i].y, content_width, measured.height)
+			frames << frame
+			width = math.max(width, frame.x + frame.width)
+			height = math.max(height, frame.y + frame.height)
+		}
+		return frames, rect(0, 0, width, height)
+	}
 	match node.declaration.layout.kind {
 		.flex {
 			mut items := []FlexChild{cap: sizes.len}
@@ -637,6 +702,7 @@ fn (tree &LayoutTree) output(identity string) Element {
 struct LayoutPatch {
 	id      string
 	element Element
+	compiled &CompiledVmlNode = unsafe { nil }
 }
 
 // declaration returns authored inputs, suitable for subsequent targeted patches.

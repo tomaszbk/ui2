@@ -5,7 +5,6 @@ import ui2
 
 const filebrowser_width = 760
 const filebrowser_height = 520
-const filebrowser_vml_source = $embed_file('filebrowser.vml').to_string()
 
 pub struct BrowserEntry {
 pub:
@@ -43,9 +42,9 @@ fn (mut app FileBrowserDemo) load_directory(path string) ! {
 				continue
 			}
 			entries << BrowserEntry{
-				id: entries.len + 1
-				name: name
-				path: full_path
+				id:        entries.len + 1
+				name:      name
+				path:      full_path
 				directory: is_directory
 			}
 		}
@@ -98,13 +97,22 @@ pub fn (mut app FileBrowserDemo) cancel_selection() {
 }
 
 fn main() {
-	ui2.run_vml[FileBrowserDemo](
-		source: filebrowser_vml_source
-		model: file_browser_at(os.getwd())
-		title: 'File Browser'
-		width: filebrowser_width
+	mut app := file_browser_at(os.getwd())
+	ui2.run_compiled_vml[FileBrowserDemo](
+		build:  build_filebrowser
+		model:  &app
+		title:  'File Browser'
+		width:  filebrowser_width
 		height: filebrowser_height
 	) or {
 		panic(err)
 	}
+}
+
+fn build_filebrowser(mut app FileBrowserDemo) ui2.Element {
+	return $vml('filebrowser.vml')
+}
+
+fn filebrowser_tree(mut app FileBrowserDemo, frame ui2.Rect) ui2.Element {
+	return $vml('filebrowser.vml', frame)
 }

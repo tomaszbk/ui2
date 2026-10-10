@@ -36,8 +36,8 @@ fn test_dirbrowser_lists_only_folders_and_navigates() {
 }
 
 fn test_dirbrowser_vml_builds_keyed_native_folder_rows() {
-	app := directory_browser_at(os.getwd())
-	root := ui2.element_from_vml_model(dirbrowser_vml_source, app, ui2.rect(0, 0, dirbrowser_width, dirbrowser_height)) or { panic(err) }
+	mut app := directory_browser_at(os.getwd())
+	root := dirbrowser_tree(mut app, ui2.rect(0, 0, dirbrowser_width, dirbrowser_height))
 	ui2.validate_element_tree(root) or { panic(err) }
 	list := find_dirbrowser_element(root, 'folder_list') or { panic('missing folder list') }
 	assert list.children[0].children.len == app.entries.len + 1

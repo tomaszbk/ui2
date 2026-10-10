@@ -588,7 +588,7 @@ fn incremental_other_measurer(_text string, _style TextStyle, _width f64) !Layou
 
 fn test_incremental_measurer_placeholder_insets_rich_runs_and_explicit_inputs() {
 	mut tree := LayoutTree{}
-	field := text_input(TextInputConfig{ id: 'field', multiline: false, placeholder: 'WW' })!
+	field := text_input(TextInputConfig{ id: 'field', placeholder: 'WW' })!
 	tree.replace(field)!
 	initial := incremental_resolve(mut tree)!
 	assert initial.frame == rect(0, 0, 44, 32)
@@ -629,7 +629,8 @@ fn incremental_compiled_build(mut model IncrementalCompiledModel) Element {
 }
 
 fn test_compiled_builder_uses_retained_layout_without_interpreter_nodes() {
-	mut controller := &CompiledVmlController[IncrementalCompiledModel]{ build: incremental_compiled_build }
+	mut model := IncrementalCompiledModel{}
+	mut controller := &CompiledVmlController[IncrementalCompiledModel]{ build: incremental_compiled_build, model: &model }
 	mut runtime := compiled_vml_runtime()
 	previous := runtime.controller
 	defer { runtime.controller = previous }
@@ -725,5 +726,45 @@ fn test_default_desktop_measurer_stabilizes_font_environment_before_paint() {
 		assert tree.stats().measure_visits == 0
 		assert tree.stats().layout_visits == 0
 		assert tree.stats().text_measurements == 0
+	}
+}
+
+fn test_incremental_scroll_reflows_automatic_content_at_viewport_width() {
+	mut tree := LayoutTree{}
+	content := incremental_column('content', Rect{}, [incremental_label('wrapped', 'WW WW WW')])!
+	explicit := view('wide', rect(5, 80, 120, 10), BoxStyle{}, [])
+	tree.replace(scroll('viewport', rect(0, 0, 60.25, 50), 0xffffff, [content, explicit]))!
+	for width in [60.25, 30.5, 60.25] {
+		tree.patch('viewport', scroll('viewport', rect(0, 0, width, 50), 0xffffff, [content, explicit]))!
+		resolved := incremental_resolve(mut tree)!
+		assert resolved.frame == rect(0, 0, width, 50)
+		assert resolved.children[0].frame == rect(0, 0, width, if width > 50 { 40 } else { 60 })
+		assert resolved.children[0].children[0].frame.width == width
+		assert resolved.children[0].children[0].frame.height == resolved.children[0].frame.height
+		assert resolved.children[1].frame == explicit.frame
+		assert resolved.children[0].layout_input? == Rect{}
+		assert tree.stats().builds == 1
+	}
+}
+
+fn test_incremental_grid_declaration_waits_for_assigned_width_before_spacing() ! {
+	mut tree := LayoutTree{}
+	grid := grid_declaration(GridConfig{
+		id: 'grid'
+		columns: 2
+		spacing: GridSpacing{ horizontal: 10, vertical: 10 }
+		children: [incremental_label('first', 'WW WW WW WW WW'), incremental_label('second', 'WW WW WW WW WW')]
+	})!
+	assert grid.frame == Rect{}
+	assert grid.children[0].frame == Rect{}
+	tree.replace(incremental_column('viewport', rect(0, 0, 300, 200), [grid])!)!
+	for width in [300.0, 200.0, 300.0] {
+		tree.patch('viewport', incremental_column('viewport', rect(0, 0, width, 200), [grid])!)!
+		resolved := incremental_resolve(mut tree)!
+		content := resolved.children[0]
+		assert content.frame == rect(0, 0, width, if width == 300 { 20 } else { 40 })
+		assert content.children[0].frame == rect(0, 0, (width - 10) / 2, content.frame.height)
+		assert content.children[1].frame == rect((width + 10) / 2, 0, (width - 10) / 2, content.frame.height)
+		assert tree.stats().builds == 1
 	}
 }

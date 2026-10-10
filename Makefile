@@ -1,5 +1,5 @@
 V ?= v
-VFLAGS ?=
+VFLAGS ?= -b c
 
 .PHONY: test ide check-ide examples examples-custom screenshot check-macos check-ios check-android check-linux check-windows check-custom-macos check-custom-windows check-custom check-embedder-macos test-embedder check-backends
 

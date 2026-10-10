@@ -23,7 +23,7 @@ fn test_flight_booker_validates_calendar_dates() {
 
 fn test_flight_booker_creates_both_confirmation_messages() {
 	mut app := FlightBooker{
-		departure: '5.9.2026'
+		departure:   '5.9.2026'
 		return_date: '12.9.2026'
 	}
 	app.book()
@@ -36,10 +36,10 @@ fn test_flight_booker_creates_both_confirmation_messages() {
 
 fn test_flight_booker_vml_controls_return_field_and_booking() {
 	mut app := FlightBooker{
-		departure: '5.9.2026'
+		departure:   '5.9.2026'
 		return_date: '12.9.2026'
 	}
-	root := ui2.element_from_vml_model(flight_booker_vml_source, app, ui2.rect(0, 0, flight_booker_width, flight_booker_height)) or { panic(err) }
+	root := flight_booker_tree(mut app, ui2.rect(0, 0, flight_booker_width, flight_booker_height))
 	return_field := find_flight_element(root, 'return-date') or {
 		panic('missing return date field')
 	}
@@ -54,7 +54,7 @@ fn test_flight_booker_vml_controls_return_field_and_booking() {
 
 	app.flight_type = 'return flight'
 	app.return_valid = false
-	return_root := ui2.element_from_vml_model(flight_booker_vml_source, app, ui2.rect(0, 0, flight_booker_width, flight_booker_height)) or { panic(err) }
+	return_root := flight_booker_tree(mut app, ui2.rect(0, 0, flight_booker_width, flight_booker_height))
 	assert (find_flight_element(return_root, 'return-date') or { panic('missing return field') }).enabled
 	assert !(find_flight_element(return_root, 'book') or { panic('missing Book button') }).enabled
 }

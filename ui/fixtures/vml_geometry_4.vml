@@ -1,0 +1,5 @@
+Column(
+    id: "root",
+) {
+    View(hidden: !(root.width < 150), height: 20)
+}

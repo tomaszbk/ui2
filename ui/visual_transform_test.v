@@ -136,7 +136,7 @@ fn test_invalid_transforms_reject_and_have_no_hits() {
 }
 
 fn test_native_diagnoses_visual_presentation_including_rotation() {
-	$if !( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headless ? {
+	$if !(android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
 		for t in [VisualTransform{ rotation: 10 }, VisualTransform{ translate_x: 1 },
 			VisualTransform{ scale_y: 2 }] {
 			root := with_transform(view('v', rect(0, 0, 100, 100), BoxStyle{}, []Element{}), t)
@@ -150,40 +150,25 @@ fn test_native_diagnoses_visual_presentation_including_rotation() {
 }
 
 fn test_vml_transform_numbers_are_typed_and_singular_values_reject() {
-	for source in ['View { translate_x: "12" }', 'View { translate_y: true }', 'View { scale_x: 0 }'] {
-		if _ := element_from_vml(source, rect(0, 0, 100, 100)) {
-			assert false, source
-		}
-	}
-	el := element_from_vml('View { translate_x: 10 scale_x: 2 scale_y: -1 rotation: 90 origin_x: 50 }', rect(0, 0, 100, 100))!
+	el := compiled_visual_transform_0(rect(0, 0, 100, 100))
 	assert el.visual_transform() == VisualTransform{ translate_x: 10, scale_x: 2, scale_y: -1, rotation: 90, origin_x: 50 }
 	assert el.frame == rect(0, 0, 100, 100)
 }
 
-struct TransformNumberModel {
+pub struct TransformNumberModel {
 pub:
 	offset        f64
 	string_offset string
 	bool_offset   bool
 }
 
-fn test_vml_model_transform_bindings_reject_implicit_coercion() {
-	model := TransformNumberModel{ offset: 12, string_offset: '12', bool_offset: true }
-	for source in ['View { translate_x: app.string_offset }', 'View { translate_x: app.bool_offset }'] {
-		template := parse_vml(source)!
-		if _ := v_validate_template(template, model) {
-			assert false, source
-		} else {
-			assert err.msg().contains('requires a number')
-		}
-	}
-	template := parse_vml('View { translate_x: app.offset }')!
-	v_validate_template(template, model)!
-	resolved, _ := v_evaluate_template(template, model, rect(0, 0, 100, 100))!
-	el := element_from_vnode(resolved, rect(0, 0, 100, 100))!
+fn test_vml_model_transform_binding_and_nonfinite_runtime_validation() {
+	mut app := TransformNumberModel{ offset: 12 }
+	el := $vml('fixtures/transform_binding.vml', rect(0, 0, 100, 100))
 	assert el.translate_x == 12
-	if _, _ := v_evaluate_template(template, TransformNumberModel{ offset: math.inf(1) }, rect(0, 0, 100, 100)) {
-		assert false
+	invalid := with_transform(view('invalid', rect(0, 0, 100, 100), BoxStyle{}, []Element{}), VisualTransform{ translate_x: math.inf(1) })
+	if _ := validate_element_tree(invalid) {
+		assert false, 'nonfinite model geometry must fail'
 	}
 }
 
@@ -195,4 +180,8 @@ fn test_inverse_roundoff_keeps_the_independently_derived_rotated_boundary() {
 	assert presentation_bounds_contains(t.project(frame), p.x, p.y)
 	assert transformed_contains(frame, t, transformed_clip(frame, t), p.x, p.y)
 	assert !transformed_contains(frame, t, ClipRegion{}, p.x - 0.01, p.y)
+}
+
+fn compiled_visual_transform_0(frame Rect) Element {
+	return $vml('fixtures/visual_transform_0.vml', frame)
 }

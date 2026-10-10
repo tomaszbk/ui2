@@ -33,7 +33,7 @@ fn test_double_listbox_moves_values_both_directions() {
 fn test_double_listbox_vml_builds_keyed_native_rows() {
 	mut app := initial_double_listbox()
 	app.move_right(3)
-	root := ui2.element_from_vml_model(double_list_vml_source, app, ui2.rect(0, 0, double_list_width, double_list_height)) or { panic(err) }
+	root := double_listbox_tree(mut app, ui2.rect(0, 0, double_list_width, double_list_height))
 	ui2.validate_element_tree(root) or { panic(err) }
 	available := find_double_list_element(root, 'available_list') or {
 		panic('missing available list')

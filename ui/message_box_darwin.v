@@ -4,6 +4,8 @@
 // custom-rendered macOS windows get the same system alert.
 module ui2
 
+$if !ui2_document_library ? {
+
 import macos
 
 #flag darwin -framework AppKit
@@ -53,4 +55,6 @@ fn native_message_box(cfg MessageBoxConfig) MessageBoxResult {
 	}
 	response := macos.msg_i64(ns_alert, 'runModal')
 	return message_box_result_at(cfg.buttons, int(response - ns_alert_first_button_return))
+}
+
 }

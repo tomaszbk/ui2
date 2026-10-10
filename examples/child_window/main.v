@@ -4,7 +4,6 @@ import ui2
 
 const child_window_width = 640
 const child_window_height = 440
-const child_window_vml_source = $embed_file('child_window.vml').to_string()
 const child_card_root_x = 16.0
 const child_card_root_y = 16.0
 const child_panel_width = 320.0
@@ -142,14 +141,36 @@ fn child_window_callbacks() map[string]ui2.ElementCallback {
 	}
 }
 
-fn build_child_window_screen() ui2.Element {
-	state := unsafe { child_window_state }
-	return ui2.element_from_vml_model_with_callbacks(child_window_vml_source, *state, ui2.bounds(), child_window_callbacks()) or {
-		eprintln('child-window VML failed: ${err}')
-		ui2.screen(0xf1f5f9, [])
-	}
+fn main() {
+	ui2.run_compiled_vml[ChildWindowDemo](
+		build:  build_child_window
+		model:  child_window_state
+		title:  'Child Window'
+		width:  child_window_width
+		height: child_window_height
+	) or { panic(err) }
 }
 
-fn main() {
-	ui2.run_window('Child Window', child_window_width, child_window_height, build_child_window_screen)
+fn build_child_window(mut app ChildWindowDemo) ui2.Element {
+	callbacks := child_window_callbacks()
+	callback_create := callbacks['create'] or { panic('missing create callback') }
+	callback_parent_input := callbacks['parent_input'] or { panic('missing parent_input callback') }
+	callback_child_titlebar := callbacks['child_titlebar'] or { panic('missing child_titlebar callback') }
+	callback_close := callbacks['close'] or { panic('missing close callback') }
+	callback_child_name := callbacks['child_name'] or { panic('missing child_name callback') }
+	callback_genre := callbacks['genre'] or { panic('missing genre callback') }
+	callback_greet := callbacks['greet'] or { panic('missing greet callback') }
+	return $vml('child_window.vml')
+}
+
+fn child_window_tree(mut app ChildWindowDemo, frame ui2.Rect) ui2.Element {
+	callbacks := child_window_callbacks()
+	callback_create := callbacks['create'] or { panic('missing create callback') }
+	callback_parent_input := callbacks['parent_input'] or { panic('missing parent_input callback') }
+	callback_child_titlebar := callbacks['child_titlebar'] or { panic('missing child_titlebar callback') }
+	callback_close := callbacks['close'] or { panic('missing close callback') }
+	callback_child_name := callbacks['child_name'] or { panic('missing child_name callback') }
+	callback_genre := callbacks['genre'] or { panic('missing genre callback') }
+	callback_greet := callbacks['greet'] or { panic('missing greet callback') }
+	return $vml('child_window.vml', frame)
 }

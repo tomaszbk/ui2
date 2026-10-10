@@ -1,73 +1,95 @@
-Screen {
-    id: root
-    background: #F1F5F9
-
-    property bool return_flight: app.flight_type == "return flight"
-    property bool can_book: app.departure_valid && (!root.return_flight || app.return_valid)
-
-    Flex {
-        padding: 16
-        justify: center
-        align_items: start
-        transparent: true
-
-        Column {
-            id: card
-            width: 368
-            max_width: 368
-            height: 358
-            padding: 16
-            gap: 10
-            background: #FFFFFF
-            corner_radius: 10
-
-            Label { text: "Book a flight" height: 28 color: #111827 font_size: 20 bold: true }
-
-            Dropdown {
-                id: flight-type
-                bind.text: app.flight_type
-                on_change: app.flight_type_changed()
-                height: 40
-                background: #F8FAFC
-                color: #111827
-                corner_radius: 7
-                Option { text: "one-way flight" }
-                Option { text: "return flight" }
+Screen(
+    id: "root",
+    background: #F1F5F9,
+) {
+    Flex(
+        padding: 16,
+        justify: center,
+        align_items: start,
+        transparent: true,
+    ) {
+        Column(
+            id: "card",
+            width: 368,
+            max_width: 368,
+            height: 358,
+            padding: 16,
+            gap: 10,
+            background: #FFFFFF,
+            corner_radius: 10,
+        ) {
+            Label(text: "Book a flight", height: 28, color: #111827, font_size: 20, bold: true)
+            Dropdown(
+                id: "flight-type",
+                bind.text: app.flight_type,
+                on_change: app.flight_type_changed(),
+                height: 40,
+                background: #F8FAFC,
+                color: #111827,
+                corner_radius: 7,
+            ) {
+                Option(text: "one-way flight")
+                Option(text: "return flight")
             }
-
-            Column {
-                gap: 4
-                transparent: true
-                Label { text: "Departure (DD.MM.YYYY)" height: 18 color: #475569 font_size: 12 }
-                TextInput { multiline: false
-                    id: departure
-                    bind.text: app.departure
-                    on_change: app.validate_departure()
-                    height: 28
-                    background: app.departure_valid ? #F8FAFC : #FED7AA
-                    color: #111827
-                    corner_radius: 7
-                }
+            Column(
+                gap: 4,
+                transparent: true,
+            ) {
+                Label(text: "Departure(DD.MM.YYYY)", height: 18, color: #475569, font_size: 12)
+                TextInput(
+                    id: "departure",
+                    bind.text: app.departure,
+                    on_change: app.validate_departure(),
+                    height: 28,
+                    background: app.departure_valid ? #F8FAFC : #FED7AA,
+                    color: #111827,
+                    corner_radius: 7,
+                )
             }
-            Column {
-                gap: 4
-                transparent: true
-                Label { text: "Return (DD.MM.YYYY)" height: 18 color: root.return_flight ? #475569 : #94A3B8 font_size: 12 }
-                TextInput { multiline: false
-                    id: return-date
-                    bind.text: app.return_date
-                    on_change: app.validate_return()
-                    enabled: root.return_flight
-                    height: 28
-                    background: app.return_valid ? #F8FAFC : #FED7AA
-                    color: #111827
-                    corner_radius: 7
-                }
+            Column(
+                gap: 4,
+                transparent: true,
+            ) {
+                Label(
+                    text: "Return(DD.MM.YYYY)",
+                    height: 18,
+                    color: (app.flight_type == "return flight") ? #475569 : #94A3B8,
+                    font_size: 12,
+                )
+                TextInput(
+                    id: "return-date",
+                    bind.text: app.return_date,
+                    on_change: app.validate_return(),
+                    enabled: (app.flight_type == "return flight"),
+                    height: 28,
+                    background: app.return_valid ? #F8FAFC : #FED7AA,
+                    color: #111827,
+                    corner_radius: 7,
+                )
             }
-
-            View { height: 12 transparent: true }
-            Button { id: book text: "Book" on_tap: app.book() native: true enabled: root.can_book height: 40 background: root.can_book ? #3478D4 : #CBD5E1 color: #FFFFFF bold: true align: center corner_radius: 7 }
-            Label { id: confirmation text: app.confirmation hidden: app.confirmation.len == 0 height: 34 color: #166534 font_size: 13 lines: 2 }
+            View(height: 12, transparent: true)
+            Button(
+                id: "book",
+                text: "Book",
+                on_tap: app.book(),
+                native: true,
+                enabled: (app.departure_valid &&(!(app.flight_type == "return flight") || app.return_valid)),
+                height: 40,
+                background: (app.departure_valid &&(!(app.flight_type == "return flight") || app.return_valid)) ? #3478D4 : #CBD5E1,
+                color: #FFFFFF,
+                bold: true,
+                align: center,
+                corner_radius: 7,
+            )
+            Label(
+                id: "confirmation",
+                text: app.confirmation,
+                hidden: app.confirmation.len == 0,
+                height: 34,
+                color: #166534,
+                font_size: 13,
+                lines: 2,
+            )
         }
     }
 }

@@ -10,7 +10,7 @@ inputs:
     default: tomaszbk/v
   v-revision:
     description: Verified V source revision
-    default: 96be588403ea7bb794a15dd0c5d306f0cad0eef4
+    default: e96232c42146547c792d6523811e312af06aa1ce
   vc-revision:
     description: Compatible generated C bootstrap snapshot
     # Use the snapshot preceding the verified V source pin. The October 1
@@ -62,8 +62,8 @@ runs:
         git -C vc rev-parse HEAD
         git -C thirdparty/tcc rev-parse HEAD
         "$BOOTSTRAP_CC" -DCUSTOM_DEFINE_v1_fallback -std=c99 -w -o v1 vc/v.c -lm -lpthread
-        ./v1 -no-parallel -cc "$BOOTSTRAP_CC" -o v2 -gc none cmd/v
-        ./v2 -nocache -cc "$BOOTSTRAP_CC" -o v -gc none cmd/v
+        ./v1 -b c -no-parallel -cc "$BOOTSTRAP_CC" -o v2 -gc none cmd/v
+        ./v2 -b c -nocache -cc "$BOOTSTRAP_CC" -o v -gc none cmd/v
         rm -f v1 v2
         echo "$PWD" >> "$GITHUB_PATH"
         ./v version
@@ -81,9 +81,9 @@ runs:
         git -C thirdparty/tcc rev-parse HEAD
         & $env:BOOTSTRAP_CC -DCUSTOM_DEFINE_v1_fallback -std=c99 -municode -w -o v1.exe vc/v_win.c -ladvapi32 -lws2_32 -lbcrypt '-Wl,-stack=33554432'
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-        & .\v1.exe -no-parallel -cc $env:BOOTSTRAP_CC -o v2.exe -gc none cmd/v
+        & .\v1.exe -b c -no-parallel -cc $env:BOOTSTRAP_CC -o v2.exe -gc none cmd/v
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-        & .\v2.exe -nocache -cc $env:BOOTSTRAP_CC -o v.exe -gc none cmd/v
+        & .\v2.exe -b c -nocache -cc $env:BOOTSTRAP_CC -o v.exe -gc none cmd/v
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
         Remove-Item v1.exe, v2.exe
         (Get-Location).Path | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append

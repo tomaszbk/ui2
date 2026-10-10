@@ -14,7 +14,6 @@ import ui2
 
 const tray_icon_width = 640
 const tray_icon_height = 460
-const tray_icon_vml_source = $embed_file('tray_icon.vml').to_string()
 
 const tray_statuses = ['Available', 'Busy', 'Away']
 
@@ -134,14 +133,6 @@ fn on_off(value bool) string {
 	return if value { 'on' } else { 'off' }
 }
 
-fn build_tray_icon_screen() ui2.Element {
-	state := unsafe { tray_demo_state }
-	return ui2.element_from_vml_model_with_callbacks(tray_icon_vml_source, *state, ui2.bounds(), tray_icon_callbacks()) or {
-		eprintln('tray VML failed: ${err}')
-		ui2.screen(0xf1f5f9, [])
-	}
-}
-
 fn handle_tray_icon_event(event string) {
 	mut state := unsafe { tray_demo_state }
 	if !state.choose(event) {
@@ -179,7 +170,13 @@ fn main() {
 	if state.docked {
 		ui2.set_tray(state.tray_config())
 	}
-	ui2.run_window('Tray Icon', tray_icon_width, tray_icon_height, build_tray_icon_screen)
+	ui2.run_compiled_vml[TrayDemo](
+		build:  build_tray_icon
+		model:  tray_demo_state
+		title:  'Tray Icon'
+		width:  tray_icon_width
+		height: tray_icon_height
+	) or { panic(err) }
 }
 
 fn tray_callback(action string) ui2.ElementCallback {
@@ -199,4 +196,28 @@ fn tray_icon_callbacks() map[string]ui2.ElementCallback {
 		'tray_show':          tray_callback('tray_show')
 		'tray_quit':          tray_callback('tray_quit')
 	}
+}
+
+fn build_tray_icon(mut app TrayDemo) ui2.Element {
+	callbacks := tray_icon_callbacks()
+	callback_tray_show := callbacks['tray_show'] or { panic('missing tray_show callback') }
+	callback_tray_hide := callbacks['tray_hide'] or { panic('missing tray_hide callback') }
+	callback_tray_status := callbacks['tray_status'] or { panic('missing tray_status callback') }
+	callback_tray_notifications := callbacks['tray_notifications'] or { panic('missing tray_notifications callback') }
+	callback_status_available := callbacks['status_available'] or { panic('missing status_available callback') }
+	callback_status_busy := callbacks['status_busy'] or { panic('missing status_busy callback') }
+	callback_status_away := callbacks['status_away'] or { panic('missing status_away callback') }
+	return $vml('tray_icon.vml')
+}
+
+fn tray_icon_tree(mut app TrayDemo, frame ui2.Rect) ui2.Element {
+	callbacks := tray_icon_callbacks()
+	callback_tray_show := callbacks['tray_show'] or { panic('missing tray_show callback') }
+	callback_tray_hide := callbacks['tray_hide'] or { panic('missing tray_hide callback') }
+	callback_tray_status := callbacks['tray_status'] or { panic('missing tray_status callback') }
+	callback_tray_notifications := callbacks['tray_notifications'] or { panic('missing tray_notifications callback') }
+	callback_status_available := callbacks['status_available'] or { panic('missing status_available callback') }
+	callback_status_busy := callbacks['status_busy'] or { panic('missing status_busy callback') }
+	callback_status_away := callbacks['status_away'] or { panic('missing status_away callback') }
+	return $vml('tray_icon.vml', frame)
 }

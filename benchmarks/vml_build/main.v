@@ -1,10 +1,10 @@
 module main
 
+import os
 import time
 import ui2
 
-const iterations = 10_000
-const calculator_vml = $embed_file('form.vml').to_string()
+const default_iterations = 1_000
 
 struct Key {
 pub:
@@ -25,48 +25,48 @@ fn benchmark_model() Calculator {
 	for row in 0 .. 5 {
 		for column in 0 .. 4 {
 			keys << Key{
-				text: '${row * 4 + column}'
-				role: if column == 3 { 'operator' } else { 'digit' }
-				row: row
+				text:   '${row * 4 + column}'
+				role:   if column == 3 { 'operator' } else { 'digit' }
+				row:    row
 				column: column
 			}
 		}
 	}
 	return Calculator{
 		display: '12345'
-		keys: keys
+		keys:    keys
 	}
 }
 
-fn build_compiled(app &Calculator) ui2.Element {
-	return $vml('form.vml')
+fn build_compiled(mut app Calculator, frame ui2.Rect) ui2.Element {
+	return $vml('form.vml', frame)
+}
+
+fn consume_and_dispose(root ui2.Element) int {
+	checksum := root.children[0].children.len
+	if root.compiled_node != unsafe { nil } {
+		root.compiled_node.dispose_document() or { panic(err) }
+	}
+	return checksum
 }
 
 fn main() {
-	app := benchmark_model()
+	iterations := if os.args.len > 1 { os.args[1].int() } else { default_iterations }
+	if iterations <= 0 {
+		eprintln('usage: ${os.args[0]} [positive iteration count]')
+		exit(1)
+	}
+	mut app := benchmark_model()
 	frame := ui2.rect(0, 0, 800, 600)
-	mut runtime_app := ui2.new_vml_app(calculator_vml, app) or { panic(err) }
-	_ = build_compiled(&app)
-	_ = runtime_app.build(frame) or { panic(err) }
-
+	_ = consume_and_dispose(build_compiled(mut app, frame))
 	mut checksum := 0
 	mut watch := time.new_stopwatch()
 	for _ in 0 .. iterations {
-		root := runtime_app.build(frame) or { panic(err) }
-		checksum += root.children[0].children.len
+		checksum += consume_and_dispose(build_compiled(mut app, frame))
 	}
-	runtime_elapsed := watch.elapsed()
-
-	watch.restart()
-	for _ in 0 .. iterations {
-		root := build_compiled(&app)
-		checksum += root.children[0].children.len
-	}
-	compiled_elapsed := watch.elapsed()
-
+	elapsed := watch.elapsed()
 	println('iterations: ${iterations}')
-	println('runtime VML:  ${f64(runtime_elapsed) / f64(time.millisecond):.3f} ms')
-	println('compiled VML: ${f64(compiled_elapsed) / f64(time.millisecond):.3f} ms')
-	println('speedup:      ${f64(runtime_elapsed) / f64(compiled_elapsed):.2f}x')
+	println('compiled build/dispose: ${f64(elapsed) / f64(time.millisecond):.3f} ms')
+	println('per build:    ${f64(elapsed) / f64(time.microsecond) / iterations:.3f} us')
 	println('checksum:     ${checksum}')
 }

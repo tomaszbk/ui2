@@ -122,7 +122,7 @@ pub fn measure_layout_element(element Element, constraints LayoutConstraints, me
 		} else {
 			element.text
 		}
-		measured := $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headless ? {
+		measured := $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headless ? && !ui2_document_library ? {
 			// Editors wrap every row, unlike labels with a declared line limit.
 			// Keep external callbacks' original TextStyle contract unchanged.
 			if element.kind == .text_area && voidptr(measure) == voidptr(measure_layout_text) {

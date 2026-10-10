@@ -493,6 +493,23 @@ fn grid_preferred_track_extra(tracks []f64, start int, count int, preferred f64,
 	return math.max(0.0, (preferred - current) / f64(count))
 }
 
+// grid_declaration retains authored children and sizing for LayoutTree. It
+// validates the configuration before a parent assigns the available frame.
+pub fn grid_declaration(config GridConfig) !Element {
+	grid_validate_config(config, config.children.len)!
+	automatic := config.columns == 0 && config.rows == 0 && config.auto_columns_min_width > 0
+	_, _, _ := grid_resolved_cells(config, config.children.len, automatic)!
+	return grid_element(config, config.children.map(layout_declared(it)))
+}
+
+fn grid_element(config GridConfig, children []Element) Element {
+	return Element{
+		...view(config.id, config.frame, config.box, children)
+		layout_input: config.frame
+		layout:       LayoutSpec{ kind: .grid, grid: grid_layout_spec(config) }
+	}
+}
+
 // grid creates a view whose children are assigned to cells in their
 // declaration order. Child frames are replaced by the computed cell frames.
 pub fn grid(config GridConfig) !Element {
@@ -504,9 +521,5 @@ pub fn grid(config GridConfig) !Element {
 			frame: frames[index]
 		}
 	}
-	return Element{
-		...view(config.id, config.frame, config.box, children)
-		layout_input: config.frame
-		layout:       LayoutSpec{ kind: .grid, grid: grid_layout_spec(config) }
-	}
+	return grid_element(config, children)
 }

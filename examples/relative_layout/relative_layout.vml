@@ -1,48 +1,41 @@
-Screen {
-    id: root
-    background: #F1F5F9
-    Absolute {
-        transparent: true
-        Label {
-            text: "Parent-local coordinates"
-            x: 20
-            y: 16
-            width: root.width - 40
-            height: 30
-            color: #0F172A
-            font_size: 20
-            bold: true
-        }
-
-        Absolute {
-            id: panel
-            x: 70
-            y: 64
-            width: 260
-            height: 150
-            background: #FFFFFF
-            corner_radius: 12
-
-            View {
-                x: 16
-                y: 18
-                width: 88
-                height: 44
-                background: #DBEAFE
-                corner_radius: 8
-            }
-
-            Button {
-                id: centered_action
-                text: "Centered"
-                width: 110
-                height: 38
-                x: (panel.width - 110) / 2
-                y: panel.height * 0.6 - 19
-                background: #2563EB
-                color: #FFFFFF
-                corner_radius: 8
-            }
+Screen(
+    id: "root",
+    background: #F1F5F9,
+) {
+    Absolute(
+        transparent: true,
+    ) {
+        Label(
+            text: "Parent-local coordinates",
+            x: 20,
+            y: 16,
+            width: root.width - 40,
+            height: 30,
+            color: #0F172A,
+            font_size: 20,
+            bold: true,
+        )
+        Absolute(
+            id: "panel",
+            x: 70,
+            y: 64,
+            width: 260,
+            height: 150,
+            background: #FFFFFF,
+            corner_radius: 12,
+        ) {
+            View(x: 16, y: 18, width: 88, height: 44, background: #DBEAFE, corner_radius: 8)
+            Button(
+                id: "centered_action",
+                text: "Centered",
+                width: 110,
+                height: 38,
+                x: (panel.width - 110) / 2,
+                y: panel.height * 0.6 - 19,
+                background: #2563EB,
+                color: #FFFFFF,
+                corner_radius: 8,
+            )
         }
     }
 }

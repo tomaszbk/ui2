@@ -4,7 +4,6 @@ import ui2
 
 const dynamic_layout_width = 640
 const dynamic_layout_height = 420
-const dynamic_layout_vml_source = $embed_file('dynamic_layout.vml').to_string()
 
 pub struct DynamicItem {
 pub:
@@ -22,9 +21,9 @@ pub mut:
 
 fn initial_dynamic_layout() DynamicLayoutDemo {
 	return DynamicLayoutDemo{
-		items: [DynamicItem{ id: 1, label: 'Button 1' }]
+		items:   [DynamicItem{ id: 1, label: 'Button 1' }]
 		next_id: 2
-		status: '1 button'
+		status:  '1 button'
 	}
 }
 
@@ -34,7 +33,7 @@ fn (mut app DynamicLayoutDemo) update_status() {
 
 pub fn (mut app DynamicLayoutDemo) add_last() {
 	app.items << DynamicItem{
-		id: app.next_id
+		id:    app.next_id
 		label: 'Button ${app.next_id}'
 	}
 	app.next_id++
@@ -86,11 +85,20 @@ pub fn (mut app DynamicLayoutDemo) rename(id int) {
 }
 
 fn main() {
-	ui2.run_vml[DynamicLayoutDemo](
-		source: dynamic_layout_vml_source
-		model: initial_dynamic_layout()
-		title: 'Dynamic Layout'
-		width: dynamic_layout_width
+	mut app := initial_dynamic_layout()
+	ui2.run_compiled_vml[DynamicLayoutDemo](
+		build:  build_dynamic_layout
+		model:  &app
+		title:  'Dynamic Layout'
+		width:  dynamic_layout_width
 		height: dynamic_layout_height
 	) or { panic(err) }
+}
+
+fn build_dynamic_layout(mut app DynamicLayoutDemo) ui2.Element {
+	return $vml('dynamic_layout.vml')
+}
+
+fn dynamic_layout_tree(mut app DynamicLayoutDemo, frame ui2.Rect) ui2.Element {
+	return $vml('dynamic_layout.vml', frame)
 }

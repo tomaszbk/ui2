@@ -6,6 +6,8 @@
 // drawn bar without a second copy of the declaration handling.
 module ui2
 
+$if !ui2_document_library ? {
+
 import macos
 
 #flag darwin -framework AppKit
@@ -326,4 +328,6 @@ fn ui2_menu_item_chosen(_self voidptr, _cmd voidptr, sender voidptr) {
 	st := macos_menu_state()
 	pointer := u64(sender)
 	macos_emit_menu_callback(st.bar_ids[pointer] or { st.tray_ids[pointer] or { return } })
+}
+
 }

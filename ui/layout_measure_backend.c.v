@@ -6,11 +6,11 @@ module ui2
 // Like layout/build, call this on the UI thread while a window is mounted.
 pub fn measure_layout_text(text string, style TextStyle, max_width f64) !LayoutSize {
 	layout_validate_text_measurement(style, max_width)!
-	$if macos && !ui2_custom_rendering ?&& !ui2_headless ? {
+	$if macos && !ui2_custom_rendering ?&& !ui2_headless ? && !ui2_document_library ? {
 		return layout_measure_appkit_text(text, style, max_width)
-	} $else $if ( linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headless ? {
+	} $else $if ( linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headless ? && !ui2_document_library ? {
 		return layout_measure_vglyph_text(text, style, max_width)
-	} $else $if android && !ui2_headless ? {
+	} $else $if android && !ui2_headless ? && !ui2_document_library ? {
 		ctx := g_gg_app.ctx
 		if !g_gg_app.scheduler.is_closed() && ctx != unsafe { nil } && ctx.font_inited {
 			ensure_symbol_fallbacks(ctx)
@@ -19,12 +19,12 @@ pub fn measure_layout_text(text string, style TextStyle, max_width f64) !LayoutS
 			})
 		}
 	}
-	$if !( linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) || ui2_headless ? {
+	$if !( linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) || ui2_headless ? || ui2_document_library ? {
 		return layout_measure_cpu_text(text, style, max_width)
 	}
 }
 
-$if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headless ? {
+$if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headless ? && !ui2_document_library ? {
 	fn layout_measure_custom_text_area(text string, style TextStyle, max_width f64) !LayoutSize {
 		layout_validate_text_measurement(style, max_width)!
 		$if !android {

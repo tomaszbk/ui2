@@ -1,5 +1,7 @@
 module ui2
 
+$if !ui2_document_library ? {
+
 import macos
 
 // Barcode scanning is a port of the AVFoundation view controller that used
@@ -388,4 +390,6 @@ fn vui_scanner_metadata(_self voidptr, _cmd voidptr, _output voidptr, objects vo
 		report_scan_code(code)
 		return
 	}
+}
+
 }

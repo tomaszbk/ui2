@@ -4,7 +4,6 @@ import ui2
 
 const switch_width = 320
 const switch_height = 160
-const switch_vml_source = $embed_file('switch.vml').to_string()
 
 pub struct SwitchDemo {
 pub mut:
@@ -12,11 +11,20 @@ pub mut:
 }
 
 fn main() {
-	ui2.run_vml[SwitchDemo](
-		source: switch_vml_source
-		model: SwitchDemo{}
-		title: 'Switch'
-		width: switch_width
+	mut app := SwitchDemo{}
+	ui2.run_compiled_vml[SwitchDemo](
+		build:  build_switch
+		model:  &app
+		title:  'Switch'
+		width:  switch_width
 		height: switch_height
 	) or { panic(err) }
+}
+
+fn build_switch(mut app SwitchDemo) ui2.Element {
+	return $vml('switch.vml')
+}
+
+fn switch_tree(mut app SwitchDemo, frame ui2.Rect) ui2.Element {
+	return $vml('switch.vml', frame)
 }

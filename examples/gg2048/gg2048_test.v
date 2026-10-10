@@ -37,8 +37,8 @@ fn test_2048_moves_board_adds_tile_and_resets() {
 }
 
 fn test_2048_vml_builds_responsive_board_and_native_controls() {
-	app := initial_2048()
-	root := ui2.element_from_vml_model(game_2048_vml_source, app, ui2.rect(0, 0, game_2048_width, game_2048_height)) or { panic(err) }
+	mut app := initial_2048()
+	root := gg2048_tree(mut app, ui2.rect(0, 0, game_2048_width, game_2048_height))
 	ui2.validate_element_tree(root) or { panic(err) }
 	board := find_2048_element(root, 'board') or { panic('missing board') }
 	assert board.children[0].children.len == 18

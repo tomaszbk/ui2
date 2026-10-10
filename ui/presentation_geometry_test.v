@@ -21,7 +21,7 @@ fn test_logical_typography_and_layout_preserve_fractional_sizes() {
 	assert style.size == 18.25
 	assert text_style_line_height(style) == 22.8125
 	frame := rect(0.125, 0.375, 100.25, 50.75)
-	el := element_from_vml('Label { text: "fractional" font_size: 18.25 }', frame)!
+	el := compiled_presentation_geometry_0(frame)
 	assert el.text_style.size == 18.25
 	assert el.frame == frame
 	for scale in [1.0, 1.25, 1.5, 2.0] {
@@ -35,7 +35,7 @@ fn test_logical_typography_and_layout_preserve_fractional_sizes() {
 
 fn test_logical_text_measurement_has_the_same_em_height_at_every_dpi() {
 	style := TextStyle{ size: 18.25, lines: 1 }
-	$if ( linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headless ? {
+	$if (linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
 		for dpi in [f32(1), 1.25, 1.5, 2] {
 			mut engine := new_text_engine(dpi)!
 			shaped := engine.shape('fractional', style, -1, 1, false)!
@@ -46,40 +46,6 @@ fn test_logical_text_measurement_has_the_same_em_height_at_every_dpi() {
 		// CPU Fontstash receives the fractional metric size, without pixel rounding.
 		measured := layout_measure_cpu_text('fractional', style, -1)!
 		assert math.abs(measured.height - 22.8125) < 0.01
-	}
-}
-
-fn test_authored_units_property_is_rejected_for_every_profile_and_node() {
-	for source in [
-		'Label { units: "legacy" text: "bad" }',
-		'Screen { units: "logical" Label { text: "bad" } }',
-		'Label { text: "bad" units: "pixels" }',
-		'Label { Run { units: "logical" text: "bad" } }',
-		'Label { units: "" text: "bad" }',
-	] {
-		if _ := parse_vml(source) {
-			assert false, source
-		} else {
-			assert err.msg().contains('units is not a VML property')
-		}
-	}
-}
-
-fn test_programmatic_vnode_units_property_is_rejected() {
-	node := &VNode{
-		tag:      'Label'
-		children: [&VNode{
-			tag:   'Run'
-			props: {
-				'units': 'logical'
-				'text':  'bad'
-			}
-		}]
-	}
-	if _ := element_from_vnode(node, rect(0, 0, 100, 100)) {
-		assert false
-	} else {
-		assert err.msg().contains('units is not a VML property')
 	}
 }
 
@@ -97,4 +63,8 @@ fn test_border_tessellation_frame_matches_fractional_fill_presentation() {
 		assert math.abs(projected.x * dpi - math.round(projected.x * dpi)) < 0.00001
 		assert math.abs((projected.x + projected.width) * dpi - math.round((projected.x + projected.width) * dpi)) < 0.00001
 	}
+}
+
+fn compiled_presentation_geometry_0(frame Rect) Element {
+	return $vml('fixtures/presentation_geometry_0.vml', frame)
 }

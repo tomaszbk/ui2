@@ -15,7 +15,8 @@ fn find_rectangle_element(element ui2.Element, id string) ?ui2.Element {
 }
 
 fn test_rectangles_vml_preserves_the_original_palette() {
-	root := ui2.element_from_vml_model(rectangles_vml_source, RectanglesDemo{}, ui2.rect(0, 0, rectangles_width, rectangles_height)) or { panic(err) }
+	mut compiled_model_0 := RectanglesDemo{}
+	root := rectangles_tree(mut compiled_model_0, ui2.rect(0, 0, rectangles_width, rectangles_height))
 	ui2.validate_element_tree(root) or { panic(err) }
 
 	red := find_rectangle_element(root, 'red') or { panic('missing red rectangle') }

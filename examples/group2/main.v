@@ -4,14 +4,13 @@ import ui2
 
 const group2_width = 680
 const group2_height = 370
-const group2_vml_source = $embed_file('group2.vml').to_string()
 
 pub struct Group2Demo {
 pub mut:
 	first_ipsum  string
 	second_ipsum string
 	full_name    string
-	likes_v      bool = true
+	likes_v      bool   = true
 	status       string = 'Fill either group to try the controls.'
 }
 
@@ -36,11 +35,20 @@ pub fn (mut app Group2Demo) submit() {
 }
 
 fn main() {
-	ui2.run_vml[Group2Demo](
-		source: group2_vml_source
-		model: Group2Demo{}
-		title: 'Group 2 Demo'
-		width: group2_width
+	mut app := Group2Demo{}
+	ui2.run_compiled_vml[Group2Demo](
+		build:  build_group2
+		model:  &app
+		title:  'Group 2 Demo'
+		width:  group2_width
 		height: group2_height
 	) or { panic(err) }
+}
+
+fn build_group2(mut app Group2Demo) ui2.Element {
+	return $vml('group2.vml')
+}
+
+fn group2_tree(mut app Group2Demo, frame ui2.Rect) ui2.Element {
+	return $vml('group2.vml', frame)
 }

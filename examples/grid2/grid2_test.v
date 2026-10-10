@@ -15,7 +15,7 @@ fn find_grid2_element(element ui2.Element, id string) ?ui2.Element {
 }
 
 fn test_grid2_builds_typed_columns_for_every_record() {
-	app := grid2_demo()
+	mut app := grid2_demo()
 	assert app.rows.len == grid2_row_count
 	assert app.columns.map(it.key) == ['v1', 'v2', 'sex', 'worker', 'csp']
 	assert app.rows[0].v1 == 'toto'
@@ -23,7 +23,7 @@ fn test_grid2_builds_typed_columns_for_every_record() {
 	assert app.rows[0].worker == 'yes'
 	assert app.rows[0].csp == 'job1'
 	assert app.rows[2].worker == 'no'
-	assert app.rows[1].stripe == '#F8FAFC'
+	assert app.rows[1].stripe == u32(0xF8FAFC)
 	assert app.status == '32 rows · sorted by row order · row 1 selected'
 }
 
@@ -67,9 +67,9 @@ fn test_grid2_editing_writes_back_to_the_selected_record() {
 }
 
 fn test_grid2_vml_scrolls_the_body_and_repeats_sortable_headers() {
-	app := grid2_demo()
+	mut app := grid2_demo()
 	frame := ui2.rect(0, 0, grid2_width, grid2_height)
-	root := ui2.element_from_vml_model(grid2_vml_source, app, frame) or { panic(err) }
+	root := grid2_tree(mut app, frame)
 	ui2.validate_element_tree(root) or { panic(err) }
 	header := find_grid2_element(root, 'header') or { panic('missing header') }
 	assert header.children[0].children.len == 6
@@ -92,10 +92,8 @@ fn test_grid2_vml_scrolls_the_body_and_repeats_sortable_headers() {
 }
 
 fn test_grid2_vml_compact_editor_keeps_fields_and_worker_checkbox_separate() {
-	app := grid2_demo()
-	root := ui2.element_from_vml_model(grid2_vml_source, app, ui2.rect(0, 0, 524, grid2_height)) or {
-		panic(err)
-	}
+	mut app := grid2_demo()
+	root := grid2_tree(mut app, ui2.rect(0, 0, 524, grid2_height))
 	ui2.validate_element_tree(root) or { panic(err) }
 	v1 := find_grid2_element(root, 'edit_v1') or { panic('missing first editor field') }
 	v2 := find_grid2_element(root, 'edit_v2') or { panic('missing second editor field') }

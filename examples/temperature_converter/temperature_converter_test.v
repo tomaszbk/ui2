@@ -40,11 +40,11 @@ fn test_temperature_rejects_invalid_input() {
 }
 
 fn test_temperature_vml_builds_bound_fields() {
-	app := TemperatureConverter{
+	mut app := TemperatureConverter{
 		celsius:    '20'
 		fahrenheit: '68'
 	}
-	root := temperature_converter_test_tree(temperature_vml_source, app, ui2.rect(0, 0, temperature_width, temperature_height)) or { panic(err) }
+	root := temperature_converter_tree(mut app, ui2.rect(0, 0, temperature_width, temperature_height))
 	celsius := find_temperature_element(root, 'celsius') or { panic('missing Celsius field') }
 	fahrenheit := find_temperature_element(root, 'fahrenheit') or {
 		panic('missing Fahrenheit field')
@@ -52,9 +52,4 @@ fn test_temperature_vml_builds_bound_fields() {
 	assert celsius.text == '20'
 	assert fahrenheit.text == '68'
 	assert voidptr(celsius.on_event) != unsafe { nil }
-}
-
-fn temperature_converter_test_tree[T](source string, model T, frame ui2.Rect) !ui2.Element {
-	mut app := ui2.new_vml_app(source, model)!
-	return app.build(frame)!
 }

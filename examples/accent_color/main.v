@@ -4,7 +4,6 @@ import ui2
 
 const accent_color_width = 800
 const accent_color_height = 600
-const accent_color_vml_source = $embed_file('accent_color.vml').to_string()
 // The three tracks share one geometry, so a pointer position converts with the
 // card inset plus the label gutter in front of them.
 const track_root_x = 92.0
@@ -15,7 +14,7 @@ pub:
 	key   string
 	index int
 	role  string
-	color string
+	color u32
 	label string
 }
 
@@ -28,10 +27,10 @@ pub mut:
 	red_ratio   f64
 	green_ratio f64
 	blue_ratio  f64
-	accent      string
-	shade       string
-	tint        string
-	font_color  string
+	accent      u32
+	shade       u32
+	tint        u32
+	font_color  u32
 	on_dark     bool
 	swatches    []AccentSwatch
 	subscribed  bool   = true
@@ -41,19 +40,8 @@ pub mut:
 
 const accent_color_state = &AccentColorDemo{}
 
-fn hex_channel(value int) string {
-	clamped := if value < 0 {
-		0
-	} else if value > 255 {
-		255
-	} else {
-		value
-	}
-	return '${clamped:02X}'
-}
-
-fn accent_hex(red int, green int, blue int) string {
-	return '#' + hex_channel(red) + hex_channel(green) + hex_channel(blue)
+fn accent_hex(red int, green int, blue int) u32 {
+	return (u32(clamp_channel(red)) << 16) | (u32(clamp_channel(green)) << 8) | u32(clamp_channel(blue))
 }
 
 // derive builds the four-color scheme the original example asks the window for:
@@ -66,7 +54,7 @@ fn (mut app AccentColorDemo) derive() {
 	// The original divides only the blue channel before comparing, which reads
 	// as a slip; averaging all three is what keeps the caption legible.
 	app.on_dark = (app.red + app.green + app.blue) / 3 < 128
-	app.font_color = if app.on_dark { '#FFFFFF' } else { '#111111' }
+	app.font_color = if app.on_dark { u32(0xffffff) } else { u32(0x111111) }
 	app.red_ratio = f64(app.red) / 255.0
 	app.green_ratio = f64(app.green) / 255.0
 	app.blue_ratio = f64(app.blue) / 255.0
@@ -100,7 +88,7 @@ fn (mut app AccentColorDemo) derive() {
 			label: '3 · font'
 		},
 	]
-	app.status = 'Accent ${app.accent} · shade ${app.shade} · tint ${app.tint} · font ${app.font_color}'
+	app.status = 'Accent #${app.accent:06X} · shade #${app.shade:06X} · tint #${app.tint:06X} · font #${app.font_color:06X}'
 }
 
 fn accent_color_demo() AccentColorDemo {
@@ -148,7 +136,7 @@ pub fn (mut app AccentColorDemo) reset() {
 	app.green = 40
 	app.blue = 150
 	app.derive()
-	app.status = 'Accent reset to ' + app.accent + '.'
+	app.status = 'Accent reset to #${app.accent:06X}.'
 }
 
 pub fn (mut app AccentColorDemo) toggle_subscribed() {
@@ -194,24 +182,48 @@ fn accent_color_callbacks() map[string]ui2.ElementCallback {
 	}
 }
 
-fn build_accent_color_screen() ui2.Element {
-	state := unsafe { accent_color_state }
-	return ui2.element_from_vml_model_with_callbacks(accent_color_vml_source, *state, ui2.bounds(), accent_color_callbacks()) or {
-		eprintln('accent-color VML failed: ${err}')
-		ui2.screen(0xf1f5f9, [])
-	}
-}
-
 fn main() {
 	mut state := unsafe { accent_color_state }
 	unsafe {
 		*state = accent_color_demo()
 	}
-	ui2.run_window('Accent Color', accent_color_width, accent_color_height, build_accent_color_screen)
+	ui2.run_compiled_vml[AccentColorDemo](
+		build:  build_accent_color
+		model:  accent_color_state
+		title:  'Accent Color'
+		width:  accent_color_width
+		height: accent_color_height
+	) or { panic(err) }
 }
 
 fn (mut app AccentColorDemo) track_channel(channel string, event ui2.ElementEvent, track_width f64) {
 	if event.kind in [.pointer_down, .pointer_drag, .pointer_up] && track_width > 0 {
 		app.set_fraction(channel, (event.x - track_root_x) / track_width)
 	}
+}
+
+fn build_accent_color(mut app AccentColorDemo) ui2.Element {
+	callbacks := accent_color_callbacks()
+	callback_reset := callbacks['reset'] or { panic('missing reset callback') }
+	callback_track_red := callbacks['track_red'] or { panic('missing track_red callback') }
+	callback_track_green := callbacks['track_green'] or { panic('missing track_green callback') }
+	callback_track_blue := callbacks['track_blue'] or { panic('missing track_blue callback') }
+	callback_subscribe := callbacks['subscribe'] or { panic('missing subscribe callback') }
+	callback_sample_input := callbacks['sample_input'] or { panic('missing sample_input callback') }
+	return $vml('accent_color.vml')
+}
+
+fn accent_color_tree(mut app AccentColorDemo, frame ui2.Rect) ui2.Element {
+	callbacks := accent_color_callbacks()
+	callback_reset := callbacks['reset'] or { panic('missing reset callback') }
+	callback_track_red := callbacks['track_red'] or { panic('missing track_red callback') }
+	callback_track_green := callbacks['track_green'] or { panic('missing track_green callback') }
+	callback_track_blue := callbacks['track_blue'] or { panic('missing track_blue callback') }
+	callback_subscribe := callbacks['subscribe'] or { panic('missing subscribe callback') }
+	callback_sample_input := callbacks['sample_input'] or { panic('missing sample_input callback') }
+	return $vml('accent_color.vml', frame)
+}
+
+pub fn (app &AccentColorDemo) display_color() string {
+	return '#${app.accent:06X}'
 }

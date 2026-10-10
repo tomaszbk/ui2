@@ -4,7 +4,6 @@ import ui2
 
 const treeview_width = 680
 const treeview_height = 480
-const treeview_vml_source = $embed_file('treeview.vml').to_string()
 
 pub struct TreeNode {
 pub:
@@ -79,10 +78,10 @@ fn (mut app TreeviewDemo) refresh_visible() {
 	for node in app.nodes {
 		if tree_node_visible(app.nodes, node) {
 			rows << TreeRow{
-				id: node.id
-				title: node.title
-				depth: node.depth
-				folder: node.folder
+				id:       node.id
+				title:    node.title
+				depth:    node.depth
+				folder:   node.folder
 				expanded: node.expanded
 			}
 		}
@@ -110,11 +109,20 @@ pub fn (mut app TreeviewDemo) select_node(id int) {
 }
 
 fn main() {
-	ui2.run_vml[TreeviewDemo](
-		source: treeview_vml_source
-		model: initial_treeview()
-		title: 'Tree View'
-		width: treeview_width
+	mut app := initial_treeview()
+	ui2.run_compiled_vml[TreeviewDemo](
+		build:  build_treeview
+		model:  &app
+		title:  'Tree View'
+		width:  treeview_width
 		height: treeview_height
 	) or { panic(err) }
+}
+
+fn build_treeview(mut app TreeviewDemo) ui2.Element {
+	return $vml('treeview.vml')
+}
+
+fn treeview_tree(mut app TreeviewDemo, frame ui2.Rect) ui2.Element {
+	return $vml('treeview.vml', frame)
 }

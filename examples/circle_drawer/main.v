@@ -5,7 +5,6 @@ import ui2
 
 const circle_drawer_width = 680
 const circle_drawer_height = 520
-const circle_drawer_vml_source = $embed_file('circle_drawer.vml').to_string()
 const circle_canvas_root_x = 34.0
 const circle_canvas_root_y = 92.0
 
@@ -14,7 +13,7 @@ pub:
 	id    int
 	x     f64
 	y     f64
-	color string
+	color u32
 pub mut:
 	radius f64
 }
@@ -58,8 +57,8 @@ fn (app &CircleDrawerDemo) circle_at(x f64, y f64) int {
 	return -1
 }
 
-fn circle_color(id int) string {
-	colors := ['#BFDBFE', '#BBF7D0', '#FDE68A', '#FBCFE8', '#DDD6FE']
+fn circle_color(id int) u32 {
+	colors := [u32(0xbfdbfe), u32(0xbbf7d0), u32(0xfde68a), u32(0xfbcfe8), u32(0xddd6fe)]
 	return colors[(id - 1) % colors.len]
 }
 
@@ -181,14 +180,32 @@ fn circle_drawer_callbacks() map[string]ui2.ElementCallback {
 	}
 }
 
-fn build_circle_drawer_screen() ui2.Element {
-	state := unsafe { circle_drawer_state }
-	return ui2.element_from_vml_model_with_callbacks(circle_drawer_vml_source, *state, ui2.bounds(), circle_drawer_callbacks()) or {
-		eprintln('circle-drawer VML failed: ${err}')
-		ui2.screen(0xf1f5f9, [])
-	}
+fn main() {
+	ui2.run_compiled_vml[CircleDrawerDemo](
+		build:  build_circle_drawer
+		model:  circle_drawer_state
+		title:  'Circle Drawer'
+		width:  circle_drawer_width
+		height: circle_drawer_height
+	) or { panic(err) }
 }
 
-fn main() {
-	ui2.run_window('Circle Drawer', circle_drawer_width, circle_drawer_height, build_circle_drawer_screen)
+fn build_circle_drawer(mut app CircleDrawerDemo) ui2.Element {
+	callbacks := circle_drawer_callbacks()
+	callback_undo := callbacks['undo'] or { panic('missing undo callback') }
+	callback_redo := callbacks['redo'] or { panic('missing redo callback') }
+	callback_radius_less := callbacks['radius_less'] or { panic('missing radius_less callback') }
+	callback_radius_more := callbacks['radius_more'] or { panic('missing radius_more callback') }
+	callback_circle_canvas := callbacks['circle_canvas'] or { panic('missing circle_canvas callback') }
+	return $vml('circle_drawer.vml')
+}
+
+fn circle_drawer_tree(mut app CircleDrawerDemo, frame ui2.Rect) ui2.Element {
+	callbacks := circle_drawer_callbacks()
+	callback_undo := callbacks['undo'] or { panic('missing undo callback') }
+	callback_redo := callbacks['redo'] or { panic('missing redo callback') }
+	callback_radius_less := callbacks['radius_less'] or { panic('missing radius_less callback') }
+	callback_radius_more := callbacks['radius_more'] or { panic('missing radius_more callback') }
+	callback_circle_canvas := callbacks['circle_canvas'] or { panic('missing circle_canvas callback') }
+	return $vml('circle_drawer.vml', frame)
 }

@@ -1,3 +1,4 @@
+// vtest vflags: -d ui2_custom_rendering
 module main
 
 import ui2
@@ -32,16 +33,12 @@ fn test_calculate_model_reports_errors_and_recovers() {
 }
 
 fn test_calculate_vml_has_submit_and_native_actions() {
-	root := calculate_test_tree(calculate_vml_source, CalculateDemo{}, ui2.rect(0, 0, calculate_width, calculate_height)) or { panic(err) }
+	mut compiled_model_0 := CalculateDemo{}
+	root := calculate_tree(mut compiled_model_0, ui2.rect(0, 0, calculate_width, calculate_height))
 	ui2.validate_element_tree(root) or { panic(err) }
 	field := find_calculate_element(root, 'expression') or { panic('missing expression field') }
 	result := find_calculate_element(root, 'result') or { panic('missing result') }
 	assert voidptr(field.on_event) != unsafe { nil }
 	assert result.text == '5.325'
 	assert (find_calculate_element(root, 'evaluate') or { panic('missing evaluate button') }).native_style
-}
-
-fn calculate_test_tree[T](source string, model T, frame ui2.Rect) !ui2.Element {
-	mut app := ui2.new_vml_app(source, model)!
-	return app.build(frame)!
 }

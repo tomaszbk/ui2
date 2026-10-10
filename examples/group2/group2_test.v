@@ -28,7 +28,8 @@ fn test_group2_fills_ipsum_and_validates_submission() {
 }
 
 fn test_group2_vml_contains_bound_groups_and_native_buttons() {
-	root := ui2.element_from_vml_model(group2_vml_source, Group2Demo{}, ui2.rect(0, 0, group2_width, group2_height)) or { panic(err) }
+	mut compiled_model_0 := Group2Demo{}
+	root := group2_tree(mut compiled_model_0, ui2.rect(0, 0, group2_width, group2_height))
 	ui2.validate_element_tree(root) or { panic(err) }
 
 	first := find_group2_element(root, 'first_group') or { panic('missing first group') }

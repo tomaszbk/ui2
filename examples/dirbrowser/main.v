@@ -5,7 +5,6 @@ import ui2
 
 const dirbrowser_width = 720
 const dirbrowser_height = 480
-const dirbrowser_vml_source = $embed_file('dirbrowser.vml').to_string()
 
 pub struct DirectoryEntry {
 pub:
@@ -36,7 +35,7 @@ fn (mut app DirectoryBrowserDemo) load_directory(path string) ! {
 		full_path := os.join_path(real_path, name)
 		if os.is_dir(full_path) {
 			entries << DirectoryEntry{
-				id: entries.len + 1
+				id:   entries.len + 1
 				name: name
 				path: full_path
 			}
@@ -70,11 +69,20 @@ pub fn (mut app DirectoryBrowserDemo) choose_current() {
 }
 
 fn main() {
-	ui2.run_vml[DirectoryBrowserDemo](
-		source: dirbrowser_vml_source
-		model: directory_browser_at(os.getwd())
-		title: 'Directory Browser'
-		width: dirbrowser_width
+	mut app := directory_browser_at(os.getwd())
+	ui2.run_compiled_vml[DirectoryBrowserDemo](
+		build:  build_dirbrowser
+		model:  &app
+		title:  'Directory Browser'
+		width:  dirbrowser_width
 		height: dirbrowser_height
 	) or { panic(err) }
+}
+
+fn build_dirbrowser(mut app DirectoryBrowserDemo) ui2.Element {
+	return $vml('dirbrowser.vml')
+}
+
+fn dirbrowser_tree(mut app DirectoryBrowserDemo, frame ui2.Rect) ui2.Element {
+	return $vml('dirbrowser.vml', frame)
 }

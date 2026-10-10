@@ -128,9 +128,8 @@ fn build_window(model WindowModel, on_change ui2.ElementCallback, on_animate ui2
 		box:         box
 		text_style:  editor_style
 		keyboard:    0
-		multiline:   false
 	) or { panic(err) }
-	area := ui2.text_input(
+	area := ui2.text_area(
 		id:         'editor'
 		on_event:   on_change
 		text:       '${model.name} declared body'
@@ -138,7 +137,6 @@ fn build_window(model WindowModel, on_change ui2.ElementCallback, on_animate ui2
 			70)
 		box:        box
 		text_style: editor_style
-		multiline:  true
 	) or { panic(err) }
 	mut rows := []ui2.Element{}
 	for index in 0 .. 30 {
@@ -430,7 +428,6 @@ fn dispatcher_only_window(probe &GcLifetimeProbe) ui2.UiDispatcher {
 					box:         ui2.BoxStyle{ bg: 0xe2e8f0 }
 					text_style:  ui2.TextStyle{ size: 14 }
 					keyboard:    0
-					multiline:   false
 				) or { panic(err) },
 			])
 		}) or { panic(err) }

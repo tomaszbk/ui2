@@ -4,7 +4,7 @@
 @[has_globals]
 module ui2
 
-$if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headless ? {
+$if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headless ? && !ui2_document_library ? {
 	import gg
 	import math
 	import sokol.sapp
@@ -423,6 +423,12 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		g_gg_app.scheduler.invalidate(.layout)
 	}
 
+	fn refresh_compiled_element(node &CompiledVmlNode, element Element) {
+		if g_gg_app.scheduler.is_closed() { return }
+		g_gg_app.layout_patches << LayoutPatch{ compiled: node, element: element }
+		g_gg_app.scheduler.invalidate(.layout)
+	}
+
 	pub fn layout_stats() LayoutStats { return g_gg_app.layout_tree.stats() }
 
 	pub fn invalidate_layout_environment(environment LayoutEnvironment) {
@@ -760,6 +766,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 
 	fn on_cleanup(app &GgApp) {
 		cancel_drag_session(.cancelled)
+		dispose_compiled_vml()
 		app.scheduler.close()
 		g_drag_registry = DragRegistry{}
 		mut state := unsafe { app }
@@ -851,7 +858,11 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 			if !dispatch.valid() || app.ctx != ctx || (ctx != unsafe { nil } && !custom_layout_owner_current(dispatch,ctx,input)) {
 				return error('layout frame canceled')
 			}
-			app.layout_tree.patch(patch.id, element) or { eprintln('ui2 layout: ${err}'); continue }
+			if patch.compiled != unsafe { nil } {
+				app.layout_tree.patch_compiled(patch.compiled, element) or { eprintln('ui2 layout: ${err}'); continue }
+			} else {
+				app.layout_tree.patch(patch.id, element) or { eprintln('ui2 layout: ${err}'); continue }
+			}
 			app.declared_root = app.layout_tree.declaration()
 		}
 		resolved := app.layout_tree.resolve(LayoutConstraints{}, measure, app.layout_environment)!

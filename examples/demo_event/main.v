@@ -1,10 +1,10 @@
+// ui2 profiles: custom (custom font family)
 module main
 
 import ui2
 
 const demo_event_width = 680
 const demo_event_height = 500
-const demo_event_vml_source = $embed_file('demo_event.vml').to_string()
 
 @[heap]
 pub struct DemoEvent {
@@ -53,14 +53,6 @@ fn demo_event_callbacks() map[string]ui2.ElementCallback {
 	}
 }
 
-fn build_demo_event_screen() ui2.Element {
-	state := unsafe { demo_event_state }
-	return ui2.element_from_vml_model_with_callbacks(demo_event_vml_source, *state, ui2.bounds(), demo_event_callbacks()) or {
-		eprintln('event-demo VML failed: ${err}')
-		ui2.screen(0xf1f5f9, [])
-	}
-}
-
 fn handle_demo_key(key string) {
 	mut state := unsafe { demo_event_state }
 	state.record_key(key)
@@ -69,7 +61,13 @@ fn handle_demo_key(key string) {
 
 fn main() {
 	ui2.on_key(handle_demo_key)
-	ui2.run_window('Event Inspector', demo_event_width, demo_event_height, build_demo_event_screen)
+	ui2.run_compiled_vml[DemoEvent](
+		build:  build_demo_event
+		model:  demo_event_state
+		title:  'Event Inspector'
+		width:  demo_event_width
+		height: demo_event_height
+	) or { panic(err) }
 }
 
 fn (mut app DemoEvent) clear_events() {
@@ -89,4 +87,20 @@ fn (mut app DemoEvent) record_pointer(event ui2.ElementEvent) {
 	app.last_event = 'Pointer ${phase} at (${event.x:g}, ${event.y:g}).'
 	app.pointer_events++
 	app.append_history(app.last_event)
+}
+
+fn build_demo_event(mut app DemoEvent) ui2.Element {
+	callbacks := demo_event_callbacks()
+	callback_sample_button := callbacks['sample_button'] or { panic('missing sample_button callback') }
+	callback_clear := callbacks['clear'] or { panic('missing clear callback') }
+	callback_event_surface := callbacks['event_surface'] or { panic('missing event_surface callback') }
+	return $vml('demo_event.vml')
+}
+
+fn demo_event_tree(mut app DemoEvent, frame ui2.Rect) ui2.Element {
+	callbacks := demo_event_callbacks()
+	callback_sample_button := callbacks['sample_button'] or { panic('missing sample_button callback') }
+	callback_clear := callbacks['clear'] or { panic('missing clear callback') }
+	callback_event_surface := callbacks['event_surface'] or { panic('missing event_surface callback') }
+	return $vml('demo_event.vml', frame)
 }

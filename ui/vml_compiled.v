@@ -1,101 +1,10 @@
 module ui2
 
-// Compiled lowering passes typed declarations directly to callback factories.
-// Event identity stays in Element.id and is never encoded into a routing string.
-pub type CompiledVmlArgument = int | string
-
-pub struct CompiledVmlCallbackConfig {
-pub:
-	binding_property string
-	binding_target   string
-	action_name      string
-	arguments        []CompiledVmlArgument
-	argument_path    string
-	group_targets    []string
-}
-
-pub fn compiled_vml_callback[T](mut model T, config CompiledVmlCallbackConfig) ElementCallback {
-	return fn [mut model, config] [T](event ElementEvent) {
-		vml_apply_compiled_event[T](mut model, config, event) or {
-			eprintln('ui2 compiled VML event failed: ${err}')
-			return
-		}
-		request_refresh()
-	}
-}
-
-fn vml_apply_compiled_event[T](mut model T, config CompiledVmlCallbackConfig, event ElementEvent) ! {
-	if config.binding_property.len > 0 {
-		value := match config.binding_property {
-			'checked', 'active', 'pressed' { v_bool(event.checked) }
-			'text' { v_string(event.text) }
-			'value' { v_number(event.value, slider_number(event.value)) }
-			else { return error('unsupported compiled VML binding `${config.binding_property}`') }
-		}
-		vml_set_field[T](mut model, config.binding_target.all_after('app.'), value)!
-		if config.binding_property == 'pressed' && event.checked {
-			for target in config.group_targets {
-				if target != config.binding_target {
-					vml_set_field[T](mut model, target.all_after('app.'), v_bool(false))!
-				}
-			}
-		}
-	}
-	mut arguments := config.arguments.clone()
-	if config.argument_path.len > 0 {
-		argument := v_lookup({
-			'app': v_value_from(model)
-		}, config.argument_path, 0)!
-		arguments = if argument.kind == .number {
-			[CompiledVmlArgument(int(argument.numeric(0)!))]
-		} else {
-			[CompiledVmlArgument(argument.string_value())]
-		}
-	}
-	if config.action_name.len > 0 {
-		vml_dispatch_compiled[T](mut model, config.action_name, arguments)!
-	}
-}
-
-fn vml_dispatch_compiled[T](mut model T, name string, arguments []CompiledVmlArgument) ! {
-	$for method in T.methods {
-		if method.name == name {
-			$if method.is_pub && method.typ is fn ( ) {
-				if arguments.len != 0 { return error('app action `${name}` expects no arguments') }
-				model.$method()
-				return
-			} $else $if method.is_pub && method.typ is fn ( int ) {
-				if arguments.len != 1 {
-					return error('app action `${name}` expects one int argument')
-				}
-				argument := arguments[0]
-				if argument is int {
-					model.$method(argument)
-					return
-				}
-				return error('app action `${name}` expects one int argument')
-			} $else $if method.is_pub && method.typ is fn ( string ) {
-				if arguments.len != 1 {
-					return error('app action `${name}` expects one string argument')
-				}
-				argument := arguments[0]
-				if argument is string {
-					model.$method(argument)
-					return
-				}
-				return error('app action `${name}` expects one string argument')
-			} $else {
-				return error('app action `${name}` has an unsupported signature')
-			}
-		}
-	}
-	return error('unknown app action `${name}`')
-}
-
 pub struct CompiledVmlRunConfig[T] {
 pub:
-	model      T
+	model      &T                 = unsafe { nil }
 	build      fn (mut T) Element = unsafe { nil }
+	update     fn (mut T)         = unsafe { nil }
 	title      string             = 'App'
 	width      int                = 400
 	height     int                = 800
@@ -105,38 +14,93 @@ pub:
 
 @[heap]
 struct CompiledVmlController[T] {
-	build fn (mut T) Element = unsafe { nil }
+	build  fn (mut T) Element = unsafe { nil }
+	update fn (mut T)         = unsafe { nil }
 mut:
-	model T
+	model &T               = unsafe { nil }
+	node  &CompiledVmlNode = unsafe { nil }
 }
 
 @[heap]
 struct CompiledVmlRuntime {
 mut:
-	controller voidptr
+	controller     voidptr
+	root           &CompiledVmlNode = unsafe { nil }
+	initial_bounds ?Rect
 }
 
 const compiled_vml_runtime_singleton = &CompiledVmlRuntime{}
 
 fn compiled_vml_runtime() &CompiledVmlRuntime { return unsafe { compiled_vml_runtime_singleton } }
 
+// Before a native window exists, compile validation uses its configured logical
+// viewport. Ordinary builders and explicit template frames still use bounds().
+$if !ui2_document_library ? {
+pub fn vml_bounds() Rect {
+	if frame := compiled_vml_runtime().initial_bounds { return frame }
+	return bounds()
+}
+}
+
+
+$if !ui2_document_library ? {
 fn compiled_vml_controller_build[T]() Element {
 	runtime := compiled_vml_runtime()
 	mut controller := unsafe { &CompiledVmlController[T](runtime.controller) }
-	return controller.build(mut controller.model)
+	if controller.update != unsafe { nil } { controller.update(mut controller.model) }
+	if controller.node == unsafe { nil } {
+		declaration := controller.build(mut controller.model)
+		if declaration.compiled_node == unsafe { nil } { return declaration }
+		controller.node = declaration.compiled_node
+		mut live := compiled_vml_runtime()
+		live.root = controller.node
+	}
+	controller.node.update_viewport(vml_bounds()) or { eprintln('ui2 compiled VML viewport failed: ${err}') }
+	controller.node.mount() or { eprintln('ui2 compiled VML mount failed: ${err}') }
+	controller.node.component.invalidate_app() or { eprintln('ui2 compiled VML app update failed: ${err}') }
+	return controller.node.element()
+}
+}
+
+
+// Backend shutdown drops subscriptions and component-owned captures before
+// native termination. Calling this again after the run loop returns is safe.
+pub fn dispose_compiled_vml() {
+	mut runtime := compiled_vml_runtime()
+	runtime.controller = unsafe { nil }
+	if runtime.root == unsafe { nil } { return }
+	mut root := runtime.root
+	runtime.root = unsafe { nil }
+	root.dispose_document() or { eprintln('ui2 compiled VML cleanup failed: ${err}') }
 }
 
 // The compiled builder attaches its callbacks while borrowing this live model.
+$if !ui2_document_library ? {
 pub fn run_compiled_vml[T](config CompiledVmlRunConfig[T]) ! {
+	if config.model == unsafe { nil } { return error('compiled VML requires a live model') }
 	if config.build == unsafe { nil } { return error('compiled VML requires a build function') }
-	mut controller := &CompiledVmlController[T]{ build: config.build, model: config.model }
-	validate_element_tree(controller.build(mut controller.model))!
+	mut controller := &CompiledVmlController[T]{ build: config.build, update: config.update, model: config.model }
 	mut runtime := compiled_vml_runtime()
+	runtime.initial_bounds = rect(0, 0, config.width, config.height)
+	if controller.update != unsafe { nil } { controller.update(mut controller.model) }
+	declaration := controller.build(mut controller.model)
+	runtime.initial_bounds = none
+	validate_element_tree(declaration) or {
+		if declaration.compiled_node != unsafe { nil } {
+			declaration.compiled_node.dispose_document()!
+		}
+		return err
+	}
+	controller.node = declaration.compiled_node
+	dispose_compiled_vml()
 	runtime.controller = voidptr(controller)
+	runtime.root = controller.node
+	defer { dispose_compiled_vml() }
 	$if macos || windows || linux {
 		run_window_with_min_size(config.title, config.width, config.height, config.min_width,
 			config.min_height, compiled_vml_controller_build[T])
 	} $else {
 		run(compiled_vml_controller_build[T])
 	}
+}
 }

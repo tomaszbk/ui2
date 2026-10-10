@@ -1,0 +1,17 @@
+Screen(
+    id: "root",
+) {
+    Absolute {
+        View(
+            id: "panel",
+            x: 12.5,
+            y: 9.25,
+            width: root.width - 25,
+            height: 80,
+        ) {
+            Absolute {
+                View(id: "child", x: 3.25, y: 4.5, width: panel.width / 2, height: 10.25)
+            }
+        }
+    }
+}

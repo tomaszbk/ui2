@@ -91,7 +91,7 @@ fn test_dashed_border_has_gaps_and_clamps_excessive_widths() {
 }
 
 fn test_vml_border_colors_and_interaction_patches_keep_omitted_values_unset() {
-	el := element_from_vml('View { id: "card" width: 100 height: 60 radius: 12 border_width: 2 border_color: "#aabbcc" border_left_color: "#000000" border_pattern: "dashed" hover_background: "#000000" focus_border_width: 0 pressed_transparent: false }', rect(0, 0, 100, 60)) or { panic(err) }
+	el := compiled_box_style_1(rect(0, 0, 100, 60))
 	assert box_edge_color(el.box, 3) == 0
 	assert box_edge_color(el.box, 0) == 0xaabbcc
 	assert el.box.border_pattern == .dashed
@@ -102,7 +102,7 @@ fn test_vml_border_colors_and_interaction_patches_keep_omitted_values_unset() {
 }
 
 fn test_focus_outline_is_outside_without_changing_frame_or_hit_bounds() {
-	el := element_from_vml('Button { id: "next" text: "Next" color: #64748b width: 80 height: 40 focus_outline_color: #2563eb focus_outline_width: 3 focus_outline_offset: 3 hover_color: #000000 }', rect(10, 20, 80, 40))!
+	el := compiled_box_style_0(rect(10, 20, 80, 40))
 	assert interaction_text_style(el, true, false, false).color == 0
 	assert interaction_text_style(el, false, false, false) == el.text_style
 	box := interaction_box(el, false, true, false)
@@ -149,9 +149,19 @@ fn test_fractional_rounded_border_retains_subunit_outer_and_inner_corners() {
 			// The top-left arc occupies the open corner square; a sharp ring
 			// instead has vertices only on the straight edges.
 			if p.x > 10 && p.x < 10.25 && p.y > 20 && p.y < 20.75 { contains_outer_arc = true }
-			if p.x > 10.25 && p.x < 10.75 && p.y > 20.25 && p.y < 20.75 { contains_inner_arc = true }
+			if p.x > 10.25 && p.x < 10.75 && p.y > 20.25 && p.y < 20.75 {
+				contains_inner_arc = true
+			}
 		}
 	}
 	assert contains_outer_arc
 	assert contains_inner_arc
+}
+
+fn compiled_box_style_0(frame Rect) Element {
+	return $vml('fixtures/box_style_0.vml', frame)
+}
+
+fn compiled_box_style_1(frame Rect) Element {
+	return $vml('fixtures/box_style_1.vml', frame)
 }

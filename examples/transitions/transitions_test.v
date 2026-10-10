@@ -24,8 +24,8 @@ fn test_transition_selects_each_canvas_target() {
 }
 
 fn test_transitions_vml_has_moving_logo_and_native_slide_button() {
-	app := TransitionsDemo{}
-	root := ui2.element_from_vml_model_with_callbacks(transitions_vml_source, app, ui2.rect(0, 0, transitions_width, transitions_height), transitions_callbacks()) or { panic(err) }
+	mut app := TransitionsDemo{}
+	root := transitions_tree(mut app, ui2.rect(0, 0, transitions_width, transitions_height))
 	ui2.validate_element_tree(root) or { panic(err) }
 	stage := find_transitions_element(root, 'stage') or { panic('missing stage') }
 	assert stage.children[0].children.len == 2

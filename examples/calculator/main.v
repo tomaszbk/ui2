@@ -5,7 +5,6 @@ import ui2
 
 const window_width = 284
 const window_height = 364
-const calculator_vml_source = $embed_file('calculator.vml').to_string()
 
 pub struct CalculatorKey {
 pub:
@@ -48,10 +47,10 @@ fn calculator_keys() []CalculatorKey {
 				else { 'digit' }
 			}
 			keys << CalculatorKey{
-				text: text
-				row: row
+				text:   text
+				row:    row
 				column: column
-				role: role
+				role:   role
 			}
 		}
 	}
@@ -261,11 +260,20 @@ pub fn (mut calculator Calculator) press(key string) {
 }
 
 fn main() {
-	ui2.run_vml[Calculator](
-		source: calculator_vml_source
-		model: initial_calculator()
-		title: 'V Calc'
-		width: window_width
+	mut app := initial_calculator()
+	ui2.run_compiled_vml[Calculator](
+		build:  build_calculator
+		model:  &app
+		title:  'V Calc'
+		width:  window_width
 		height: window_height
 	) or { panic(err) }
+}
+
+fn build_calculator(mut app Calculator) ui2.Element {
+	return $vml('calculator.vml')
+}
+
+fn calculator_tree(mut app Calculator, frame ui2.Rect) ui2.Element {
+	return $vml('calculator.vml', frame)
 }

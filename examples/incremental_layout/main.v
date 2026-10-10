@@ -4,8 +4,8 @@ import ui2
 import os
 import json2
 
-// The compiled runner and V builders share retained layout. The compiler's
-// grammar migration is a separate roadmap item; this is its typed builder API.
+// Typed V builders share the compiled runner's retained layout. This example
+// compares reconstruction with retained updates and a targeted text patch.
 pub struct LayoutDemo {
 pub mut:
 	long_text bool
@@ -41,7 +41,13 @@ pub fn (mut model LayoutDemo) change_color() {
 fn control(mut model LayoutDemo, id string, title string, action string) ui2.Element {
 	return ui2.Element{
 		...ui2.button(id, title, ui2.rect(0, 0, 145, 38), ui2.BoxStyle{ bg: 0xe8edf5, radius: 6 }, ui2.TextStyle{})
-		on_event: ui2.compiled_vml_callback(mut model, ui2.CompiledVmlCallbackConfig{ action_name: action })
+		on_event: fn [mut model, action] (_event ui2.ElementEvent) {
+			match action {
+				'change_color' { model.change_color() }
+				'change_text' { model.change_text() }
+				else {}
+			}
+		}
 	}
 }
 
@@ -70,7 +76,7 @@ fn build_at(mut model LayoutDemo, width f64) ui2.Element {
 			ui2.FlexChild{ element: ui2.label('title', 'Layout incremental', ui2.rect(0, 0, 0, 32), ui2.TextStyle{ size: 26, weight: 700 }) },
 			ui2.FlexChild{ element: toolbar, shrink: 0 },
 			ui2.FlexChild{ element: message(model), shrink: 0 },
-			ui2.FlexChild{ element: ui2.text_input(ui2.TextInputConfig{ id: 'editor', text: 'Escribe aquí: ñ, café', frame: ui2.rect(0, 0, 0, 38), box: ui2.BoxStyle{ bg: 0x202833 }, text_style: ui2.TextStyle{ color: 0xffffff }, multiline: false }) or { panic(err) }, shrink: 0 },
+			ui2.FlexChild{ element: ui2.text_input(ui2.TextInputConfig{ id: 'editor', text: 'Escribe aquí: ñ, café', frame: ui2.rect(0, 0, 0, 38), box: ui2.BoxStyle{ bg: 0x202833 }, text_style: ui2.TextStyle{ color: 0xffffff } }) or { panic(err) }, shrink: 0 },
 		]
 	}) or { panic(err) }
 	return ui2.screen(0xf5f7fb, [content])
@@ -110,8 +116,9 @@ fn main() {
 		measurements()
 		return
 	}
+	mut app := LayoutDemo{ long_text: '--long' in os.args }
 	ui2.run_compiled_vml[LayoutDemo](
-		model:  LayoutDemo{ long_text: '--long' in os.args }
+		model:  &app
 		build:  build
 		title:  'Incremental layout'
 		width:  660

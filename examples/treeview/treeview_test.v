@@ -30,7 +30,7 @@ fn test_treeview_expands_nested_folder_and_selects_file() {
 fn test_treeview_vml_builds_indented_native_rows() {
 	mut app := initial_treeview()
 	app.select_node(4)
-	root := ui2.element_from_vml_model(treeview_vml_source, app, ui2.rect(0, 0, treeview_width, treeview_height)) or { panic(err) }
+	root := treeview_tree(mut app, ui2.rect(0, 0, treeview_width, treeview_height))
 	ui2.validate_element_tree(root) or { panic(err) }
 	list := find_treeview_element(root, 'tree_list') or { panic('missing tree list') }
 	assert list.children[0].children.len == 12

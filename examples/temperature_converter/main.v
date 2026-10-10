@@ -6,7 +6,6 @@ import ui2
 
 const temperature_width = 600
 const temperature_height = 168
-const temperature_vml_source = $embed_file('temperature_converter.vml').to_string()
 
 pub struct TemperatureConverter {
 pub mut:
@@ -68,11 +67,20 @@ pub fn (mut app TemperatureConverter) update_from_fahrenheit() {
 }
 
 fn main() {
-	ui2.run_vml[TemperatureConverter](
-		source: temperature_vml_source
-		model: TemperatureConverter{}
-		title: 'Temperature Converter'
-		width: temperature_width
+	mut app := TemperatureConverter{}
+	ui2.run_compiled_vml[TemperatureConverter](
+		build:  build_temperature_converter
+		model:  &app
+		title:  'Temperature Converter'
+		width:  temperature_width
 		height: temperature_height
 	) or { panic(err) }
+}
+
+fn build_temperature_converter(mut app TemperatureConverter) ui2.Element {
+	return $vml('temperature_converter.vml')
+}
+
+fn temperature_converter_tree(mut app TemperatureConverter, frame ui2.Rect) ui2.Element {
+	return $vml('temperature_converter.vml', frame)
 }

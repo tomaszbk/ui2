@@ -1,7 +1,7 @@
 // vfmt off
 module ui2
 
-$if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
+$if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? && !ui2_document_library ? {
 	import sokol.sgl
 
 	fn draw_vector_shapes(ctx &DrawContext, shapes []VectorShape, x f64, y f64) {

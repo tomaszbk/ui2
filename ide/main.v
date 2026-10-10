@@ -66,8 +66,8 @@ fn (app &IdeApp) menus() []ui2.Menu {
 }
 
 fn build_ide_screen() ui2.Element {
-	state := unsafe { ide_state }
-	return build_ide(ui2.bounds(), state)
+	mut state := unsafe { ide_state }
+	return build_ide(ui2.bounds(), mut state)
 }
 
 fn event_numeric_suffix(event string, prefix string) ?int {
@@ -153,9 +153,6 @@ fn (mut app IdeApp) apply_source_editor() bool {
 
 fn (mut app IdeApp) save_from_ui() bool {
 	app.path_input = ui2.text('project_path')
-	if app.source_modified && !app.apply_source_editor() {
-		return false
-	}
 	app.save_document() or {
 		app.status = 'Save failed: ${err}'
 		app.log(app.status)
@@ -199,7 +196,7 @@ fn (mut app IdeApp) build_project() {
 	}
 	app.status = 'Building ${main_path}...'
 	app.log(app.status)
-	result := os.execute('${os.quoted_path(@VEXE)} -check ${os.quoted_path(main_path)}')
+	result := os.exec([@VEXE, '-check', main_path])
 	if result.output.trim_space().len > 0 {
 		app.log(result.output.trim_space())
 	}
@@ -212,7 +209,7 @@ fn (mut app IdeApp) build_project() {
 }
 
 fn (mut app IdeApp) select_tab(tab string) {
-	if tab == 'designer' && app.active_tab == 'source' && app.source_modified {
+	if tab == 'designer' && (app.source_modified || app.source_only) {
 		if !app.apply_source_editor() {
 			return
 		}
@@ -231,7 +228,9 @@ fn (mut app IdeApp) toggle_preview() {
 		app.select_tab('designer')
 		return
 	}
-	if app.active_tab == 'source' && app.source_modified && !app.apply_source_editor() {
+	app.compile_preview() or {
+		app.status = 'Preview compilation failed: ${err}'
+		app.log(app.status)
 		return
 	}
 	app.select_tab('preview')
@@ -347,8 +346,8 @@ fn (mut app IdeApp) perform_action(event string, payload ui2.ElementEvent) {
 fn handle_ide_key(key string) {
 	mut state := unsafe { ide_state }
 	focused := ui2.focused_id()
-	if key in ['forward_delete', 'backspace', 'left', 'right', 'up', 'down',
-		'shift+left', 'shift+right', 'shift+up', 'shift+down', 'cmd+z', 'cmd+shift+z'] {
+	if key in ['forward_delete', 'backspace', 'left', 'right', 'up', 'down', 'shift+left', 'shift+right',
+		'shift+up', 'shift+down', 'cmd+z', 'cmd+shift+z'] {
 		// Focus also belongs to navigator and component buttons. Only actual
 		// editor semantics reserve these commands for draft editing/selection.
 		if node := ui2.semantic_node(focused) {
@@ -421,6 +420,7 @@ fn main() {
 			state.log(state.status)
 		}
 	}
+	defer { state.dispose_preview() }
 	ui2.on_key(handle_ide_key)
 	ui2.on_drop(handle_ide_drop)
 	ui2.set_menu_bar(state.menus())

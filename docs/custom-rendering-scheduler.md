@@ -62,7 +62,7 @@ desde un worker para buscar una ventana que podría haber sido reemplazada.
 | Primer montaje | Build y pintura completa | Primer frame visible |
 | Resize, escala/DPI, restauración de superficie | Build y pintura completa con tamaño actual | Resize y restauración sin zonas vacías |
 | `refresh`, `request_refresh`, `refresh_element` | Invalidación amplia, agrupada por generación | Ráfaga y solicitud dentro de build |
-| Binding/acción VML | Build completo después de cambiar el modelo | Suites VML existentes |
+| Binding/acción VML | Efectos por propiedad y reconciliación por key, conservando nodos y scopes | Counter doble, contratos, listas anidadas y lifecycle |
 | Worker | Encolar callback, aplicarlo en UI e invalidar | Cambio visible sin mover el mouse |
 | Hover, press, drag, scroll, dropdown y menú | Conservar interacción y actualizar imagen | Ejemplos y tests de captura/scroll |
 | Texto, selección, foco y mutadores de controles | Mantener estado local y actualizar imagen | Edición conservada tras refresh ajeno |

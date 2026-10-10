@@ -382,7 +382,7 @@ fn test_modal_and_popup_reopen_same_content_without_promoting_descendant_frames(
 }
 
 fn slot_runtime_content(layout LayoutKind) !Element {
-	editor := text_input(TextInputConfig{ id: 'editor', text: 'declarado', disable_scroll: true, frame: rect(0, 0, 100, 30) })!
+	editor := text_area(TextAreaConfig{ id: 'editor', text: 'declarado', disable_scroll: true, frame: rect(0, 0, 100, 30) })!
 	pane := scroll('pane', rect(15, 17, 100, 80), 0xffffff, [editor,
 		view('tail', rect(0, 400, 100, 30), BoxStyle{}, [])])
 	return match layout {

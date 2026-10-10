@@ -15,7 +15,8 @@ fn find_justified_label(element ui2.Element, id string) ?ui2.Element {
 }
 
 fn test_label_justify_vml_preserves_alignment_and_clipping_frame() {
-	root := ui2.element_from_vml_model(label_justify_vml_source, LabelJustifyDemo{}, ui2.rect(0, 0, label_justify_width, label_justify_height)) or { panic(err) }
+	mut compiled_model_0 := LabelJustifyDemo{}
+	root := label_justify_tree(mut compiled_model_0, ui2.rect(0, 0, label_justify_width, label_justify_height))
 	ui2.validate_element_tree(root) or { panic(err) }
 
 	assert (find_justified_label(root, 'left_label') or { panic('missing left label') }).text_style.align == .left

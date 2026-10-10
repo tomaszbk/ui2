@@ -15,7 +15,7 @@ fn find_clipping_element(element ui2.Element, id string) ?ui2.Element {
 }
 
 fn test_nested_clipping_starts_fully_clipped_in_drawing_order() {
-	app := nested_clipping_demo()
+	mut app := nested_clipping_demo()
 	assert app.boxes.len == 16
 	assert app.boxes.map(it.order)[..5] == ['1st', '2nd', '3rd', '4th', '5th']
 	assert app.boxes[0].column == 0 && app.boxes[0].row == 0
@@ -46,7 +46,7 @@ fn test_nested_clipping_vml_swaps_a_scroll_viewport_for_the_spilling_bars() {
 	mut app := nested_clipping_demo()
 	app.toggle_box(1)
 	frame := ui2.rect(0, 0, nested_clipping_width, nested_clipping_height)
-	root := ui2.element_from_vml_model(nested_clipping_vml_source, app, frame) or { panic(err) }
+	root := nested_clipping_tree(mut app, frame)
 	ui2.validate_element_tree(root) or { panic(err) }
 	stage := find_clipping_element(root, 'stage') or { panic('missing stage') }
 	assert stage.children[0].children.len == 16

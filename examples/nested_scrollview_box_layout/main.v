@@ -4,7 +4,6 @@ import ui2
 
 const nested_box_width = 660
 const nested_box_height = 430
-const nested_box_vml_source = $embed_file('nested_scrollview_box_layout.vml').to_string()
 
 pub struct ScrollGridBox {
 pub:
@@ -24,9 +23,9 @@ fn initial_nested_scroll_box_layout() NestedScrollBoxLayoutDemo {
 	for row in 0 .. 5 {
 		for column in 0 .. 5 {
 			boxes << ScrollGridBox{
-				id: row * 5 + column
-				row: row
-				column: column
+				id:      row * 5 + column
+				row:     row
+				column:  column
 				content: 'box ${row}${column}\nline 2\nline 3\nline 4\nline 5\nline 6\nline 7\nline 8'
 			}
 		}
@@ -35,11 +34,20 @@ fn initial_nested_scroll_box_layout() NestedScrollBoxLayoutDemo {
 }
 
 fn main() {
-	ui2.run_vml[NestedScrollBoxLayoutDemo](
-		source: nested_box_vml_source
-		model: initial_nested_scroll_box_layout()
-		title: 'Nested Scrollviews in Box Layout'
-		width: nested_box_width
+	mut app := initial_nested_scroll_box_layout()
+	ui2.run_compiled_vml[NestedScrollBoxLayoutDemo](
+		build:  build_nested_scrollview_box_layout
+		model:  &app
+		title:  'Nested Scrollviews in Box Layout'
+		width:  nested_box_width
 		height: nested_box_height
 	) or { panic(err) }
+}
+
+fn build_nested_scrollview_box_layout(mut app NestedScrollBoxLayoutDemo) ui2.Element {
+	return $vml('nested_scrollview_box_layout.vml')
+}
+
+fn nested_scrollview_box_layout_tree(mut app NestedScrollBoxLayoutDemo, frame ui2.Rect) ui2.Element {
+	return $vml('nested_scrollview_box_layout.vml', frame)
 }

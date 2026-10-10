@@ -5,7 +5,6 @@ import ui2
 
 const resizable_calc_width = 340
 const resizable_calc_height = 480
-const resizable_calc_vml_source = $embed_file('calculator_resizable.vml').to_string()
 
 pub struct CalculatorKey {
 pub:
@@ -43,11 +42,11 @@ fn resizable_calculator_keys() []CalculatorKey {
 				else { 'digit' }
 			}
 			keys << CalculatorKey{
-				text: text
-				key: 'key-${row}-${column}'
-				row: row
+				text:   text
+				key:    'key-${row}-${column}'
+				row:    row
 				column: column
-				role: role
+				role:   role
 			}
 		}
 	}
@@ -209,11 +208,20 @@ pub fn (mut calc ResizableCalculator) press(key string) {
 }
 
 fn main() {
-	ui2.run_vml[ResizableCalculator](
-		source: resizable_calc_vml_source
-		model: resizable_calculator()
-		title: 'V Calc (resizable)'
-		width: resizable_calc_width
+	mut app := resizable_calculator()
+	ui2.run_compiled_vml[ResizableCalculator](
+		build:  build_calculator_resizable
+		model:  &app
+		title:  'V Calc (resizable)'
+		width:  resizable_calc_width
 		height: resizable_calc_height
 	) or { panic(err) }
+}
+
+fn build_calculator_resizable(mut app ResizableCalculator) ui2.Element {
+	return $vml('calculator_resizable.vml')
+}
+
+fn calculator_resizable_tree(mut app ResizableCalculator, frame ui2.Rect) ui2.Element {
+	return $vml('calculator_resizable.vml', frame)
 }

@@ -1,3 +1,4 @@
+// vtest build: macos && !ui2_custom_rendering?
 // vfmt off
 module ui2
 

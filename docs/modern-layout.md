@@ -2,21 +2,23 @@
 
 UI2 uses declarative containers to assign parent-local frames. New screens can
 use `Flex`, `Grid`, explicit alignment, and viewport expressions.
-They work with runtime VML (`run_vml`, `VmlApp`, `element_from_vml_model`) and the
+They work with compiled VML (`$vml`) and the
 V API, on native backends and the custom renderer. Resizing invalidates layout
 in the custom renderer too.
 
 The layout containers are Flex (including Row and Column), Grid, Stack, Absolute,
 and Scroll. Stack overlays children in declaration order with alignment; Absolute
 provides explicit parent-local positioning for canvases and designer surfaces.
+Scroll gives content with an omitted width the viewport width and measures its
+natural height there. An explicit content width can overflow horizontally.
 
 ## Run the example
 
 From the repository root:
 
 ```sh
-v -d ui2_custom_rendering run examples/responsive_layout
-v -d ui2_custom_rendering run examples/responsive_layout --compact
+v -b c -d ui2_custom_rendering run examples/responsive_layout
+v -b c -d ui2_custom_rendering run examples/responsive_layout --compact
 ```
 
 On macOS/Windows, omit the define to use native controls. The example includes a
@@ -27,16 +29,11 @@ Text typed into the search field survives unrelated actions and resizes.
 
 ## Flex
 
-```text
-Flex {
-    orientation: horizontal
-    gap: 12
-    wrap: true
-    align_items: center
-
-    Label { text: "Projects" font_size: 22 flex_grow: 1 }
-    Button { text: "New project" }
-    Button { text: "Settings" }
+```vml
+Flex(orientation: horizontal, gap: 12, wrap: true, align_items: center) {
+    Label(text: "Projects", font_size: 22, flex_grow: 1)
+    Button(text: "New project")
+    Button(text: "Settings")
 }
 ```
 
@@ -77,23 +74,19 @@ for callers supplying measured preferred frames.
 
 ## Responsive grid
 
-```text
-Grid {
-    auto_columns_min_width: 240
-    max_columns: 3
-    spacing: 16
-
-    View { column_span: 2 }
-    View { }
-    View { }
+```vml
+Grid(auto_columns_min_width: 240, max_columns: 3, spacing: 16) {
+    View(column_span: 2)
+    View()
+    View()
 }
 ```
 
 Automatic mode requires omitted `columns` and `rows`. The column count follows
 the available inner width and spacing, up to `max_columns` if set. It uses at
 least one column, which shrinks below the requested minimum on narrow windows.
-Alternatively declare `columns: root.width < 600 ? 1 : 3` for an explicit
-breakpoint. Static VML without a model does not evaluate viewport expressions.
+Alternatively bind `columns: app.columns` for an explicit breakpoint chosen
+by the application.
 
 `column_span` and `row_span` default to 1. Placement uses declaration-order
 first-fit cells in the selected orientation, without overlap. The unconstrained
@@ -105,7 +98,9 @@ Tracks share surplus space after configured defaults/minimums. The existing
 `col_default_width`, `row_default_height`, `col_force_default`,
 `row_force_default`, padding and spacing properties still apply. In V, use
 `GridSpan`, `GridConfig.child_spans`, `auto_columns_min_width`,
-`max_columns`, and `grid_preferred_size`.
+`max_columns`, and `grid_preferred_size`. Use `grid_declaration(GridConfig{...})`
+to retain authored inputs and let `LayoutTree` allocate cells after the parent
+assigns the available frame.
 
 ## Measurement and limits
 
@@ -126,14 +121,14 @@ Other container types should keep explicit preferred dimensions when nested in
 Flex. Text shaping, bidirectional layout and complete grapheme handling remain
 the separate text-stack work in the product plan. Font metrics and native control
 appearance may differ across backends. The external V compiler's `$vml` lowering
-has not been extended by this change; use runtime VML or the V API for Flex.
+supports Flex/Grid/Stack/Absolute with the same typed V layout API.
 
 ## Verification
 
 The focused suites are `ui/flex_layout_test.v`, `ui/grid_layout_test.v`,
 `ui/layout_measure_test.v`, `ui/layout_measure_darwin_test.v`, and
-`ui/vml_modern_layout_test.v`. Run them with `v test <files>` and again with
-`v -d ui2_custom_rendering test <files>`. They cover constrained allocation,
+`ui/vml_modern_layout_test.v`. Run them with `v -b c test <files>` and again with
+`v -b c -d ui2_custom_rendering test <files>`. They cover constrained allocation,
 intrinsic metrics, wrapping after width assignment, nested layouts, responsive
 screens, repeaters, events/bindings and the wide/compact example.
 

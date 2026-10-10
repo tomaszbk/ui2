@@ -4,7 +4,6 @@ import ui2
 
 const nested_clipping_width = 820
 const nested_clipping_height = 640
-const nested_clipping_vml_source = $embed_file('nested_clipping.vml').to_string()
 const clip_grid_side = 4
 
 pub struct ClipBox {
@@ -15,7 +14,7 @@ pub:
 	column   int
 	row      int
 	order    string
-	color    string
+	color    u32
 pub mut:
 	clipping bool
 }
@@ -43,13 +42,13 @@ fn clip_ordinal(index int) string {
 
 // clip_box_color brightens one quadrant hue per slot, so the four boxes of a
 // quadrant stay recognisably related while every box keeps its own bar color.
-fn clip_box_color(quadrant int, slot int) string {
+fn clip_box_color(quadrant int, slot int) u32 {
 	bases := [[128, 16, 0], [80, 128, 0], [0, 110, 64], [0, 64, 100]]
 	factor := 1.0 + f64(clip_grid_side - slot) * 2.0 / 3.0
-	mut out := '#'
+	mut out := u32(0)
 	for channel in bases[quadrant - 1] {
 		value := int(f64(channel) * factor)
-		out += '${if value > 255 { 255 } else { value }:02X}'
+		out = (out << 8) | u32(if value > 255 { 255 } else { value })
 	}
 	return out
 }
@@ -60,13 +59,13 @@ fn nested_clipping_demo() NestedClippingDemo {
 		for slot in 1 .. clip_grid_side + 1 {
 			order := (quadrant - 1) * clip_grid_side + slot
 			app.boxes << ClipBox{
-				id: order
-				key: 'box-${order}'
+				id:       order
+				key:      'box-${order}'
 				quadrant: quadrant
-				column: (quadrant - 1) % 2 * 2 + (slot - 1) % 2
-				row: (quadrant - 1) / 2 * 2 + (slot - 1) / 2
-				order: clip_ordinal(order)
-				color: clip_box_color(quadrant, slot)
+				column:   (quadrant - 1) % 2 * 2 + (slot - 1) % 2
+				row:      (quadrant - 1) / 2 * 2 + (slot - 1) / 2
+				order:    clip_ordinal(order)
+				color:    clip_box_color(quadrant, slot)
 				clipping: true
 			}
 		}
@@ -125,11 +124,20 @@ pub fn (mut app NestedClippingDemo) clip_none() {
 }
 
 fn main() {
-	ui2.run_vml[NestedClippingDemo](
-		source: nested_clipping_vml_source
-		model: nested_clipping_demo()
-		title: 'Nested Clipping'
-		width: nested_clipping_width
+	mut app := nested_clipping_demo()
+	ui2.run_compiled_vml[NestedClippingDemo](
+		build:  build_nested_clipping
+		model:  &app
+		title:  'Nested Clipping'
+		width:  nested_clipping_width
 		height: nested_clipping_height
 	) or { panic(err) }
+}
+
+fn build_nested_clipping(mut app NestedClippingDemo) ui2.Element {
+	return $vml('nested_clipping.vml')
+}
+
+fn nested_clipping_tree(mut app NestedClippingDemo, frame ui2.Rect) ui2.Element {
+	return $vml('nested_clipping.vml', frame)
 }

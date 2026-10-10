@@ -1,6 +1,8 @@
 @[has_globals]
 module ui2
 
+$if !ui2_document_library ? {
+
 import macos
 
 __global g_ios_navigation = &FocusManager{}
@@ -114,4 +116,6 @@ fn ios_can_activate_dropdown(native View) bool {
 	return macos.responds_to(native, 'performPrimaryAction')
 		&& macos.msg_bool(native, 'showsMenuAsPrimaryAction')
 		&& !objc_is_nil(macos.msg_id(native, 'menu'))
+}
+
 }

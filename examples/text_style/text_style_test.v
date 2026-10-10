@@ -1,3 +1,4 @@
+// vtest vflags: -d ui2_custom_rendering
 module main
 
 import ui2
@@ -31,7 +32,7 @@ fn test_font_family_name_keeps_families_and_drops_their_variants() {
 }
 
 fn test_text_style_always_offers_a_usable_family_list() {
-	app := text_style_demo()
+	mut app := text_style_demo()
 	assert app.fonts.len > 0
 	assert app.fonts.len <= text_style_max_fonts
 	assert app.fonts.first().id == 1
@@ -68,7 +69,7 @@ fn test_text_style_vml_applies_the_chosen_family_to_the_preview() {
 	app.size_choice = '24'
 	app.size_changed()
 	frame := ui2.rect(0, 0, text_style_width, text_style_height)
-	root := ui2.element_from_vml_model(text_style_vml_source, app, frame) or { panic(err) }
+	root := text_style_tree(mut app, frame)
 	ui2.validate_element_tree(root) or { panic(err) }
 	preview := find_text_style_element(root, 'preview_text') or { panic('missing preview') }
 	assert preview.text == app.sample

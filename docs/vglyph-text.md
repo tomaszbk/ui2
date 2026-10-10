@@ -24,8 +24,8 @@ grapheme, and complete bidirectional editing, remain separate work.
 ## Build dependencies
 
 Use the published `tomaszbk/v` compiler revision
-[`96be588`](https://github.com/tomaszbk/v/commit/96be588403ea7bb794a15dd0c5d306f0cad0eef4).
-It includes compiled VML visual and structural lowering and numeric `text` values.
+[`e96232c`](https://github.com/tomaszbk/v/commit/e96232c42146547c792d6523811e312af06aa1ce).
+It includes the component grammar and retained VML lowering.
 The V 0.5.2 release binary lacks required
 Sokol sampler APIs and does not compile the current UI2 source. CI uses
 [the shared setup action](../.github/actions/setup-v/action.yml) to bootstrap
@@ -34,6 +34,7 @@ that revision with `vc` snapshot
 The workflows also pin each platform's official `tccbin` bundle to supply
 V's default Boehm GC library; compilation uses GCC or Clang.
 Only the compiler bootstrap uses `-gc none`; UI2 builds retain the default GC.
+Use V's C backend (`v -b c ...`) for ui2 builds and runs.
 
 The vendored text runtime also requires Pango
 1.50 or newer, FreeType, HarfBuzz, FriBidi, Fontconfig, GLib and GObject, and a

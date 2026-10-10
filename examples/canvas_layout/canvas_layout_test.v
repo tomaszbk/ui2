@@ -35,8 +35,8 @@ fn test_canvas_tile_drag_keeps_its_grab_offset_and_stays_on_the_sheet() {
 fn test_canvas_theme_menu_and_notes_react_to_events() {
 	mut app := CanvasLayoutDemo{}
 	app.apply_theme('Red')
-	assert app.tile_color == '#B91C1C'
-	assert app.tile_text == '#FFFFFF'
+	assert app.tile_color == 0xb91c1c
+	assert app.tile_text == 0xffffff
 	app.toggle_menu()
 	assert !app.menu_hidden
 	assert app.menu_label == 'Hide menu'
@@ -57,7 +57,7 @@ fn test_canvas_layout_vml_builds_a_scrolling_sheet_with_a_draggable_tile() {
 	app.add_note()
 	app.toggle_menu()
 	frame := ui2.rect(0, 0, canvas_layout_width, canvas_layout_height)
-	root := ui2.element_from_vml_model_with_callbacks(canvas_layout_vml_source, app, frame, canvas_layout_callbacks()) or { panic(err) }
+	root := canvas_layout_tree(mut app, frame)
 	ui2.validate_element_tree(root) or { panic(err) }
 	canvas := find_canvas_element(root, 'canvas') or { panic('missing canvas') }
 	assert canvas.frame.x == 18

@@ -1,3 +1,4 @@
+// vtest build: macos && !ui2_custom_rendering?
 // vfmt off
 @[has_globals]
 module ui2

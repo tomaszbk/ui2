@@ -1,0 +1,7 @@
+Flex(
+    gap: 12,
+    align_items: center,
+) {
+    Button(id: "save", text: app.caption, on_tap: app.expand_caption())
+    TextInput(id: "query", bind.text: app.query, flex_grow: 1)
+}

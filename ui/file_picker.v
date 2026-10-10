@@ -277,7 +277,6 @@ pub fn (mut picker FilePicker) render(frame Rect) Element {
 		id:          picker.path_id()
 		placeholder: 'Directory'
 		text:        picker.path_input
-		multiline:   false
 		frame:       rect(padding + 136, 52, path_width, button_height)
 		box:         BoxStyle{ bg: 0xffffff, border_color: 0xcbd5e1, border_left: 1, border_top: 1, border_right: 1, border_bottom: 1 }
 		text_style:  TextStyle{ color: 0x111827, size: 13 }
@@ -343,7 +342,6 @@ pub fn (mut picker FilePicker) render(frame Rect) Element {
 			id:          picker.filename_id()
 			placeholder: 'File name'
 			text:        picker.filename
-			multiline:   false
 			frame:       rect(padding + 94, height - 120, inner_width - 94, 32)
 			box:         BoxStyle{ bg: 0xffffff, border_color: 0xcbd5e1, border_left: 1, border_top: 1, border_right: 1, border_bottom: 1 }
 			text_style:  TextStyle{ color: 0x111827 }

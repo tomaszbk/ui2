@@ -22,8 +22,8 @@ fn test_dropdown_updates_visible_feedback() {
 }
 
 fn test_dropdown_vml_contains_all_options() {
-	app := DropdownDemo{}
-	root := dropdown_test_tree(dropdown_vml_source, app, ui2.rect(0, 0, dropdown_width, dropdown_height)) or { panic(err) }
+	mut app := DropdownDemo{}
+	root := dropdown_tree(mut app, ui2.rect(0, 0, dropdown_width, dropdown_height))
 	actions := find_dropdown_element(root, 'actions') or { panic('missing actions dropdown') }
 	assert actions.text == 'Select an option'
 	assert actions.menu.len == 3
@@ -35,9 +35,4 @@ fn test_dropdown_vml_contains_all_options() {
 	}
 	assert message.frame.y == 19
 	assert message.frame.height == 18
-}
-
-fn dropdown_test_tree[T](source string, model T, frame ui2.Rect) !ui2.Element {
-	mut app := ui2.new_vml_app(source, model)!
-	return app.build(frame)!
 }

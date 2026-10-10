@@ -1,5 +1,7 @@
 module ui2
 
+$if !ui2_document_library ? {
+
 import ios
 import macos
 
@@ -1795,4 +1797,6 @@ fn vui_swipe_should_begin(_self voidptr, _cmd voidptr, sender voidptr) bool {
 @[export: 'vui_swipe_should_recognize_simultaneously']
 fn vui_swipe_should_recognize_simultaneously(_self voidptr, _cmd voidptr, _sender voidptr, _other voidptr) bool {
 	return true
+}
+
 }

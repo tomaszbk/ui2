@@ -17,7 +17,7 @@ macOS and Windows use native widgets by default. Pass the compile-time define
 `-d ui2_custom_rendering` to use the same custom `gg` renderer there instead:
 
 ```sh
-v -d ui2_custom_rendering run examples/users/main.v
+v -b c -d ui2_custom_rendering run examples/users/main.v
 ```
 
 The custom renderer builds on demand. Model changes outside VML handlers
@@ -35,7 +35,7 @@ typed paths, quadratic/cubic Bézier curves, concave polygons and holes, stroked
 caps/joins and shape-based pointer hits. See `examples/vector_canvas`.
 
 Custom windows support [typed drag sources, drop targets and previews](docs/drag-drop.md).
-Run `v -d ui2_custom_rendering run examples/drag_drop` to try the interaction.
+Run `v -b c -d ui2_custom_rendering run examples/drag_drop` to try the interaction.
 
 On macOS, the experimental owned embedder adds native windows, Metal surfaces,
 IME composition and a blocking event loop. Enable it with both
@@ -46,14 +46,16 @@ updates and dispatchers. See [the embedder contract and acceptance tests](docs/c
 ## Requirements
 
 `ui2` uses the published `tomaszbk/v` compiler revision
-[`96be588`](https://github.com/tomaszbk/v/commit/96be588403ea7bb794a15dd0c5d306f0cad0eef4),
-which includes compiled VML visual and structural lowering and numeric `text` values.
-The V 0.5.2 release binary is insufficient;
+[`e96232c`](https://github.com/tomaszbk/v/commit/e96232c42146547c792d6523811e312af06aa1ce),
+which includes the component grammar and retained VML lowering.
 CI bootstraps the verified source revision with pinned `vc` and Boehm GC assets using
 [the shared setup action](.github/actions/setup-v/action.yml).
 The module is split across `ui/`, `appkit/`,
 `uikit/`, `windows/`, and `linux/` through the `subdirs` field of `v.mod`, and
-older compilers ignore that field. Run `v up` if `import ui2` fails.
+builds need the pinned compiler and its matching `vlib`.
+
+Build and run ui2 with V's C backend (`v -b c ...`), including the designer
+and its shared preview libraries.
 
 Custom desktop builds also need Pango 1.50+, FreeType and their text-library
 dependencies. The vglyph runtime is included in the repository. See
@@ -89,8 +91,8 @@ current native/local edit, selection, focus, and (on native controls) input
 method composition. Use `set_text` for an explicit imperative replacement.
 
 Compiled VML `text` declarations accept strings and numbers without explicit
-interpolation: `Label { text: app.count }` displays a numeric field, and
-`Label { text: app.count + 1 }` displays a numeric expression. Strings pass through
+interpolation: `Label(text: app.count)` displays a numeric field, and
+`Label(text: app.count + 1)` displays a numeric expression. Strings pass through
 unchanged; numbers use V's `.str()` formatting, selected at compile time.
 Use interpolation for combined captions such as `"Count: ${app.count}"`.
 `bind.text` remains string-typed for editor writeback, and other properties and
@@ -169,82 +171,56 @@ its declaration. Query `animation_info(id)` for status and progress, or attach
 one callback for `.start`, `.progress`, and `.complete` with `on_event` or
 `with_event_handler`.
 
-## Typed VML models
+## Compiled VML
 
-`run_vml[T]` parses the document once, owns a model for the window, and exposes
-its public fields as `app`:
+VML files compile to typed V constructors through `$vml`; parsing and type errors
+are reported against the source file at compile time. The window runner borrows
+the application model by reference, exposed as `app`:
 
 ```v
-ui2.run_vml[App](
-    source: $embed_file('app.vml').to_string()
-    model: App{}
-    title: 'My app'
-    width: 780
-    height: 420
-)!
-```
+fn build(mut app App) ui2.Element {
+    return $vml('app.vml')
+}
 
-The compiled runner accepts a builder with signature `fn (mut App) Element`.
-Compiled builders attach typed callbacks with `compiled_vml_callback`; each
-callback captures its declared binding/action record and receives committed
-control values. The pinned compiler's `$vml` lowering still emits the removed
-APIs. Updating that lowering is the next compiler work; the `$vml` case in
-`benchmarks/vml_build` requires it. Runtime VML and direct V builders use the
-current APIs now.
-
-Ordinary properties are one-way expressions. `bind.text` and `bind.checked`
-write control edits back to a public mutable model field, including nested struct
-paths such as `bind.text: app.profile.name`. Every field along the path must be
-public and mutable. Boolean and numeric bindings validate the leaf field type.
-Public model methods with no arguments, one `int`, or one `string` argument can be used as
-actions:
-
-```vml
-TextInput { multiline: false  bind.text: app.name }
-Button {
-    text: "Add"
-    enabled: app.users.len < app.max_users
-    on_tap: app.add_user()
+fn main() {
+    ui2.run_compiled_vml[App](
+        model: &App{}
+        build: build
+        title: 'My app'
+        width: 780
+        height: 420
+    )!
 }
 ```
 
-On macOS, set `native: true` on a `Button` (or wrap a V-built button with
-`with_native_style`) to let AppKit own its bezel, font, hover, and pressed
-appearance. Its declared colors remain the fallback for the custom renderer.
+For embedding and independent geometry fixtures, `$vml('app.vml', frame)` accepts
+an explicit logical `Rect`. Imports are resolved relative to their declaring VML
+file during compilation; VML sources are not required beside the built executable.
 
-Runtime VML event handlers (`run_vml` and `VmlApp`) can also assign an ordinary
-VML expression to a public mutable top-level model field, which is useful for
-simple state transitions that do not need a dedicated model method:
+Ordinary properties read values. `bind.text` and `bind.checked` also write control
+edits to a writable source before invoking that event's handler. Numeric editing
+requires explicit conversion to a string; display `text` accepts strings and numbers.
 
 ```vml
-Button { text: "Home" on_tap: app.screen_name = "home" }
+TextInput(bind.text: app.name)
+Button(text: "Add", enabled: app.users.len < app.max_users, on_tap: app.add_user())
 ```
 
-Action arguments and assignment values are evaluated when the event is
-dispatched, after any two-way binding on that event has written the control
-value into the model.
-
-Expressions support property paths, arithmetic, comparisons, boolean operators,
-conditionals, parentheses, and string interpolation. They are side-effect-free
-outside event handlers; calls and assignments are restricted to event handlers.
-Unknown model paths, non-writable binding targets, and invalid action signatures
-fail document loading.
-
-Runtime VML supports typed method actions, two-way bindings and event assignments.
-Validation traverses every expression branch and repeater item schema without
-executing expressions against the model's initial values.
-
-Use a keyed `Repeater` for model collections. `item` and `index` are scoped to
-each instance, and the evaluated key becomes `Element.key` for reconciliation:
+Built-in callbacks may take no arguments or one `ui2.ElementEvent` and return
+`void`. Explicit calls and assignments run only when the selected event occurs.
+IDs identify controls; they never select or imply an event handler. Output events
+from components carry their declared payload, accept a matching callback or a
+callback with no parameters, and are safe to emit without a listener.
 
 ```vml
-Repeater {
-    model: app.users
-    key: item.id
-
-    Label { text: "${item.name}" }
+Repeater(model: app.users, key: item.id) {
+    Label(text: "${item.name}")
 }
 ```
+
+A repeater's key identifies siblings independently of position. `item` and `index`
+are scoped to each item, and callbacks retain the rendered item's identity.
+Application services and business logic can remain in `.v` files.
 
 ## Custom buttons
 
@@ -253,23 +229,24 @@ application should own its colors and shape; `native: true` requests the
 standard native-style appearance instead.
 
 ```vml
-Absolute {
-    transparent: true
-    Button {
-        id: save
-        text: "Save"
-        on_tap: app.save()
-        x: 20
-        y: 20
-        width: 120
-        height: 40
-        background: #2563EB
-        border_color: #1D4ED8
-        border_width: 1
-        corner_radius: 8
-        color: #FFFFFF
-        bold: true
-    }
+Absolute(
+    transparent: true,
+) {
+    Button(
+        id: "save",
+        text: "Save",
+        on_tap: app.save(),
+        x: 20,
+        y: 20,
+        width: 120,
+        height: 40,
+        background: #2563EB,
+        border_color: #1D4ED8,
+        border_width: 1,
+        corner_radius: 8,
+        color: #FFFFFF,
+        bold: true,
+    )
 }
 ```
 
@@ -279,31 +256,25 @@ with `button_behavior: true`. The whole rectangle is the activation target;
 noninteractive children such as its `Label` do not block the tap:
 
 ```vml
-Absolute {
-    transparent: true
-    View {
-        id: save_card
-        button_behavior: true
-        on_tap: app.save()
-        x: 20
-        y: 20
-        width: 180
-        height: 56
-        background: #2563EB
-        corner_radius: 8
-        cursor: "pointing_hand"
-        Absolute {
-            transparent: true
-            Label {
-                text: "Save changes"
-                x: 16
-                y: 16
-                width: 148
-                height: 24
-                align: center
-                color: #FFFFFF
-                bold: true
-            }
+Absolute(
+    transparent: true,
+) {
+    View(
+        id: "save_card",
+        button_behavior: true,
+        on_tap: app.save(),
+        x: 20,
+        y: 20,
+        width: 180,
+        height: 56,
+        background: #2563EB,
+        corner_radius: 8,
+        cursor: "pointing_hand",
+    ) {
+        Absolute(
+            transparent: true,
+        ) {
+            Label(text: "Save changes", x: 16, y: 16, width: 148, height: 24, align: center, color: #FFFFFF, bold: true)
         }
     }
 }
@@ -330,110 +301,44 @@ or gesture phases. Use `button_behavior` for a normal action-bearing composite
 control. If both flags are set, the surface emits the raw pointer phases and
 then its ordinary action after a successful tap.
 
-To reuse that style, put the defaults in a sibling VML module. `PrimaryButton`
-can live in `PrimaryButton.vml` or the conventional snake-case
-`primary_button.vml`:
+Reusable VML controls declare their inputs and output events in a component
+signature. Each instance owns its state; `computed` declares a pure lazy memo.
+Inputs are read-only. A writable port uses `bind` in its signature and an explicit
+`bind.name` connection at the call site.
 
 ```vml
-module PrimaryButton
+component Counter(title string = "Count", changed event(value int)) {
+    state count := 0
+    computed doubled := count * 2
 
-Button {
-    height: 40
-    background: #2563EB
-    border_color: #1D4ED8
-    border_width: 1
-    corner_radius: 8
-    color: #FFFFFF
-    bold: true
-}
-```
+    fn increment() {
+        count++
+        changed(count)
+    }
 
-Import the module from `app.vml` and set the instance-specific properties.
-Properties on an instance override the module defaults:
-
-```vml
-import PrimaryButton
-
-Screen {
-    Absolute {
-        transparent: true
-        PrimaryButton {
-            id: save
-            text: "Save"
-            on_tap: app.save()
-            x: 20
-            y: 20
-            width: 120
-        }
+    Column {
+        Label(text: "${title}: ${count} / ${doubled}")
+        Button(text: "Add", on_tap: increment)
     }
 }
 ```
 
-A reusable composite can put only the interactive surface in its module and
-accept its visible content as instance children. For example,
-`action_surface.vml` can contain:
+The application imports it from `counter.vml`:
 
 ```vml
-module ActionSurface
-
-View {
-    button_behavior: true
-    height: 56
-    background: #2563EB
-    corner_radius: 8
-}
-```
-
-The importing document supplies the action and any combination of labels,
-images, or decorative rectangles:
-
-```vml
-import ActionSurface
-
+import Counter
 Screen {
-    Absolute {
-        transparent: true
-        ActionSurface {
-            id: save_card
-            on_tap: app.save()
-            x: 20
-            y: 20
-            width: 180
-            Absolute {
-                transparent: true
-                Label {
-                    text: "Save changes"
-                    x: 16
-                    y: 16
-                    width: save_card.width - 32
-                    height: 24
-                    align: center
-                    color: #FFFFFF
-                    bold: true
-                }
-            }
-        }
-    }
+    Counter(title: "First")
+    Counter(title: "Second")
 }
 ```
 
-VML imports require a file path so they can resolve sibling modules. Use the
-file-backed runtime API instead of passing an embedded source string:
-
-```v
-ui2.run_vml_file[App](
-    source_path: os.join_path(os.dir(@FILE), 'app.vml')
-    model: App{}
-    title: 'My app'
-    width: 400
-    height: 300
-)!
-```
-
-The other file-backed entry points are `new_vml_app_file` and
-`element_from_vml_model_file`. Source-string `run_vml` and compile-time `$vml`
-do not expand imports. Imported VML files are read at runtime, so deploy them
-beside the document that imports them.
+Members are referenced directly inside the component. `app` is reserved for the
+application model. Local members and control IDs cannot shadow each other.
+State initializers run once per instance, while a local editable copy initialized
+from an input retains its own edits when that input changes.
+See [compiled components, bindings, lifetime, slots and refs](docs/vml-components.md)
+for the complete contracts.
 
 In V code, the equivalent reusable control is an ordinary function returning
 an `Element`:
@@ -512,19 +417,12 @@ own background keeps it, since the platform styling stops where the
 application's own begins.
 
 Box-backed elements (`View`, `Button`, `Scroll`, `Dropdown`,
-`TextInput`) can draw each border edge independently. Widths use
+`TextInput`, `TextArea`) can draw each border edge independently. Widths use
 the same logical units as frames and corner radii, so native and custom
 renderers scale them with the rest of the element:
 
 ```vml
-View {
-    background: #10131F
-    border_color: #28314A
-    border_left: 1
-    border_top: 1
-    border_right: 1
-    border_bottom: 0
-}
+View(background: #10131F, border_color: #28314A, border_left: 1, border_top: 1, border_right: 1, border_bottom: 0)
 ```
 
 Set `transparent: true` to omit a box's fill. It also works on the root
@@ -557,7 +455,7 @@ resizable controls, object tree and inspector, undo/redo, VML source editing,
 live preview, project save/open, `main.v` generation, and a build messages pane.
 
 ```sh
-v run ide
+v -b c run ide
 ```
 
 See [`ide/README.md`](ide/README.md) for the supported visual document shape
@@ -597,13 +495,13 @@ is also available from VML as `MessageBox`, whose `Button` children become the
 card's actions:
 
 ```vml
-MessageBox {
-    id: overlay
-    hidden: !app.visible
-    title: "Hello World"
-    text: "This message came from the ui example."
-
-    Button { id: close_message text: "OK" on_tap: app.close_message() }
+MessageBox(
+    id: "overlay",
+    hidden: ! app.visible,
+    title: "Hello World",
+    text: "This message came from the ui example.",
+) {
+    Button(id: "close_message", text: "OK", on_tap: app.close_message())
 }
 ```
 
@@ -663,7 +561,7 @@ picker.open()!
 ui2.request_refresh()
 ```
 
-Run `v run examples/custom_file_picker/main.v` for a complete example. The
+Run `v -b c run examples/custom_file_picker/main.v` for a complete example. The
 picker lists directories first, filters files by extension, supports multiple
 selection in open mode, and validates save filenames before returning an
 absolute path.
@@ -720,7 +618,7 @@ children, and `Grid` for rows/columns, responsive automatic columns and
 cell spans. Both assign parent-local child frames. `Stack` overlays aligned
 children; `Absolute` preserves explicit parent-local geometry. `Row` and `Column`
 are Flex conveniences.
-Authored VML x/y and element geometry expressions require a direct Absolute parent.
+Authored VML x/y and geometry expressions used in layout dimensions require a direct Absolute parent.
 
 Responsive layouts can combine wrapping, automatic Grid columns and conditional
 visibility with expressions such as `root.width < 600`. Flex/Grid layout is
@@ -891,7 +789,7 @@ no chart animations, clickable legends, zoom, stacking, time axes, or plugins.
 It composes views and labels, including scan-converted strips for lines and
 slices, and is intended for modest datasets and chart sizes.
 
-Run `v run examples/charts/main.v` to see all five chart types in a layout that
+Run `v -b c run examples/charts/main.v` to see all five chart types in a layout that
 adapts to the window width. Add `-d ui2_custom_rendering` to try the custom
 renderer on macOS or Windows.
 
@@ -925,131 +823,131 @@ codes for known keys, so command shortcuts are independent of the input source.
 
 Typed-VML ports from `v-ui` include:
 
-- `v run examples/counter/main.v` — the 7GUIs counter.
-- `v run examples/temperature_converter/main.v` — the two-way 7GUIs
+- `v -b c run examples/counter/main.v` — two independent Counter components with typed events.
+- `v -b c run examples/temperature_converter/main.v` — the two-way 7GUIs
   temperature converter.
-- `v run examples/flight_booker/main.v` — the validated 7GUIs flight booker.
-- `v run examples/dropdown/main.v` — a dropdown with selection feedback.
-- `v run examples/switch/main.v` — a boolean switch represented by the
+- `v -b c run examples/flight_booker/main.v` — the validated 7GUIs flight booker.
+- `v -b c run examples/dropdown/main.v` — a dropdown with selection feedback.
+- `v -b c run examples/switch/main.v` — a boolean switch represented by the
   portable checkbox control.
-- `v run examples/crud/main.v` — create, filter, update, and delete people.
-- `v run examples/rgb_color/main.v` — validate RGB components and preview the
+- `v -b c run examples/crud/main.v` — create, filter, update, and delete people.
+- `v -b c run examples/rgb_color/main.v` — validate RGB components and preview the
   resulting color.
-- `v run examples/group/main.v` — grouped text fields, checkboxes, and form
+- `v -b c run examples/group/main.v` — grouped text fields, checkboxes, and form
   validation.
-- `v run examples/rectangles/main.v` — the original four-color rectangle row.
-- `v run examples/textbox/main.v` — editable and read-only multiline text
+- `v -b c run examples/rectangles/main.v` — the original four-color rectangle row.
+- `v -b c run examples/textbox/main.v` — editable and read-only multiline text
   areas with live character counts.
-- `v run examples/box_layout/main.v` — fixed, relative, nested, and
+- `v -b c run examples/box_layout/main.v` — fixed, relative, nested, and
   window-anchored rectangles.
-- `v run examples/dynamic_layout/main.v` — add, remove, reorder, hide, and
+- `v -b c run examples/dynamic_layout/main.v` — add, remove, reorder, hide, and
   rename controls through a keyed repeater.
-- `v run examples/grid/main.v` — the original compact three-column data grid.
-- `v run examples/label_justify/main.v` — left, center, and right label
+- `v -b c run examples/grid/main.v` — the original compact three-column data grid.
+- `v -b c run examples/label_justify/main.v` — left, center, and right label
   alignment plus single-line clipping.
-- `v run examples/message/main.v` — compare the system alert from
+- `v -b c run examples/message/main.v` — compare the system alert from
   `message_box` with the hand-drawn in-window dialog.
-- `v run examples/demo_label/main.v` — the original minimal centered-label
+- `v -b c run examples/demo_label/main.v` — the original minimal centered-label
   demonstration.
-- `v run examples/group2/main.v` — two responsive groups with text fields,
+- `v -b c run examples/group2/main.v` — two responsive groups with text fields,
   a checkbox, native buttons, and validation feedback.
-- `v run examples/logview/main.v` — append scan batches to a read-only log.
-- `v run examples/nested_scrollview/main.v` — scroll a list of independently
+- `v -b c run examples/logview/main.v` — append scan batches to a read-only log.
+- `v -b c run examples/nested_scrollview/main.v` — scroll a list of independently
   scrollable multiline text areas.
-- `v run examples/scrollview/main.v` — two independently scrollable read-only
+- `v -b c run examples/scrollview/main.v` — two independently scrollable read-only
   text panes with generated content.
-- `v run examples/box_layout_with_textbox/main.v` — fixed and proportional box
+- `v -b c run examples/box_layout_with_textbox/main.v` — fixed and proportional box
   layout with an editable multiline text area.
-- `v run examples/files_dropped/main.v` — collect dropped files and plain text
+- `v -b c run examples/files_dropped/main.v` — collect dropped files and plain text
   in a keyed, scrollable list.
-- `v run examples/nested_scrollview_box_layout/main.v` — a scrollable 5×5 box
+- `v -b c run examples/nested_scrollview_box_layout/main.v` — a scrollable 5×5 box
   layout of independently editable multiline areas.
-- `v run examples/demo_radio/main.v` — exclusive country choices that switch
+- `v -b c run examples/demo_radio/main.v` — exclusive country choices that switch
   between compact horizontal and vertical layouts.
-- `v run examples/demo_style_4colors/main.v` — select four-color palettes and
+- `v -b c run examples/demo_style_4colors/main.v` — select four-color palettes and
   preview them across portable and native controls.
-- `v run examples/box_layout_inside_row/main.v` — proportional box layout
+- `v -b c run examples/box_layout_inside_row/main.v` — proportional box layout
   inside an inset row, with switchable text-area bounds.
-- `v run examples/rectangles_resizable/main.v` — four rounded color boxes that
+- `v -b c run examples/rectangles_resizable/main.v` — four rounded color boxes that
   share the available width as the window resizes.
-- `v run examples/accordion/main.v` — collapsible component pages with one
+- `v -b c run examples/accordion/main.v` — collapsible component pages with one
   active section at a time.
-- `v run examples/tabs/main.v` — three keyed pages selected through a native
+- `v -b c run examples/tabs/main.v` — three keyed pages selected through a native
   tab-style button bar.
-- `v run examples/double_listbox/main.v` — transfer keyed values between two
+- `v -b c run examples/double_listbox/main.v` — transfer keyed values between two
   scrollable lists and inspect the result.
-- `v run examples/treeview/main.v` — expand nested folders and select files in
+- `v -b c run examples/treeview/main.v` — expand nested folders and select files in
   a keyed, scrollable tree.
-- `v run examples/dirbrowser/main.v` — browse and choose folders from the local
+- `v -b c run examples/dirbrowser/main.v` — browse and choose folders from the local
   filesystem.
-- `v run examples/fontchooser/main.v` — apply font family, size, color, and
+- `v -b c -d ui2_custom_rendering run examples/fontchooser/main.v` — apply font family, size, color, and
   emphasis choices to an editable preview.
-- `v run examples/rasterview/main.v` — show a bundled bitmap in a responsive
+- `v -b c run examples/rasterview/main.v` — show a bundled bitmap in a responsive
   image frame.
-- `v run examples/resizable_menu_window/main.v` — resize a native context-menu
+- `v -b c run examples/resizable_menu_window/main.v` — resize a native context-menu
   control between compact and stretched layouts.
-- `v run examples/filebrowser/main.v` — browse folders, select files, and
+- `v -b c run examples/filebrowser/main.v` — browse folders, select files, and
   confirm or cancel the current selection.
-- `v run examples/splitpanel/main.v` — adjust nested responsive panes around
+- `v -b c run examples/splitpanel/main.v` — adjust nested responsive panes around
   editable text and a scrollable data grid.
-- `v run examples/row_layout/main.v` — experiment with row proportions,
+- `v -b c run examples/row_layout/main.v` — experiment with row proportions,
   margins, spacing, and control height.
-- `v run examples/demo_event/main.v` — inspect normalized pointer and keyboard
+- `v -b c -d ui2_custom_rendering run examples/demo_event/main.v` — inspect normalized pointer and keyboard
   events in a live event log.
-- `v run examples/demo_chunkview/main.v` — compose nested styled text chunks
+- `v -b c -d ui2_custom_rendering run examples/demo_chunkview/main.v` — compose nested styled text chunks
   and toggle their visibility and alignment.
-- `v run examples/cells/main.v` — edit a compact spreadsheet and recalculate
+- `v -b c -d ui2_custom_rendering run examples/cells/main.v` — edit a compact spreadsheet and recalculate
   dependent `sum` formulas.
-- `v run examples/circle_drawer/main.v` — add and resize circles with
+- `v -b c run examples/circle_drawer/main.v` — add and resize circles with
   selection-aware undo and redo.
-- `v run examples/gg2048/main.v` — play a deterministic, responsive version
+- `v -b c run examples/gg2048/main.v` — play a deterministic, responsive version
   of the 2048 tile game.
-- `v run examples/editor/main.v` — browse, create, edit, and save text files
+- `v -b c -d ui2_custom_rendering run examples/editor/main.v` — browse, create, edit, and save text files
   from a responsive editor.
-- `v run examples/calculate/main.v` — evaluate arithmetic expressions with
+- `v -b c -d ui2_custom_rendering run examples/calculate/main.v` — evaluate arithmetic expressions with
   precedence, unary operators, and parentheses.
-- `v run examples/timer/main.v` — run, pause, resume, and restart a timer with
+- `v -b c -d ui2_custom_rendering run examples/timer/main.v` — run, pause, resume, and restart a timer with
   a draggable duration control.
-- `v run examples/slider_textbox/main.v` — keep horizontal and vertical slider
+- `v -b c run examples/slider_textbox/main.v` — keep horizontal and vertical slider
   values synchronized with validated text fields.
-- `v run examples/transitions/main.v` — animate a movable tile between canvas
+- `v -b c run examples/transitions/main.v` — animate a movable tile between canvas
   targets with cubic easing.
-- `v run examples/gradient_texture/main.v` — generate an interactive HSV
+- `v -b c run examples/gradient_texture/main.v` — generate an interactive HSV
   gradient from keyed color tiles.
-- `v run examples/change_title/main.v` — validate a title and update the native
+- `v -b c run examples/change_title/main.v` — validate a title and update the native
   desktop window caption.
-- `v run examples/nested_clipping/main.v` — toggle a scroll viewport per box, or
+- `v -b c run examples/nested_clipping/main.v` — toggle a scroll viewport per box, or
   per quadrant, and watch the unclipped bars spill over their neighbours.
-- `v run examples/canvas_layout/main.v` — drag a themed tile across a sheet that
+- `v -b c run examples/canvas_layout/main.v` — drag a themed tile across a sheet that
   is taller than its viewport, and read live canvas coordinates.
-- `v run examples/grid2/main.v` — sort a scrollable data grid of text, factor,
+- `v -b c run examples/grid2/main.v` — sort a scrollable data grid of text, factor,
   and boolean columns, then edit the selected record.
-- `v run examples/colorbox/main.v` — pick a color from a hue strip and an HSV
+- `v -b c run examples/colorbox/main.v` — pick a color from a hue strip and an HSV
   square, store it in a slot, and drive a rectangle's text with it.
-- `v run examples/child_window/main.v` — open a movable child panel with its own
+- `v -b c run examples/child_window/main.v` — open a movable child panel with its own
   field, checkbox, and native greeting dialog.
-- `v run examples/accent_color/main.v` — drag three channels into an accent and
+- `v -b c run examples/accent_color/main.v` — drag three channels into an accent and
   derive a shade, a tint, and a readable font color from it.
-- `v run examples/text_style/main.v` — apply a family found in this machine's
+- `v -b c -d ui2_custom_rendering run examples/text_style/main.v` — apply a family found in this machine's
   font trees, at a chosen size and emphasis, to an editable sample.
-- `v run examples/canvas_layout_inside_row/main.v` — drag a rotatable logo
+- `v -b c -d ui2_custom_rendering run examples/canvas_layout_inside_row/main.v` — drag a rotatable logo
   across two panes and read its position in each pane's own coordinates.
-- `v run examples/calculator_resizable/main.v` — a calculator whose keys, type,
+- `v -b c run examples/calculator_resizable/main.v` — a calculator whose keys, type,
   and spacing are all fractions of the window.
-- `v run examples/users_box_layout/main.v` — a fixed registration column, with a
+- `v -b c run examples/users_box_layout/main.v` — a fixed registration column, with a
   progress bar and country choices, beside a table pane anchored to the window.
-- `v run examples/menubar/main.v` — a top level menu bar with shortcuts,
+- `v -b c run examples/menubar/main.v` — a top level menu bar with shortcuts,
   separators, disabled and checked rows, and nested submenus.
-- `v run examples/tray_icon/main.v` — a status area icon whose menu sets a
+- `v -b c run examples/tray_icon/main.v` — a status area icon whose menu sets a
   status, toggles a setting, and docks or hides the icon again.
-- `v run examples/custom_window/main.v` — a borderless desktop widget with
+- `v -b c run examples/custom_window/main.v` — a borderless desktop widget with
   ui2-drawn chrome, draggable content, and genuinely transparent space between
   its rounded surfaces on the native macOS and Windows backends.
 
 Run the calculator demo with:
 
 ```sh
-v run examples/calculator/main.v
+v -b c run examples/calculator/main.v
 ```
 
 It ports the `v-ui` calculator to typed VML: the display reads from the model,
@@ -1060,11 +958,11 @@ controls, exponentiation, repeated equals, and division-by-zero recovery.
 Run the responsive users demo with:
 
 ```sh
-v run examples/users/main.v
+v -b c run examples/users/main.v
 ```
 
 It ports the native-widget users example from `v-ui`. The complete screen is
-declared in `examples/users/users.vml` and embedded once with `$embed_file`; V only
+declared in `examples/users/users.vml` and compiled with `$vml`; V only
 contains the typed model and business actions. The example includes validated
 text entry, password masking, country selection, toggles, a progress indicator,
 and a keyed, scrollable user table.
@@ -1133,7 +1031,7 @@ to a PNG, so a layout can be checked without a person watching the window:
 
 ```sh
 make screenshot EXAMPLE=message
-v run examples/screenshot_example.vsh message --frame 30 --out shots
+v -b c run examples/screenshot_example.vsh message --frame 30 --out shots
 ```
 
 It drives gg's own recorder rather than a desktop screenshot utility, so it

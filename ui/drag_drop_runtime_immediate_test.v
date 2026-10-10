@@ -31,7 +31,7 @@ $if macos && ui2_custom_rendering ? && ui2_drag_runtime_probe ? && !ui2_embedder
 		if event.kind == .drag_cancel { drag_runtime_cancels++ }
 	}
 	fn drag_runtime_build() Element {
-		editor := text_input(id: 'editor', text: 'declared español', multiline: false,
+		editor := text_input(id: 'editor', text: 'declared español',
 			frame: rect(24, 430, 420, 40), box: BoxStyle{bg: 0xffffff},
 			text_style: TextStyle{size: 18}) or { panic(err) }
 		return screen(0xf1f5f9, [

@@ -30,9 +30,9 @@ fn test_splitpanel_adjusts_and_clamps_both_axes() {
 }
 
 fn test_splitpanel_vml_reflows_nested_panes() {
-	app := initial_splitpanel()
-	root := ui2.element_from_vml_model(splitpanel_vml_source, app, ui2.rect(0, 0, splitpanel_width, splitpanel_height)) or { panic(err) }
-	wide := ui2.element_from_vml_model(splitpanel_vml_source, app, ui2.rect(0, 0, 1000, splitpanel_height)) or { panic(err) }
+	mut app := initial_splitpanel()
+	root := splitpanel_tree(mut app, ui2.rect(0, 0, splitpanel_width, splitpanel_height))
+	wide := splitpanel_tree(mut app, ui2.rect(0, 0, 1000, splitpanel_height))
 	ui2.validate_element_tree(root) or { panic(err) }
 	stage := find_splitpanel_element(root, 'stage') or { panic('missing stage') }
 	top := find_splitpanel_element(root, 'top_panel') or { panic('missing top pane') }

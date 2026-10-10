@@ -18,7 +18,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		}
 		mut app := &GgApp{ scheduler: new_frame_coordinator() }
 		g_gg_app = app
-		field := text_input(TextInputConfig{ id: 'editor', multiline: false, text: 'declarado', frame: rect(0, 0, 100, 30) })!
+		field := text_input(TextInputConfig{ id: 'editor', text: 'declarado', frame: rect(0, 0, 100, 30) })!
 		label := label('label', 'hola', Rect{}, TextStyle{})
 		app.declared_root = flex(FlexConfig{
 			id:          'root'

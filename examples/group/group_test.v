@@ -25,8 +25,8 @@ fn test_group_submit_validates_and_confirms_names() {
 }
 
 fn test_group_vml_contains_bound_controls_and_native_button() {
-	app := GroupDemo{}
-	root := group_test_tree(group_vml_source, app, ui2.rect(0, 0, group_width, group_height)) or { panic(err) }
+	mut app := GroupDemo{}
+	root := group_tree(mut app, ui2.rect(0, 0, group_width, group_height))
 	ui2.validate_element_tree(root) or { panic(err) }
 
 	assert (find_group_element(root, 'registration1') or { panic('missing checkbox') }).checked
@@ -34,9 +34,4 @@ fn test_group_vml_contains_bound_controls_and_native_button() {
 	button := find_group_element(root, 'add_user') or { panic('missing Add user button') }
 	assert button.native_style
 	assert voidptr(button.on_event) != unsafe { nil }
-}
-
-fn group_test_tree[T](source string, model T, frame ui2.Rect) !ui2.Element {
-	mut app := ui2.new_vml_app(source, model)!
-	return app.build(frame)!
 }

@@ -96,13 +96,19 @@ fn build() ui2.Element {
 			ui2.with_drop_target(surface('rejected', 'Reject', ui2.rect(250, 30, 100, 70), 0xdc2626), ui2.DropTarget{ accept: reject_card }),
 		]),
 		ui2.label('', 'Drops: ${state.drops} · Cancels: ${state.cancels}', ui2.rect(24, 400, 600, 32), ui2.TextStyle{ size: 20, color: 0x0f172a }),
-		ui2.text_input(id: 'editor', text: 'Local draft: ñ / café', multiline: false, frame: ui2.rect(24, 450, 420, 40), box: ui2.BoxStyle{ bg: 0xffffff, radius: 6 }, text_style: ui2.TextStyle{ size: 18, color: 0x0f172a }) or { panic(err) },
+		ui2.text_input(
+			id:         'editor'
+			text:       'Local draft: ñ / café'
+			frame:      ui2.rect(24, 450, 420, 40)
+			box:        ui2.BoxStyle{ bg: 0xffffff, radius: 6 }
+			text_style: ui2.TextStyle{ size: 18, color: 0x0f172a }
+		) or { panic(err) },
 		ui2.label('', 'Edit this field, then drag: local text and focus survive.', ui2.rect(24, 500, 650, 28), ui2.TextStyle{ size: 14, color: 0x475569 }),
 	])
 }
 
 fn main() {
-	$if android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) {
+	$if android || linux || ((macos || windows) && ui2_custom_rendering ?) {
 		ui2.run_window('UI2 Drag Drop', 768, 550, build)
 	} $else {
 		eprintln('Run this example with -d ui2_custom_rendering; native profiles diagnose drag declarations.')

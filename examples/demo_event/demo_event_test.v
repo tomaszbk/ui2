@@ -1,3 +1,4 @@
+// vtest vflags: -d ui2_custom_rendering
 module main
 
 import ui2
@@ -29,7 +30,8 @@ fn test_demo_event_records_pointer_keys_and_clear() {
 }
 
 fn test_demo_event_vml_builds_draggable_surface_and_native_buttons() {
-	root := ui2.element_from_vml_model_with_callbacks(demo_event_vml_source, DemoEvent{}, ui2.rect(0, 0, demo_event_width, demo_event_height), demo_event_callbacks()) or { panic(err) }
+	mut compiled_model_0 := DemoEvent{}
+	root := demo_event_tree(mut compiled_model_0, ui2.rect(0, 0, demo_event_width, demo_event_height))
 	ui2.validate_element_tree(root) or { panic(err) }
 	surface := find_demo_event_element(root, 'event_surface') or { panic('missing event surface') }
 	assert surface.clickable

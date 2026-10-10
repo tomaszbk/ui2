@@ -24,7 +24,8 @@ fn test_box_layout_textbox_updates_status() {
 }
 
 fn test_box_layout_textbox_vml_keeps_percentage_geometry() {
-	root := ui2.element_from_vml_model(box_textbox_vml_source, initial_box_layout_textbox(), ui2.rect(0, 0, box_textbox_width, box_textbox_height)) or { panic(err) }
+	mut compiled_model_0 := initial_box_layout_textbox()
+	root := box_layout_with_textbox_tree(mut compiled_model_0, ui2.rect(0, 0, box_textbox_width, box_textbox_height))
 	ui2.validate_element_tree(root) or { panic(err) }
 	canvas := find_box_textbox_element(root, 'canvas') or { panic('missing canvas') }
 	notes := find_box_textbox_element(root, 'notes') or { panic('missing notes') }

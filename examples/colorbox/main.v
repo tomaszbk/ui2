@@ -5,7 +5,6 @@ import ui2
 
 const colorbox_width = 760
 const colorbox_height = 580
-const colorbox_vml_source = $embed_file('colorbox.vml').to_string()
 const hue_bands = 32
 const sv_side = 16
 const swatch_columns = 2
@@ -26,7 +25,7 @@ pub struct HueCell {
 pub:
 	key   string
 	index int
-	color string
+	color u32
 }
 
 pub struct SvCell {
@@ -34,7 +33,7 @@ pub:
 	key    string
 	column int
 	row    int
-	color  string
+	color  u32
 }
 
 pub struct Swatch {
@@ -44,7 +43,7 @@ pub:
 	column int
 	row    int
 pub mut:
-	color    string
+	color    u32
 	selected bool
 }
 
@@ -61,8 +60,8 @@ pub mut:
 	green_text  string
 	blue_text   string
 	valid       bool = true
-	color       string
-	hue_color   string
+	color       u32
+	hue_color   u32
 	hue_marker  f64
 	sv_marker_x f64
 	sv_marker_y f64
@@ -125,8 +124,8 @@ fn rgb_to_hsv(red int, green int, blue int) (f64, f64, f64) {
 	return hue, saturation, high
 }
 
-fn hex_color(red int, green int, blue int) string {
-	return '#${red:02X}${green:02X}${blue:02X}'
+fn hex_color(red int, green int, blue int) u32 {
+	return (u32(red) << 16) | (u32(green) << 8) | u32(blue)
 }
 
 fn clamp_unit(value f64) f64 {
@@ -202,14 +201,14 @@ fn (mut app ColorBoxDemo) sync() {
 pub fn (mut app ColorBoxDemo) set_hue(hue f64) {
 	app.hue = math.max(0.0, math.min(359.999, hue))
 	app.sync()
-	app.status = 'Hue ${int(app.hue)}° · ${app.color}'
+	app.status = 'Hue ${int(app.hue)}° · #${app.color:06X}'
 }
 
 pub fn (mut app ColorBoxDemo) set_saturation_value(saturation f64, value f64) {
 	app.saturation = clamp_unit(saturation)
 	app.value = clamp_unit(value)
 	app.sync()
-	app.status = 'S ${int(app.saturation * 100)}% · V ${int(app.value * 100)}% · ${app.color}'
+	app.status = 'S ${int(app.saturation * 100)}% · V ${int(app.value * 100)}% · #${app.color:06X}'
 }
 
 fn parse_channel(text string) ?int {
@@ -255,7 +254,7 @@ pub fn (mut app ColorBoxDemo) apply_channel(name string, text string) {
 	}
 	app.hue, app.saturation, app.value = rgb_to_hsv(red, green, blue)
 	app.sync()
-	app.status = 'RGB(${red}, ${green}, ${blue}) · ${app.color}'
+	app.status = 'RGB(${red}, ${green}, ${blue}) · #${app.color:06X}'
 }
 
 fn (app &ColorBoxDemo) selected_slot() int {
@@ -275,18 +274,18 @@ pub fn (mut app ColorBoxDemo) select_swatch(index int) {
 		app.swatches[slot].selected = slot == index
 	}
 	stored := app.swatches[index].color
-	red := ('0x' + stored[1..3]).int()
-	green := ('0x' + stored[3..5]).int()
-	blue := ('0x' + stored[5..7]).int()
+	red := int((stored >> 16) & 0xff)
+	green := int((stored >> 8) & 0xff)
+	blue := int(stored & 0xff)
 	app.hue, app.saturation, app.value = rgb_to_hsv(red, green, blue)
 	app.sync()
-	app.status = 'Recalled slot ${index + 1} · ${app.color}'
+	app.status = 'Recalled slot ${index + 1} · #${app.color:06X}'
 }
 
 pub fn (mut app ColorBoxDemo) store_swatch() {
 	index := app.selected_slot()
 	app.swatches[index].color = app.color
-	app.status = 'Stored ${app.color} in slot ${index + 1}.'
+	app.status = 'Stored #${app.color:06X} in slot ${index + 1}.'
 }
 
 fn (app &ColorBoxDemo) swatch_at(x f64, y f64) int {
@@ -352,18 +351,44 @@ fn colorbox_callbacks() map[string]ui2.ElementCallback {
 	}
 }
 
-fn build_colorbox_screen() ui2.Element {
-	state := unsafe { colorbox_state }
-	return ui2.element_from_vml_model_with_callbacks(colorbox_vml_source, *state, ui2.bounds(), colorbox_callbacks()) or {
-		eprintln('colorbox VML failed: ${err}')
-		ui2.screen(0xf1f5f9, [])
-	}
-}
-
 fn main() {
 	mut state := unsafe { colorbox_state }
 	unsafe {
 		*state = colorbox_demo()
 	}
-	ui2.run_window('Color Box', colorbox_width, colorbox_height, build_colorbox_screen)
+	ui2.run_compiled_vml[ColorBoxDemo](
+		build:  build_colorbox
+		model:  colorbox_state
+		title:  'Color Box'
+		width:  colorbox_width
+		height: colorbox_height
+	) or { panic(err) }
+}
+
+fn build_colorbox(mut app ColorBoxDemo) ui2.Element {
+	callbacks := colorbox_callbacks()
+	callback_store := callbacks['store'] or { panic('missing store callback') }
+	callback_hue_strip := callbacks['hue_strip'] or { panic('missing hue_strip callback') }
+	callback_sv_square := callbacks['sv_square'] or { panic('missing sv_square callback') }
+	callback_swatch_grid := callbacks['swatch_grid'] or { panic('missing swatch_grid callback') }
+	callback_red_input := callbacks['red_input'] or { panic('missing red_input callback') }
+	callback_green_input := callbacks['green_input'] or { panic('missing green_input callback') }
+	callback_blue_input := callbacks['blue_input'] or { panic('missing blue_input callback') }
+	return $vml('colorbox.vml')
+}
+
+fn colorbox_tree(mut app ColorBoxDemo, frame ui2.Rect) ui2.Element {
+	callbacks := colorbox_callbacks()
+	callback_store := callbacks['store'] or { panic('missing store callback') }
+	callback_hue_strip := callbacks['hue_strip'] or { panic('missing hue_strip callback') }
+	callback_sv_square := callbacks['sv_square'] or { panic('missing sv_square callback') }
+	callback_swatch_grid := callbacks['swatch_grid'] or { panic('missing swatch_grid callback') }
+	callback_red_input := callbacks['red_input'] or { panic('missing red_input callback') }
+	callback_green_input := callbacks['green_input'] or { panic('missing green_input callback') }
+	callback_blue_input := callbacks['blue_input'] or { panic('missing blue_input callback') }
+	return $vml('colorbox.vml', frame)
+}
+
+pub fn (app &ColorBoxDemo) display_color() string {
+	return '#${app.color:06X}'
 }

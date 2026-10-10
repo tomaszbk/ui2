@@ -1,0 +1,6 @@
+Stack(
+    align_x: end,
+    align_y: end,
+) {
+    View(width: 20, height: 10)
+}

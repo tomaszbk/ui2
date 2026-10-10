@@ -132,14 +132,14 @@ fn make_gallery() []ui2.Element {
 }
 
 fn build() ui2.Element {
-	$if android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) {
+	$if android || linux || ((macos || windows) && ui2_custom_rendering ?) {
 		state := unsafe { gallery }
 		mut children := [
 			ui2.label('', 'Vector canvas', ui2.rect(24, 14, 930, 35), ui2.TextStyle{ size: 27, weight: 600, color: 0x172554 }),
 			ui2.label('status', state.status, ui2.rect(24, 52, 950, 24), ui2.TextStyle{ size: 13, color: 0x475569 }),
 		]
 		children << state.cards
-		children << ui2.text_input(
+		children << ui2.text_area(
 			id:         'editor'
 			text:       'Español: ñ, á, é — local edits survive vector updates'
 			frame:      ui2.rect(24, 646, 944, 34)

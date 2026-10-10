@@ -1,3 +1,4 @@
+// vtest vflags: -d ui2_custom_rendering
 module main
 
 import ui2
@@ -23,7 +24,7 @@ fn test_fontchooser_updates_and_resets_style() {
 	app.style_changed()
 	assert app.font_family == 'Courier New'
 	assert app.font_size == 24
-	assert app.text_color == '#1D4ED8'
+	assert app.text_color == 0x1d4ed8
 	assert app.status == 'Monospace, 24 pt, blue'
 	app.reset_style()
 	assert app.font_family == ''
@@ -38,7 +39,7 @@ fn test_fontchooser_vml_forwards_dynamic_text_style() {
 	app.color_choice = 'Purple'
 	app.italic = true
 	app.style_changed()
-	root := ui2.element_from_vml_model(fontchooser_vml_source, app, ui2.rect(0, 0, fontchooser_width, fontchooser_height)) or { panic(err) }
+	root := fontchooser_tree(mut app, ui2.rect(0, 0, fontchooser_width, fontchooser_height))
 	ui2.validate_element_tree(root) or { panic(err) }
 	preview := find_fontchooser_element(root, 'preview_editor') or { panic('missing preview') }
 	assert preview.text_style.font_family == 'Times New Roman'

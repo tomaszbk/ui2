@@ -3,8 +3,6 @@ module main
 import os
 import ui2
 
-const responsive_source = $embed_file('responsive_layout.vml').to_string()
-
 pub struct Project {
 pub:
 	id          int
@@ -26,11 +24,20 @@ pub fn (mut app ResponsiveApp) create_project() {
 }
 
 fn main() {
-	ui2.run_vml[ResponsiveApp](
-		source: responsive_source
-		model:  ResponsiveApp{}
+	mut app := ResponsiveApp{}
+	ui2.run_compiled_vml[ResponsiveApp](
+		build:  build_responsive_layout
+		model:  &app
 		title:  'UI2 · Responsive layout'
 		width:  if '--compact' in os.args { 390 } else { 1000 }
 		height: 780
 	) or { panic(err) }
+}
+
+fn build_responsive_layout(mut app ResponsiveApp) ui2.Element {
+	return $vml('responsive_layout.vml')
+}
+
+fn responsive_layout_tree(mut app ResponsiveApp, frame ui2.Rect) ui2.Element {
+	return $vml('responsive_layout.vml', frame)
 }

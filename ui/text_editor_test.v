@@ -214,14 +214,13 @@ fn test_rich_text_area_keeps_runs() {
 			}
 		},
 	]
-	el := text_input(
+	el := text_area(
 		id:         'body'
 		text:       'Hello world'
 		text_runs:  runs
 		frame:      rect(0, 0, 200, 80)
 		box:        BoxStyle{}
 		text_style: TextStyle{}
-		multiline:  true
 	) or { panic(err) }
 	assert el.kind == .text_area
 	assert el.text == 'Hello world'
@@ -232,26 +231,24 @@ fn test_rich_text_area_keeps_runs() {
 }
 
 fn test_text_area_without_scroll_sets_disable_scroll() {
-	el := text_input(
+	el := text_area(
 		id:             'body'
 		text:           'Hello'
 		frame:          rect(0, 0, 200, 80)
 		box:            BoxStyle{}
 		text_style:     TextStyle{}
-		multiline:      true
 		disable_scroll: true
 	) or { panic(err) }
 	assert el.kind == .text_area
 	assert el.disable_scroll
 	rich :=
-		text_input(
+		text_area(
 			id:             'rich'
 			text:           'Hello'
 			text_runs:      []TextRun{}
 			frame:          rect(0, 0, 200, 80)
 			box:            BoxStyle{}
 			text_style:     TextStyle{}
-			multiline:      true
 			disable_scroll: true
 		) or { panic(err) }
 	assert rich.kind == .text_area
@@ -294,7 +291,6 @@ fn test_submit_callback_filters_changes_and_preserves_secure_display_text() {
 		box:         BoxStyle{}
 		text_style:  TextStyle{}
 		keyboard:    keyboard_default
-		multiline:   false
 	) or { panic(err) }
 	assert el.kind == .text_field
 	assert voidptr(el.on_event) != unsafe { nil }

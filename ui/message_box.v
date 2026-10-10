@@ -42,26 +42,38 @@ pub:
 // message_box shows the operating system's own modal alert and blocks until
 // the user dismisses it. Use custom_message_box instead when the dialog has to
 // stay inside the window, or on platforms where message_box_supported is false.
+$if !ui2_document_library ? {
 pub fn message_box(cfg MessageBoxConfig) MessageBoxResult {
 	return native_message_box(cfg)
 }
+}
+
 
 // message_box_supported reports whether message_box reaches a real platform
 // dialog. Android has no alert this layer can drive without a JVM callback, so
 // message_box returns the dismissal result there without showing anything.
+$if !ui2_document_library ? {
 pub fn message_box_supported() bool {
 	return native_message_box_supported()
 }
+}
+
 
 // alert shows a single-button informational message box.
+$if !ui2_document_library ? {
 pub fn alert(title string, text string) {
 	message_box(title: title, text: text)
 }
+}
+
 
 // confirm asks a yes/no question and reports whether the user answered yes.
+$if !ui2_document_library ? {
 pub fn confirm(title string, text string) bool {
 	return message_box(title: title, text: text, style: .question, buttons: .yes_no) == .yes
 }
+}
+
 
 // message_box_button_titles lists the button labels in platform order: the
 // affirmative answer first, the dismissal last.
