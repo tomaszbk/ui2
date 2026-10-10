@@ -1,5 +1,19 @@
 module ui2
 
+// VmlSourceLocation identifies authored VML for errors from reactive execution.
+@[params]
+pub struct VmlSourceLocation {
+pub:
+	source string
+	line   int
+	column int
+}
+
+fn (location VmlSourceLocation) wrap_error(cause IError) IError {
+	if location.source.len == 0 { return cause }
+	return error_with_code('${location.source}:${location.line}:${location.column}: ${cause.msg()}', cause.code())
+}
+
 @[heap]
 struct VmlKeyedEntry[T] {
 	component &CompiledVmlComponent
@@ -46,12 +60,14 @@ pub fn new_vml_keyed_list[T](mut parent CompiledVmlNode, name string, key fn (T)
 
 // The compiler supplies a typed array reader. Only sources read by this effect
 // can reconcile the list; property effects inside existing items stay intact.
-pub fn (mut list VmlKeyedList[T]) bind(source fn () ![]T) ! {
+// Source locations qualify errors from the initial read and later updates.
+pub fn (mut list VmlKeyedList[T]) bind(source fn () ![]T, location VmlSourceLocation) ! {
 	list.owner.require_alive()!
 	if list.effect != unsafe { nil } { return }
 	if source == unsafe { nil } { return error('compiled VML list source is nil') }
-	list.effect = list.owner.scope.effect('@items', fn [mut list, source] [T]() ! {
-		list.update(source()!)!
+	list.effect = list.owner.scope.effect('@items', fn [mut list, source, location] [T]() ! {
+		items := source() or { return location.wrap_error(err) }
+		list.update(items) or { return location.wrap_error(err) }
 	})!
 }
 
