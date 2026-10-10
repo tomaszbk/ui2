@@ -1,0 +1,5 @@
+component ControlPanel(content slot) {
+    Column(padding: 8, gap: 8) {
+        Slot(name: "content")
+    }
+}

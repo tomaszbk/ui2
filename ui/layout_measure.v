@@ -169,6 +169,16 @@ pub fn measure_layout_element(element Element, constraints LayoutConstraints, me
 	} else if element.kind == .image {
 		element.image_asset.validate()!
 		preferred = element.image_asset.logical_size
+	} else if element.kind == .slider {
+		// The thumb defines the cross axis; the track length is the author's.
+		thickness := math.max(element.slider_style.thumb_size, 20.0) + 4
+		preferred = if element.orientation == .vertical {
+			LayoutSize{ width: thickness }
+		} else {
+			LayoutSize{ height: thickness }
+		}
+	} else if element.kind == .switch_control {
+		preferred = LayoutSize{ width: 46, height: 28 }
 	} else {
 		mut width := 0.0
 		mut height := 0.0

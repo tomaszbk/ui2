@@ -228,6 +228,9 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 	__global g_toggle_groups = map[string]string{}
 	__global g_toggle_allow_no_selection = map[string]bool{}
 	__global g_focused_field = ''
+	// Like :focus-visible: a pointer press focuses quietly; keyboard input shows
+	// the focus ring again. Text editors always show their focus.
+	__global g_focus_visible = true
 	__global g_scroll_targets = map[string]HitTarget{}
 	__global g_scroll_offsets = map[string]f64{}
 	__global g_scroll_content_h = map[string]f64{}
@@ -602,6 +605,11 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 
 	pub fn focus(id string) {
 		set_custom_focus(id,true)
+	}
+
+	fn custom_focus_ring_visible(el Element) bool {
+		return el.id.len > 0 && el.id == g_focused_field
+			&& (g_focus_visible || el.kind in [.text_field, .text_area])
 	}
 
 	fn set_custom_focus(id string, reveal bool) {
@@ -1239,6 +1247,10 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 				custom_character_input(app, e.char_code)
 			}
 			.key_down {
+				if !g_focus_visible {
+					g_focus_visible = true
+					invalidate_custom_paint()
+				}
 				if drag_owned_escape(e.key_code) { return }
 				g_tooltip.dismiss()
 				dispatch := begin_custom_input_dispatch(app)
@@ -1306,7 +1318,10 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		target := hit_test(x, y)
 		// Opening a partially clipped dropdown must not move its surface away
 		// from this press. Keyboard/public focus still reveal it normally.
-		if g_focus_navigation.can_focus(target.id) { set_custom_focus(target.id,!target.dropdown) }
+		if g_focus_navigation.can_focus(target.id) {
+			g_focus_visible = false
+			set_custom_focus(target.id,!target.dropdown)
+		}
 		if !dispatch.valid() {
 			discard_custom_pointer_start(dispatch)
 			return dispatch
@@ -1365,7 +1380,8 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 			return
 		}
 		if target.switch_control {
-			commit_switch(target, switch_pointer_right(target, x, y))
+			// Below the drag threshold the press is a click, toggled on release.
+			if g_touch.moved { commit_switch(target, switch_pointer_right(target, x, y)) }
 			return
 		}
 		if g_touch.scrollbar_drag {
@@ -2593,7 +2609,7 @@ fn page_focused_text_area(direction int) {
 		region := current_clip_region(clip)
 		geometry := element_hit_geometry(declared, area, transform, region)
 		hovered := g_tooltip.pointer_in && hit_target_contains(geometry,g_tooltip.pointer_x,g_tooltip.pointer_y)
-		focused := declared.focused || (declared.id.len > 0 && declared.id == g_focused_field)
+		focused := declared.focused || custom_focus_ring_visible(declared)
 		style_pressed := g_touch.down && declared.id.len > 0
 			&& (declared.id == g_touch.pressed_id || declared.id == g_touch.pointer_target.id)
 			&& (!g_touch.pointer_captured || declared.kind == g_touch.pointer_target.kind)
@@ -2705,7 +2721,9 @@ fn page_focused_text_area(direction int) {
 				g_tooltip_owners--
 			}
 		}
-		if el.id.len > 0 && el.id == g_focused_field && el.kind !in [.text_field, .text_area] {
+		// A declared focus outline replaces the default ring instead of doubling it.
+		if custom_focus_ring_visible(el) && el.kind !in [.text_field, .text_area]
+			&& el.interaction_style.focus.outline_width == none {
 			draw_outline(ctx, area.x - 2, area.y - 2, area.width + 4, area.height + 4, 0x2563eb, el.box.radius)
 		}
 		match el.kind {

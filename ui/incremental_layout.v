@@ -433,9 +433,11 @@ fn layout_effective_environment(environment LayoutEnvironment, measure LayoutTex
 	return environment
 }
 
+// Leaves measured by measure_layout_element: text controls and controls with
+// a fixed intrinsic chrome size.
 fn layout_measure_is_text(element Element) bool {
 	return element.kind in [.label, .button, .toggle_button, .checkbox, .dropdown, .text_field,
-		.text_area]
+		.text_area, .slider, .switch_control]
 }
 
 fn (mut tree LayoutTree) measure_node(identity string, constraints LayoutConstraints) !LayoutSize {
