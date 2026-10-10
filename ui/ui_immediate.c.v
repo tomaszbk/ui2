@@ -93,6 +93,13 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		layout_tree &LayoutTree = &LayoutTree{}
 		layout_environment LayoutEnvironment
 		layout_patches []LayoutPatch
+		// Every queued patch gets a serial. A compiled declaration contains the
+		// retained state of all compiled patches up to declared_patch_serial.
+		layout_patch_serial u64
+		declared_patch_serial u64
+		compiled_snapshot bool
+		compiled_snapshot_serial u64
+		suppressed_compiled_patches bool
 		declared_root Element
 		declaration_pending bool
 		building_declaration bool
@@ -419,14 +426,34 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 
 	pub fn refresh_element(id string, element Element) {
 		if g_gg_app.scheduler.is_closed() { return }
-		g_gg_app.layout_patches << LayoutPatch{ id: id, element: element }
+		g_gg_app.layout_patch_serial++
+		g_gg_app.layout_patches << LayoutPatch{ id: id, element: element, serial: g_gg_app.layout_patch_serial }
 		g_gg_app.scheduler.invalidate(.layout)
 	}
 
-	fn refresh_compiled_element(node &CompiledVmlNode, element Element) {
+	// refresh_compiled_element queues a compiled document's patch, addressed by
+	// its authored id when it has one, otherwise by its retained node.
+	fn refresh_compiled_element(id string, node &CompiledVmlNode, element Element) {
 		if g_gg_app.scheduler.is_closed() { return }
-		g_gg_app.layout_patches << LayoutPatch{ compiled: node, element: element }
+		// The declaration being produced already contains this node's state.
+		if g_gg_app.compiled_snapshot {
+			g_gg_app.suppressed_compiled_patches = true
+			return
+		}
+		g_gg_app.layout_patch_serial++
+		g_gg_app.layout_patches << LayoutPatch{ id: id, compiled: if id.len > 0 { unsafe { nil } } else { node }, element: element, serial: g_gg_app.layout_patch_serial, document: true }
 		g_gg_app.scheduler.invalidate(.layout)
+	}
+
+	// begin_compiled_snapshot marks a compiled document producing its complete
+	// declaration. Patches published meanwhile are part of that declaration.
+	fn begin_compiled_snapshot() {
+		g_gg_app.compiled_snapshot = true
+	}
+
+	fn end_compiled_snapshot() {
+		g_gg_app.compiled_snapshot = false
+		g_gg_app.compiled_snapshot_serial = g_gg_app.layout_patch_serial
 	}
 
 	pub fn layout_stats() LayoutStats { return g_gg_app.layout_tree.stats() }
@@ -854,6 +881,8 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 			app.declaration_pending = false
 		}
 		for patch in patches {
+			// A compiled declaration already contains this or a newer state.
+			if patch.document && patch.serial <= app.declared_patch_serial { continue }
 			element := if input { patch.element } else { apply_custom_widget_animations(patch.element) }
 			if !dispatch.valid() || app.ctx != ctx || (ctx != unsafe { nil } && !custom_layout_owner_current(dispatch,ctx,input)) {
 				return error('layout frame canceled')
@@ -883,7 +912,14 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		defer { app.building_declaration=false }
 		generation := app.scheduler.stats().generation
 		app.scheduler.record_build()
+		app.compiled_snapshot_serial = 0
+		app.suppressed_compiled_patches = false
 		declared := g_build_screen()
+		mut adopted := false
+		// A discarded declaration must not lose patches its snapshot absorbed.
+		defer {
+			if app.suppressed_compiled_patches && !adopted { app.scheduler.invalidate(.build) }
+		}
 		// Input needs the same token. A canceled paint keeps a completed builder's
 		// declaration under the owner/context guard so retained recovery never
 		// replays business callbacks merely because window input changed.
@@ -893,9 +929,11 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		if !current { return false }
 		validate_element_tree(declared) or { eprintln('ui2: ${err}'); return false }
 		app.declared_root=declared
+		app.declared_patch_serial=math.max(app.declared_patch_serial, app.compiled_snapshot_serial)
 		app.declaration_pending=true
 		app.declaration_generation=generation
 		app.has_root=true
+		adopted=true
 		return true
 	}
 

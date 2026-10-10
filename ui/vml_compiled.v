@@ -47,6 +47,8 @@ $if !ui2_document_library ? {
 fn compiled_vml_controller_build[T]() Element {
 	runtime := compiled_vml_runtime()
 	mut controller := unsafe { &CompiledVmlController[T](runtime.controller) }
+	compiled_vml_begin_snapshot()
+	defer { compiled_vml_end_snapshot() }
 	if controller.update != unsafe { nil } { controller.update(mut controller.model) }
 	if controller.node == unsafe { nil } {
 		declaration := controller.build(mut controller.model)
