@@ -66,10 +66,15 @@ jobs:
         run: v -b c -cc gcc -check ui2/ide
 
       - name: Test layout geometry
-        run: v -b c -cc gcc test ui2/ui/incremental_layout_test.v
+        run: |
+          v -b c -cc gcc test ui2/ui/incremental_layout_test.v
+          v -b c -cc gcc test ui2/ui/incremental_layout_axes_test.v
 
       - name: Test compiled VML layout
-        run: v -b c -cc gcc test ui2/ui/vml_modern_layout_test.v
+        run: |
+          v -b c -cc gcc test ui2/ui/vml_modern_layout_test.v
+          v -b c -cc gcc test ui2/ui/vml_keyed_list_test.v
+          v -b c -cc gcc test ui2/ui/vml_keyed_dependencies_test.v
 
       - name: Test designer and generated companion
         run: v -b c -cc gcc test ui2/ide

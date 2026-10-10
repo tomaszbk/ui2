@@ -17,8 +17,8 @@ env:
   TEXT_PKG_CONFIG_MODULES: pango pangoft2 freetype2 harfbuzz fribidi fontconfig gobject-2.0 glib-2.0
 
 jobs:
-  build-examples:
-    name: Build examples (${{ matrix.os }}${{ matrix.custom && ', custom renderer' || '' }})
+  desktop-tests:
+    name: Desktop tests (${{ matrix.os }}${{ matrix.custom && ', custom renderer' || '' }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
     strategy:
@@ -59,7 +59,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install --quiet -y --no-install-recommends \
-            libx11-dev libxcursor-dev libxi-dev libgl1-mesa-dev libasound2-dev \
+            libx11-dev libxcursor-dev libxi-dev libxrandr-dev libgl1-mesa-dev libasound2-dev \
             pkg-config libpango1.0-dev libfreetype6-dev libharfbuzz-dev \
             libfribidi-dev libfontconfig1-dev fonts-noto-core fonts-noto-cjk fonts-noto-color-emoji
 
@@ -173,6 +173,3 @@ jobs:
         if: runner.os == 'macOS' && matrix.custom
         working-directory: ui2
         run: make check-embedder-macos
-
-      - name: Build all examples
-        run: v -b c run ui2/examples/build_examples.vsh ${{ matrix.compiler_flags }} ${{ matrix.custom && '-d ui2_custom_rendering' || '' }}

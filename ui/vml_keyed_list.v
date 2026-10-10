@@ -58,8 +58,8 @@ pub fn new_vml_keyed_list[T](mut parent CompiledVmlNode, name string, key fn (T)
 	return list
 }
 
-// The compiler supplies a typed array reader. Only sources read by this effect
-// can reconcile the list; property effects inside existing items stay intact.
+// The compiler supplies a typed array reader. Reads by the array reader and
+// key callback can reconcile the list; item effects track their own sources.
 // Source locations qualify errors from the initial read and later updates.
 pub fn (mut list VmlKeyedList[T]) bind(source fn () ![]T, location VmlSourceLocation) ! {
 	list.owner.require_alive()!
@@ -88,6 +88,12 @@ pub fn (mut list VmlKeyedList[T]) update(items []T) ! {
 		active[key] = true
 		keys << key
 	}
+	list.owner.runtime.untracked(fn [mut list, items, keys, active] [T]() ! {
+		list.reconcile(items, keys, active)!
+	})!
+}
+
+fn (mut list VmlKeyedList[T]) reconcile(items []T, keys []string, active map[string]bool) ! {
 	mut inserted := []string{}
 	for index, item in items {
 		key := keys[index]
@@ -105,8 +111,14 @@ pub fn (mut list VmlKeyedList[T]) update(items []T) ! {
 		}
 		// Key is structural identity; user ids remain scoped to this instance.
 		for index, mut node in nodes {
-			sibling_key := if nodes.len == 1 { key } else {
-				vml_composed_key(key, if node.relative_key.len > 0 { node.relative_key } else { index.str() })
+			sibling_key := if nodes.len == 1 {
+				key
+			} else {
+				vml_composed_key(key, if node.relative_key.len > 0 {
+					node.relative_key
+				} else {
+					index.str()
+				})
 			}
 			node.set_reconciliation_key(sibling_key)
 		}

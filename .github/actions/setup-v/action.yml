@@ -10,7 +10,7 @@ inputs:
     default: tomaszbk/v
   v-revision:
     description: Verified V source revision
-    default: da778c500ae5153100da6cbac278f3c92bca5ef4
+    default: 21c58013a679a6196439b30cddaea51f638b6e5f
   vc-revision:
     description: Compatible generated C bootstrap snapshot
     # Use the snapshot preceding the verified V source pin. The October 1
