@@ -74,6 +74,12 @@ that mounted instance is disposed. `cleanup { ... }` releases resources owned by
 scope. Removed keyed instances dispose their effects and cleanups. A callback
 retained after disposal cannot update the old instance.
 
+Repeater failures report the authored VML file, line and column during both the
+initial calculation and later reactive updates. Duplicate or empty keys leave
+the existing list order and instances intact; a subsequent valid update can
+reconcile them. V code using `VmlKeyedList.bind` can pass optional
+`source`, `line` and `column` arguments for the same diagnostic context.
+
 V application code can obtain a scope-owned `VmlTask` with
 `component.task("load")!`. Workers check `is_cancelled()` and deliver results
 with `post(dispatcher, action)`, which batches the action on the UI thread.
