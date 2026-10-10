@@ -43,8 +43,9 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		dropdown_option bool
 		option_index    int
 		emit_change bool
-		clickable   bool
-		draggable   bool
+		clickable      bool
+		button_behavior bool
+		draggable      bool
 	}
 
 	struct TouchState {
@@ -968,9 +969,12 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		if begin_scrollbar_drag(x, y) {
 			return
 		}
-		if target.action_id.len > 0 && (target.clickable || target.draggable) {
+		if target.action_id.len > 0
+			&& (target.clickable || target.button_behavior || target.draggable) {
 			g_touch.pointer_target = target
-			fire_event(pointer_event_id('down', target.action_id, x, y))
+			if target.clickable || target.draggable {
+				fire_event(pointer_event_id('down', target.action_id, x, y))
+			}
 		}
 	}
 
@@ -1048,6 +1052,13 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		if !g_touch.down {
 			return
 		}
+		release_dx := x - g_touch.start_x
+		release_dy := y - g_touch.start_y
+		if release_dx * release_dx + release_dy * release_dy > 100 {
+			g_touch.moved = true
+		}
+		g_touch.current_x = x
+		g_touch.current_y = y
 		captured := g_touch.pointer_target
 		g_touch.pointer_target = HitTarget{}
 		g_touch.down = false
@@ -1092,8 +1103,24 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 				return
 			}
 		}
+		mut button_action := ''
+		if target.action_id.len > 0 && target.button_behavior {
+			if !g_touch.moved {
+				if current := current_button_behavior_target(target) {
+					if hit_target_contains(current, x, y) {
+						button_action = target.action_id
+					}
+				}
+			}
+		}
 		if target.action_id.len > 0 && (target.clickable || target.draggable) {
 			fire_event(pointer_event_id('up', target.action_id, x, y))
+		}
+		if target.button_behavior {
+			fire_event(button_action)
+			return
+		}
+		if target.action_id.len > 0 && (target.clickable || target.draggable) {
 			return
 		}
 		if g_touch.moved {
@@ -1146,7 +1173,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		x := g_touch.current_x
 		y := g_touch.current_y
 		g_touch = TouchState{}
-		if captured.action_id.len > 0 {
+		if captured.action_id.len > 0 && (captured.clickable || captured.draggable) {
 			fire_event(pointer_event_id('up', captured.action_id, x, y))
 		}
 	}
@@ -1174,6 +1201,46 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			}
 		}
 		return HitTarget{}
+	}
+
+	fn hit_target_contains(target HitTarget, x f64, y f64) bool {
+		return x >= target.x && x <= target.x + target.w && y >= target.y
+			&& y <= target.y + target.h
+	}
+
+	// A semantic press keeps the action chosen on pointer-down, but the surface
+	// must still exist and be enabled when it is released. Hit targets are rebuilt
+	// every frame, so use the current geometry rather than the captured rectangle.
+	fn current_button_behavior_target(captured HitTarget) ?HitTarget {
+		if captured.id.len > 0 {
+			for i := g_hit_targets.len - 1; i >= 0; i-- {
+				current := g_hit_targets[i]
+				if current.button_behavior && current.action_id.len > 0
+					&& current.id == captured.id {
+					return current
+				}
+			}
+			return none
+		}
+		mut found := false
+		mut matched := HitTarget{}
+		for i := g_hit_targets.len - 1; i >= 0; i-- {
+			current := g_hit_targets[i]
+			if !current.button_behavior || current.action_id != captured.action_id {
+				continue
+			}
+			if found {
+				// Without a lookup id there is no stable way to distinguish two
+				// surfaces that dispatch the same action after a rebuild.
+				return none
+			}
+			found = true
+			matched = current
+		}
+		if found {
+			return matched
+		}
+		return none
 	}
 
 	fn fire_event(id string) {
@@ -2145,7 +2212,8 @@ fn page_focused_text_area(direction int) {
 				}
 				draw_box_borders(ctx, x, y, el.frame.width, el.frame.height, el.box)
 				if el.enabled && element_action_id(el).len > 0
-					&& (el.clickable || el.draggable || el.long_press || el.swipe_left) {
+					&& (el.clickable || el.button_behavior || el.draggable || el.long_press
+					|| el.swipe_left) {
 					add_hit_target(HitTarget{
 						id: el.id
 						action_id: element_action_id(el)
@@ -2156,6 +2224,7 @@ fn page_focused_text_area(direction int) {
 						long_press: el.long_press
 						swipe_left: el.swipe_left
 						clickable: el.clickable
+						button_behavior: el.button_behavior
 						draggable: el.draggable
 					}, clip)
 				}
@@ -2213,7 +2282,8 @@ fn page_focused_text_area(direction int) {
 					el.rotation) {
 					draw_rect(ctx, x, y, el.frame.width, el.frame.height, 0xe8ecef, 0)
 				}
-				if el.enabled && element_action_id(el).len > 0 && (el.clickable || el.draggable) {
+				if el.enabled && element_action_id(el).len > 0
+					&& (el.clickable || el.draggable) {
 					add_hit_target(HitTarget{
 						id: el.id
 						action_id: element_action_id(el)
