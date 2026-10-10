@@ -210,7 +210,7 @@ fn test_appkit_mounted_screen_semantics_use_current_logical_viewport_without_reb
 	assert semantic_tree()[0].frame == rect(0, 0, 520, 360)
 	assert st.navigation.root.frame == resolved_frame && st.layout_tree.stats() == stats
 	// A declared subtree is not a mounted screen viewport.
-	st.navigation.root = root.children[0]
+	st.navigation.set_root(root.children[0])
 	assert semantic_tree()[0].frame == root.children[0].frame
 	assert (semantic_node('caption') or { panic('missing subtree caption') }).frame == rect(15.75, 13.75, 87.5, 10.25)
 }

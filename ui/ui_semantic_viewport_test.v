@@ -46,7 +46,7 @@ fn test_custom_screen_semantics_read_current_context_before_paint_without_invali
 	assert semantic_tree()[0].frame == rect(0, menu_bar_height(), 640, 480 - menu_bar_height())
 	assert (semantic_node('caption') or { panic('missing menu-offset child') }).frame == rect(65.25, 26.5 + menu_bar_height(), 20.5, 10.25)
 	assert render_stats() == before
-	g_focus_navigation.root = root.children[0]
+	g_focus_navigation.set_root(root.children[0])
 	assert semantic_tree()[0].frame == rect(10, 20 + menu_bar_height(), 200, 100)
 }
 }

@@ -1020,6 +1020,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		reconcile_mounted_focus_controls(root)
 		update_custom_focus_tree(root)
 		if !custom_frame_current(dispatch, ctx) || g_focus_navigation.root != root { return }
+		mounted := g_focus_navigation.root_revision
 		g_hit_targets = []HitTarget{}
 		g_tooltip_targets.clear()
 		g_tooltip_owners = 0
@@ -1044,14 +1045,14 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		}
 		// Image resources must be available before starting the GPU pass.
 		sync_drag_session()
-		if !custom_frame_current(dispatch,ctx) || g_focus_navigation.root != root { return }
+		if !custom_frame_current(dispatch,ctx) || g_focus_navigation.root_revision != mounted { return }
 		ctx.images.begin_frame()
 		preload_images(mut ctx)
 		preload_drag_preview(mut ctx)
 		previous_geometry := app.visual_geometries
 		app.visual_geometries = map[string]VisualGeometry{}
 		defer {
-			if !custom_frame_current(dispatch, ctx) || g_focus_navigation.root != root {
+			if !custom_frame_current(dispatch, ctx) || g_focus_navigation.root_revision != mounted {
 				app.visual_geometries = previous_geometry
 			}
 		}
@@ -1060,12 +1061,12 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		ctx.clip_region = ClipRegion{}
 		ctx.begin()
 		defer {
-			if custom_frame_current(dispatch, ctx) && g_focus_navigation.root == root { ctx.end() } else { ctx.cancel() }
+			if custom_frame_current(dispatch, ctx) && g_focus_navigation.root_revision == mounted { ctx.end() } else { ctx.cancel() }
 		}
 		if app.has_root {
 			top := menu_bar_height()
 			render_element(ctx, root, 0, top, rect(0, top, f64(ctx.width), f64(ctx.height) - top), '', 'root')
-			if !custom_frame_current(dispatch, ctx) || g_focus_navigation.root != root { return }
+			if !custom_frame_current(dispatch, ctx) || g_focus_navigation.root_revision != mounted { return }
 			if g_open_dropdown.len > 0 {
 				if g_dropdown_popup.mounted {
 					draw_dropdown_popup(ctx)
@@ -1074,7 +1075,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 				}
 			}
 			sync_drag_session()
-			if !custom_frame_current(dispatch,ctx) || g_focus_navigation.root != root { return }
+			if !custom_frame_current(dispatch,ctx) || g_focus_navigation.root_revision != mounted { return }
 			draw_drag_preview(ctx)
 			draw_menu_bar(ctx)
 			update_tooltip(now)
@@ -1085,7 +1086,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 			}
 		}
 		check_long_press()
-		if !custom_frame_current(dispatch, ctx) || g_focus_navigation.root != root { return }
+		if !custom_frame_current(dispatch, ctx) || g_focus_navigation.root_revision != mounted { return }
 		$if android {
 			// Android's legacy gg atlas uploads glyphs introduced by this frame.
 			if ctx.font_inited { ctx.ft.flush() }
@@ -2567,12 +2568,12 @@ fn page_focused_text_area(direction int) {
 
 	fn render_scaled_content(ctx &DrawContext, el Element, off_x f64, off_y f64, clip Rect, scroll_parent_id string, path string) {
 		dispatch := custom_input_dispatch(g_gg_app)
-		root := g_focus_navigation.root
+		root := g_focus_navigation.root_revision
 		if el.hidden { return }
 		viewport := rect(el.frame.x + off_x, el.frame.y + off_y, el.frame.width, el.frame.height)
 		local := contain_content(viewport, el.content_size.width, el.content_size.height) or { return }
 		render_element_body(ctx, Element{ ...el, children: [], content_size: LayoutSize{} }, off_x, off_y, clip, scroll_parent_id, path)
-		if !custom_frame_current(dispatch, ctx) || g_focus_navigation.root != root { return }
+		if !custom_frame_current(dispatch, ctx) || g_focus_navigation.root_revision != root { return }
 		outer := ctx.content_transform
 		base := ctx.clip_base
 		region := ctx.clip_region
@@ -2595,7 +2596,7 @@ fn page_focused_text_area(direction int) {
 		apply_clip(ctx, content_clip)
 		for index, child in el.children {
 			render_element(ctx, child, 0, 0, content_clip, scroll_parent_id, reconciliation_child_key(path, index, child))
-			if !custom_frame_current(dispatch, ctx) || g_focus_navigation.root != root { return }
+			if !custom_frame_current(dispatch, ctx) || g_focus_navigation.root_revision != root { return }
 		}
 	}
 
@@ -2633,7 +2634,7 @@ fn page_focused_text_area(direction int) {
 
 	fn render_element_body(ctx &DrawContext, declared_el Element, off_x f64, off_y f64, clip Rect, scroll_parent_id string, path string) {
 		dispatch := custom_input_dispatch(g_gg_app)
-		root := g_focus_navigation.root
+		root := g_focus_navigation.root_revision
 		if declared_el.content_size.width > 0 || declared_el.content_size.height > 0 {
 			render_scaled_content(ctx, declared_el, off_x, off_y, clip, scroll_parent_id, path)
 			return
@@ -2677,7 +2678,7 @@ fn page_focused_text_area(direction int) {
 				draw_box_borders(ctx, area.x, area.y, area.width, area.height, el.box)
 				for index, child in el.children {
 					render_element(ctx, child, off_x, off_y, clip, scroll_parent_id, reconciliation_child_key(path,index,child))
-					if !custom_frame_current(dispatch, ctx) || g_focus_navigation.root != root { return }
+					if !custom_frame_current(dispatch, ctx) || g_focus_navigation.root_revision != root { return }
 				}
 			}
 			.view {
@@ -2721,7 +2722,7 @@ fn page_focused_text_area(direction int) {
 				}
 				for index, child in el.children {
 					render_element(ctx, child, x, y, clip, scroll_parent_id, reconciliation_child_key(path,index,child))
-					if !custom_frame_current(dispatch, ctx) || g_focus_navigation.root != root { return }
+					if !custom_frame_current(dispatch, ctx) || g_focus_navigation.root_revision != root { return }
 				}
 			}
 			.scroll {
@@ -2734,7 +2735,7 @@ fn page_focused_text_area(direction int) {
 				scroll_id := scroll_view_state_id(el, path)
 				scroll_y := register_scroll_view_in_parent(scroll_id, scroll_parent_id, frame, clip, content_h, el.enabled,
 					true, el.persistent_scrollbars, HitTarget{ id: el.id, kind: .scroll, on_event: el.on_event })
-				if !custom_frame_current(dispatch, ctx) || g_focus_navigation.root != root { return }
+				if !custom_frame_current(dispatch, ctx) || g_focus_navigation.root_revision != root { return }
 				child_scroll_parent_id := scroll_id
 				child_clip := intersect_rect(frame, clip)
 				for index, child in el.children {
@@ -2744,7 +2745,7 @@ fn page_focused_text_area(direction int) {
 						continue
 					}
 					render_element(ctx, child, x, y - scroll_y, child_clip, child_scroll_parent_id, reconciliation_child_key(path,index,child))
-					if !custom_frame_current(dispatch, ctx) || g_focus_navigation.root != root { return }
+					if !custom_frame_current(dispatch, ctx) || g_focus_navigation.root_revision != root { return }
 				}
 				if child_clip.width > 0 && child_clip.height > 0 {
 					apply_clip(ctx, child_clip)

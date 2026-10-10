@@ -51,6 +51,9 @@ struct FocusReveal {
 struct FocusManager {
 mut:
 	root           Element
+	// root_revision advances whenever a different root is published. In-flight
+	// frames compare it instead of comparing whole Element trees per child.
+	root_revision  u64
 	nodes          []FocusNode
 	// Index the retained registry itself, including named non-focusable nodes
 	// painted by custom backends and anonymous ancestors addressed by path.
@@ -89,8 +92,15 @@ fn (mut manager FocusManager) update_mounted(root Element, offsets map[string]f6
 	manager.update_geometry(root, offsets, transform, mounted_root_frame(root, viewport), transformed_clip(viewport, transform))
 }
 
-fn (mut manager FocusManager) update_geometry(root Element, offsets map[string]f64, transform ContentTransform, root_frame Rect, clip ClipRegion) {
+// set_root publishes a mounted tree. Republishing an equal tree keeps the
+// revision, so nested refreshes do not cancel a frame painting that same tree.
+fn (mut manager FocusManager) set_root(root Element) {
+	if manager.root != root { manager.root_revision++ }
 	manager.root = root
+}
+
+fn (mut manager FocusManager) update_geometry(root Element, offsets map[string]f64, transform ContentTransform, root_frame Rect, clip ClipRegion) {
+	manager.set_root(root)
 	manager.scroll_offsets = offsets.clone()
 	manager.nodes.clear()
 	manager.node_indices.clear()

@@ -1076,7 +1076,7 @@ fn render_resolved_root(resolved Element) {
 	mut active := map[string]bool{}
 	render_children(g_root_view, root.children, '', mut active)
 	remove_stale_nodes(active)
-	g_ios_navigation.root = root
+	g_ios_navigation.set_root(root)
 	g_ios_navigation.current = previous_focus
 	sync_focus_navigation()
 	if g_ios_navigation.current.len > 0 {
