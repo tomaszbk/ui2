@@ -117,7 +117,7 @@ $if ( linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headl
 		assert engine.shape_builds == 2 && engine.shape_hits == 1
 		assert hit.text.str == cold.text.str
 		// Returned shapes also keep their text after their cache entry retires.
-		engine.shape_cache.clear()
+		engine.clear_shape_cache()
 		for shaped in [direct, cold, hit] {
 			assert shaped.text == value && shaped.layout.text == value
 			assert shaped.lines[0].text == value

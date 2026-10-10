@@ -74,18 +74,48 @@ mut:
 	generation      u64
 	version         u64
 	subtree_version u64
-	exterior_key    string
-	own_key         string
+	// Reconciled declarations are compared in place; keys are never formatted.
+	mounted         bool
+	seen            u64
+	metric_flags    u8
+	exterior_fixed  bool
+	own_revision    u64
 	children        []string
 	declaration     Element
 	input           Rect
-	measures        map[string]LayoutSize
-	text_key        string
-	text_measures   map[string]LayoutSize
+	// Measurements are valid for this node's version and the tree environment;
+	// both changes clear them, so constraints alone select an entry.
+	measures        []LayoutMeasure
+	text_measures   []LayoutMeasure
 	placed_frames   []Rect
-	arrangement_key string
-	placement_key   string
+	arranged        bool
+	arranged_own    u64
+	arranged_deps   []u64
+	arranged_width  f64
+	arranged_height f64
+	placed          bool
+	placed_subtree  u64
+	placed_width    f64
+	placed_height   f64
 	frame           Rect
+}
+
+struct LayoutMeasure {
+	constraints LayoutConstraints
+	size        LayoutSize
+}
+
+fn layout_measure_lookup(entries []LayoutMeasure, constraints LayoutConstraints) ?LayoutSize {
+	for entry in entries {
+		if entry.constraints == constraints { return entry.size }
+	}
+	return none
+}
+
+// Bound memory during arbitrary resize; retired content drops all entries.
+fn layout_measure_store(mut entries []LayoutMeasure, constraints LayoutConstraints, size LayoutSize) {
+	if entries.len >= 16 { entries.clear() }
+	entries << LayoutMeasure{ constraints: constraints, size: size }
 }
 
 // LayoutTree is a UI-thread owner, isolated per window. Anonymous nodes receive
@@ -97,6 +127,7 @@ mut:
 	root        string
 	serial      u64
 	revision    u64
+	pass        u64
 	environment LayoutEnvironment
 	measurer    LayoutTextMeasureFn = unsafe { nil }
 	counters    LayoutStats
@@ -128,11 +159,13 @@ fn (tree &LayoutTree) find_id(id string) ?&RetainedLayoutNode {
 pub fn (mut tree LayoutTree) replace(root Element) ! {
 	validate_element_tree(root)!
 	tree.counters.builds++
-	mut active := map[string]bool{}
-	tree.root = tree.reconcile(root, '', mut active)
-	for identity in tree.nodes.keys() {
-		if identity !in active { tree.nodes.delete(identity) }
+	tree.pass++
+	tree.root = tree.reconcile(root, '', '')
+	mut retired := []string{}
+	for identity, node in tree.nodes {
+		if node.seen != tree.pass { retired << identity }
 	}
+	for identity in retired { tree.nodes.delete(identity) }
 }
 
 // patch replaces a mounted subtree without invoking the screen builder. The
@@ -176,9 +209,12 @@ fn (mut tree LayoutTree) patch_identity(target &RetainedLayoutNode, element Elem
 	previous_version := target.version
 	previous_subtree := target.subtree_version
 	parent := target.parent
-	mut active := map[string]bool{}
-	identity := tree.reconcile(element, parent, mut active)
-	for old in retired { if old !in active { tree.nodes.delete(old) } }
+	tree.pass++
+	identity := tree.reconcile(element, target.identity, parent)
+	for old in retired {
+		node := tree.nodes[old] or { continue }
+		if node.seen != tree.pass { tree.nodes.delete(old) }
+	}
 	current := tree.nodes[identity] or { return error('missing patched subtree') }
 	mut changed_size := previous_version != current.version
 	changed_below := previous_subtree != current.subtree_version
@@ -220,8 +256,6 @@ fn (tree &LayoutTree) patch_declaration(identity string, target string, replacem
 fn layout_metric_style(style TextStyle) TextStyle {
 	return TextStyle{
 		...style
-		font_family:      style.font_family.bytes().hex()
-		vertical_align:   style.vertical_align.bytes().hex()
 		color:            0
 		background_color: 0
 		underline:        false
@@ -234,89 +268,114 @@ fn layout_metric_style(style TextStyle) TextStyle {
 	}
 }
 
-fn layout_metric_key(element Element, input Rect) string {
-	runs := element.text_runs.map(TextRun{ text: it.text.bytes().hex(), style: layout_metric_style(it.style) })
-	// Hex-encode user strings so delimiters cannot alias key components.
-	return '${element.kind}|${input}|${layout_authored_width(element)}:${layout_authored_height(element)}:${layout_inherits_width(element)}:${layout_inherits_height(element)}|${element.hidden}|${element.text.bytes().hex()}|${element.placeholder.bytes().hex()}|${layout_metric_style(element.text_style)}|${runs}|${element.layout}|${element.content_size}|${element.padding_left}|${element.disable_scroll}|${element.secure}|${element.image_path.bytes().hex()}|${element.image_asset.logical_size}'
+// Authored and inherited axes can come from the retained compiled node, not
+// the Element value, so they are recorded with each reconciled declaration.
+fn layout_metric_flags(element Element) u8 {
+	return u8(layout_authored_width(element)) | (u8(layout_authored_height(element)) << 1) | (u8(layout_inherits_width(element)) << 2) | (u8(layout_inherits_height(element)) << 3)
 }
 
-fn (mut tree LayoutTree) reconcile(element Element, parent string, mut active map[string]bool) string {
-	tree.counters.reconciled++
-	identity := if parent.len == 0 {
-		'root'
-	} else if element.id.len > 0 {
+// layout_metrics_equal compares every declaration input, other than the frame,
+// that can change a measured size or child placement. Paint-only fields differ freely.
+fn layout_metrics_equal(a Element, b Element) bool {
+	if a.kind != b.kind || a.hidden != b.hidden || a.text != b.text || a.placeholder != b.placeholder
+		|| a.content_size != b.content_size || a.padding_left != b.padding_left
+		|| a.disable_scroll != b.disable_scroll || a.secure != b.secure || a.image_path != b.image_path
+		|| a.image_asset.logical_size != b.image_asset.logical_size || a.text_runs.len != b.text_runs.len
+		|| layout_metric_style(a.text_style) != layout_metric_style(b.text_style) {
+		return false
+	}
+	for i, run in a.text_runs {
+		other := b.text_runs[i]
+		if run.text != other.text || layout_metric_style(run.style) != layout_metric_style(other.style) { return false }
+	}
+	return a.layout == b.layout
+}
+
+fn layout_child_identity(element Element, parent string) string {
+	return if element.id.len > 0 {
 		'id:' + element.id.bytes().hex()
 	} else if element.key.len > 0 {
 		parent + '/key:' + element.key.bytes().hex()
 	} else if element.compiled_node != unsafe { nil } {
 		parent + '/compiled:' + element.compiled_node.identity().bytes().hex()
 	} else {
+		''
+	}
+}
+
+// reconcile accepts a precomputed identity; an empty one is derived here.
+fn (mut tree LayoutTree) reconcile(element Element, known string, parent string) string {
+	tree.counters.reconciled++
+	mut identity := known
+	if identity.len == 0 {
+		identity = if parent.len == 0 { 'root' } else { layout_child_identity(element, parent) }
+	}
+	if identity.len == 0 {
 		tree.serial++
-		'anonymous:' + tree.serial.str()
+		identity = 'anonymous:' + tree.serial.str()
 	}
 	input := element.layout_input or { element.frame }
-	own := layout_metric_key(element, input)
+	flags := layout_metric_flags(element)
 	mut node := tree.nodes[identity] or {
 		tree.serial++
 		created := &RetainedLayoutNode{ identity: identity, generation: tree.serial }
+		tree.nodes[identity] = created
 		created
 	}
 	if node.declaration.kind != element.kind {
 		tree.serial++
 		node = &RetainedLayoutNode{ identity: identity, generation: tree.serial }
+		tree.nodes[identity] = node
 	}
-	old_children := node.children.clone()
+	old_children := node.children
 	mut children := []string{cap: element.children.len}
 	mut changed_below := false
 	mut changed_size := false
 	for child in element.children {
+		child_id := layout_child_identity(child, identity)
 		// Snapshot versions before the recursive call mutates retained nodes.
-		child_id := if child.id.len > 0 {
-			'id:' + child.id.bytes().hex()
-		} else if child.key.len > 0 {
-			identity + '/key:' + child.key.bytes().hex()
-		} else if child.compiled_node != unsafe { nil } {
-			identity + '/compiled:' + child.compiled_node.identity().bytes().hex()
-		} else {
-			''
-		}
 		old := tree.nodes[child_id] or { &RetainedLayoutNode{} }
 		previous_version := old.version
 		previous_subtree := old.subtree_version
-		resolved := tree.reconcile(child, identity, mut active)
+		resolved := tree.reconcile(child, child_id, identity)
 		current := tree.nodes[resolved] or { panic('missing layout child') }
 		children << resolved
 		changed_size = changed_size || previous_version != current.version
 		changed_below = changed_below || previous_subtree != current.subtree_version
 	}
-	own_changed := own != node.own_key || old_children != children
-	exterior := if layout_authored_width(element) && layout_authored_height(element) { '${input}|${element.hidden}' } else { own }
+	fixed := flags & 3 == 3
+	metrics_same := node.mounted && node.metric_flags == flags && layout_metrics_equal(element, node.declaration)
+	own_same := metrics_same && input == node.input
+	children_same := old_children == children
+	own_changed := !own_same || !children_same
+	// A fixed exterior depends only on its frame and visibility.
+	exterior_same := node.mounted && fixed == node.exterior_fixed
+		&& (if fixed { input == node.input && element.hidden == node.declaration.hidden } else { own_same })
 	// Fixed leaves paint new content without changing any geometry dependency.
-	geometry_changed := own_changed && !(layout_authored_width(element) && layout_authored_height(element) && children.len == 0 && exterior == node.exterior_key)
+	geometry_changed := own_changed && !(fixed && children.len == 0 && exterior_same)
 	if geometry_changed || changed_below {
 		tree.revision++
 		node.subtree_version = tree.revision
 	}
 	// A fixed exterior is a proven relayout boundary. Its descendants still
 	// invalidate disposition, but cannot change the parent's preferred size.
-	if exterior != node.exterior_key || (old_children != children && !(layout_authored_width(element) && layout_authored_height(element))) || (changed_size && !(layout_authored_width(element) && layout_authored_height(element))) {
+	if !exterior_same || (!children_same && !fixed) || (changed_size && !fixed) {
 		tree.revision++
 		node.version = tree.revision
 		node.measures.clear()
 	}
-	text_key := layout_metric_key(element, rect(0, 0, input.width, input.height))
-	if text_key != node.text_key {
+	if !(metrics_same && input.width == node.input.width && input.height == node.input.height) {
 		node.text_measures.clear()
-		node.text_key = text_key
 	}
-	node.exterior_key = exterior
+	if !own_same { node.own_revision++ }
+	node.mounted = true
+	node.seen = tree.pass
+	node.metric_flags = flags
+	node.exterior_fixed = fixed
 	node.parent = parent
-	node.own_key = own
 	node.input = input
-	node.children = children
+	if !children_same { node.children = children }
 	node.declaration = Element{ ...element, children: [], frame: input, layout_input: input }
-	tree.nodes[identity] = node
-	active[identity] = true
 	return identity
 }
 
@@ -334,8 +393,8 @@ pub fn (mut tree LayoutTree) resolve(constraints LayoutConstraints, measure Layo
 			for _, mut node in tree.nodes {
 				node.measures.clear()
 				node.text_measures.clear()
-				node.placement_key = ''
-				node.arrangement_key = ''
+				node.placed = false
+				node.arranged = false
 			}
 		}
 		tree.environment = effective
@@ -381,8 +440,7 @@ fn layout_measure_is_text(element Element) bool {
 
 fn (mut tree LayoutTree) measure_node(identity string, constraints LayoutConstraints) !LayoutSize {
 	mut node := tree.nodes[identity] or { return error('missing layout node') }
-	key := '${node.generation}|${node.version}|${constraints}|${tree.environment}|${voidptr(tree.measurer)}'
-	if size := node.measures[key] {
+	if size := layout_measure_lookup(node.measures, constraints) {
 		tree.counters.measure_hits++
 		return size
 	}
@@ -394,15 +452,13 @@ fn (mut tree LayoutTree) measure_node(identity string, constraints LayoutConstra
 	} else if layout_authored_width(node.declaration) && layout_authored_height(node.declaration) {
 		preferred = constraints.constrain(LayoutSize{ width: input.width, height: input.height })!
 	} else if layout_measure_is_text(node.declaration) {
-		text_key := '${node.text_key}|${constraints}|${tree.environment}|${voidptr(tree.measurer)}'
-		if cached := node.text_measures[text_key] {
+		if cached := layout_measure_lookup(node.text_measures, constraints) {
 			tree.counters.text_hits++
 			preferred = cached
 		} else {
 			tree.counters.text_measurements++
 			preferred = measure_layout_element(node.declaration, constraints, tree.measurer)!
-			if node.text_measures.len >= 16 { node.text_measures.clear() }
-			node.text_measures[text_key] = preferred
+			layout_measure_store(mut node.text_measures, constraints, preferred)
 		}
 	} else {
 		// Authored dimensions are preferences. Measure dependent content using
@@ -438,9 +494,7 @@ fn (mut tree LayoutTree) measure_node(identity string, constraints LayoutConstra
 			height: if layout_authored_height(node.declaration) { input.height } else { intrinsic_height }
 		})!
 	}
-	// Bound memory during arbitrary resize; retired content drops all entries.
-	if node.measures.len >= 16 { node.measures.clear() }
-	node.measures[key] = preferred
+	layout_measure_store(mut node.measures, constraints, preferred)
 	return preferred
 }
 
@@ -670,28 +724,35 @@ fn (mut tree LayoutTree) container_geometry(node &RetainedLayoutNode, available 
 fn (mut tree LayoutTree) place_node(identity string, frame Rect) ! {
 	mut node := tree.nodes[identity] or { return error('missing layout node') }
 	// Position-only changes do not require arranging the node's local children.
-	key := '${node.generation}|${node.subtree_version}|${frame.width}|${frame.height}|${tree.environment}'
 	node.frame = frame
+	placed := node.placed && node.placed_subtree == node.subtree_version
+		&& node.placed_width == frame.width && node.placed_height == frame.height
 	if node.declaration.hidden {
-		node.placement_key = key
+		node.placed = true
+		node.placed_subtree = node.subtree_version
+		node.placed_width = frame.width
+		node.placed_height = frame.height
 		return
 	}
-	if key == node.placement_key {
+	if placed {
 		tree.counters.layout_hits++
 		return
 	}
 	// A failed attempt can already have moved earlier descendants. Neither
 	// the attempted key nor a prior successful key can certify that subtree.
 	// Independent measurement and arrangement results remain reusable.
-	node.placement_key = ''
-	mut dependencies := []string{cap: node.children.len}
-	for child in node.children {
+	node.placed = false
+	mut arranged := node.arranged && node.arranged_own == node.own_revision
+		&& node.arranged_width == frame.width && node.arranged_height == frame.height
+		&& node.arranged_deps.len == node.children.len * 2
+	for i, child in node.children {
 		child_node := tree.nodes[child] or { return error('missing layout child') }
-		dependencies << '${child_node.generation}:${child_node.version}'
+		if arranged && (node.arranged_deps[i * 2] != child_node.generation
+			|| node.arranged_deps[i * 2 + 1] != child_node.version) {
+			arranged = false
+		}
 	}
-	arrangement := '${node.own_key}|${dependencies}|${frame.width}|${frame.height}|${tree.environment}'
-	mut frames := node.placed_frames.clone()
-	if arrangement == node.arrangement_key {
+	if arranged {
 		tree.counters.layout_hits++
 	} else {
 		tree.counters.layout_visits++
@@ -703,12 +764,23 @@ fn (mut tree LayoutTree) place_node(identity string, frame Rect) ! {
 		}
 		sizes := tree.child_sizes(node, available, true, true)!
 		computed, _ := tree.container_geometry(node, available, sizes, false, LayoutConstraints{})!
-		frames = computed.clone()
+		node.placed_frames = computed.clone()
+		node.arranged_deps.clear()
+		for child in node.children {
+			child_node := tree.nodes[child] or { return error('missing layout child') }
+			node.arranged_deps << child_node.generation
+			node.arranged_deps << child_node.version
+		}
 	}
-	node.arrangement_key = arrangement
-	node.placed_frames = frames
-	for i, child in node.children { tree.place_node(child, frames[i])! }
-	node.placement_key = key
+	node.arranged = true
+	node.arranged_own = node.own_revision
+	node.arranged_width = frame.width
+	node.arranged_height = frame.height
+	for i, child in node.children { tree.place_node(child, node.placed_frames[i])! }
+	node.placed = true
+	node.placed_subtree = node.subtree_version
+	node.placed_width = frame.width
+	node.placed_height = frame.height
 }
 
 fn (tree &LayoutTree) output(identity string) Element {

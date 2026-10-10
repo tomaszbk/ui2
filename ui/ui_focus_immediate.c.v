@@ -22,7 +22,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 
 	fn update_custom_focus_tree(root Element) {
 		previous := g_focused_field
-		g_focus_navigation.root = root
+		g_focus_navigation.set_root(root)
 		g_focus_navigation.current = g_focused_field
 		sync_focus_navigation()
 		g_focused_field = g_focus_navigation.current
@@ -35,7 +35,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 	fn reveal_custom_focus(id string) {
 		dispatch := custom_input_dispatch(g_gg_app)
 		ctx := dispatch.app.ctx
-		root := g_focus_navigation.root
+		root := g_focus_navigation.root_revision
 		if !custom_scroll_dispatch_current(dispatch, ctx, root) { return }
 		for request in g_focus_navigation.reveals(id) {
 			pane := g_focus_navigation.path_node(request.path) or { continue }

@@ -6,6 +6,7 @@ module ui2
 // The Android, native and explicitly headless adapters retain their legacy path.
 $if (linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? && !ui2_document_library ? {
 	import gg
+	import hash
 	import math
 	import os
 	import os.font
@@ -68,10 +69,44 @@ $if (linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ?
 		families map[string]string
 		fallback_families []string
 		font_generation int = -1
-		shape_cache map[string]ShapedText
+		// Two generations retain every shape used since the previous turnover,
+		// so a scene larger than one generation still hits on each repaint.
+		shape_cache map[u64][]&ShapeCacheEntry
+		shape_cache_previous map[u64][]&ShapeCacheEntry
+		shape_cache_len int
 		shape_builds u64
 		shape_hits u64
 		environment_version u64
+	}
+
+	const shape_cache_generation_capacity = 1024
+
+	// ShapeCacheKey owns every shaping input. Paint-only attributes are
+	// normalized away, so recolored text reuses its glyph layout.
+	struct ShapeCacheKey {
+		text string
+		run_lengths []int
+		run_styles []TextStyle
+		style TextStyle
+		width f64
+		lines int
+		ellipsize bool
+		word_char bool
+		scale f32
+		font_generation int
+		environment_version u64
+	}
+
+	@[heap]
+	struct ShapeCacheEntry {
+		key ShapeCacheKey
+		shaped ShapedText
+	mut:
+		// The last painted colors and their recolored items, reused while unchanged.
+		colored ShapedText
+		colored_style u32
+		colored_runs []u32
+		has_colored bool
 	}
 
 	// Fontconfig application-font registration is process-wide in vglyph. Guard
@@ -143,7 +178,7 @@ $if (linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ?
 		if engine.context == unsafe { nil } { return }
 		g_text_font_mutex.lock()
 		defer { g_text_font_mutex.unlock() }
-		engine.shape_cache.clear()
+		engine.clear_shape_cache()
 		engine.context.free()
 		engine.context = unsafe { nil }
 		engine.families.clear()
@@ -265,16 +300,60 @@ $if (linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ?
 	}
 
 	fn text_shape_style(style TextStyle) TextStyle {
-		return TextStyle{ ...style, font_family: style.font_family.bytes().hex(), vertical_align: style.vertical_align.bytes().hex(), link: '', shadow: false, outline: false, color: 0, background_color: 0 }
+		return TextStyle{ ...style, link: '', shadow: false, outline: false, color: 0, background_color: 0 }
 	}
 
-	fn (mut engine TextEngine) shape_cache_key(text string, runs []TextRun, style TextStyle, width f64, lines int, ellipsize bool, word_char bool) string {
-		metrics := runs.map(TextRun{ text: it.text.bytes().hex(), style: text_shape_style(it.style) })
-		return '${text.bytes().hex()}|${metrics}|${text_shape_style(style)}|${width}|${lines}|${ellipsize}|${word_char}|${engine.scale}|${g_text_font_generation}|${engine.environment_version}'
+	fn text_shape_style_owned(style TextStyle) TextStyle {
+		return TextStyle{ ...text_shape_style(style), font_family: style.font_family.clone(), vertical_align: style.vertical_align.clone() }
+	}
+
+	fn (engine &TextEngine) shape_cache_hash(text string, style TextStyle, width f64, lines int) u64 {
+		mut h := hash.sum64_string(text, u64(lines))
+		h = hash.wyhash64_c(h, math.f64_bits(width))
+		h = hash.wyhash64_c(h, math.f64_bits(style.size))
+		return hash.wyhash64_c(h, u64(style.weight) ^ (u64(style.bold) << 32) ^ (u64(style.italic) << 33))
+	}
+
+	// shape_cache_matches compares a lookup with an owned key without allocating.
+	fn (engine &TextEngine) shape_cache_matches(key ShapeCacheKey, text string, runs []TextRun, style TextStyle, width f64, lines int, ellipsize bool, word_char bool) bool {
+		if key.width != width || key.lines != lines || key.ellipsize != ellipsize || key.word_char != word_char
+			|| key.scale != engine.scale || key.font_generation != g_text_font_generation
+			|| key.environment_version != engine.environment_version || key.run_lengths.len != runs.len
+			|| key.text != text || key.style != text_shape_style(style) {
+			return false
+		}
+		for i, run in runs {
+			if key.run_lengths[i] != run.text.len || key.run_styles[i] != text_shape_style(run.style) { return false }
+		}
+		return true
+	}
+
+	fn (engine &TextEngine) shape_cache_find(bucket []&ShapeCacheEntry, text string, runs []TextRun, style TextStyle, width f64, lines int, ellipsize bool, word_char bool) ?&ShapeCacheEntry {
+		for entry in bucket {
+			if engine.shape_cache_matches(entry.key, text, runs, style, width, lines, ellipsize, word_char) { return entry }
+		}
+		return none
+	}
+
+	fn (mut engine TextEngine) shape_cache_insert(h u64, entry &ShapeCacheEntry) {
+		if engine.shape_cache_len >= shape_cache_generation_capacity {
+			engine.shape_cache_previous = engine.shape_cache.move()
+			engine.shape_cache_len = 0
+		}
+		mut bucket := engine.shape_cache[h] or { []&ShapeCacheEntry{cap: 1} }
+		bucket << entry
+		engine.shape_cache[h] = bucket
+		engine.shape_cache_len++
+	}
+
+	fn (mut engine TextEngine) clear_shape_cache() {
+		engine.shape_cache.clear()
+		engine.shape_cache_previous.clear()
+		engine.shape_cache_len = 0
 	}
 
 	fn (mut engine TextEngine) invalidate_environment() {
-		engine.shape_cache.clear()
+		engine.clear_shape_cache()
 		engine.environment_version++
 		if engine.context != unsafe { nil } { engine.context.fonts_changed() }
 	}
@@ -282,12 +361,18 @@ $if (linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ?
 	fn (mut engine TextEngine) shape_runs_locked(text string, runs []TextRun, style TextStyle, max_width f64,
 		max_lines int, ellipsize bool, word_char bool) !ShapedText {
 		if engine.context == unsafe { nil } { return error('text context is closed') }
-		if engine.font_generation != g_text_font_generation { engine.shape_cache.clear() }
-		key := engine.shape_cache_key(text, runs, style, max_width, max_lines, ellipsize, word_char)
-		mut shaped := ShapedText{}
-		if cached := engine.shape_cache[key] {
+		if engine.font_generation != g_text_font_generation { engine.clear_shape_cache() }
+		h := engine.shape_cache_hash(text, style, max_width, max_lines)
+		mut entry := &ShapeCacheEntry(unsafe { nil })
+		if found := engine.shape_cache_find(engine.shape_cache[h] or { []&ShapeCacheEntry{} }, text, runs, style, max_width, max_lines, ellipsize, word_char) {
+			entry = found
+		} else if found := engine.shape_cache_find(engine.shape_cache_previous[h] or { []&ShapeCacheEntry{} }, text, runs, style, max_width, max_lines, ellipsize, word_char) {
+			// Promote a shape still in use before its generation retires.
+			entry = found
+			engine.shape_cache_insert(h, entry)
+		}
+		if entry != unsafe { nil } {
 			engine.shape_hits++
-			shaped = cached
 		} else {
 			// Stable foreground attributes preserve rich-run boundaries while
 			// excluding changing paint colors from shaping dependencies.
@@ -295,11 +380,38 @@ $if (linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ?
 			for i, run in runs {
 				canonical << TextRun{ text: run.text, style: TextStyle{ ...run.style, color: u32(i + 1), background_color: 0 } }
 			}
-			shaped = engine.build_shape_locked(text, canonical, TextStyle{ ...style, color: 0, background_color: 0 }, max_width, max_lines, ellipsize, word_char)!
-			if engine.shape_cache.len >= 128 { engine.shape_cache.clear() }
+			shaped := engine.build_shape_locked(text, canonical, TextStyle{ ...style, color: 0, background_color: 0 }, max_width, max_lines, ellipsize, word_char)!
 			// Resolving a new font may advance the process font generation.
-			engine.shape_cache[engine.shape_cache_key(text, runs, style, max_width, max_lines, ellipsize, word_char)] = shaped
+			if engine.font_generation != g_text_font_generation { engine.clear_shape_cache() }
+			entry = &ShapeCacheEntry{
+				key: ShapeCacheKey{
+					text: shaped.text
+					run_lengths: runs.map(it.text.len)
+					run_styles: runs.map(text_shape_style_owned(it.style))
+					style: text_shape_style_owned(style)
+					width: max_width
+					lines: max_lines
+					ellipsize: ellipsize
+					word_char: word_char
+					scale: engine.scale
+					font_generation: g_text_font_generation
+					environment_version: engine.environment_version
+				}
+				shaped: shaped
+			}
+			engine.shape_cache_insert(h, entry)
 		}
+		if entry.has_colored && entry.colored_style == style.color && entry.colored_runs.len == runs.len {
+			mut same := true
+			for i, run in runs {
+				if entry.colored_runs[i] != run.style.color {
+					same = false
+					break
+				}
+			}
+			if same { return entry.colored }
+		}
+		shaped := entry.shaped
 		mut items := shaped.layout.items.clone()
 		for i, item in items {
 			mut color := style.color
@@ -311,7 +423,12 @@ $if (linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ?
 			}
 			items[i] = vglyph.Item{ ...item, color: hex_color(color) }
 		}
-		return ShapedText{ ...shaped, layout: vglyph.Layout{ ...shaped.layout, items: items } }
+		colored := ShapedText{ ...shaped, layout: vglyph.Layout{ ...shaped.layout, items: items } }
+		entry.colored = colored
+		entry.colored_style = style.color
+		entry.colored_runs = runs.map(it.style.color)
+		entry.has_colored = true
+		return colored
 	}
 
 	fn (mut engine TextEngine) build_shape_locked(source_text string, runs []TextRun, style TextStyle, max_width f64,

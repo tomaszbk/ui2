@@ -103,11 +103,11 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		unsafe { g_hit_targets=mounted_hits }
 	}
 
-	fn custom_scroll_dispatch_current(dispatch CustomInputDispatch, ctx &DrawContext, root Element) bool {
+	fn custom_scroll_dispatch_current(dispatch CustomInputDispatch, ctx &DrawContext, root u64) bool {
 		return dispatch.valid() && dispatch.app.ctx == ctx
 			&& (ctx == unsafe { nil } || !ctx.destroyed)
 			&& !dispatch.app.iconified && !dispatch.app.suspended
-			&& g_focus_navigation.root == root
+			&& g_focus_navigation.root_revision == root
 	}
 
 	fn scroll_maximum(id string) f64 {
@@ -128,7 +128,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		dispatch := custom_input_dispatch(g_gg_app)
 		ctx := dispatch.app.ctx
 		build_pending := dispatch.scheduler.build_pending()
-		root := g_focus_navigation.root
+		root := g_focus_navigation.root_revision
 		focused := g_focused_field
 		if id.len == 0 {
 			return 0.0
@@ -241,7 +241,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 	fn apply_scroll_vector(chain []string, dx f64, dy f64) {
 		dispatch := custom_input_dispatch(g_gg_app)
 		ctx := dispatch.app.ctx
-		root := g_focus_navigation.root
+		root := g_focus_navigation.root_revision
 		mut remaining := Point{dx, dy}
 		for id in chain {
 			if node := mounted_scroll_node(id) {
@@ -466,7 +466,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		fn draw_shaped_text_area(ctx &DrawContext, el Element, value string, x f64, y f64, clip Rect,
 			scroll_parent_id string) {
 			dispatch := custom_input_dispatch(g_gg_app)
-			root := g_focus_navigation.root
+			root := g_focus_navigation.root_revision
 			mut editor := g_text_editors[el.id] or { text_editor(value.clone()) }
 			$if macos && ui2_embedder ? {
 				editor = custom_composition_editor(el.id, editor)
@@ -487,7 +487,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 				content_height, el.enabled, !el.disable_scroll, el.persistent_scrollbars, HitTarget{ id: el.id, on_event: el.on_event })
 			// Range clamping can call user code. The shaped text belongs to the
 			// captured context; selection, caret and drawing cannot outlive it.
-			if !custom_frame_current(dispatch, ctx) || g_focus_navigation.root != root { return }
+			if !custom_frame_current(dispatch, ctx) || g_focus_navigation.root_revision != root { return }
 			text_clip := intersect_rect(content, clip)
 			if text_clip.width > 0 && text_clip.height > 0 {
 				apply_clip(ctx, text_clip)

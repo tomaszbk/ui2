@@ -32,7 +32,7 @@ $if !ui2_custom_rendering ? && !ui2_document_library ? {
 
 	fn reconcile_appkit_focus(root Element, previous string) {
 		mut st := state()
-		st.navigation.root = root
+		st.navigation.set_root(root)
 		st.navigation.current = previous
 		sync_focus_navigation()
 		if st.navigation.current.len > 0 {

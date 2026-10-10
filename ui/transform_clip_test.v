@@ -178,3 +178,38 @@ fn test_small_clip_of_larger_geometry_keeps_area_and_interpolated_attributes() {
 	assert math.abs(intersection.width / 1e-200 - 1) < 1e-14
 	assert math.abs(intersection.height / 1e-200 - 1) < 1e-14
 }
+
+fn assert_same_clipped_paint(fast []PaintVertex, general []PaintVertex) {
+	assert fast.len == general.len
+	for vertex in fast {
+		assert general.any(math.abs(it.x - vertex.x) < 1e-12 && math.abs(it.y - vertex.y) < 1e-12
+			&& math.abs(it.u - vertex.u) < 1e-12 && math.abs(it.v - vertex.v) < 1e-12
+			&& math.abs(it.r - vertex.r) < 1e-9)
+	}
+}
+
+fn test_axis_rect_clips_match_the_general_convex_clipper() {
+	frame := rect(10.25, 20.5, 30.75, 12.125)
+	fast := transformed_clip(frame, ContentTransform{})
+	assert fast.points.len == 4
+	// A redundant edge midpoint keeps this equal region on the general path.
+	general := ClipRegion{ bounded: true, points: [Point{frame.x, frame.y},
+		Point{frame.x + frame.width / 2, frame.y}, Point{frame.x + frame.width, frame.y},
+		Point{frame.x + frame.width, frame.y + frame.height}, Point{frame.x, frame.y + frame.height}] }
+	assert fast.bounds() == general.bounds()
+	for quad in [rect(12, 22, 5, 5), rect(12, 30, 5, 8), rect(5, 15, 50, 30), rect(38, 28, 9, 9),
+		rect(50, 22, 5, 5), rect(41, 22, 5, 5), rect(20, 32.625, 4, 4), rect(5, 22, 5.25, 4)] {
+		source := [PaintVertex{ x: quad.x, y: quad.y, u: 0, v: 0, r: 0 },
+			PaintVertex{ x: quad.x + quad.width, y: quad.y, u: 1, v: 0, r: 100 },
+			PaintVertex{ x: quad.x + quad.width, y: quad.y + quad.height, u: 1, v: 1, r: 200 },
+			PaintVertex{ x: quad.x, y: quad.y + quad.height, u: 0, v: 1, r: 50 }]
+		assert_same_clipped_paint(fast.clip_polygon(source), general.clip_polygon(source))
+	}
+	// Exact edges: the intersection never rounds through x + width.
+	other := transformed_clip(rect(25.1, 15, 40, 10.3), ContentTransform{})
+	assert fast.intersect(other).points == [Point{25.1, 20.5}, Point{frame.x + frame.width, 20.5},
+		Point{frame.x + frame.width, 15 + 10.3}, Point{25.1, 15 + 10.3}]
+	assert fast.intersect(transformed_clip(rect(frame.x + frame.width, 0, 5, 50), ContentTransform{})).points.len == 0
+	reversed := ClipRegion{ bounded: true, points: fast.points.reverse() }
+	assert reversed.normalized().points == fast.points
+}

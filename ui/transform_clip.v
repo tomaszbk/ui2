@@ -84,7 +84,40 @@ fn clip_area(points []Point) (Rect, int) {
 	return extent, winding
 }
 
+// clip_axis_rect recognizes a finite four-vertex axis-aligned rectangle with
+// positive area. Its basis and set operations need no general polygon work.
+fn clip_axis_rect(points []Point) (Rect, int) {
+	left, top, right, bottom, winding := clip_axis_edges(points)
+	if winding == 0 { return Rect{}, 0 }
+	return rect(left, top, right - left, bottom - top), winding
+}
+
+// clip_axis_edges returns exact edge coordinates; x + width can round.
+fn clip_axis_edges(points []Point) (f64, f64, f64, f64, int) {
+	if points.len != 4 { return 0, 0, 0, 0, 0 }
+	a, b, c, d := points[0], points[1], points[2], points[3]
+	mut winding := 0
+	if a.y == b.y && b.x == c.x && c.y == d.y && d.x == a.x {
+		winding = if (b.x > a.x) == (c.y > b.y) { 1 } else { -1 }
+	} else if a.x == b.x && b.y == c.y && c.x == d.x && d.y == a.y {
+		winding = if (b.y > a.y) != (c.x > b.x) { 1 } else { -1 }
+	} else {
+		return 0, 0, 0, 0, 0
+	}
+	left := math.min(a.x, c.x)
+	top := math.min(a.y, c.y)
+	right := math.max(a.x, c.x)
+	bottom := math.max(a.y, c.y)
+	if !finite_number(left) || !finite_number(top) || !finite_number(right) || !finite_number(bottom)
+		|| !finite_number(right - left) || !finite_number(bottom - top) || right <= left || bottom <= top {
+		return 0, 0, 0, 0, 0
+	}
+	return left, top, right, bottom, winding
+}
+
 fn clip_basis(points []Point) (Rect, int) {
+	axis, axis_winding := clip_axis_rect(points)
+	if axis_winding != 0 { return axis, axis_winding }
 	extent, winding := clip_area(points)
 	if winding == 0 { return Rect{}, 0 }
 	// Public snapshots must bound a convex polygon, rather than an arbitrary set
@@ -140,6 +173,8 @@ fn convex_clip_result(vertices []Point) ClipRegion {
 
 fn (clip ClipRegion) normalized() ClipRegion {
 	if !clip.bounded { return ClipRegion{} }
+	_, axis_winding := clip_axis_rect(clip.points)
+	if axis_winding > 0 { return clip }
 	extent, winding := clip_basis(clip.points)
 	if winding == 0 { return ClipRegion{ bounded: true } }
 	// Valid canonical snapshots can be shared without allocating. Remove only
@@ -208,12 +243,109 @@ fn lerp_vertex(a PaintVertex, b PaintVertex, t f64) PaintVertex {
 	}
 }
 
+// clip_axis_halfplane keeps x >= bound (or y, or <= with keep_greater false)
+// with the same nearer-endpoint interpolation as the general clipper.
+fn clip_axis_halfplane(polygon []PaintVertex, horizontal bool, bound f64, keep_greater bool) []PaintVertex {
+	if polygon.len == 0 { return []PaintVertex{} }
+	mut output := []PaintVertex{cap: polygon.len + 1}
+	mut previous := polygon[polygon.len - 1]
+	mut previous_side := clip_axis_side(previous, horizontal, bound, keep_greater)
+	if !finite_number(previous_side) { return []PaintVertex{} }
+	for current in polygon {
+		side := clip_axis_side(current, horizontal, bound, keep_greater)
+		if !finite_number(side) { return []PaintVertex{} }
+		if (side >= 0) != (previous_side >= 0) {
+			magnitude := math.max(math.abs(previous_side), math.abs(side))
+			previous_fraction := math.abs(previous_side) / magnitude
+			current_fraction := math.abs(side) / magnitude
+			if previous_fraction <= current_fraction {
+				output << lerp_vertex(previous, current, previous_fraction / (previous_fraction + current_fraction))
+			} else {
+				output << lerp_vertex(current, previous, current_fraction / (previous_fraction + current_fraction))
+			}
+		}
+		if side >= 0 { output << current }
+		previous = current
+		previous_side = side
+	}
+	return output
+}
+
+fn clip_axis_side(v PaintVertex, horizontal bool, bound f64, keep_greater bool) f64 {
+	coordinate := if horizontal { v.x } else { v.y }
+	return if keep_greater { coordinate - bound } else { bound - coordinate }
+}
+
+// paint_polygon_has_area matches clip_area for paint vertices, without copying them.
+fn paint_polygon_has_area(vertices []PaintVertex) bool {
+	if vertices.len < 3 { return false }
+	mut left := vertices[0].x
+	mut right := left
+	mut top := vertices[0].y
+	mut bottom := top
+	for v in vertices {
+		if !finite_number(v.x) || !finite_number(v.y) { return false }
+		left = math.min(left, v.x)
+		right = math.max(right, v.x)
+		top = math.min(top, v.y)
+		bottom = math.max(bottom, v.y)
+	}
+	extent := rect(left, top, right - left, bottom - top)
+	if !finite_number(extent.width) || !finite_number(extent.height) || extent.width <= 0
+		|| extent.height <= 0 { return false }
+	origin := Point{vertices[0].x, vertices[0].y}
+	mut area := 0.0
+	for i in 1 .. vertices.len - 1 {
+		area += clip_side(extent, origin, Point{vertices[i].x, vertices[i].y}, vertices[i + 1].x, vertices[i + 1].y)
+	}
+	return finite_number(area) && area != 0
+}
+
 pub fn (clip ClipRegion) clip_polygon(vertices []PaintVertex) []PaintVertex {
 	if !clip.bounded { return vertices }
 	extent, winding := clip_basis(clip.points)
 	if winding == 0 || vertices.len < 3 { return []PaintVertex{} }
 	for v in vertices {
 		if !finite_number(v.x) || !finite_number(v.y) { return []PaintVertex{} }
+	}
+	left, top, right, bottom, axis_winding := clip_axis_edges(clip.points)
+	if axis_winding != 0 {
+		// Axis-aligned halfplanes have exact signed distances. Clip only against
+		// the edges some vertex crosses; wholly inside paint is returned as is.
+		mut outside_left, mut outside_right, mut outside_top, mut outside_bottom := false, false, false, false
+		mut beyond_left, mut beyond_right, mut beyond_top, mut beyond_bottom := true, true, true, true
+		for v in vertices {
+			outside_left = outside_left || v.x < left
+			outside_right = outside_right || v.x > right
+			outside_top = outside_top || v.y < top
+			outside_bottom = outside_bottom || v.y > bottom
+			beyond_left = beyond_left && v.x < left
+			beyond_right = beyond_right && v.x > right
+			beyond_top = beyond_top && v.y < top
+			beyond_bottom = beyond_bottom && v.y > bottom
+		}
+		if beyond_left || beyond_right || beyond_top || beyond_bottom { return []PaintVertex{} }
+		if !(outside_left || outside_right || outside_top || outside_bottom) {
+			return if paint_polygon_has_area(vertices) { vertices } else { []PaintVertex{} }
+		}
+		mut polygon := []PaintVertex{}
+		mut clipped := false
+		if outside_top {
+			polygon = clip_axis_halfplane(vertices, false, top, true)
+			clipped = true
+		}
+		if outside_right {
+			polygon = clip_axis_halfplane(if clipped { polygon } else { vertices }, true, right, false)
+			clipped = true
+		}
+		if outside_bottom {
+			polygon = clip_axis_halfplane(if clipped { polygon } else { vertices }, false, bottom, false)
+			clipped = true
+		}
+		if outside_left {
+			polygon = clip_axis_halfplane(if clipped { polygon } else { vertices }, true, left, true)
+		}
+		return if paint_polygon_has_area(polygon) { polygon } else { []PaintVertex{} }
 	}
 	mut polygon := vertices.clone()
 	for i, a in clip.points {
@@ -255,6 +387,14 @@ pub fn (clip ClipRegion) intersect(other ClipRegion) ClipRegion {
 	right := other.normalized()
 	if !left.bounded { return right }
 	if !right.bounded { return left }
+	l0, t0, r0, b0, left_axis := clip_axis_edges(left.points)
+	l1, t1, r1, b1, right_axis := clip_axis_edges(right.points)
+	if left_axis != 0 && right_axis != 0 {
+		x0, y0 := math.max(l0, l1), math.max(t0, t1)
+		x1, y1 := math.min(r0, r1), math.min(b0, b1)
+		if x1 <= x0 || y1 <= y0 { return ClipRegion{ bounded: true } }
+		return ClipRegion{ bounded: true, points: [Point{x0, y0}, Point{x1, y0}, Point{x1, y1}, Point{x0, y1}] }
+	}
 	vertices := right.points.map(PaintVertex{ x: it.x, y: it.y })
 	return convex_clip_result(left.clip_polygon(vertices).map(Point{it.x, it.y}))
 }

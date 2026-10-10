@@ -55,7 +55,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		g_gg_app.declared_root = root
 		mounted, mounted_found := replace_visual_transform(g_focus_navigation.root, id, transform)!
 		if mounted_found {
-			g_focus_navigation.root = mounted
+			g_focus_navigation.set_root(mounted)
 			sync_focus_navigation()
 		}
 		g_gg_app.presentation_revision++

@@ -27,6 +27,21 @@ fn test_mounted_root_geometry_preserves_declarations_and_scaled_children() {
 	assert manager.semantics()[0].frame == root.frame
 }
 
+fn test_root_revision_advances_only_when_a_different_root_is_published() {
+	root := screen(0xffffff, [label('caption', 'A', rect(0, 0, 10, 10), TextStyle{})])
+	mut manager := FocusManager{}
+	manager.update(root, {})
+	first := manager.root_revision
+	// Republishing an equal tree must not cancel a frame painting that tree.
+	manager.update(root, {})
+	manager.set_root(Element{ ...root })
+	assert manager.root_revision == first
+	manager.set_root(screen(0xffffff, [label('caption', 'B', rect(0, 0, 10, 10), TextStyle{})]))
+	assert manager.root_revision == first + 1
+	manager.update(root, {})
+	assert manager.root_revision == first + 2
+}
+
 fn test_consumed_key_character_keeps_unrelated_and_ime_text_while_navigation_is_held() {
 	// Tab and Space are held; A and scan-less IME text must still reach editors.
 	suppressed := {u32(0x09): u32(0x0f), u32(0x20): u32(0x39), u32(0x0d): u32(0x11c)}
