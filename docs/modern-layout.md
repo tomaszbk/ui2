@@ -102,6 +102,44 @@ Tracks share surplus space after configured defaults/minimums. The existing
 to retain authored inputs and let `LayoutTree` allocate cells after the parent
 assigns the available frame.
 
+## V measurement and placement
+
+`LayoutOrientation`, `LayoutAlignment` and `LayoutPadding` provide shared
+orientation, alignment and padding values. For callers that already measured
+preferred child frames, the pure solver accepts typed sizing hints:
+
+```v
+frames := ui2.flex_frames(ui2.FlexConfig{
+    frame: ui2.rect(0, 0, available_width, 40)
+    gap: 12
+    align: .center
+    children: [
+        ui2.FlexChild{ element: heading, grow: 1, minimum_width: 170 },
+        ui2.FlexChild{ element: action, shrink: 0 },
+    ]
+})!
+```
+
+A width-dependent child can be measured again with
+`LayoutConstraints{ max_width: frames[index].width }` before final placement.
+The retained `LayoutTree` performs that allocation step for window builders.
+`ui/flex_intrinsic_test.v` provides an independent fixture for the pure solver
+and assigned-width measurement.
+
+```v
+cards := ui2.grid_declaration(ui2.GridConfig{
+    auto_columns_min_width: 240
+    max_columns: 3
+    spacing: ui2.GridSpacing{ horizontal: 16, vertical: 16 }
+    child_spans: [ui2.GridSpan{ column_span: 2 }]
+    children: project_cards
+})!
+```
+
+The grid declaration retains its children and sizing inputs for parent
+allocation. `grid_frames` and `grid_preferred_size` also support geometry-only
+callers with measured preferred sizes.
+
 ## Measurement and limits
 
 `LayoutConstraints` describes minimum/maximum sizes; `LayoutSize` describes a
