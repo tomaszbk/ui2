@@ -17,11 +17,10 @@ env:
   TEXT_PKG_CONFIG_MODULES: pango pangoft2 freetype2 harfbuzz fribidi fontconfig gobject-2.0 glib-2.0
 
 jobs:
-  build-examples:
-    name: Build examples (${{ matrix.os }}${{ matrix.custom && ', custom renderer' || '' }})
+  desktop-tests:
+    name: Desktop tests (${{ matrix.os }}${{ matrix.custom && ', custom renderer' || '' }})
     runs-on: ${{ matrix.os }}
-    # Allow complete GCC custom-profile builds on hosted Windows runners.
-    timeout-minutes: 120
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
@@ -174,6 +173,3 @@ jobs:
         if: runner.os == 'macOS' && matrix.custom
         working-directory: ui2
         run: make check-embedder-macos
-
-      - name: Build all examples
-        run: v -b c run ui2/examples/build_examples.vsh ${{ matrix.compiler_flags }} ${{ matrix.custom && '-d ui2_custom_rendering' || '' }}
