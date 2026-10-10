@@ -20,7 +20,8 @@ jobs:
   build-examples:
     name: Build examples (${{ matrix.os }}${{ matrix.custom && ', custom renderer' || '' }})
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 45
+    # Allow complete GCC custom-profile builds on hosted Windows runners.
+    timeout-minutes: 120
     strategy:
       fail-fast: false
       matrix:
