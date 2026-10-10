@@ -53,6 +53,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		toggle_groups map[string]string
 		toggle_allow_no_selection map[string]bool
 		focused_field string
+		focus_visible bool = true
 		navigation &FocusManager = &FocusManager{}
 		scroll_targets map[string]HitTarget
 		scroll_offsets map[string]f64
@@ -185,6 +186,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		state.toggle_groups = g_toggle_groups
 		state.toggle_allow_no_selection = g_toggle_allow_no_selection
 		state.focused_field = g_focused_field
+		state.focus_visible = g_focus_visible
 		state.navigation = g_focus_navigation
 		state.scroll_targets = g_scroll_targets
 		state.scroll_offsets = g_scroll_offsets
@@ -256,6 +258,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		g_toggle_groups = state.toggle_groups
 		g_toggle_allow_no_selection = state.toggle_allow_no_selection
 		g_focused_field = state.focused_field
+		g_focus_visible = state.focus_visible
 		g_focus_navigation = state.navigation
 		g_scroll_targets = state.scroll_targets
 		g_scroll_offsets = state.scroll_offsets
