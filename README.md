@@ -103,6 +103,10 @@ cleanup are available through the window-independent signals runtime. See
 [the signals API](docs/signals.md) and [the runnable example](examples/signals/main.v).
 Ordinary V assignments require explicit observable setters to notify this graph.
 
+The custom renderer builds on demand and reuses its tree while idle. See
+[render scheduling](docs/render-scheduling.md) for invalidation, worker delivery,
+window lifecycle and the acceptance fixture.
+
 ## Widget animations
 
 Animations target a mounted element by `id` and are applied after each
