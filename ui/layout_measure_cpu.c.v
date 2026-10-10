@@ -7,7 +7,7 @@ import os.font
 import sync
 
 // A CPU-only fontstash context supplies real glyph advances before a window
-// exists. It shares UI2's font discovery, point conversion and fallback chain;
+// exists. It shares UI2's font discovery, size conversion and fallback chain;
 // no GPU, gg context, font parser or extra dependency is involved.
 @[heap]
 struct LayoutMeasureFonts {

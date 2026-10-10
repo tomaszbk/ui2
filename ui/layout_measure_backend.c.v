@@ -2,7 +2,7 @@ module ui2
 
 // measure_layout_text uses the active backend's metrics when available, with
 // CPU fontstash measurement before a custom window opens (and for embedders
-// without a native measurement adapter). Font sizes retain their point units.
+// without a native measurement adapter). Font sizes follow backend drawing metrics.
 // Like layout/build, call this on the UI thread while a window is mounted.
 pub fn measure_layout_text(text string, style TextStyle, max_width f64) !LayoutSize {
 	layout_validate_text_measurement(style, max_width)!
