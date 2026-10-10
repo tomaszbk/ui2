@@ -616,7 +616,6 @@ struct VmlEvaluation {
 mut:
 	events                map[string]VmlEvent
 	toggle_group_bindings map[string][]VmlBinding
-	measure               VLayoutMeasureCache
 }
 
 fn v_action(expr &VExpression, scope map[string]VValue) !VmlInvocation {
@@ -674,7 +673,6 @@ enum VChildLayoutKind {
 	column
 	row
 	box
-	flex
 	float
 	grid
 	anchor
@@ -686,10 +684,6 @@ enum VChildLayoutKind {
 
 struct VLayoutChildMetrics {
 	frame            Rect
-	flex             FlexLayoutChild
-	span             GridSpan
-	source           &VNode = unsafe { nil }
-	scope            map[string]VValue
 	size_hint_x      f64 = 1.0
 	size_hint_y      f64 = 1.0
 	minimum_width    f64 = -1.0
@@ -703,26 +697,24 @@ struct VLayoutChildMetrics {
 }
 
 struct VChildLayout {
-	kind            VChildLayoutKind
-	frame           Rect
-	padding         f64
-	spacing         f64
-	cells           []Rect
-	anchor          AnchorLayoutConfig
-	adaptive_parent &VNode = unsafe { nil }
+	kind    VChildLayoutKind
+	frame   Rect
+	padding f64
+	spacing f64
+	cells   []Rect
+	anchor  AnchorLayoutConfig
 mut:
 	cursor f64
 	index  int
 }
 
-fn v_child_layout(node &VNode, actual Rect, metrics []VLayoutChildMetrics, mut cache VLayoutMeasureCache) !VChildLayout {
+fn v_child_layout(node &VNode, actual Rect, metrics []VLayoutChildMetrics) !VChildLayout {
 	kind := match node.tag {
 		'Column' { VChildLayoutKind.column }
 		'Row' { VChildLayoutKind.row }
 		'BoxLayout' { VChildLayoutKind.box }
-		'FlexLayout' { VChildLayoutKind.flex }
 		'FloatLayout', 'RelativeLayout' { VChildLayoutKind.float }
-		'GridLayout' { VChildLayoutKind.grid }
+		'Grid' { VChildLayoutKind.grid }
 		'AnchorLayout' { VChildLayoutKind.anchor }
 		'StackLayout' { VChildLayoutKind.stack }
 		'PageLayout' { VChildLayoutKind.page }
@@ -735,15 +727,11 @@ fn v_child_layout(node &VNode, actual Rect, metrics []VLayoutChildMetrics, mut c
 	local := rect(0, 0, actual.width, actual.height)
 	mut child_sizes := []Rect{cap: metrics.len}
 	mut box_children := []BoxLayoutChild{cap: metrics.len}
-	mut flex_children := []FlexLayoutChild{cap: metrics.len}
-	mut spans := []GridSpan{cap: metrics.len}
 	mut float_children := []FloatLayoutChild{cap: metrics.len}
 	mut panel_tabs := []TabbedPanelTab{cap: metrics.len}
 	mut accordion_items := []AccordionItem{cap: metrics.len}
 	for metric in metrics {
 		child_sizes << metric.frame
-		flex_children << metric.flex
-		spans << metric.span
 		if kind == .box {
 			box_children << BoxLayoutChild{
 				element:          Element{
@@ -780,13 +768,7 @@ fn v_child_layout(node &VNode, actual Rect, metrics []VLayoutChildMetrics, mut c
 	}
 	mut cells := []Rect{}
 	if kind == .grid {
-		config := v_grid_config(node, local)!
-		cells = grid_layout_frames(GridLayoutConfig{ ...config, child_spans: spans }, child_sizes.len)!
-	} else if kind == .flex {
-		config := v_flex_config(node, local, flex_children)!
-		first := flex_layout_frames(config)!
-		children := v_flex_remeasure_metrics(config, metrics, first, mut cache)!
-		cells = flex_layout_frames(FlexLayoutConfig{ ...config, children: children })!
+		cells = grid_frames(v_grid_config(node, local)!, child_sizes.len)!
 	} else if kind == .box {
 		cells = box_layout_frames(v_box_layout_config(node, local, box_children)!)!
 	} else if kind == .float {
@@ -803,18 +785,13 @@ fn v_child_layout(node &VNode, actual Rect, metrics []VLayoutChildMetrics, mut c
 		cells = []Rect{len: accordion_items.len, init: geometry.content}
 	}
 	return VChildLayout{
-		kind:            kind
-		frame:           local
-		padding:         padding
-		spacing:         node.prop_or('spacing', '0').f64()
-		cursor:          padding
-		cells:           cells
-		adaptive_parent: if node.tag == 'Screen' && node.prop_bool('adaptive') {
-			&VNode{ ...node }
-		} else {
-			unsafe { nil }
-		}
-		anchor:          if kind == .anchor {
+		kind:    kind
+		frame:   local
+		padding: padding
+		spacing: node.prop_or('spacing', '0').f64()
+		cursor:  padding
+		cells:   cells
+		anchor:  if kind == .anchor {
 			v_anchor_config(node, local)!
 		} else {
 			AnchorLayoutConfig{}
@@ -840,7 +817,7 @@ fn (layout &VChildLayout) fallback(child &VNode, scope map[string]VValue) !Rect 
 		.row {
 			rect(layout.cursor, layout.padding, 80, layout.frame.height - layout.padding * 2)
 		}
-		.box, .flex {
+		.box {
 			if layout.index < layout.cells.len {
 				layout.cells[layout.index]
 			} else {
@@ -897,7 +874,7 @@ fn (layout &VChildLayout) fallback(child &VNode, scope map[string]VValue) !Rect 
 }
 
 fn (mut layout VChildLayout) advance(child &VNode) {
-	if v_is_layout_metadata(child) || child.tag == 'Option' {
+	if child.tag in ['MenuItem', 'Option'] {
 		return
 	}
 	match layout.kind {
@@ -907,7 +884,7 @@ fn (mut layout VChildLayout) advance(child &VNode) {
 		.row {
 			layout.cursor += v_dimension(child, 'width', 80) + layout.spacing
 		}
-		.box, .flex {
+		.box {
 			layout.index++
 		}
 		.float {
@@ -1001,12 +978,12 @@ fn v_layout_child_metric(node &VNode, scope map[string]VValue, box bool, floatin
 	}
 }
 
-fn v_layout_child_metrics(node &VNode, scope map[string]VValue, actual Rect, mut cache VLayoutMeasureCache) ![]VLayoutChildMetrics {
+fn v_layout_child_metrics(node &VNode, scope map[string]VValue) ![]VLayoutChildMetrics {
 	mut metrics := []VLayoutChildMetrics{}
 	box := node.tag == 'BoxLayout'
 	floating := node.tag in ['FloatLayout', 'RelativeLayout']
 	for child in node.children {
-		if v_is_layout_metadata(child) || child.tag == 'Option' {
+		if child.tag in ['MenuItem', 'Option'] {
 			continue
 		}
 		if node.tag == 'TabbedPanel' && child.tag != 'Tab' {
@@ -1016,8 +993,7 @@ fn v_layout_child_metrics(node &VNode, scope map[string]VValue, actual Rect, mut
 			continue
 		}
 		if child.tag != 'Repeater' {
-			metrics << v_modern_child_metric(node, child, scope, actual, box, floating, mut
-				cache)!
+			metrics << v_layout_child_metric(child, scope, box, floating)!
 			continue
 		}
 		model_expr := child.expressions['model'] or {
@@ -1032,11 +1008,10 @@ fn v_layout_child_metrics(node &VNode, scope map[string]VValue, actual Rect, mut
 			item_scope['item'] = item
 			item_scope['index'] = v_number(f64(index), index.str())
 			for repeated in child.children {
-				if v_is_layout_metadata(repeated) || repeated.tag == 'Option' {
+				if repeated.tag in ['MenuItem', 'Option'] {
 					continue
 				}
-				metrics << v_modern_child_metric(node, repeated, item_scope, actual, box, floating, mut
-					cache)!
+				metrics << v_layout_child_metric(repeated, item_scope, box, floating)!
 			}
 		}
 	}
@@ -1080,8 +1055,7 @@ fn v_eval_node(node &VNode, incoming_scope map[string]VValue, frame Rect, mut ev
 	mut binding := ?VmlBinding(none)
 	for key, expr in node.expressions {
 		if key == 'id' || key in node.property_types || key.starts_with('bind.')
-			|| key in ['on_tap', 'on_change', 'on_active', 'on_state', 'on_text', 'on_submit',
-				'on_text_validate', 'on_select', 'on_toggle', 'on_dismiss'] {
+			|| key in ['on_tap', 'on_change', 'on_active', 'on_state', 'on_text', 'on_submit', 'on_text_validate', 'on_select', 'on_toggle', 'on_dismiss'] {
 			continue
 		}
 		resolved.props[key] = v_eval(expr, scope)!.string_value()
@@ -1121,11 +1095,7 @@ fn v_eval_node(node &VNode, incoming_scope map[string]VValue, frame Rect, mut ev
 			evaluation.toggle_group_bindings[resolved_binding.group] = group_bindings
 		}
 	}
-	actual := if node.tag == 'Screen' && resolved.prop_bool('adaptive') {
-		frame
-	} else {
-		v_frame(resolved, frame)
-	}
+	actual := v_frame(resolved, frame)
 	if node.id.len > 0 {
 		mut object := scope[node.id] or {
 			return error('internal VML scope error for `${node.id}` at line ${node.line}')
@@ -1192,30 +1162,17 @@ fn v_eval_node(node &VNode, incoming_scope map[string]VValue, frame Rect, mut ev
 		}
 	}
 
-	if node.tag == 'Screen' && resolved.prop_bool('adaptive') {
-		v_validate_adaptive_screen(resolved)!
-	}
-	child_metrics := v_layout_child_metrics(node, scope, actual, mut evaluation.measure)!
-	mut layout := v_child_layout(resolved, actual, child_metrics, mut evaluation.measure)!
+	child_metrics := v_layout_child_metrics(node, scope)!
+	mut layout := v_child_layout(resolved, actual, child_metrics)!
 	for child in node.children {
 		if child.tag == 'Repeater' {
 			v_expand_repeater(child, scope, mut resolved.children, mut evaluation, mut layout)!
 		} else {
-			resolved_child := if node.tag == 'Screen' && resolved.prop_bool('adaptive') {
-				v_eval_adaptive_child(resolved, child, scope, actual, mut evaluation)!
-			} else {
-				v_eval_layout_child(child, scope, layout.fallback(child, scope)!,
-					layout.kind, mut evaluation)!
-			}
+			resolved_child := v_eval_node(child, scope, layout.fallback(child, scope)!, mut
+				evaluation)!
 			resolved.children << resolved_child
 			layout.advance(resolved_child)
 		}
-	}
-	if layout.kind in [.flex, .grid] {
-		resolved.props['__layout_resolved'] = 'true'
-	}
-	if node.tag == 'Screen' && resolved.prop_bool('adaptive') {
-		resolved.props['__adaptive_layout_resolved'] = 'true'
 	}
 	return resolved
 }
@@ -1247,12 +1204,8 @@ fn v_expand_repeater(node &VNode, scope map[string]VValue, mut output []&VNode, 
 		parent_key := (scope['__repeat_key'] or { v_string('') }).string_value()
 		item_scope['__repeat_key'] = v_string(v_repeat_identity(parent_key, key))
 		for child_index, child in node.children {
-			mut repeated := if layout.adaptive_parent != unsafe { nil } {
-				v_eval_adaptive_child(layout.adaptive_parent, child, item_scope, layout.frame, mut evaluation)!
-			} else {
-				v_eval_layout_child(child, item_scope, layout.fallback(child, item_scope)!,
-					layout.kind, mut evaluation)!
-			}
+			mut repeated := v_eval_node(child, item_scope, layout.fallback(child, item_scope)!, mut
+				evaluation)!
 			if repeated.props['key'].len == 0 {
 				repeated.props['key'] = if node.children.len == 1 {
 					key
@@ -1373,8 +1326,7 @@ fn v_validate_node_schema[T](node &VNode, incoming_scope map[string]VSchema) ! {
 	}
 	for key, expr in node.expressions {
 		if key == 'id' || key in node.property_types || key.starts_with('bind.')
-			|| key in ['on_tap', 'on_change', 'on_active', 'on_state', 'on_text', 'on_submit',
-				'on_text_validate', 'on_select', 'on_toggle', 'on_dismiss'] {
+			|| key in ['on_tap', 'on_change', 'on_active', 'on_state', 'on_text', 'on_submit', 'on_text_validate', 'on_select', 'on_toggle', 'on_dismiss'] {
 			continue
 		}
 		v_schema_expression(expr, scope)!
@@ -1505,17 +1457,17 @@ fn type_check_action[T](name string, args []VSchema, line int) ! {
 		if method.name == name {
 			$if !method.is_pub {
 				return error('app action `${name}` is not public')
-			} $else $if method.typ is fn ( ) {
+			} $else $if method.typ is fn () {
 				if args.len != 0 {
 					return error('app action `${name}` expects no arguments at line ${line}')
 				}
 				return
-			} $else $if method.typ is fn ( int ) {
+			} $else $if method.typ is fn (int) {
 				if args.len != 1 || args[0].kind != .number {
 					return error('app action `${name}` expects one int argument at line ${line}')
 				}
 				return
-			} $else $if method.typ is fn ( string ) {
+			} $else $if method.typ is fn (string) {
 				if args.len != 1 || args[0].kind != .string_ {
 					return error('app action `${name}` expects one string argument at line ${line}')
 				}
@@ -1543,13 +1495,13 @@ fn vml_dispatch[T](mut model T, invocation VmlInvocation) ! {
 	}
 	$for method in T.methods {
 		if method.name == invocation.name {
-			$if method.is_pub && method.typ is fn ( ) {
+			$if method.is_pub && method.typ is fn () {
 				model.$method()
 				return
-			} $else $if method.is_pub && method.typ is fn ( int ) {
+			} $else $if method.is_pub && method.typ is fn (int) {
 				model.$method(int(args[0].numeric(invocation.line)!))
 				return
-			} $else $if method.is_pub && method.typ is fn ( string ) {
+			} $else $if method.is_pub && method.typ is fn (string) {
 				model.$method(args[0].string_value())
 				return
 			}
@@ -1566,11 +1518,11 @@ fn vml_apply_assignment[T](mut model T, assignment VmlAssignment) ! {
 
 pub struct VmlRunConfig[T] {
 pub:
-	source     string
-	model      T
-	title      string = 'App'
-	width      int    = 400
-	height     int    = 800
+	source string
+	model  T
+	title  string = 'App'
+	width  int    = 400
+	height int    = 800
 	min_width  int
 	min_height int
 }

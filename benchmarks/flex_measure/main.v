@@ -1,82 +1,67 @@
-// Times runtime VML constructions that measure intrinsic Flex/Grid sizes:
-// the responsive example, a flat wrapping Flex, and nested Flex containers.
-// From the repository root:
-//   v -prod -path "$(dirname "$PWD")|@vlib|@vmodules" -o /tmp/ui2-flex-bench benchmarks/flex_measure/main.v
-//   /tmp/ui2-flex-bench [name-filter]
+// Measures intrinsic text and Flex/Grid placement through the V API.
+// Run with the compiler and module path documented in README.md.
 module main
 
 import os
 import time
 import ui2
 
-const responsive_vml = $embed_file('../../examples/responsive_layout/responsive_layout.vml').to_string()
 const runs = 7
 
-pub struct Project {
-pub:
-	id          int
-	title       string
-	description string
-}
-
-pub struct BenchApp {
-pub mut:
-	created  int
-	projects []Project
-}
-
-pub fn (mut app BenchApp) create_project() {
-	app.created++
-}
-
 struct Case {
-	name   string
-	source string
-	frame  ui2.Rect
-	model  bool
+	name  string
+	width f64
+	depth int
+	grid  bool
 }
 
-// nested alternates orientations so every level changes the width available
-// to its subtree, the shape that made intrinsic measurement repeat work.
-fn nested(depth int) string {
-	mut source := 'Label { text: "content that can wrap at a narrow width" lines: 3 }'
-	for level in 0 .. depth {
-		orientation := if level % 2 == 0 { 'horizontal' } else { 'vertical' }
-		source = 'FlexLayout { orientation: ${orientation} gap: 4\n Label { text: "level ${level}" }\n ${source} }'
-	}
-	return 'Screen {\n ${source} }'
+fn measured_label(text string, width f64) !ui2.Element {
+	element := ui2.label('', text, ui2.Rect{}, ui2.TextStyle{ lines: 3 })
+	size := ui2.measure_layout_element(element, ui2.LayoutConstraints{ max_width: width }, ui2.measure_layout_text)!
+	return ui2.Element{ ...element, frame: ui2.rect(0, 0, size.width, size.height) }
 }
 
-fn flat(count int) string {
-	mut labels := []string{cap: count}
-	for index in 0 .. count {
-		labels << 'Label { text: "item ${index}" }'
-	}
-	return 'Screen {\n FlexLayout { wrap: true gap: 6\n ${labels.join('\n')} } }'
-}
-
-fn model() BenchApp {
-	mut projects := []Project{cap: 12}
-	for id in 1 .. 13 {
-		projects << Project{
-			id:          id
-			title:       'Project ${id}'
-			description: 'A description that is long enough to wrap in narrow cards'
+fn build(case Case) !int {
+	if case.grid {
+		mut children := []ui2.Element{}
+		for index in 0 .. 12 {
+			children << measured_label('Project ${index}: a description that wraps in narrow cards', case.width / 3)!
 		}
+		config := ui2.GridConfig{
+			frame:                  ui2.rect(0, 0, case.width, 780)
+			auto_columns_min_width: 240
+			max_columns:            3
+			spacing:                ui2.GridSpacing{ horizontal: 16, vertical: 16 }
+			child_spans:            [ui2.GridSpan{ column_span: 2 }]
+			children:               children
+		}
+		return ui2.grid(config)!.children.len
 	}
-	return BenchApp{
-		projects: projects
+	if case.depth == 0 {
+		mut children := []ui2.FlexChild{}
+		for index in 0 .. 200 {
+			children << ui2.FlexChild{ element: measured_label('Item ${index}', case.width)! }
+		}
+		return ui2.flex(ui2.FlexConfig{ frame: ui2.rect(0, 0, case.width, 780), gap: 6, wrap: true, children: children })!.children.len
 	}
-}
-
-fn build(case Case, mut app ui2.VmlApp[BenchApp]) !int {
-	root := if case.model {
-		app.build(case.frame)!
-	} else {
-		ui2.element_from_vml(case.source,
-			case.frame)!
+	mut element := measured_label('Content that can wrap at a narrow width', case.width)!
+	for level in 0 .. case.depth {
+		config := ui2.FlexConfig{
+			orientation: if level % 2 == 0 {
+				ui2.LayoutOrientation.horizontal
+			} else {
+				ui2.LayoutOrientation.vertical
+			}
+			gap:         4
+			children:    [
+				ui2.FlexChild{ element: measured_label('Level ${level}', case.width)! },
+				ui2.FlexChild{ element: element },
+			]
+		}
+		preferred := ui2.flex_preferred_size(config)!
+		element = ui2.flex(ui2.FlexConfig{ ...config, frame: preferred })!
 	}
-	return root.children.len
+	return element.children.len
 }
 
 fn median(values []f64) f64 {
@@ -86,45 +71,30 @@ fn median(values []f64) f64 {
 }
 
 fn main() {
-	wide := ui2.rect(0, 0, 1000, 780)
-	compact := ui2.rect(0, 0, 390, 780)
 	cases := [
-		Case{'responsive wide (model)', responsive_vml, wide, true},
-		Case{'responsive compact (model)', responsive_vml, compact, true},
-		Case{'flat wrap 200 (static)', flat(200), wide, false},
-		Case{'flat wrap 200 (model)', flat(200), wide, true},
-		Case{'nested 4 (static)', nested(4), wide, false},
-		Case{'nested 4 (model)', nested(4), wide, true},
-		Case{'nested 8 (static)', nested(8), wide, false},
-		Case{'nested 8 (model)', nested(8), wide, true},
-		Case{'nested 10 (static)', nested(10), wide, false},
-		Case{'nested 10 (model)', nested(10), wide, true},
+		Case{ name: 'grid wide', width: 1000, grid: true },
+		Case{ name: 'grid compact', width: 390, grid: true },
+		Case{ name: 'flat wrap 200', width: 1000 },
+		Case{ name: 'nested 4', width: 1000, depth: 4 },
+		Case{ name: 'nested 8', width: 1000, depth: 8 },
+		Case{ name: 'nested 10', width: 1000, depth: 10 },
 	]
 	filter := if os.args.len > 1 { os.args[1] } else { '' }
 	mut checksum := 0
 	for case in cases {
-		if filter.len > 0 && !case.name.contains(filter) {
-			continue
-		}
-		mut app := ui2.new_vml_app(case.source, model())!
-		checksum += build(case, mut app)! // warm fonts and caches outside timing
+		if filter.len > 0 && !case.name.contains(filter) { continue }
+		checksum += build(case)!
 		mut iterations := 1
 		for {
-			mut watch := time.new_stopwatch()
-			for _ in 0 .. iterations {
-				checksum += build(case, mut app)!
-			}
-			if watch.elapsed().milliseconds() >= 100 || iterations >= 100_000 {
-				break
-			}
+			watch := time.new_stopwatch()
+			for _ in 0 .. iterations { checksum += build(case)! }
+			if watch.elapsed().milliseconds() >= 100 || iterations >= 100_000 { break }
 			iterations *= 2
 		}
 		mut samples := []f64{cap: runs}
 		for _ in 0 .. runs {
-			mut watch := time.new_stopwatch()
-			for _ in 0 .. iterations {
-				checksum += build(case, mut app)!
-			}
+			watch := time.new_stopwatch()
+			for _ in 0 .. iterations { checksum += build(case)! }
 			samples << f64(watch.elapsed().microseconds()) / f64(iterations)
 		}
 		println('${case.name:-28} ${median(samples):12.1f} us/build')

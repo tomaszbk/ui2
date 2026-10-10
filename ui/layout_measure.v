@@ -54,7 +54,7 @@ pub fn (constraints LayoutConstraints) loosen() LayoutConstraints {
 
 // deflate gives content the space left inside a container's padding. Padding
 // larger than a bounded axis leaves a tight zero, never a negative maximum.
-pub fn (constraints LayoutConstraints) deflate(padding BoxPadding) !LayoutConstraints {
+pub fn (constraints LayoutConstraints) deflate(padding LayoutPadding) !LayoutConstraints {
 	constraints.validate()!
 	for inset in [padding.left, padding.top, padding.right, padding.bottom] {
 		if !math.is_finite(inset) || inset < 0 {
@@ -91,7 +91,7 @@ pub type LayoutTextMeasureFn = fn (string, TextStyle, f64) !LayoutSize
 
 // measure_layout_element keeps positive declared dimensions and measures zero
 // axes from text or children. Existing controls opt in by calling this API;
-// constructing an Element does not change its legacy geometry. Containers with
+// constructing an Element retains its declared geometry. Containers with
 // a layout algorithm measure/place their children before this extent fallback.
 pub fn measure_layout_element(element Element, constraints LayoutConstraints, measure LayoutTextMeasureFn) !LayoutSize {
 	constraints.validate()!
@@ -122,7 +122,7 @@ pub fn measure_layout_element(element Element, constraints LayoutConstraints, me
 		} else {
 			element.text
 		}
-		measured := $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headless ? {
+		measured := $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
 			// Editors wrap every row, unlike labels with a declared line limit.
 			// Keep external callbacks' original TextStyle contract unchanged.
 			if element.kind == .text_area && voidptr(measure) == voidptr(measure_layout_text) {
@@ -159,20 +159,20 @@ pub fn measure_layout_element(element Element, constraints LayoutConstraints, me
 
 // These content insets affect only opted-in intrinsic sizes. Existing explicit
 // frames and backend drawing stay unchanged.
-fn layout_measure_control_insets(element Element) BoxPadding {
+fn layout_measure_control_insets(element Element) LayoutPadding {
 	$if macos && !ui2_custom_rendering ?&& !ui2_headless ? {
 		if element.kind == .label {
 			// Borderless NSTextField still reserves two points at each horizontal
 			// edge. NSAttributedString measures glyphs only; include the cell's
 			// existing margins so an intrinsic label does not truncate itself.
-			return BoxPadding{ left: 2, right: 2 }
+			return LayoutPadding{ left: 2, right: 2 }
 		}
 	}
-	$if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headless ? {
+	$if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
 		if element.kind == .text_area {
 			// Include the gutter reserved by text_area_content_rect even when no
 			// scrollbar is visible, so measurement and drawing wrap identically.
-			return BoxPadding{
+			return LayoutPadding{
 				left:   math.max(2, element.padding_left)
 				right:  if element.disable_scroll { 8 } else { 12 }
 				top:    8
@@ -182,17 +182,17 @@ fn layout_measure_control_insets(element Element) BoxPadding {
 	}
 	return match element.kind {
 		.button, .toggle_button {
-			BoxPadding{ left: 12, right: if element.image_path.len > 0 { 36 } else { 12 }, top: 6, bottom: 6 }
+			LayoutPadding{ left: 12, right: if element.image_path.len > 0 { 36 } else { 12 }, top: 6, bottom: 6 }
 		}
-		.checkbox { BoxPadding{ left: 26 } }
+		.checkbox { LayoutPadding{ left: 26 } }
 		.dropdown {
-			BoxPadding{ left: math.max(0, element.padding_left), right: 32, top: 6, bottom: 6 }
+			LayoutPadding{ left: math.max(0, element.padding_left), right: 32, top: 6, bottom: 6 }
 		}
 		.text_field {
-			BoxPadding{ left: math.max(0, element.padding_left), right: 8, top: 6, bottom: 6 }
+			LayoutPadding{ left: math.max(0, element.padding_left), right: 8, top: 6, bottom: 6 }
 		}
-		.text_area { BoxPadding{ left: 8, right: 8, top: 8, bottom: 8 } }
-		else { BoxPadding{} }
+		.text_area { LayoutPadding{ left: 8, right: 8, top: 8, bottom: 8 } }
+		else { LayoutPadding{} }
 	}
 }
 

@@ -1,6 +1,6 @@
 module ui2
 
-$if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headless ? {
+$if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
 	import math
 }
 
@@ -39,12 +39,12 @@ fn test_layout_constraints_distinguish_zero_from_unbounded_and_validate() {
 	}
 	tight := LayoutConstraints{ min_width: 100, max_width: 100, min_height: 40, max_height: 40 }
 	assert tight.loosen() == LayoutConstraints{ max_width: 100, max_height: 40 }
-	assert tight.deflate(BoxPadding{ left: 20, right: 30, top: 50 })! == LayoutConstraints{
+	assert tight.deflate(LayoutPadding{ left: 20, right: 30, top: 50 })! == LayoutConstraints{
 		min_width:  50
 		max_width:  50
 		max_height: 0
 	}
-	if _ := tight.deflate(BoxPadding{ left: -1 }) {
+	if _ := tight.deflate(LayoutPadding{ left: -1 }) {
 		assert false, 'negative padding must be rejected'
 	}
 }
@@ -118,7 +118,7 @@ fn layout_measure_require_declared_editor_style(_text string, style TextStyle, _
 }
 
 fn test_custom_intrinsic_editor_matches_wrapping_content_width_before_window_creation() {
-	$if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headless ? {
+	$if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
 		style := TextStyle{ size: 16, font_family: 'Roboto Mono', lines: 1 }
 		advance := measure_layout_text('M', style, -1)!.width
 		// With two monospaced glyphs per row, five Ms occupy three rows.
