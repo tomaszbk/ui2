@@ -35,11 +35,15 @@ fn compiled_vml_runtime() &CompiledVmlRuntime { return unsafe { compiled_vml_run
 
 // Before a native window exists, compile validation uses its configured logical
 // viewport. Ordinary builders and explicit template frames still use bounds().
+$if !ui2_document_library ? {
 pub fn vml_bounds() Rect {
 	if frame := compiled_vml_runtime().initial_bounds { return frame }
 	return bounds()
 }
+}
 
+
+$if !ui2_document_library ? {
 fn compiled_vml_controller_build[T]() Element {
 	runtime := compiled_vml_runtime()
 	mut controller := unsafe { &CompiledVmlController[T](runtime.controller) }
@@ -51,10 +55,13 @@ fn compiled_vml_controller_build[T]() Element {
 		mut live := compiled_vml_runtime()
 		live.root = controller.node
 	}
+	controller.node.update_viewport(vml_bounds()) or { eprintln('ui2 compiled VML viewport failed: ${err}') }
 	controller.node.mount() or { eprintln('ui2 compiled VML mount failed: ${err}') }
 	controller.node.component.invalidate_app() or { eprintln('ui2 compiled VML app update failed: ${err}') }
 	return controller.node.element()
 }
+}
+
 
 // Backend shutdown drops subscriptions and component-owned captures before
 // native termination. Calling this again after the run loop returns is safe.
@@ -68,6 +75,7 @@ pub fn dispose_compiled_vml() {
 }
 
 // The compiled builder attaches its callbacks while borrowing this live model.
+$if !ui2_document_library ? {
 pub fn run_compiled_vml[T](config CompiledVmlRunConfig[T]) ! {
 	if config.model == unsafe { nil } { return error('compiled VML requires a live model') }
 	if config.build == unsafe { nil } { return error('compiled VML requires a build function') }
@@ -94,4 +102,5 @@ pub fn run_compiled_vml[T](config CompiledVmlRunConfig[T]) ! {
 	} $else {
 		run(compiled_vml_controller_build[T])
 	}
+}
 }

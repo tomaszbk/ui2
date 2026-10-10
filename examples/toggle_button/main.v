@@ -4,7 +4,6 @@ import ui2
 
 const toggle_width = 340
 const toggle_height = 180
-const toggle_vml_source = $embed_file('toggle_button.vml').to_string()
 
 pub struct ToggleButtonDemo {
 pub mut:
@@ -13,11 +12,20 @@ pub mut:
 }
 
 fn main() {
-	ui2.run_vml[ToggleButtonDemo](
-		source: toggle_vml_source
-		model: ToggleButtonDemo{}
-		title: 'Toggle Button'
-		width: toggle_width
+	mut app := ToggleButtonDemo{}
+	ui2.run_compiled_vml[ToggleButtonDemo](
+		build:  build_toggle_button
+		model:  &app
+		title:  'Toggle Button'
+		width:  toggle_width
 		height: toggle_height
 	) or { panic(err) }
+}
+
+fn build_toggle_button(mut app ToggleButtonDemo) ui2.Element {
+	return $vml('toggle_button.vml')
+}
+
+fn toggle_button_tree(mut app ToggleButtonDemo, frame ui2.Rect) ui2.Element {
+	return $vml('toggle_button.vml', frame)
 }

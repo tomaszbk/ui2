@@ -26,8 +26,8 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		})!
 		mut container := component.element(flex(FlexConfig{ id: 'items', frame: rect(0, 0, 200, 120), orientation: .vertical })!)!
 		mut rows := new_vml_keyed_list(mut container, 'rows', fn (key string) string { return key },
-			fn (mut owner CompiledVmlComponent, item &Signal[string]) !&CompiledVmlNode {
-				return owner.element(Element{ kind: .text_area, id: 'edit', text: 'declarado', frame: rect(0, 0, 200, 40) })!
+			fn (mut owner CompiledVmlComponent, item &Signal[string]) ![]&CompiledVmlNode {
+				return [owner.element(Element{ kind: .text_area, id: 'edit', text: 'declarado', frame: rect(0, 0, 200, 40) })!]
 			})!
 		rows.update(['a', 'b'])!
 		root.set_children([container, caption])!

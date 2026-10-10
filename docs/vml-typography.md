@@ -14,14 +14,15 @@ one; zero uses the font's default line spacing. Font sizes always use logical un
 `tabular_figures` requests the OpenType `tnum` feature where the font supports it.
 
 ```vml
-Label {
-    font_family: "Inter"
-    font_size: 24
-    weight: 800
-    line_height_factor: 1.4
-    lines: 4
-    Run { text: "Revenue " }
-    Run { text: "$123" font_size: 16 weight: 400 color: #44AA88 baseline_offset: 2 }
+Label(
+    font_family: "Inter",
+    font_size: 24,
+    weight: 800,
+    line_height_factor: 1.4,
+    lines: 4,
+) {
+    Run(text: "Revenue ")
+    Run(text: "$123", font_size: 16, weight: 400, color: #44AA88, baseline_offset: 2)
 }
 ```
 
@@ -30,7 +31,7 @@ explicit false/zero overrides inheritance. Each child has its own text, size,
 weight, font, color, underline, strike-through, tracking and baseline shift.
 The parent controls wrapping, alignment, line limit and line grid. Measurement
 and drawing use one rich layout, including styled ellipsis across paragraphs.
-VML expressions in run properties follow ordinary runtime binding rules.
+VML expressions in run properties follow ordinary compiled binding rules.
 
 In V, `rich_label(id, runs, frame, style)` constructs the same label using
 existing `TextRun` values. V run styles are complete styles, with their ordinary
@@ -40,6 +41,6 @@ These additions currently render on desktop custom (macOS, Windows and Linux).
 Native, Android and headless retain their existing text paths: a rich label's
 concatenated text remains visible, but new typography attributes and per-run
 styles do not gain portable native rendering in this delivery. Existing native
-rich TextInput contracts remain unchanged. This does not extend grapheme editing,
-IME or accessibility support. Runtime and `$vml` compiler lowering are distinct;
-new Run syntax requires runtime VML, not the external compiler's existing lowering.
+rich TextArea contracts remain unchanged. This does not extend grapheme editing,
+IME or accessibility support. Run syntax is lowered by the pinned V compiler
+through `$vml`; unsupported native presentation properties are diagnosed.

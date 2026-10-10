@@ -6,18 +6,18 @@
 // keyboard, and it captures exactly the window, without any surrounding
 // desktop.
 //
-//   v run examples/screenshot_example.vsh message
-//   v run examples/screenshot_example.vsh message --frame 30 --out /tmp/shots
+//   v -b c run examples/screenshot_example.vsh message
+//   v -b c run examples/screenshot_example.vsh message --frame 30 --out /tmp/shots
 //
 // Extra arguments are passed through to the compiler, e.g.
-//   v run examples/screenshot_example.vsh message -d my_flag
+//   v -b c run examples/screenshot_example.vsh message -d my_flag
 
 import os
 
-const vexe = os.quoted_path(@VEXE)
+const vexe = @VEXE
 
 fn usage() {
-	eprintln('usage: v run examples/screenshot_example.vsh <example> [--frame N] [--out DIR] [extra v flags]')
+	eprintln('usage: v -b c run examples/screenshot_example.vsh <example> [--frame N] [--out DIR] [extra v flags]')
 }
 
 fn arg_value(name string, index int) string {
@@ -87,16 +87,18 @@ exe := join_path(build_dir, example + $if windows { '.exe' } $else { '' })
 // gg_record adds the recorder to the frame callback; the custom renderer is
 // what the recorder can read, since the native backends draw with the platform
 // toolkit instead of gg.
-mut flags := ['-d ui2_custom_rendering', '-d gg_record']
+mut build_args := [vexe, '-b', 'c', '-d', 'ui2_custom_rendering', '-d', 'gg_record']
 $if macos {
 	// The recorder reads the presented framebuffer back, which only the GL
 	// backend implements, so keep macOS off its default Metal backend.
-	flags << '-d darwin_sokol_glcore33'
+	build_args << ['-d', 'darwin_sokol_glcore33']
 }
 
-build_cmd := '${vexe} ${flags.join(' ')} ${extra_flags.join(' ')} -o ${quoted_path(exe)} ${quoted_path(example_dir)}'
+build_args << extra_flags
+build_args << ['-o', exe, example_dir]
+build_cmd := build_args.map(quoted_path(it)).join(' ')
 println('building: ${build_cmd}')
-build := execute(build_cmd)
+build := os.exec(build_args)
 if build.exit_code != 0 {
 	eprintln(build.output)
 	eprintln('failed to build ${example}')
@@ -112,7 +114,7 @@ setenv('VGG_SCREENSHOT_FOLDER', out_dir, true)
 setenv('VGG_SCREENSHOT_FRAMES', frame.str(), true)
 setenv('VGG_STOP_AT_FRAME', (frame + 1).str(), true)
 
-run := execute(quoted_path(exe))
+run := os.exec([exe])
 if run.exit_code != 0 {
 	eprintln(run.output)
 	eprintln('${example} exited with ${run.exit_code} before frame ${frame}')

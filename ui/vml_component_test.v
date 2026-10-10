@@ -108,7 +108,7 @@ fn test_keyed_list_reorders_instances_updates_items_and_disposes_removed_keys() 
 	mut list := new_vml_keyed_list(mut parent, 'items', fn (item VmlListItem) string {
 		return item.id
 	},
-		fn [mut fixture] (mut instance CompiledVmlComponent, source &Signal[VmlListItem]) !&CompiledVmlNode {
+		fn [mut fixture] (mut instance CompiledVmlComponent, source &Signal[VmlListItem]) ![]&CompiledVmlNode {
 			fixture.builds++
 			mut item := source
 			mut node := instance.element(Element{ kind: .text_field, id: 'edit' })!
@@ -116,7 +116,7 @@ fn test_keyed_list_reorders_instances_updates_items_and_disposes_removed_keys() 
 				return Element{ ...element, text: item.get()!.text }
 			})!
 			instance.on_cleanup('release', fn [mut fixture] () { fixture.lifecycle << 'release' })!
-			return node
+			return [node]
 		})!
 	list.update([VmlListItem{'a', 'A'}, VmlListItem{'b', 'B'}])!
 	first := list.nodes()[0]
@@ -526,10 +526,18 @@ fn test_runner_shutdown_disposes_the_document_of_an_imported_component_root() ! 
 	mut model := &VmlRunnerFixture{ text: 'before' }
 	mut controller := &CompiledVmlController[VmlRunnerFixture]{ model: model, build: imported_component_runner_build }
 	runtime.controller = voidptr(controller)
-	assert compiled_vml_controller_build[VmlRunnerFixture]().text == 'before'
+	initial := compiled_vml_controller_build[VmlRunnerFixture]()
+	assert initial.text == 'before'
+	retained := initial.compiled_node
+	mut expanded := retained.component.state('expanded', false)!
+	expanded.set(true)!
 	assert controller.node.component != model.owner
 	model.text = 'after'
-	assert compiled_vml_controller_build[VmlRunnerFixture]().text == 'after'
+	updated := compiled_vml_controller_build[VmlRunnerFixture]()
+	assert updated.text == 'after'
+	assert updated.compiled_node == retained
+	assert updated.compiled_node.component == retained.component
+	assert expanded.get()!
 	assert model.builds == 1
 	dispose_compiled_vml()
 	assert model.owner.runtime.stats() == SignalStats{}

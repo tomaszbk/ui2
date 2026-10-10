@@ -1,4 +1,4 @@
-// Times runtime VML constructions that measure intrinsic Flex/Grid sizes:
+// Times compiled VML build/dispose and typed tree builders that measure intrinsic Flex/Grid sizes:
 // the responsive example, a flat wrapping Flex, and nested Flex containers.
 // From the repository root:
 //   v -prod -path "$(dirname "$PWD")|@vlib|@vmodules" -o /tmp/ui2-flex-bench benchmarks/flex_measure/main.v
@@ -9,7 +9,6 @@ import os
 import time
 import ui2
 
-const responsive_vml = $embed_file('../../examples/responsive_layout/responsive_layout.vml').to_string()
 const runs = 7
 
 pub struct Project {
@@ -29,30 +28,51 @@ pub fn (mut app BenchApp) create_project() {
 	app.created++
 }
 
+enum CaseKind {
+	responsive
+	flat
+	nested
+}
+
 struct Case {
-	name   string
-	source string
-	frame  ui2.Rect
-	model  bool
+	name  string
+	kind  CaseKind
+	frame ui2.Rect
+	depth int
 }
 
-// nested alternates orientations so every level changes the width available
-// to its subtree, the shape that made intrinsic measurement repeat work.
-fn nested(depth int) string {
-	mut source := 'Label { text: "content that can wrap at a narrow width" lines: 3 }'
+fn responsive(mut app BenchApp, frame ui2.Rect) ui2.Element {
+	return $vml('../../examples/responsive_layout/responsive_layout.vml', frame)
+}
+
+fn nested(depth int, frame ui2.Rect) ui2.Element {
+	mut child := ui2.label('', 'content that can wrap at a narrow width', ui2.Rect{},
+		ui2.TextStyle{ lines: 3 })
 	for level in 0 .. depth {
-		orientation := if level % 2 == 0 { 'horizontal' } else { 'vertical' }
-		source = 'Flex { orientation: ${orientation} gap: 4\n Label { text: "level ${level}" }\n ${source} }'
+		child = ui2.flex(ui2.FlexConfig{
+			frame:       frame
+			orientation: if level % 2 == 0 { .horizontal } else { .vertical }
+			gap:         4
+			children:    [
+				ui2.FlexChild{ element: ui2.label('', 'level ${level}', ui2.Rect{}, ui2.TextStyle{}) },
+				ui2.FlexChild{ element: child },
+			]
+		}) or { panic(err) }
 	}
-	return 'Screen {\n ${source} }'
+	return ui2.screen(0xffffff, [child])
 }
 
-fn flat(count int) string {
-	mut labels := []string{cap: count}
+fn flat(count int, frame ui2.Rect) ui2.Element {
+	mut labels := []ui2.FlexChild{cap: count}
 	for index in 0 .. count {
-		labels << 'Label { text: "item ${index}" }'
+		labels << ui2.FlexChild{ element: ui2.label('', 'item ${index}', ui2.Rect{}, ui2.TextStyle{}) }
 	}
-	return 'Screen {\n Flex { wrap: true gap: 6\n ${labels.join('\n')} } }'
+	return ui2.screen(0xffffff, [ui2.flex(ui2.FlexConfig{
+		frame:    frame
+		wrap:     true
+		gap:      6
+		children: labels
+	}) or { panic(err) }])
 }
 
 fn model() BenchApp {
@@ -69,14 +89,17 @@ fn model() BenchApp {
 	}
 }
 
-fn build(case Case, mut app ui2.VmlApp[BenchApp]) !int {
-	root := if case.model {
-		app.build(case.frame)!
-	} else {
-		ui2.element_from_vml(case.source,
-			case.frame)!
+fn build(case Case, mut app BenchApp) int {
+	root := match case.kind {
+		.responsive { responsive(mut app, case.frame) }
+		.flat { flat(200, case.frame) }
+		.nested { nested(case.depth, case.frame) }
 	}
-	return root.children.len
+	checksum := root.children.len
+	if root.compiled_node != unsafe { nil } {
+		root.compiled_node.dispose_document() or { panic(err) }
+	}
+	return checksum
 }
 
 fn median(values []f64) f64 {
@@ -89,16 +112,12 @@ fn main() {
 	wide := ui2.rect(0, 0, 1000, 780)
 	compact := ui2.rect(0, 0, 390, 780)
 	cases := [
-		Case{'responsive wide (model)', responsive_vml, wide, true},
-		Case{'responsive compact (model)', responsive_vml, compact, true},
-		Case{'flat wrap 200 (static)', flat(200), wide, false},
-		Case{'flat wrap 200 (model)', flat(200), wide, true},
-		Case{'nested 4 (static)', nested(4), wide, false},
-		Case{'nested 4 (model)', nested(4), wide, true},
-		Case{'nested 8 (static)', nested(8), wide, false},
-		Case{'nested 8 (model)', nested(8), wide, true},
-		Case{'nested 10 (static)', nested(10), wide, false},
-		Case{'nested 10 (model)', nested(10), wide, true},
+		Case{ name: 'responsive wide (compiled)', kind: .responsive, frame: wide },
+		Case{ name: 'responsive compact (compiled)', kind: .responsive, frame: compact },
+		Case{ name: 'flat wrap 200 (typed)', kind: .flat, frame: wide },
+		Case{ name: 'nested 4 (typed)', kind: .nested, frame: wide, depth: 4 },
+		Case{ name: 'nested 8 (typed)', kind: .nested, frame: wide, depth: 8 },
+		Case{ name: 'nested 10 (typed)', kind: .nested, frame: wide, depth: 10 },
 	]
 	filter := if os.args.len > 1 { os.args[1] } else { '' }
 	mut checksum := 0
@@ -106,13 +125,13 @@ fn main() {
 		if filter.len > 0 && !case.name.contains(filter) {
 			continue
 		}
-		mut app := ui2.new_vml_app(case.source, model())!
-		checksum += build(case, mut app)! // warm fonts and caches outside timing
+		mut app := model()
+		checksum += build(case, mut app) // warm fonts and caches outside timing
 		mut iterations := 1
 		for {
 			mut watch := time.new_stopwatch()
 			for _ in 0 .. iterations {
-				checksum += build(case, mut app)!
+				checksum += build(case, mut app)
 			}
 			if watch.elapsed().milliseconds() >= 100 || iterations >= 100_000 {
 				break
@@ -123,7 +142,7 @@ fn main() {
 		for _ in 0 .. runs {
 			mut watch := time.new_stopwatch()
 			for _ in 0 .. iterations {
-				checksum += build(case, mut app)!
+				checksum += build(case, mut app)
 			}
 			samples << f64(watch.elapsed().microseconds()) / f64(iterations)
 		}

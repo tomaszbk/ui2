@@ -4,12 +4,11 @@ import ui2
 
 const logview_width = 640
 const logview_height = 420
-const logview_vml_source = $embed_file('logview.vml').to_string()
 
 pub struct LogviewDemo {
 pub mut:
 	log       string
-	next_task int = 1
+	next_task int    = 1
 	status    string = 'Ready to scan.'
 }
 
@@ -31,11 +30,20 @@ pub fn (mut app LogviewDemo) clear() {
 }
 
 fn main() {
-	ui2.run_vml[LogviewDemo](
-		source: logview_vml_source
-		model: LogviewDemo{}
-		title: 'Log View'
-		width: logview_width
+	mut app := LogviewDemo{}
+	ui2.run_compiled_vml[LogviewDemo](
+		build:  build_logview
+		model:  &app
+		title:  'Log View'
+		width:  logview_width
 		height: logview_height
 	) or { panic(err) }
+}
+
+fn build_logview(mut app LogviewDemo) ui2.Element {
+	return $vml('logview.vml')
+}
+
+fn logview_tree(mut app LogviewDemo, frame ui2.Rect) ui2.Element {
+	return $vml('logview.vml', frame)
 }

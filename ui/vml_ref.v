@@ -116,7 +116,7 @@ fn (ref &VmlRef[T]) command_id() !string {
 
 pub fn (ref &VmlRef[T]) focus() ! {
 	$if T is VmlButton || T is VmlView || T is VmlTextInput || T is VmlTextArea || T is VmlCheckbox || T is VmlDropdown || T is VmlSlider || T is VmlSwitch || T is VmlToggleButton {
-		focus(ref.command_id()!)
+		ref.require_node()!.component.dispatch_command(VmlHostCommand{ kind: .focus, id: ref.command_id()! })!
 	} $else {
 		$compile_error('VML ref target does not support focus')
 	}
@@ -126,7 +126,7 @@ pub fn (ref &VmlRef[T]) focus() ! {
 // between a declared text effect and an imperative replacement of local edits.
 pub fn (ref &VmlRef[T]) set_text(text string) ! {
 	$if T is VmlTextInput || T is VmlTextArea {
-		set_text(ref.command_id()!, text)
+		ref.require_node()!.component.dispatch_command(VmlHostCommand{ kind: .set_text, id: ref.command_id()!, text: text })!
 	} $else {
 		$compile_error('VML ref target does not support set_text')
 	}

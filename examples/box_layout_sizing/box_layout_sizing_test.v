@@ -15,7 +15,8 @@ fn find_box_sizing_element(element ui2.Element, id string) ?ui2.Element {
 }
 
 fn test_box_layout_sizing_demo_uses_fixed_and_weighted_widths() {
-	root := ui2.element_from_vml_model(box_sizing_vml_source, BoxLayoutSizingDemo{}, ui2.rect(0, 0, box_sizing_width, box_sizing_height)) or { panic(err) }
+	mut compiled_model_0 := BoxLayoutSizingDemo{}
+	root := box_layout_sizing_tree(mut compiled_model_0, ui2.rect(0, 0, box_sizing_width, box_sizing_height))
 	actions := find_box_sizing_element(root, 'actions') or { panic('missing actions box') }
 	assert actions.children.len == 3
 	assert actions.children[0].frame == ui2.rect(10, 10, 88, 76)

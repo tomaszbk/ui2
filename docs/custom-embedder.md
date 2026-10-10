@@ -164,10 +164,6 @@ would allow those helpers to become context methods and remove that internal
 activation boundary. This is a proposal for the creator, not an implicit
 change to existing VML bindings or handler signatures.
 
-The explicit context should also extend to VML hosting: `VmlApp` owns
-its model and parsed document, and its elements capture their declared actions
-in typed callbacks. The blocking `run_vml` and compiled runner select their
-current model through a singleton build context. An `open_vml` entry point returning a window
-would make multiwindow VML lifecycle explicit without changing expression or
-binding semantics. Until then, host a separate `VmlApp` in each window and
-deliver typed events directly to its elements.
+Compiled VML shares the same window ownership. Its callbacks retain typed
+application and component contexts; component scopes own signals and cleanup.
+The convenience `run_compiled_vml` runner owns one application window.

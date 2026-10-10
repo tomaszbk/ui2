@@ -11,6 +11,7 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
+  V_MACOS_V3_NO_FALLBACK: '1'
   # The vglyph runtime is pinned in thirdparty/vglyph; its C dependencies are
   # resolved by the host package manager and their versions are logged below.
   TEXT_PKG_CONFIG_MODULES: pango pangoft2 freetype2 harfbuzz fribidi fontconfig gobject-2.0 glib-2.0
@@ -26,26 +27,26 @@ jobs:
         include:
           - os: ubuntu-latest
             c_compiler: gcc
-            compiler_flags: -cc gcc
+            compiler_flags: -b c -cc gcc
             tcc_revision: d6e7ac1b1bcc98aed734a6ecbfa8509f24606c74
           - os: macos-latest
             c_compiler: clang
-            compiler_flags: -cc clang
+            compiler_flags: -b c -cc clang
             tcc_revision: 1d0ad0ecf70a91a1df64cebf215e683b1d5aedb5
           - os: windows-latest
             c_compiler: gcc
-            compiler_flags: -cc gcc
+            compiler_flags: -b c -cc gcc
             tcc_revision: dc80dc81dcb8df649456090348b504b0be97a623
           - os: macos-latest
             c_compiler: clang
-            compiler_flags: -cc clang
+            compiler_flags: -b c -cc clang
             tcc_revision: 1d0ad0ecf70a91a1df64cebf215e683b1d5aedb5
             custom: true
           - os: windows-latest
             c_compiler: gcc
             tcc_revision: dc80dc81dcb8df649456090348b504b0be97a623
             custom: true
-            compiler_flags: -cc gcc
+            compiler_flags: -b c -cc gcc
     steps:
       # `import ui2` resolves through the checkout directory name, so the
       # repository has to land in a directory called `ui2`.
@@ -119,11 +120,11 @@ jobs:
         shell: pwsh
         working-directory: ui2
         run: |
-          v -cc gcc -enable-globals -shared -os windows -check .
+          v -b c -cc gcc -enable-globals -shared -os windows -check .
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          v -cc gcc -enable-globals -os windows -check windows/ui_windows_test.v
+          v -b c -cc gcc -enable-globals -os windows -check windows/ui_windows_test.v
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          v -cc gcc -os windows -check examples/windows_custom_runtime
+          v -b c -cc gcc -os windows -check examples/windows_custom_runtime
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Typecheck Windows custom backend and runtime fixtures
@@ -131,18 +132,25 @@ jobs:
         shell: pwsh
         working-directory: ui2
         run: |
-          v -cc gcc -d ui2_custom_rendering -shared -os windows -check .
+          v -b c -cc gcc -d ui2_custom_rendering -shared -os windows -check .
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $fixtures = @('ui/ui_custom_test.v', 'ui/ui_custom_runtime_test.v', 'ui/ui_scheduler_immediate_test.v', 'ui/ui_pointer_capture_immediate_test.v', 'ui/ui_scroll_immediate_test.v', 'ui/ui_window_state_immediate_test.v', 'ui/text_backend_vglyph_test.v', 'ui/text_composition_test.v', 'ui/presentation_geometry_test.v', 'ui/frame_scheduler_test.v')
           foreach ($fixture in $fixtures) {
-            v -cc gcc -d ui2_custom_rendering -os windows -check $fixture
+            v -b c -cc gcc -d ui2_custom_rendering -os windows -check $fixture
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           }
-          v -cc gcc -d ui2_custom_rendering -os windows -check examples/windows_custom_runtime
+          v -b c -cc gcc -d ui2_custom_rendering -os windows -check examples/windows_custom_runtime
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-      - name: Test VML menu declarations
-        run: v ${{ matrix.compiler_flags }} ${{ matrix.custom && '-d ui2_custom_rendering' || '' }} test ui2/ui/vml_menu_test.v
+      - name: Test compiled VML menu declarations
+        run: v ${{ matrix.compiler_flags }} ${{ matrix.custom && '-d ui2_custom_rendering' || '' }} test ui2/examples/menubar
+
+      - name: Test independent Counter components
+        run: v ${{ matrix.compiler_flags }} ${{ matrix.custom && '-d ui2_custom_rendering' || '' }} test ui2/examples/counter
+
+      - name: Test compiled VML contracts, keyed lists and diagnostics
+        if: runner.os == 'Linux' || matrix.custom
+        run: v ${{ matrix.compiler_flags }} ${{ matrix.custom && '-d ui2_custom_rendering' || '' }} test ui2/tests/compiled_vml
 
       - name: Test immediate scrolling
         if: runner.os == 'Linux' || matrix.custom
@@ -167,4 +175,4 @@ jobs:
         run: make check-embedder-macos
 
       - name: Build all examples
-        run: v run ui2/examples/build_examples.vsh ${{ matrix.compiler_flags }} ${{ matrix.custom && '-d ui2_custom_rendering' || '' }}
+        run: v -b c run ui2/examples/build_examples.vsh ${{ matrix.compiler_flags }} ${{ matrix.custom && '-d ui2_custom_rendering' || '' }}

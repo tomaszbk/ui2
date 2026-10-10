@@ -1,0 +1,73 @@
+Flex(
+    orientation: vertical,
+    gap: 4,
+) {
+    Label(text: "level 11")
+    Flex(
+        orientation: horizontal,
+        gap: 4,
+    ) {
+        Label(text: "level 10")
+        Flex(
+            orientation: vertical,
+            gap: 4,
+        ) {
+            Label(text: "level 9")
+            Flex(
+                orientation: horizontal,
+                gap: 4,
+            ) {
+                Label(text: "level 8")
+                Flex(
+                    orientation: vertical,
+                    gap: 4,
+                ) {
+                    Label(text: "level 7")
+                    Flex(
+                        orientation: horizontal,
+                        gap: 4,
+                    ) {
+                        Label(text: "level 6")
+                        Flex(
+                            orientation: vertical,
+                            gap: 4,
+                        ) {
+                            Label(text: "level 5")
+                            Flex(
+                                orientation: horizontal,
+                                gap: 4,
+                            ) {
+                                Label(text: "level 4")
+                                Flex(
+                                    orientation: vertical,
+                                    gap: 4,
+                                ) {
+                                    Label(text: "level 3")
+                                    Flex(
+                                        orientation: horizontal,
+                                        gap: 4,
+                                    ) {
+                                        Label(text: "level 2")
+                                        Flex(
+                                            orientation: vertical,
+                                            gap: 4,
+                                        ) {
+                                            Label(text: "level 1")
+                                            Flex(
+                                                orientation: horizontal,
+                                                gap: 4,
+                                            ) {
+                                                Label(text: "level 0")
+                                                Label(text: "content that wraps at a narrow width", lines: 3)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

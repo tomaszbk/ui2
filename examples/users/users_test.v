@@ -67,14 +67,15 @@ fn test_users_screen_is_evaluated_from_model_vml() {
 	defer {
 		reset_test_users_data(data_path)
 	}
-	app := app_with_data_path(data_path)
+	mut app := app_with_data_path(data_path)
 	assert os.exists(data_path)
 	bounds := ui2.rect(0, 0, window_width, window_height)
-	assert users_vml_source.contains('bind.text: app.first_name')
-	assert users_vml_source.contains('Repeater {')
-	assert !users_vml_source.contains('__USER_ROWS__')
-	root := ui2.element_from_vml_model(users_vml_source, app, bounds) or { panic(err) }
+	root := users_tree(mut app, bounds)
 	ui2.validate_element_tree(root) or { panic(err) }
+	first_name := find_element_by_id(root, 'first_name') or { panic('missing name input') }
+	first_name.on_event(ui2.ElementEvent{ kind: .change, text: 'José' })
+	assert app.first_name == 'José'
+	assert app.users.len == 2
 
 	add_user := find_element_by_id(root, 'add-user') or { panic('missing Add user button') }
 	assert add_user.text == 'Add user'
@@ -104,7 +105,7 @@ fn test_users_screen_keeps_table_beside_form_at_minimum_width() {
 	mut app := app_with_data_path(data_path)
 	app.show_help = true
 	resized := ui2.rect(0, 0, window_min_width, 300)
-	root := ui2.element_from_vml_model(users_vml_source, app, resized) or { panic(err) }
+	root := users_tree(mut app, resized)
 	page := find_element_by_id(root, 'users_page') or { panic('missing users page scroll') }
 	table := find_element_by_id(page, 'users_table') or { panic('missing users table') }
 	dialog := find_element_by_id(root, 'help_dialog') or { panic('missing help dialog') }

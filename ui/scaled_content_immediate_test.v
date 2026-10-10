@@ -42,9 +42,11 @@ pub:
  title string = 'Fixed title'
  }
  fn test_model_vml_fixed_composition_does_not_reflow() {
-  source := 'Screen { ScaledContent { content_width: 1280 content_height: 720 Column { Label { text: app.title height: 42 } View { height: 100 } } } }'
-  a := element_from_vml_model(source,ScaledFixtureModel{},rect(0,0,640,360))!
-  b := element_from_vml_model(source,ScaledFixtureModel{},rect(0,0,1440,900))!
+
+  mut fixture_model_2 := ScaledFixtureModel{}
+  a := compiled_scaled_content_immediate_1(mut fixture_model_2, rect(0,0,640,360))
+  mut fixture_model_1 := ScaledFixtureModel{}
+  b := compiled_scaled_content_immediate_0(mut fixture_model_1, rect(0,0,1440,900))
   assert a.children[0].children[0].frame == b.children[0].children[0].frame
   assert a.children[0].children[0].frame.width == 1280
   assert a.children[0].children[0].children[0].text == 'Fixed title'
@@ -107,4 +109,18 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
   focused := resolve_custom_visual_style(el,frame,rect(0,0,1280,720),transform)
   assert focused.box.outline_width == 3 && focused.frame == frame
  }
+}
+
+$if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
+
+fn compiled_scaled_content_immediate_0(mut app ScaledFixtureModel, frame Rect) Element {
+	return $vml('fixtures/scaled_content_immediate_0.vml', frame)
+}
+}
+
+$if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
+
+fn compiled_scaled_content_immediate_1(mut app ScaledFixtureModel, frame Rect) Element {
+	return $vml('fixtures/scaled_content_immediate_1.vml', frame)
+}
 }

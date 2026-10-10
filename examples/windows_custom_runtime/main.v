@@ -48,12 +48,11 @@ fn build() ui2.Element {
 		ui2.text_input(
 			id:         'title'
 			text:       'Mañana: café y acción'
-			multiline:  false
 			frame:      ui2.rect(24, 104, b.width - 48, 38)
 			box:        ui2.BoxStyle{ bg: 0xffffff, radius: 4 }
 			text_style: style
 		) or { panic(err) },
-		ui2.text_input(
+		ui2.text_area(
 			id:         'notes'
 			text:       notes()
 			frame:      ui2.rect(24, 160, b.width - 48, b.height - 244)

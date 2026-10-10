@@ -85,10 +85,18 @@ fn test_tray_vml_offers_the_same_rows_where_there_is_no_status_area() {
 			record.identity = event.id
 		}
 	}
-	root := ui2.element_from_vml_model_with_callbacks(tray_icon_vml_source, TrayDemo{
+	mut app := &TrayDemo{
 		supported: false
 		docked:    false
-	}, ui2.rect(0, 0, tray_icon_width, tray_icon_height), callbacks) or { panic(err) }
+	}
+	callback_tray_show := tray_callback('tray_show')
+	callback_tray_hide := tray_callback('tray_hide')
+	callback_tray_status := callbacks['tray_status'] or { panic('missing status callback') }
+	callback_tray_notifications := callbacks['tray_notifications'] or { panic('missing notifications callback') }
+	callback_status_available := callbacks['status_available'] or { panic('missing available callback') }
+	callback_status_busy := callbacks['status_busy'] or { panic('missing busy callback') }
+	callback_status_away := callbacks['status_away'] or { panic('missing away callback') }
+	root := $vml('tray_icon.vml', ui2.rect(0, 0, tray_icon_width, tray_icon_height))
 	ui2.validate_element_tree(root) or { panic(err) }
 	// Element identity and declared menu action stay independent.
 	for id, action in {
@@ -112,9 +120,10 @@ fn test_tray_vml_offers_the_same_rows_where_there_is_no_status_area() {
 }
 
 fn test_tray_vml_hides_the_fallback_rows_where_the_status_area_is_real() {
-	root := ui2.element_from_vml_model_with_callbacks(tray_icon_vml_source, TrayDemo{
+	mut compiled_model_0 := TrayDemo{
 		supported: true
-	}, ui2.rect(0, 0, tray_icon_width, tray_icon_height), tray_icon_callbacks()) or { panic(err) }
+	}
+	root := tray_icon_tree(mut compiled_model_0, ui2.rect(0, 0, tray_icon_width, tray_icon_height))
 	assert (find_tray_element(root, 'fallback_status') or { panic('missing fallback') }).hidden
 	assert (find_tray_element(root, 'status_state') or { panic('missing status chip') }).text == 'Available'
 	assert (find_tray_element(root, 'tray_hide') or { panic('missing hide button') }).enabled

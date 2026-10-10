@@ -24,13 +24,13 @@ pub fn vml_callback[F](callback F, config VmlCallbackConfig) ElementCallback {
 		return fn [callback, config] [F](event ElementEvent) {
 			if callback == unsafe { nil } { return }
 			callback()
-			if config.refresh { request_refresh() }
+			if config.refresh { compiled_vml_request_refresh() }
 		}
 	} $else $if F is fn(ElementEvent) || F is ElementCallback {
 		return fn [callback, config] [F](event ElementEvent) {
 			if callback == unsafe { nil } { return }
 			callback(event)
-			if config.refresh { request_refresh() }
+			if config.refresh { compiled_vml_request_refresh() }
 		}
 	} $else {
 		$compile_error('VML callback requires fn() or fn(ui2.ElementEvent), returning void')

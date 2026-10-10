@@ -1,0 +1,8 @@
+Screen {
+    Label(
+        font_size: 18.25,
+    ) {
+        Run(text: "a")
+        Run(text: "b", font_size: 12.5)
+    }
+}

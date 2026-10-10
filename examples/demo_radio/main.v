@@ -4,7 +4,6 @@ import ui2
 
 const radio_width = 680
 const radio_height = 370
-const radio_vml_source = $embed_file('demo_radio.vml').to_string()
 
 pub struct CountryChoice {
 pub:
@@ -16,7 +15,7 @@ pub struct RadioDemo {
 pub:
 	countries []CountryChoice
 pub mut:
-	compact          bool = true
+	compact          bool   = true
 	selected_country string = 'United States'
 	message          string = 'Country: United States'
 }
@@ -38,11 +37,20 @@ pub fn (mut app RadioDemo) select_country(country string) {
 }
 
 fn main() {
-	ui2.run_vml[RadioDemo](
-		source: radio_vml_source
-		model: initial_radio_demo()
-		title: 'Radio Choices'
-		width: radio_width
+	mut app := initial_radio_demo()
+	ui2.run_compiled_vml[RadioDemo](
+		build:  build_demo_radio
+		model:  &app
+		title:  'Radio Choices'
+		width:  radio_width
 		height: radio_height
 	) or { panic(err) }
+}
+
+fn build_demo_radio(mut app RadioDemo) ui2.Element {
+	return $vml('demo_radio.vml')
+}
+
+fn demo_radio_tree(mut app RadioDemo, frame ui2.Rect) ui2.Element {
+	return $vml('demo_radio.vml', frame)
 }

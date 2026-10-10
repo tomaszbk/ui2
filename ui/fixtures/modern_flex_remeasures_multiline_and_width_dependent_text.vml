@@ -1,0 +1,13 @@
+Flex(
+    gap: 10,
+    align_items: start,
+) {
+    Label(
+        id: "caption",
+        flex_basis: 0,
+        flex_grow: 1,
+        lines: 10,
+        text: caption.width < 200 ? "A longer caption that needs several lines when the allocated width becomes narrow" : "Short",
+    )
+    View(flex_basis: 0, flex_grow: 1)
+}

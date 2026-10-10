@@ -1,143 +1,241 @@
-Screen {
-    id: root
-    background: #F1F5F9
-
-    Stack {
-        align_x: stretch
-        align_y: stretch
-        transparent: true
-
-        // The form keeps its preferred width beside the growing table pane.
-        // The page scroll keeps both usable when the window is short.
-        Scroll {
-            id: users_page
-            background: #F1F5F9
-
-            Row {
-                height: 420
-                padding: 16
-                gap: 18
-                transparent: true
-
-                Column {
-                    width: 210
-                    flex_shrink: 0
-                    gap: 6
-                    transparent: true
-
-                    Label { text: "Add user" height: 26 font_size: 18 bold: true }
-                    TextInput { multiline: false  id: first_name bind.text: app.first_name on_change: app.clear_error() placeholder: "First name" height: 32 background: app.is_error ? #FFEEEE : #FFFFFF corner_radius: 6 }
-                    TextInput { multiline: false  id: last_name bind.text: app.last_name on_change: app.clear_error() placeholder: "Last name" height: 32 background: app.is_error ? #FFEEEE : #FFFFFF corner_radius: 6 }
-                    TextInput { multiline: false  id: age bind.text: app.age on_change: app.clear_error() placeholder: "Age" keyboard: decimal height: 32 background: app.is_error ? #FFEEEE : #FFFFFF corner_radius: 6 }
-                    TextInput { multiline: false  id: password bind.text: app.password placeholder: "Password" secure: true height: 32 background: #FFFFFF corner_radius: 6 }
-                    Checkbox { id: online_registration text: "Online registration" bind.checked: app.online_registration height: 30 font_size: 12 }
-                    Checkbox { id: subscribe text: "Subscribe to the newsletter" bind.checked: app.subscribe height: 30 font_size: 12 }
-                    Label { text: "Country" height: 18 color: #475569 font_size: 12 }
-                    Dropdown {
-                        id: country
-                        bind.text: app.country
-                        height: 32
-                        background: #FFFFFF
-                        font_size: 12
-                        corner_radius: 6
-                        Option { text: "United States" }
-                        Option { text: "Canada" }
-                        Option { text: "United Kingdom" }
-                        Option { text: "Australia" }
+Screen(
+    id: "root",
+    background: #F1F5F9,
+) {
+    Stack(
+        align_x: stretch,
+        align_y: stretch,
+        transparent: true,
+    ) {
+        Scroll(
+            id: "users_page",
+            background: #F1F5F9,
+        ) {
+            Row(
+                height: 420,
+                padding: 16,
+                gap: 18,
+                transparent: true,
+            ) {
+                Column(
+                    width: 210,
+                    flex_shrink: 0,
+                    gap: 6,
+                    transparent: true,
+                ) {
+                    Label(text: "Add user", height: 26, font_size: 18, bold: true)
+                    TextInput(
+                        id: "first_name",
+                        bind.text: app.first_name,
+                        on_change: app.clear_error(),
+                        placeholder: "First name",
+                        height: 32,
+                        background: app.is_error ? #FFEEEE : #FFFFFF,
+                        corner_radius: 6,
+                    )
+                    TextInput(
+                        id: "last_name",
+                        bind.text: app.last_name,
+                        on_change: app.clear_error(),
+                        placeholder: "Last name",
+                        height: 32,
+                        background: app.is_error ? #FFEEEE : #FFFFFF,
+                        corner_radius: 6,
+                    )
+                    TextInput(
+                        id: "age",
+                        bind.text: app.age,
+                        on_change: app.clear_error(),
+                        placeholder: "Age",
+                        keyboard: decimal,
+                        height: 32,
+                        background: app.is_error ? #FFEEEE : #FFFFFF,
+                        corner_radius: 6,
+                    )
+                    TextInput(
+                        id: "password",
+                        bind.text: app.password,
+                        placeholder: "Password",
+                        secure: true,
+                        height: 32,
+                        background: #FFFFFF,
+                        corner_radius: 6,
+                    )
+                    Checkbox(
+                        id: "online_registration",
+                        text: "Online registration",
+                        bind.checked: app.online_registration,
+                        height: 30,
+                        font_size: 12,
+                    )
+                    Checkbox(
+                        id: "subscribe",
+                        text: "Subscribe to the newsletter",
+                        bind.checked: app.subscribe,
+                        height: 30,
+                        font_size: 12,
+                    )
+                    Label(text: "Country", height: 18, color: #475569, font_size: 12)
+                    Dropdown(
+                        id: "country",
+                        bind.text: app.country,
+                        height: 32,
+                        background: #FFFFFF,
+                        font_size: 12,
+                        corner_radius: 6,
+                    ) {
+                        Option(text: "United States")
+                        Option(text: "Canada")
+                        Option(text: "United Kingdom")
+                        Option(text: "Australia")
                     }
-                    Row {
-                        height: 32
-                        gap: 22
-                        transparent: true
-                        Button { id: add-user text: "Add user" enabled: app.users.len < app.max_users on_tap: app.add_user() native: true flex_grow: 1 background: #3478D4 color: #FFFFFF corner_radius: 6 bold: true align: center }
-                        Button { id: help text: "?" on_tap: app.open_help() native: true tooltip: "About this example" width: 48 background: #E2E8F0 corner_radius: 16 bold: true align: center }
+                    Row(
+                        height: 32,
+                        gap: 22,
+                        transparent: true,
+                    ) {
+                        Button(
+                            id: "add-user",
+                            text: "Add user",
+                            enabled: app.users.len < app.max_users,
+                            on_tap: app.add_user(),
+                            native: true,
+                            flex_grow: 1,
+                            background: #3478D4,
+                            color: #FFFFFF,
+                            corner_radius: 6,
+                            bold: true,
+                            align: center,
+                        )
+                        Button(
+                            id: "help",
+                            text: "?",
+                            on_tap: app.open_help(),
+                            native: true,
+                            tooltip: "About this example",
+                            width: 48,
+                            background: #E2E8F0,
+                            corner_radius: 16,
+                            bold: true,
+                            align: center,
+                        )
                     }
-                    Row {
-                        height: 22
-                        gap: 6
-                        align_items: center
-                        transparent: true
-                        ProgressBar { width: 170 height: 16 value: app.users.len max: app.max_users background: #D8DEE8 color: #3478D4 corner_radius: 8 }
-                        Label { text: "${app.users.len}/${app.max_users}" flex_grow: 1 font_size: 13 }
+                    Row(
+                        height: 22,
+                        gap: 6,
+                        align_items: center,
+                        transparent: true,
+                    ) {
+                        ProgressBar(
+                            width: 170,
+                            height: 16,
+                            value: app.users.len,
+                            max: app.max_users,
+                            background: #D8DEE8,
+                            color: #3478D4,
+                            corner_radius: 8,
+                        )
+                        Label(text: "${app.users.len}/${app.max_users}", flex_grow: 1, font_size: 13)
                     }
                 }
-
-                Column {
-                    flex_grow: 1
-                    gap: 8
-                    transparent: true
-
-                    Scroll {
-                        id: users_table
-                        height: 270
-                        background: #FFFFFF
-                        persistent: true
-
-                        Column {
-                            height: 32 + app.users.len * 34
-                            gap: 2
-                            transparent: true
-
-                            Row {
-                                height: 32
-                                flex_shrink: 0
-                                padding_left: 7
-                                padding_right: 7
-                                gap: 14
-                                background: #334155
-                                Label { text: "First name" flex_basis: 0 flex_grow: 23 color: #FFFFFF font_size: 13 bold: true }
-                                Label { text: "Last name" flex_basis: 0 flex_grow: 23 color: #FFFFFF font_size: 13 bold: true }
-                                Label { text: "Age" flex_basis: 0 flex_grow: 12 color: #FFFFFF font_size: 13 bold: true }
-                                Label { text: "Country" flex_basis: 0 flex_grow: 42 color: #FFFFFF font_size: 13 bold: true }
+                Column(
+                    flex_grow: 1,
+                    gap: 8,
+                    transparent: true,
+                ) {
+                    Scroll(
+                        id: "users_table",
+                        height: 270,
+                        background: #FFFFFF,
+                        persistent: true,
+                    ) {
+                        Column(
+                            height: 32 + app.users.len * 34,
+                            gap: 2,
+                            transparent: true,
+                        ) {
+                            Row(
+                                height: 32,
+                                flex_shrink: 0,
+                                padding_left: 7,
+                                padding_right: 7,
+                                gap: 14,
+                                background: #334155,
+                            ) {
+                                Label(text: "First name", flex_basis: 0, flex_grow: 23, color: #FFFFFF, font_size: 13, bold: true)
+                                Label(text: "Last name", flex_basis: 0, flex_grow: 23, color: #FFFFFF, font_size: 13, bold: true)
+                                Label(text: "Age", flex_basis: 0, flex_grow: 12, color: #FFFFFF, font_size: 13, bold: true)
+                                Label(text: "Country", flex_basis: 0, flex_grow: 42, color: #FFFFFF, font_size: 13, bold: true)
                             }
-                            Repeater {
-                                model: app.users
-                                key: item.id
-                                Row {
-                                    height: 32
-                                    flex_shrink: 0
-                                    padding_left: 7
-                                    padding_right: 7
-                                    gap: 14
-                                    background: index % 2 == 0 ? #FFFFFF : #F1F5F9
-                                    Label { text: item.first_name flex_basis: 0 flex_grow: 23 color: #1F2937 font_size: 13 }
-                                    Label { text: item.last_name flex_basis: 0 flex_grow: 23 color: #1F2937 font_size: 13 }
-                                    Label { text: "${item.age}" flex_basis: 0 flex_grow: 12 color: #1F2937 font_size: 13 }
-                                    Label { text: item.country flex_basis: 0 flex_grow: 42 color: #1F2937 font_size: 13 }
+                            Repeater(
+                                model: app.users,
+                                key: item.id,
+                            ) {
+                                Row(
+                                    height: 32,
+                                    flex_shrink: 0,
+                                    padding_left: 7,
+                                    padding_right: 7,
+                                    gap: 14,
+                                    background: index % 2 == 0 ? #FFFFFF : #F1F5F9,
+                                ) {
+                                    Label(text: item.first_name, flex_basis: 0, flex_grow: 23, color: #1F2937, font_size: 13)
+                                    Label(text: item.last_name, flex_basis: 0, flex_grow: 23, color: #1F2937, font_size: 13)
+                                    Label(text: "${item.age}", flex_basis: 0, flex_grow: 12, color: #1F2937, font_size: 13)
+                                    Label(text: item.country, flex_basis: 0, flex_grow: 42, color: #1F2937, font_size: 13)
                                 }
                             }
                         }
                     }
-                    Label { hidden: !app.is_error text: "First name, last name and age are required." height: 24 color: #B42318 font_size: 13 }
-                    View { flex_grow: 1 transparent: true }
-                    Row {
-                        height: 50
-                        justify: end
-                        transparent: true
-                        Image { id: v_logo source: app.logo_path width: 50 height: 50 }
+                    Label(
+                        hidden: ! app.is_error,
+                        text: "First name, last name and age are required.",
+                        height: 24,
+                        color: #B42318,
+                        font_size: 13,
+                    )
+                    View(flex_grow: 1, transparent: true)
+                    Row(
+                        height: 50,
+                        justify: end,
+                        transparent: true,
+                    ) {
+                        Image(id: "v_logo", source: app.logo_path, width: 50, height: 50)
                     }
                 }
             }
         }
-
-        // The centered help card stays outside the page's scrolling content.
-        Column {
-            id: help_dialog
-            hidden: !app.show_help
-            align_self_x: center
-            align_self_y: center
-            width: 320
-            height: 145
-            padding: 16
-            gap: 8
-            background: #FFFFFF
-            corner_radius: 10
-            Label { text: "V UI Demo" height: 28 font_size: 19 bold: true align: center }
-            Label { text: "Built with V, ui2 VML, and native controls." height: 24 font_size: 14 align: center }
-            Row {
-                justify: center
-                transparent: true
-                Button { id: close-help text: "Close" on_tap: app.close_help() native: true width: 120 height: 34 background: #3478D4 color: #FFFFFF corner_radius: 6 bold: true align: center }
+        Column(
+            id: "help_dialog",
+            hidden: ! app.show_help,
+            align_self_x: center,
+            align_self_y: center,
+            width: 320,
+            height: 145,
+            padding: 16,
+            gap: 8,
+            background: #FFFFFF,
+            corner_radius: 10,
+        ) {
+            Label(text: "V UI Demo", height: 28, font_size: 19, bold: true, align: center)
+            Label(text: "Built with V, ui2 VML, and native controls.", height: 24, font_size: 14, align: center)
+            Row(
+                justify: center,
+                transparent: true,
+            ) {
+                Button(
+                    id: "close-help",
+                    text: "Close",
+                    on_tap: app.close_help(),
+                    native: true,
+                    width: 120,
+                    height: 34,
+                    background: #3478D4,
+                    color: #FFFFFF,
+                    corner_radius: 6,
+                    bold: true,
+                    align: center,
+                )
             }
         }
     }

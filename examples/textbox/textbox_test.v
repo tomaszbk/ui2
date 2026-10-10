@@ -26,7 +26,8 @@ fn test_textbox_demo_updates_character_count_and_clears() {
 }
 
 fn test_textbox_vml_contains_editable_and_readonly_areas() {
-	root := ui2.element_from_vml_model(textbox_vml_source, TextboxDemo{}, ui2.rect(0, 0, textbox_width, textbox_height)) or { panic(err) }
+	mut compiled_model_0 := TextboxDemo{}
+	root := textbox_tree(mut compiled_model_0, ui2.rect(0, 0, textbox_width, textbox_height))
 	ui2.validate_element_tree(root) or { panic(err) }
 
 	notes := find_textbox_element(root, 'notes') or { panic('missing editable notes') }

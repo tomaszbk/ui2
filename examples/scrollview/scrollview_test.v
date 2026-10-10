@@ -23,7 +23,8 @@ fn test_scrollview_generates_one_hundred_lines() {
 }
 
 fn test_scrollview_vml_builds_two_readonly_responsive_panes() {
-	root := ui2.element_from_vml_model(scrollview_vml_source, initial_scrollview(), ui2.rect(0, 0, scrollview_width, scrollview_height)) or { panic(err) }
+	mut compiled_model_0 := initial_scrollview()
+	root := scrollview_tree(mut compiled_model_0, ui2.rect(0, 0, scrollview_width, scrollview_height))
 	ui2.validate_element_tree(root) or { panic(err) }
 
 	info := find_scrollview_element(root, 'info') or { panic('missing information pane') }

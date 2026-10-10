@@ -53,14 +53,13 @@ fn build() ui2.Element {
 	for i in 0 .. 12 {
 		rows << ui2.label('row-${i}', 'Rotated scroll · fila ${i + 1} · ñ á é', ui2.rect(12, i * 30, 276, 28), style)
 	}
-	editor := ui2.text_input(
+	editor := ui2.text_area(
 		id:         'draft'
 		text:       'Selección: año, café, pingüino'
 		frame:      ui2.rect(10, 38, 276, 82)
 		box:        ui2.BoxStyle{ bg: 0xffffff, radius: 5 }
 		text_style: style
 		keyboard:   0
-		multiline:  true
 	) or { panic(err) }
 	field := ui2.text_input(
 		id:         'field'
@@ -69,7 +68,6 @@ fn build() ui2.Element {
 		box:        ui2.BoxStyle{ bg: 0xffffff, radius: 5 }
 		text_style: style
 		keyboard:   0
-		multiline:  false
 	) or { panic(err) }
 	plane := ui2.with_event(ui2.draggable_view('camera', ui2.rect(0, 0, 450, 240), ui2.BoxStyle{ bg: 0xdbeafe, border_color: 0x2563eb, border_left: 2, border_top: 2, border_right: 2, border_bottom: 2 }, [
 		ui2.label('canvas-title', 'Pan / zoom at the last pointer', ui2.rect(20, 20, 400, 30), ui2.TextStyle{ ...style, size: 22, weight: 700 }),

@@ -27,7 +27,7 @@ fn test_accordion_opens_one_section_and_collapses_it() {
 fn test_accordion_vml_expands_and_offsets_following_sections() {
 	mut app := initial_accordion()
 	app.toggle_section(2)
-	root := ui2.element_from_vml_model(accordion_vml_source, app, ui2.rect(0, 0, accordion_width, accordion_height)) or { panic(err) }
+	root := accordion_tree(mut app, ui2.rect(0, 0, accordion_width, accordion_height))
 	ui2.validate_element_tree(root) or { panic(err) }
 	list := find_accordion_element(root, 'section_list') or { panic('missing section list') }
 	assert list.children[0].children.len == 5

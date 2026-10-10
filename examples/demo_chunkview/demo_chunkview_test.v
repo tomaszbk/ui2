@@ -1,3 +1,4 @@
+// vtest vflags: -d ui2_custom_rendering
 module main
 
 import ui2
@@ -21,17 +22,17 @@ fn test_chunkview_toggles_sections_and_alignment() {
 	assert app.status == 'Only the first styled chunk is visible.'
 	app.alignment = 'Right'
 	app.alignment_changed()
-	assert app.text_align == 'right'
+	assert app.text_align == ui2.Align.right
 	app.reset_chunks()
 	assert app.first_open
 	assert app.second_open
-	assert app.text_align == 'center'
+	assert app.text_align == ui2.Align.center
 }
 
 fn test_chunkview_vml_preserves_nested_text_styles() {
 	mut app := ChunkviewDemo{}
 	app.second_open = false
-	root := ui2.element_from_vml_model(chunkview_vml_source, app, ui2.rect(0, 0, chunkview_width, chunkview_height)) or { panic(err) }
+	root := demo_chunkview_tree(mut app, ui2.rect(0, 0, chunkview_width, chunkview_height))
 	ui2.validate_element_tree(root) or { panic(err) }
 	first := find_chunkview_element(root, 'first_chunk') or { panic('missing first chunk') }
 	second := find_chunkview_element(root, 'second_chunk') or { panic('missing second chunk') }

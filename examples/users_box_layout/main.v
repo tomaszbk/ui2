@@ -5,7 +5,6 @@ import ui2
 
 const users_box_width = 880
 const users_box_height = 600
-const users_box_vml_source = $embed_file('users_box_layout.vml').to_string()
 const users_box_capacity = 10
 const first_name_max = 20
 const last_name_max = 50
@@ -19,7 +18,7 @@ pub:
 	last_name  string
 	age        string
 	country    string
-	stripe     string
+	stripe     u32
 }
 
 pub struct CountryChoice {
@@ -40,7 +39,7 @@ pub mut:
 	age            string
 	password       string
 	country        string = 'United States'
-	online         bool = true
+	online         bool   = true
 	subscribed     bool
 	is_error       bool
 	progress       f64
@@ -55,8 +54,8 @@ fn users_box_countries() []CountryChoice {
 	mut choices := []CountryChoice{cap: names.len}
 	for index, name in names {
 		choices << CountryChoice{
-			id: index + 1
-			key: 'country-${index + 1}'
+			id:   index + 1
+			key:  'country-${index + 1}'
 			name: name
 		}
 	}
@@ -85,13 +84,13 @@ fn users_box_demo() UsersBoxLayoutDemo {
 
 fn (mut app UsersBoxLayoutDemo) add_seed(first string, last string, age string, country string) {
 	app.users << FormUser{
-		id: app.next_id
-		key: 'user-${app.next_id}'
+		id:         app.next_id
+		key:        'user-${app.next_id}'
 		first_name: first
-		last_name: last
-		age: age
-		country: country
-		stripe: if app.users.len % 2 == 0 { '#FFFFFF' } else { '#F8FAFC' }
+		last_name:  last
+		age:        age
+		country:    country
+		stripe:     if app.users.len % 2 == 0 { u32(0xFFFFFF) } else { u32(0xF8FAFC) }
 	}
 	app.next_id++
 }
@@ -185,11 +184,20 @@ fn main() {
 		eprintln('Users Box Layout requires -d ui2_custom_rendering on Windows for proportional image fitting.')
 		return
 	}
-	ui2.run_vml[UsersBoxLayoutDemo](
-		source: users_box_vml_source
-		model: users_box_demo()
-		title: 'Users (box layout)'
-		width: users_box_width
+	mut app := users_box_demo()
+	ui2.run_compiled_vml[UsersBoxLayoutDemo](
+		build:  build_users_box_layout
+		model:  &app
+		title:  'Users (box layout)'
+		width:  users_box_width
 		height: users_box_height
 	) or { panic(err) }
+}
+
+fn build_users_box_layout(mut app UsersBoxLayoutDemo) ui2.Element {
+	return $vml('users_box_layout.vml')
+}
+
+fn users_box_layout_tree(mut app UsersBoxLayoutDemo, frame ui2.Rect) ui2.Element {
+	return $vml('users_box_layout.vml', frame)
 }

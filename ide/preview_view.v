@@ -38,7 +38,6 @@ fn build_preview_toolbar(layout IdeLayout, app &IdeApp) []ui2.Element {
 		box:         ui2.BoxStyle{ bg: 0xffffff }
 		text_style:  text_style(10, color_text, false)
 		keyboard:    ui2.keyboard_decimal
-		multiline:   false
 	) or { panic(err) }
 	children << ui2.label('', 'x', ui2.rect(x + 76, 9, 12, 18), text_style(10, color_muted, false))
 	children << ui2.text_input(
@@ -50,7 +49,6 @@ fn build_preview_toolbar(layout IdeLayout, app &IdeApp) []ui2.Element {
 		box:         ui2.BoxStyle{ bg: 0xffffff }
 		text_style:  text_style(10, color_text, false)
 		keyboard:    ui2.keyboard_decimal
-		multiline:   false
 	) or { panic(err) }
 	children << tiny_button('preview_size', 'Apply size', ui2.rect(x + 164, 6, 76, 24), true)
 	children << tiny_button('preview_check', 'Check layout', ui2.rect(x + 248, 6, 90, 24), true)

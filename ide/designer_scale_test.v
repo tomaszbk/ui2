@@ -136,7 +136,7 @@ fn test_desktop_canvas_preserves_text_and_supports_pointer_resize_with_undo() {
 	frame := ui2.rect(0, 0, 900, 700)
 	layout := ide_layout(frame, app)
 	assert layout.scale < 0.55
-	root := build_ide(frame, app)
+	root := build_ide(frame, mut app)
 	for raw in app.components {
 		element := scale_test_find(root, 'cmp_${raw.id}')?
 		assert element.frame.height < 20

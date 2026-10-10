@@ -1,7 +1,7 @@
 @[has_globals]
 module ui2
 
-$if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headless ? {
+$if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headless ? && !ui2_document_library ? {
 	fn focus_manager() &FocusManager { return g_focus_navigation }
 
 	fn custom_focus_offsets(el Element, path string, mut offsets map[string]f64) {

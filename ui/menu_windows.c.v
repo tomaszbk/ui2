@@ -5,6 +5,8 @@
 // this file is what keeps windows.h out of a gg/Sokol build.
 module ui2
 
+$if !ui2_document_library ? {
+
 fn native_menu_bar_supported() bool {
 	return true
 }
@@ -36,4 +38,6 @@ fn native_remove_tray() {
 	$if !ui2_custom_rendering ? {
 		menu_win32_remove_tray()
 	}
+}
+
 }

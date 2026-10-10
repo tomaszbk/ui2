@@ -408,6 +408,9 @@ fn box_border_width(width f64, extent f64) f64 {
 pub struct Element {
 	// Produced by the retained layout owner, excluded from authored inputs.
 	mounted_generation u64
+	// Constructor projections compare against the snapshot they received, even
+	// when effects have subsequently updated the retained declaration.
+	compiled_source &VmlSourceSnapshot = unsafe { nil }
 pub:
 	// Compiled components retain their declaration owner independently of layout.
 	// It is not an authored property or a model/binding value.
@@ -532,7 +535,9 @@ pub fn control_support(kind Kind) BackendSupport {
 // reconciliation_child_key encodes user keys so separators inside a key
 // cannot alias a nested key path.
 fn reconciliation_child_key(parent string, index int, el Element) string {
-	suffix := if el.key.len > 0 { 'k:' + el.key.bytes().hex() } else { 'i:' + index.str() }
+	suffix := if el.key.len > 0 { 'k:' + el.key.bytes().hex() }
+		else if el.compiled_node != unsafe { nil } { 'c:' + el.compiled_node.identity().bytes().hex() }
+		else { 'i:' + index.str() }
 	return if parent.len == 0 { suffix } else { parent + '/' + suffix }
 }
 

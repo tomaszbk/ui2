@@ -12,7 +12,7 @@ fn caption(text string, x f64, y f64, w f64) ui2.Element {
 }
 
 fn tile(id string, path string, frame ui2.Rect, style ui2.ImageStyle, rotation f64) ui2.Element {
-	return ui2.Element{ ...ui2.image(id, path, frame), image_style: style, rotation: rotation, origin_x:frame.width/2, origin_y:frame.height/2 }
+	return ui2.Element{ ...ui2.image(id, path, frame), image_style: style, rotation: rotation, origin_x: frame.width / 2, origin_y: frame.height / 2 }
 }
 
 fn build() ui2.Element {
@@ -55,7 +55,7 @@ fn build() ui2.Element {
 }
 
 fn main() {
-	$if !( linux || android || ( ( macos || windows ) && ui2_custom_rendering ?) ) {
+	$if !(linux || android || ((macos || windows) && ui2_custom_rendering ?)) {
 		eprintln('Run image_assets with -d ui2_custom_rendering (see docs/images-assets.md).')
 		return
 	}

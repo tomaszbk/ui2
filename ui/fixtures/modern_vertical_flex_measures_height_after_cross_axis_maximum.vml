@@ -1,0 +1,13 @@
+Flex(
+    orientation: vertical,
+    align_items: start,
+) {
+    Flex(
+        wrap: true,
+        gap: 10,
+        max_width: 150,
+    ) {
+        Button(text: "First", width: 80, height: 30)
+        Button(text: "Second", width: 80, height: 30)
+    }
+}

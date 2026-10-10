@@ -4,7 +4,6 @@ import ui2
 
 const double_list_width = 700
 const double_list_height = 460
-const double_list_vml_source = $embed_file('double_listbox.vml').to_string()
 
 pub struct TransferChoice {
 pub:
@@ -66,11 +65,20 @@ pub fn (mut app DoubleListboxDemo) show_values() {
 }
 
 fn main() {
-	ui2.run_vml[DoubleListboxDemo](
-		source: double_list_vml_source
-		model: initial_double_listbox()
-		title: 'Double Listbox'
-		width: double_list_width
+	mut app := initial_double_listbox()
+	ui2.run_compiled_vml[DoubleListboxDemo](
+		build:  build_double_listbox
+		model:  &app
+		title:  'Double Listbox'
+		width:  double_list_width
 		height: double_list_height
 	) or { panic(err) }
+}
+
+fn build_double_listbox(mut app DoubleListboxDemo) ui2.Element {
+	return $vml('double_listbox.vml')
+}
+
+fn double_listbox_tree(mut app DoubleListboxDemo, frame ui2.Rect) ui2.Element {
+	return $vml('double_listbox.vml', frame)
 }

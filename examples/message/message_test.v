@@ -24,7 +24,8 @@ fn test_message_demo_opens_and_closes() {
 }
 
 fn test_message_vml_offers_native_and_drawn_dialogs() {
-	root := ui2.element_from_vml_model(message_vml_source, MessageDemo{}, ui2.rect(0, 0, message_width, message_height)) or { panic(err) }
+	mut compiled_model_0 := MessageDemo{}
+	root := message_tree(mut compiled_model_0, ui2.rect(0, 0, message_width, message_height))
 	ui2.validate_element_tree(root) or { panic(err) }
 
 	assert (find_message_element(root, 'show_native_message') or { panic('missing native button') }).native_style
@@ -40,6 +41,6 @@ fn test_message_vml_offers_native_and_drawn_dialogs() {
 
 	mut opened := MessageDemo{}
 	opened.show_message()
-	opened_root := ui2.element_from_vml_model(message_vml_source, opened, ui2.rect(0, 0, message_width, message_height)) or { panic(err) }
+	opened_root := message_tree(mut opened, ui2.rect(0, 0, message_width, message_height))
 	assert !(find_message_element(opened_root, 'overlay') or { panic('missing open overlay') }).hidden
 }

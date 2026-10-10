@@ -4,7 +4,6 @@ import ui2
 
 const files_dropped_width = 620
 const files_dropped_height = 400
-const files_dropped_vml_source = $embed_file('files_dropped.vml').to_string()
 
 pub struct DroppedFile {
 pub:
@@ -52,14 +51,6 @@ fn (mut app FilesDroppedDemo) receive(paths []string, dropped_text string) {
 	}
 }
 
-fn build_files_dropped_screen() ui2.Element {
-	state := unsafe { files_dropped_state }
-	return ui2.element_from_vml_model(files_dropped_vml_source, *state, ui2.bounds()) or {
-		eprintln('files-dropped VML failed: ${err}')
-		ui2.screen(0xf1f5f9, [])
-	}
-}
-
 fn handle_files_drop(event ui2.DropEvent) {
 	mut state := unsafe { files_dropped_state }
 	state.receive(event.paths, event.text)
@@ -68,5 +59,19 @@ fn handle_files_drop(event ui2.DropEvent) {
 
 fn main() {
 	ui2.on_drop(handle_files_drop)
-	ui2.run_window('Dropped Files', files_dropped_width, files_dropped_height, build_files_dropped_screen)
+	ui2.run_compiled_vml[FilesDroppedDemo](
+		build:  build_files_dropped
+		model:  files_dropped_state
+		title:  'Dropped Files'
+		width:  files_dropped_width
+		height: files_dropped_height
+	) or { panic(err) }
+}
+
+fn build_files_dropped(mut app FilesDroppedDemo) ui2.Element {
+	return $vml('files_dropped.vml')
+}
+
+fn files_dropped_tree(mut app FilesDroppedDemo, frame ui2.Rect) ui2.Element {
+	return $vml('files_dropped.vml', frame)
 }

@@ -74,8 +74,10 @@ Reads and writes follow V's value/reference semantics, without deep copying or
 watching mutations through aliases. Treat reactive values as immutable snapshots:
 for collections, build a replacement (for example using `.clone()`) and call
 `set`; for mutable objects, use explicit signals for observable fields. Normal
-assignments such as `app.count++` on an ordinary `int` do **not** notify. Compiler
-instrumentation of VML state belongs to a later feature.
+assignments such as `app.count++` on an ordinary `int` do **not** notify signals.
+Compiled VML lowers `state` writes to signal setters and batches handlers;
+application fields used by VML are refreshed after actions or an explicit
+`ui2.request_refresh()`. See [compiled components](vml-components.md).
 
 ## Transactions and dependency tracking
 
@@ -151,9 +153,8 @@ toggling the bonus removes/adds that branch's dependency. The editable Spanish
 text retains the same id/declaration across updates, so existing renderer
 contracts preserve local edits, selection, focus and composition.
 
-The example's effect requests the existing declarative refresh. This core does
-not mount components, patch element properties, reconcile keyed lists, change
-the event dispatcher or introduce another rendering path. Future VML lowering
-can own a scope, emit getters/setters, wrap actions in `batch` and attach
-integration effects using this API. The graph itself is independently testable
-with no window or clock, and makes no zero-allocation or performance claim.
+The example's effect requests a declarative refresh. Compiled VML uses this
+same signal graph to own component scopes, lower state and computed declarations,
+batch actions, patch retained properties and reconcile repeaters by key. See
+[compiled VML components](vml-components.md). The signal graph is independently
+testable with no window or clock; performance requires separate measurements.

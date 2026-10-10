@@ -46,37 +46,31 @@ fn test_stack_rejects_invalid_geometry_and_container_auto_alignment() {
 	}
 }
 
-struct StackFixtureModel {
-	unused int
-}
-
 fn test_vml_stack_has_matching_direct_and_model_geometry() {
-	source := 'Stack { padding_left: 10 padding_top: 5 padding_right: 20 padding_bottom: 15
-		align_x: center align_y: center
-		View { id: back width: 40 height: 20 }
-		View { id: badge width: 10 height: 10 align_self_x: end align_self_y: start }
-		View { id: front align_self_x: stretch align_self_y: stretch }
-	}'
 	for width in [120.0, 200.0] {
-		direct := element_from_vml(source, rect(75, 80, width, 100))!
-		modeled := element_from_vml_model(source, StackFixtureModel{}, rect(75, 80, width, 100))!
-		assert direct.children.map(it.frame) == modeled.children.map(it.frame)
+		direct := compiled_stack_layout_1(rect(75, 80, width, 100))
 		assert direct.children[0].frame == rect((width - 50) / 2, 35, 40, 20)
 		assert direct.children[1].frame == rect(width - 30, 5, 10, 10)
 		assert direct.children[2].frame == rect(10, 5, width - 30, 80)
 	}
 }
 
-fn test_row_and_column_use_flex_geometry_in_both_vml_paths() {
+fn test_compiled_row_and_column_use_flex_geometry() {
 	for tag in ['Row', 'Column'] {
-		source := '${tag} { gap: 10 View { width: 30 height: 20 flex_grow: 1 } View { width: 50 height: 20 } }'
-		direct := element_from_vml(source, rect(0, 0, 100, 80))!
-		modeled := element_from_vml_model(source, StackFixtureModel{}, rect(0, 0, 100, 80))!
-		assert direct.children.map(it.frame) == modeled.children.map(it.frame)
+		frame := rect(0, 0, 100, 80)
+		direct := if tag == 'Row' {
+			$vml('fixtures/stack_row.vml', frame)
+		} else {
+			$vml('fixtures/stack_column.vml', frame)
+		}
 		assert direct.children.map(it.frame) == if tag == 'Row' {
 			[rect(0, 0, 40, 80), rect(50, 0, 50, 80)]
 		} else {
 			[rect(0, 0, 100, 50), rect(0, 60, 100, 20)]
 		}
 	}
+}
+
+fn compiled_stack_layout_1(frame Rect) Element {
+	return $vml('fixtures/stack_layout_1.vml', frame)
 }

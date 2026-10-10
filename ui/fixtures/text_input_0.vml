@@ -1,0 +1,10 @@
+TextArea(
+    id: "rich",
+    readonly: true,
+    disable_scroll: true,
+    font_size: 18,
+    color: #123456,
+) {
+    Run(text: "Hola ", weight: 700)
+    Run(text: "ñ", italic: true)
+}

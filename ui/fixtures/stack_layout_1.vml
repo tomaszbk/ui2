@@ -1,0 +1,12 @@
+Stack(
+    padding_left: 10,
+    padding_top: 5,
+    padding_right: 20,
+    padding_bottom: 15,
+    align_x: center,
+    align_y: center,
+) {
+    View(id: "back", width: 40, height: 20)
+    View(id: "badge", width: 10, height: 10, align_self_x: end, align_self_y: start)
+    View(id: "front", align_self_x: stretch, align_self_y: stretch)
+}

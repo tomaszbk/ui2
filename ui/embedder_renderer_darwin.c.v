@@ -2,7 +2,7 @@
 @[has_globals]
 module ui2
 
-$if macos && ui2_embedder ? && ui2_custom_rendering ? && !ui2_headless ? {
+$if macos && ui2_embedder ? && ui2_custom_rendering ? && !ui2_headless ? && !ui2_document_library ? {
 	import gg
 	import sokol.gfx
 

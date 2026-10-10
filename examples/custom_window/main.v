@@ -4,7 +4,6 @@ import ui2
 
 const custom_window_width = 440
 const custom_window_height = 210
-const custom_window_vml_source = $embed_file('custom_window.vml').to_string()
 
 @[heap]
 pub struct CustomWindowDemo {
@@ -13,7 +12,7 @@ pub mut:
 	completed_label    string = 'Nothing completed yet'
 	platform_note      string
 	transparent_screen bool
-	screen_background  string = '#0F172A'
+	screen_background  u32 = u32(0x0f172a)
 mut:
 	window_ready bool
 }
@@ -85,15 +84,35 @@ fn custom_window_callbacks() map[string]ui2.ElementCallback {
 	}
 }
 
-fn build_custom_window_screen() ui2.Element {
-	mut state := unsafe { custom_window_state }
-	state.prepare_window()
-	return ui2.element_from_vml_model_with_callbacks(custom_window_vml_source, *state, ui2.bounds(), custom_window_callbacks()) or {
-		eprintln('custom-window VML failed: ${err}')
-		ui2.screen(0x0f172a, [])
-	}
+fn main() {
+	ui2.run_compiled_vml[CustomWindowDemo](
+		build:  build_custom_window
+		model:  custom_window_state
+		title:  'ui2 custom window'
+		width:  custom_window_width
+		height: custom_window_height
+		update: update_custom_window
+	) or { panic(err) }
 }
 
-fn main() {
-	ui2.run_window('ui2 custom window', custom_window_width, custom_window_height, build_custom_window_screen)
+fn build_custom_window(mut app CustomWindowDemo) ui2.Element {
+	callbacks := custom_window_callbacks()
+	callback_window_drag := callbacks['window_drag'] or { panic('missing window_drag callback') }
+	callback_close := callbacks['close'] or { panic('missing close callback') }
+	callback_decrement := callbacks['decrement'] or { panic('missing decrement callback') }
+	callback_reset := callbacks['reset'] or { panic('missing reset callback') }
+	callback_increment := callbacks['increment'] or { panic('missing increment callback') }
+	return $vml('custom_window.vml')
 }
+
+fn custom_window_tree(mut app CustomWindowDemo, frame ui2.Rect) ui2.Element {
+	callbacks := custom_window_callbacks()
+	callback_window_drag := callbacks['window_drag'] or { panic('missing window_drag callback') }
+	callback_close := callbacks['close'] or { panic('missing close callback') }
+	callback_decrement := callbacks['decrement'] or { panic('missing decrement callback') }
+	callback_reset := callbacks['reset'] or { panic('missing reset callback') }
+	callback_increment := callbacks['increment'] or { panic('missing increment callback') }
+	return $vml('custom_window.vml', frame)
+}
+
+fn update_custom_window(mut app CustomWindowDemo) { app.prepare_window() }

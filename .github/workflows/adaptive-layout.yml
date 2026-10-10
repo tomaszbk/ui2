@@ -1,4 +1,4 @@
-name: Adaptive layout tests
+name: Retained layout tests
 
 on:
   pull_request:
@@ -10,7 +10,7 @@ on:
       - '.github/actions/setup-v/**'
       - '.github/workflows/adaptive-layout.yml'
   push:
-    branches: [master, work/ide-adaptive-layout]
+    branches: [master, develop]
     paths:
       - 'ui/**'
       - 'ide/**'
@@ -29,9 +29,10 @@ concurrency:
 jobs:
   adaptive-layout:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     env:
       VJOBS: '1'
+      V_MACOS_V3_NO_FALLBACK: '1'
     steps:
       # The checkout directory name is used to resolve `import ui2`.
       - uses: actions/checkout@v4
@@ -62,13 +63,13 @@ jobs:
           pkg-config --modversion $text_modules
 
       - name: Check the IDE
-        run: v -cc gcc -check ui2/ide
+        run: v -b c -cc gcc -check ui2/ide
 
       - name: Test layout geometry
-        run: v -cc gcc test ui2/ui/adaptive_layout_test.v
+        run: v -b c -cc gcc test ui2/ui/incremental_layout_test.v
 
-      - name: Test adaptive VML
-        run: v -cc gcc test ui2/ui/vml_adaptive_test.v
+      - name: Test compiled VML layout
+        run: v -b c -cc gcc test ui2/ui/vml_modern_layout_test.v
 
       - name: Test designer and generated companion
-        run: v -cc gcc test ui2/ide
+        run: v -b c -cc gcc test ui2/ide

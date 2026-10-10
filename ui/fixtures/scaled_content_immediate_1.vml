@@ -1,0 +1,11 @@
+Screen {
+    ScaledContent(
+        content_width: 1280,
+        content_height: 720,
+    ) {
+        Column {
+            Label(text: app.title, height: 42)
+            View(height: 100)
+        }
+    }
+}

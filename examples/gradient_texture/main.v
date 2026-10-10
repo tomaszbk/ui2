@@ -7,14 +7,13 @@ const gradient_texture_width = 700
 const gradient_texture_height = 500
 const gradient_columns = 20
 const gradient_rows = 14
-const gradient_texture_vml_source = $embed_file('gradient_texture.vml').to_string()
 
 pub struct GradientCell {
 pub:
 	id     int
 	column int
 	row    int
-	color  string
+	color  u32
 }
 
 pub struct GradientTextureDemo {
@@ -22,7 +21,7 @@ pub mut:
 	cells     []GradientCell
 	hue_index int
 	hue_name  string
-	hue_color string
+	hue_color u32
 	status    string
 }
 
@@ -34,7 +33,7 @@ fn gradient_hue_names() []string {
 	return ['Red', 'Orange', 'Yellow', 'Green', 'Cyan', 'Blue', 'Magenta']
 }
 
-fn hsv_gradient_color(hue int, saturation f64, value f64) string {
+fn hsv_gradient_color(hue int, saturation f64, value f64) u32 {
 	sector := (hue / 60) % 6
 	fraction := f64(hue % 60) / 60.0
 	p := value * (1.0 - saturation)
@@ -59,7 +58,7 @@ fn hsv_gradient_color(hue int, saturation f64, value f64) string {
 		}
 		else {}
 	}
-	return '#${int(math.round(red * 255)):02X}${int(math.round(green * 255)):02X}${int(math.round(blue * 255)):02X}'
+	return (u32(math.round(red * 255)) << 16) | (u32(math.round(green * 255)) << 8) | u32(math.round(blue * 255))
 }
 
 fn gradient_demo(index int) GradientTextureDemo {
@@ -79,10 +78,10 @@ fn (mut app GradientTextureDemo) rebuild() {
 		for column in 0 .. gradient_columns {
 			value := 1.0 - f64(column) / f64(gradient_columns - 1)
 			cells << GradientCell{
-				id: row * gradient_columns + column
+				id:     row * gradient_columns + column
 				column: column
-				row: row
-				color: hsv_gradient_color(hue, saturation, value)
+				row:    row
+				color:  hsv_gradient_color(hue, saturation, value)
 			}
 		}
 	}
@@ -103,11 +102,20 @@ pub fn (mut app GradientTextureDemo) next_hue() {
 }
 
 fn main() {
-	ui2.run_vml[GradientTextureDemo](
-		source: gradient_texture_vml_source
-		model: gradient_demo(0)
-		title: 'Gradient Texture'
-		width: gradient_texture_width
+	mut app := gradient_demo(0)
+	ui2.run_compiled_vml[GradientTextureDemo](
+		build:  build_gradient_texture
+		model:  &app
+		title:  'Gradient Texture'
+		width:  gradient_texture_width
 		height: gradient_texture_height
 	) or { panic(err) }
+}
+
+fn build_gradient_texture(mut app GradientTextureDemo) ui2.Element {
+	return $vml('gradient_texture.vml')
+}
+
+fn gradient_texture_tree(mut app GradientTextureDemo, frame ui2.Rect) ui2.Element {
+	return $vml('gradient_texture.vml', frame)
 }

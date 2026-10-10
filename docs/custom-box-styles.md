@@ -2,30 +2,31 @@
 
 The custom renderer draws borders inside the declared frame, independently of
 background transparency. Each side can override `border_color`, including black.
-Rounded corners join the sides as a single ring. `border_pattern: "dashed"` uses
+Rounded corners join the sides as a single ring. `border_pattern: dashed` uses
 logical `dash_length` and `dash_gap` (defaults 6 and 4), continuing around corners.
 Widths that exhaust the frame are proportionally clamped so the ring stays inside.
 
-```qml
-View {
-    id: card
-    button_behavior: true
-    on_tap: app.open()
-    width: 200 height: 80
-    background: #ffffff
-    radius: 12
-    border_width: 2
-    border_color: #64748b
-    border_top_color: #2563eb
-    hover_background: #eff6ff
-    hover_color: #1a1a2e
-    focus_border_color: #2563eb
-    focus_outline_color: #2563eb
-    focus_outline_width: 3
-    focus_outline_offset: 3
-    pressed_background: #dbeafe
-    disabled_background: #f1f5f9
-}
+```vml
+View(
+    id: "card",
+    button_behavior: true,
+    on_tap: app.open(),
+    width: 200,
+    height: 80,
+    background: #ffffff,
+    radius: 12,
+    border_width: 2,
+    border_color: #64748b,
+    border_top_color: #2563eb,
+    hover_background: #eff6ff,
+    hover_color: #1a1a2e,
+    focus_border_color: #2563eb,
+    focus_outline_color: #2563eb,
+    focus_outline_width: 3,
+    focus_outline_offset: 3,
+    pressed_background: #dbeafe,
+    disabled_background: #f1f5f9,
+)
 ```
 
 Visual state properties use the `hover_`, `focus_`, `pressed_` and `disabled_`
@@ -47,5 +48,6 @@ Hover uses the pointer's clipped region; a captured press applies while the poin
 remains inside and the gesture has not become a drag. Touch presses work too.
 
 Per-edge colors, rounded border joins, dash patterns and these state patches are
-currently custom-renderer features. Native controls keep their platform interaction
-and their existing common-color border implementation.
+currently custom-renderer features. Native VML diagnoses unsupported presentation
+properties; native controls keep their platform interaction and supported
+common-color border implementation.

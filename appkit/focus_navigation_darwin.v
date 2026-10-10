@@ -1,6 +1,6 @@
 module ui2
 
-$if !ui2_custom_rendering ? {
+$if !ui2_custom_rendering ? && !ui2_document_library ? {
 	import macos
 
 	fn C.ui2_macos_window_send_event(window voidptr, event voidptr)

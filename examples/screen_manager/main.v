@@ -4,7 +4,6 @@ import ui2
 
 const screen_manager_width = 440
 const screen_manager_height = 320
-const screen_manager_vml_source = $embed_file('screen_manager.vml').to_string()
 
 pub struct ScreenManagerDemo {
 pub mut:
@@ -20,11 +19,20 @@ pub fn (mut app ScreenManagerDemo) show_details() {
 }
 
 fn main() {
-	ui2.run_vml[ScreenManagerDemo](
-		source: screen_manager_vml_source
-		model: ScreenManagerDemo{}
-		title: 'Screen Manager'
-		width: screen_manager_width
+	mut app := ScreenManagerDemo{}
+	ui2.run_compiled_vml[ScreenManagerDemo](
+		build:  build_screen_manager
+		model:  &app
+		title:  'Screen Manager'
+		width:  screen_manager_width
 		height: screen_manager_height
 	) or { panic(err) }
+}
+
+fn build_screen_manager(mut app ScreenManagerDemo) ui2.Element {
+	return $vml('screen_manager.vml')
+}
+
+fn screen_manager_tree(mut app ScreenManagerDemo, frame ui2.Rect) ui2.Element {
+	return $vml('screen_manager.vml', frame)
 }

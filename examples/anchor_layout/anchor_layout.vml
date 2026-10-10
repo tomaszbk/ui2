@@ -1,58 +1,60 @@
-Screen {
-    id: root
-    background: #F1F5F9
-    Absolute {
-        transparent: true
-        Label {
-            text: "Anchored controls"
-            x: 20
-            y: 16
-            width: root.width - 40
-            height: 32
-            color: #0F172A
-            font_size: 22
-            bold: true
+Screen(
+    id: "root",
+    background: #F1F5F9,
+) {
+    Absolute(
+        transparent: true,
+    ) {
+        Label(
+            text: "Anchored controls",
+            x: 20,
+            y: 16,
+            width: root.width - 40,
+            height: 32,
+            color: #0F172A,
+            font_size: 22,
+            bold: true,
+        )
+        Stack(
+            id: "top_left",
+            x: 20,
+            y: 60,
+            width: 160,
+            height: 100,
+            align_x: start,
+            align_y: start,
+            padding: 10,
+            background: #FFFFFF,
+            corner_radius: 8,
+        ) {
+            Button(text: "Top left", width: 88, height: 34, background: #DBEAFE)
         }
-
-        Stack {
-            id: top_left
-            x: 20
-            y: 60
-            width: 160
-            height: 100
-            align_x: start
-            align_y: start
-            padding: 10
-            background: #FFFFFF
-            corner_radius: 8
-            Button { text: "Top left" width: 88 height: 34 background: #DBEAFE }
+        Stack(
+            align_x: center,
+            align_y: center,
+            id: "centered",
+            x: 200,
+            y: 60,
+            width: 160,
+            height: 100,
+            background: #FFFFFF,
+            corner_radius: 8,
+        ) {
+            Button(text: "Centered", width: 88, height: 34, background: #DCFCE7)
         }
-
-        Stack {
-            align_x: center
-            align_y: center
-            id: centered
-            x: 200
-            y: 60
-            width: 160
-            height: 100
-            background: #FFFFFF
-            corner_radius: 8
-            Button { text: "Centered" width: 88 height: 34 background: #DCFCE7 }
-        }
-
-        Stack {
-            id: bottom_right
-            x: 20
-            y: 180
-            width: root.width - 40
-            height: 100
-            align_x: end
-            align_y: end
-            padding: 10
-            background: #FFFFFF
-            corner_radius: 8
-            Button { text: "Bottom right" width: 112 height: 34 background: #FCE7F3 }
+        Stack(
+            id: "bottom_right",
+            x: 20,
+            y: 180,
+            width: root.width - 40,
+            height: 100,
+            align_x: end,
+            align_y: end,
+            padding: 10,
+            background: #FFFFFF,
+            corner_radius: 8,
+        ) {
+            Button(text: "Bottom right", width: 112, height: 34, background: #FCE7F3)
         }
     }
 }

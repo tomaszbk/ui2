@@ -1,3 +1,4 @@
+// vtest vflags: -d ui2_custom_rendering
 module main
 
 import ui2
@@ -24,7 +25,7 @@ fn cell_by_address(app CellsDemo, address string) SheetCell {
 }
 
 fn test_cells_calculates_original_sum_formulas() {
-	app := initial_cells()
+	mut app := initial_cells()
 	assert app.rows.map(it.label) == ['1', '2', '3', '4', '5', '6']
 	assert cell_by_address(app, 'B1').display == '121'
 	assert cell_by_address(app, 'C5').display == '38'
@@ -42,8 +43,8 @@ fn test_cells_edit_recalculates_dependent_formula() {
 }
 
 fn test_cells_vml_builds_keyed_native_spreadsheet_cells() {
-	app := initial_cells()
-	root := cells_test_tree(cells_vml_source, app, ui2.rect(0, 0, cells_width, cells_height)) or { panic(err) }
+	mut app := initial_cells()
+	root := cells_tree(mut app, ui2.rect(0, 0, cells_width, cells_height))
 	ui2.validate_element_tree(root) or { panic(err) }
 	sheet := find_cells_element(root, 'sheet') or { panic('missing sheet') }
 	assert sheet.children[0].children.len == 42
@@ -52,9 +53,4 @@ fn test_cells_vml_builds_keyed_native_spreadsheet_cells() {
 	assert first_cell.native_style
 	assert voidptr((find_cells_element(root, 'cell_input') or { panic('missing cell input') }).on_event) != unsafe { nil }
 	assert (find_cells_element(root, 'apply_cell') or { panic('missing apply') }).native_style
-}
-
-fn cells_test_tree[T](source string, model T, frame ui2.Rect) !ui2.Element {
-	mut app := ui2.new_vml_app(source, model)!
-	return app.build(frame)!
 }

@@ -5,7 +5,6 @@ import ui2
 
 const file_dialog_width = 620
 const file_dialog_height = 290
-const file_dialog_vml_source = $embed_file('file_dialog.vml').to_string()
 
 pub struct FileDialogDemo {
 pub mut:
@@ -50,11 +49,20 @@ pub fn (mut app FileDialogDemo) choose_folder() {
 }
 
 fn main() {
-	ui2.run_vml[FileDialogDemo](
-		source: file_dialog_vml_source
-		model:  FileDialogDemo{}
+	mut app := FileDialogDemo{}
+	ui2.run_compiled_vml[FileDialogDemo](
+		build:  build_file_dialog
+		model:  &app
 		title:  'Native file dialog'
 		width:  file_dialog_width
 		height: file_dialog_height
 	) or { panic(err) }
+}
+
+fn build_file_dialog(mut app FileDialogDemo) ui2.Element {
+	return $vml('file_dialog.vml')
+}
+
+fn file_dialog_tree(mut app FileDialogDemo, frame ui2.Rect) ui2.Element {
+	return $vml('file_dialog.vml', frame)
 }

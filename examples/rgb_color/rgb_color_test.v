@@ -21,26 +21,22 @@ fn test_rgb_color_updates_preview_and_rejects_invalid_components() {
 	app.blue = '0'
 	app.update_color()
 	assert app.valid
-	assert app.preview_color == '#FF6400'
+	assert app.preview_color == 0xff6400
 	assert app.message == 'rgb(255, 100, 0)'
 
 	app.blue = '256'
 	app.update_color()
 	assert !app.valid
-	assert app.preview_color == '#FFFFFF'
+	assert app.preview_color == 0xffffff
 }
 
 fn test_rgb_color_vml_uses_dynamic_preview_and_native_button() {
-	root := rgb_color_test_tree(rgb_color_vml_source, RgbColorDemo{}, ui2.rect(0, 0, rgb_color_width, rgb_color_height)) or { panic(err) }
+	mut compiled_model_0 := RgbColorDemo{}
+	root := rgb_color_tree(mut compiled_model_0, ui2.rect(0, 0, rgb_color_width, rgb_color_height))
 	ui2.validate_element_tree(root) or { panic(err) }
 
 	assert (find_rgb_element(root, 'preview') or { panic('missing preview') }).box.bg == 0x808080
 	button := find_rgb_element(root, 'show_color') or { panic('missing Show RGB button') }
 	assert button.native_style
 	assert voidptr(button.on_event) != unsafe { nil }
-}
-
-fn rgb_color_test_tree[T](source string, model T, frame ui2.Rect) !ui2.Element {
-	mut app := ui2.new_vml_app(source, model)!
-	return app.build(frame)!
 }

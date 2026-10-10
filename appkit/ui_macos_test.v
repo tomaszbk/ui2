@@ -1,3 +1,4 @@
+// vtest build: macos && !ui2_custom_rendering?
 // vfmt off
 // These tests exercise the native backend and do not apply to custom builds.
 module ui2

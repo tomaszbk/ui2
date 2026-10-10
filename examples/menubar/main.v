@@ -14,7 +14,6 @@ import ui2
 
 const menubar_width = 660
 const menubar_height = 470
-const menubar_vml_source = $embed_file('menubar.vml').to_string()
 
 // menubar_action_titles is what each row is called in the log. Every row of
 // the declaration below has an entry, so an id that is missing here is a typo
@@ -162,14 +161,6 @@ fn on_off(value bool) string {
 	return if value { 'on' } else { 'off' }
 }
 
-fn build_menubar_screen() ui2.Element {
-	state := unsafe { menubar_state }
-	return ui2.element_from_vml_model_with_callbacks(menubar_vml_source, *state, ui2.bounds(), menubar_callbacks()) or {
-		eprintln('menubar VML failed: ${err}')
-		ui2.screen(0xf1f5f9, [])
-	}
-}
-
 fn handle_menubar_event(event string) {
 	mut state := unsafe { menubar_state }
 	if event == 'reset' {
@@ -191,7 +182,13 @@ fn main() {
 	// Declaring the menu bar before the window exists is fine: it is installed
 	// as soon as there is something to attach it to.
 	ui2.set_menu_bar(state.menus())
-	ui2.run_window('Menu Bar', menubar_width, menubar_height, build_menubar_screen)
+	ui2.run_compiled_vml[MenubarDemo](
+		build:  build_menubar
+		model:  menubar_state
+		title:  'Menu Bar'
+		width:  menubar_width
+		height: menubar_height
+	) or { panic(err) }
 }
 
 fn menubar_callback(action string) ui2.ElementCallback {
@@ -204,4 +201,16 @@ fn menubar_callbacks() map[string]ui2.ElementCallback {
 	return {
 		'reset': menubar_callback('reset')
 	}
+}
+
+fn build_menubar(mut app MenubarDemo) ui2.Element {
+	callbacks := menubar_callbacks()
+	callback_reset := callbacks['reset'] or { panic('missing reset callback') }
+	return $vml('menubar.vml')
+}
+
+fn menubar_tree(mut app MenubarDemo, frame ui2.Rect) ui2.Element {
+	callbacks := menubar_callbacks()
+	callback_reset := callbacks['reset'] or { panic('missing reset callback') }
+	return $vml('menubar.vml', frame)
 }

@@ -5,7 +5,6 @@ import ui2
 
 const transitions_width = 640
 const transitions_height = 500
-const transitions_vml_source = $embed_file('transitions.vml').to_string()
 const transition_logo_size = 82.0
 
 @[heap]
@@ -71,18 +70,6 @@ fn transitions_callbacks() map[string]ui2.ElementCallback {
 	}
 }
 
-fn build_transitions_screen() ui2.Element {
-	mut state := unsafe { transitions_state }
-	info := ui2.animation_info('moving_tile')
-	if info.status == .running {
-		state.progress = info.progress
-	}
-	return ui2.element_from_vml_model_with_callbacks(transitions_vml_source, *state, ui2.bounds(), transitions_callbacks()) or {
-		eprintln('transitions VML failed: ${err}')
-		ui2.screen(0xf1f5f9, [])
-	}
-}
-
 fn handle_transitions_event(event string) {
 	if event != 'slide' {
 		return
@@ -102,5 +89,23 @@ fn handle_transitions_event(event string) {
 }
 
 fn main() {
-	ui2.run_window('Transitions', transitions_width, transitions_height, build_transitions_screen)
+	ui2.run_compiled_vml[TransitionsDemo](
+		build:  build_transitions
+		model:  transitions_state
+		title:  'Transitions'
+		width:  transitions_width
+		height: transitions_height
+	) or { panic(err) }
+}
+
+fn build_transitions(mut app TransitionsDemo) ui2.Element {
+	callbacks := transitions_callbacks()
+	callback_slide := callbacks['slide'] or { panic('missing slide callback') }
+	return $vml('transitions.vml')
+}
+
+fn transitions_tree(mut app TransitionsDemo, frame ui2.Rect) ui2.Element {
+	callbacks := transitions_callbacks()
+	callback_slide := callbacks['slide'] or { panic('missing slide callback') }
+	return $vml('transitions.vml', frame)
 }

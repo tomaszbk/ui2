@@ -39,7 +39,7 @@ fn (mut tree LayoutTree) set_transform(id string, transform VisualTransform) ! {
 	node.declaration = with_transform(node.declaration, transform)
 }
 
-$if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headless ? {
+$if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headless ? && !ui2_document_library ? {
 	// UI-thread presentation update. A subsequent declarative rebuild replaces it.
 	// No business callback, layout, text mutation or animation loop is introduced.
 	pub fn set_visual_transform(id string, transform VisualTransform) ! {

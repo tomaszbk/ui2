@@ -1,0 +1,24 @@
+Flex(
+    orientation: vertical,
+    align_items: start,
+) {
+    Flex(
+        id: "row",
+        gap: 4,
+        align_items: start,
+        width: 300,
+    ) {
+        Repeater(
+            model: app.items,
+            key: item.id,
+        ) {
+            Flex(
+                orientation: vertical,
+                flex_basis: 0,
+                flex_grow: 1,
+            ) {
+                Label(text: item.text, lines: 8)
+            }
+        }
+    }
+}

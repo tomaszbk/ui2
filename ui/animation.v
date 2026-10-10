@@ -684,10 +684,14 @@ fn configure_animation_driver(callback AnimationRefreshFn, drive_frames bool) {
 // Automatic event notifications update the next model snapshot; explicit
 // animation mutations still invalidate continuation of the current snapshot.
 fn refresh_animation_frame(follow_up bool) {
+	$if ui2_document_library ? {
+		compiled_vml_request_refresh()
+	} $else {
 	$if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
 		g_gg_app.scheduler.invalidate(if follow_up { RenderReason.animation_follow_up } else { RenderReason.build })
 	} $else {
 		request_refresh()
+	}
 	}
 }
 

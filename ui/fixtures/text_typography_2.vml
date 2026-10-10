@@ -1,0 +1,10 @@
+Label(
+    font_size: 24,
+    color: #123456,
+    weight: 800,
+    bold: true,
+    lines: 3,
+) {
+    Run(text: "first ")
+    Run(text: "small", font_size: 12, weight: 400, bold: false, baseline_offset: 3)
+}

@@ -16,20 +16,20 @@ fn find_accent_element(element ui2.Element, id string) ?ui2.Element {
 
 fn test_accent_derives_a_shade_a_tint_and_a_readable_font_color() {
 	mut app := accent_color_demo()
-	assert app.accent == '#642896'
-	assert app.shade == '#210D32'
-	assert app.tint == '#A642FA'
+	assert app.accent == 0x642896
+	assert app.shade == 0x210d32
+	assert app.tint == 0xa642fa
 	// A dark accent takes a white caption.
 	assert app.on_dark
-	assert app.font_color == '#FFFFFF'
+	assert app.font_color == 0xffffff
 	app.set_channel('red', 240)
 	app.set_channel('green', 240)
 	app.set_channel('blue', 240)
-	assert app.accent == '#F0F0F0'
+	assert app.accent == 0xf0f0f0
 	assert !app.on_dark
-	assert app.font_color == '#111111'
+	assert app.font_color == 0x111111
 	// The tint saturates instead of wrapping around.
-	assert app.tint == '#FFFFFF'
+	assert app.tint == 0xffffff
 }
 
 fn test_accent_channels_clamp_and_track_their_fraction() {
@@ -61,9 +61,9 @@ fn test_accent_pointer_lands_on_the_channel_it_was_dragged_over() {
 }
 
 fn test_accent_vml_paints_every_swatch_and_the_demo_stack() {
-	app := accent_color_demo()
+	mut app := accent_color_demo()
 	frame := ui2.rect(0, 0, accent_color_width, accent_color_height)
-	root := ui2.element_from_vml_model_with_callbacks(accent_color_vml_source, app, frame, accent_color_callbacks()) or { panic(err) }
+	root := accent_color_tree(mut app, frame)
 	ui2.validate_element_tree(root) or { panic(err) }
 	track := find_accent_element(root, 'track_red') or { panic('missing red track') }
 	assert track.draggable && track.id == 'track_red' && voidptr(track.on_event) != unsafe { nil }

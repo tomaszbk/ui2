@@ -4,7 +4,6 @@ import ui2
 
 const box_textbox_width = 560
 const box_textbox_height = 400
-const box_textbox_vml_source = $embed_file('box_layout_with_textbox.vml').to_string()
 
 pub struct BoxLayoutTextboxDemo {
 pub mut:
@@ -14,7 +13,7 @@ pub mut:
 
 fn initial_box_layout_textbox() BoxLayoutTextboxDemo {
 	return BoxLayoutTextboxDemo{
-		text: 'blah blah blah\n'.repeat(10).trim_right('\n')
+		text:   'blah blah blah\n'.repeat(10).trim_right('\n')
 		status: 'Edit the yellow text area, or show the original message.'
 	}
 }
@@ -29,13 +28,22 @@ pub fn (mut app BoxLayoutTextboxDemo) show_message() {
 }
 
 fn main() {
-	ui2.run_vml[BoxLayoutTextboxDemo](
-		source: box_textbox_vml_source
-		model: initial_box_layout_textbox()
-		title: 'Box Layout with Textbox'
-		width: box_textbox_width
+	mut app := initial_box_layout_textbox()
+	ui2.run_compiled_vml[BoxLayoutTextboxDemo](
+		build:  build_box_layout_with_textbox
+		model:  &app
+		title:  'Box Layout with Textbox'
+		width:  box_textbox_width
 		height: box_textbox_height
 	) or {
 		panic(err)
 	}
+}
+
+fn build_box_layout_with_textbox(mut app BoxLayoutTextboxDemo) ui2.Element {
+	return $vml('box_layout_with_textbox.vml')
+}
+
+fn box_layout_with_textbox_tree(mut app BoxLayoutTextboxDemo, frame ui2.Rect) ui2.Element {
+	return $vml('box_layout_with_textbox.vml', frame)
 }

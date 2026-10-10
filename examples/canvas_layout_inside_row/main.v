@@ -1,3 +1,4 @@
+// ui2 profiles: custom (visual transform with a pivot)
 module main
 
 import os
@@ -5,7 +6,6 @@ import ui2
 
 const inside_row_width = 880
 const inside_row_height = 580
-const inside_row_vml_source = $embed_file('canvas_layout_inside_row.vml').to_string()
 const tray_x = 18.0
 const canvas_x = 250.0
 const pane_y = 96.0
@@ -135,14 +135,6 @@ fn canvas_layout_inside_row_callbacks() map[string]ui2.ElementCallback {
 	}
 }
 
-fn build_inside_row_screen() ui2.Element {
-	state := unsafe { inside_row_state }
-	return ui2.element_from_vml_model_with_callbacks(inside_row_vml_source, *state, ui2.bounds(), canvas_layout_inside_row_callbacks()) or {
-		eprintln('canvas-layout-inside-row VML failed: ${err}')
-		ui2.screen(0xf1f5f9, [])
-	}
-}
-
 fn main() {
 	$if (macos || windows) && !ui2_custom_rendering ? {
 		eprintln('This transform example requires -d ui2_custom_rendering')
@@ -153,5 +145,27 @@ fn main() {
 	unsafe {
 		*state = inside_row_demo()
 	}
-	ui2.run_window('Canvas Layout Inside Row', inside_row_width, inside_row_height, build_inside_row_screen)
+	ui2.run_compiled_vml[InsideRowDemo](
+		build:  build_canvas_layout_inside_row
+		model:  inside_row_state
+		title:  'Canvas Layout Inside Row'
+		width:  inside_row_width
+		height: inside_row_height
+	) or { panic(err) }
+}
+
+fn build_canvas_layout_inside_row(mut app InsideRowDemo) ui2.Element {
+	callbacks := canvas_layout_inside_row_callbacks()
+	callback_rotate := callbacks['rotate'] or { panic('missing rotate callback') }
+	callback_return := callbacks['return'] or { panic('missing return callback') }
+	callback_logo := callbacks['logo'] or { panic('missing logo callback') }
+	return $vml('canvas_layout_inside_row.vml')
+}
+
+fn canvas_layout_inside_row_tree(mut app InsideRowDemo, frame ui2.Rect) ui2.Element {
+	callbacks := canvas_layout_inside_row_callbacks()
+	callback_rotate := callbacks['rotate'] or { panic('missing rotate callback') }
+	callback_return := callbacks['return'] or { panic('missing return callback') }
+	callback_logo := callbacks['logo'] or { panic('missing logo callback') }
+	return $vml('canvas_layout_inside_row.vml', frame)
 }

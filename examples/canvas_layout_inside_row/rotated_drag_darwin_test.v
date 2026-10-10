@@ -77,8 +77,8 @@ $if macos && ui2_custom_rendering ?&& ui2_embedder ?&& !ui2_headless ? {
 		} else {
 			ui2.bounds()
 		}
-		root := ui2.element_from_vml_model_with_callbacks(inside_row_vml_source,
-			*unsafe { inside_row_state }, frame, canvas_layout_inside_row_callbacks()) or { panic(err) }
+		mut app := unsafe { inside_row_state }
+		root := canvas_layout_inside_row_tree(mut app, frame)
 		adjusted := logo_drag_scene_element(root)
 		if fixture.scaled {
 			// Real fixed composition at 3/4 scale with fractional viewport origin.

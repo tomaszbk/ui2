@@ -3,7 +3,7 @@
 // them makes AppKit's MRC bridge conflict with gg/Sokol's ARC build.
 module ui2
 
-$if !ui2_custom_rendering ? {
+$if !ui2_custom_rendering ? && !ui2_document_library ? {
 
 import encoding.base64
 import macos

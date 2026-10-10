@@ -1,6 +1,6 @@
 module ui2
 
-$if !ui2_custom_rendering ? {
+$if !ui2_custom_rendering ? && !ui2_document_library ? {
 	fn focus_manager() &FocusManager { return windows_state().navigation }
 
 	fn windows_focus_offsets(el Element, path string, native_path string, mut offsets map[string]f64) {
@@ -115,7 +115,7 @@ $if !ui2_custom_rendering ? {
 	}
 }
 
-$if !ui2_custom_rendering ? {
+$if !ui2_custom_rendering ? && !ui2_document_library ? {
 	@[export: 'ui2_windows_focus_changed']
 	fn ui2_windows_focus_changed(hwnd voidptr) {
 		st := windows_state()
@@ -133,7 +133,7 @@ $if !ui2_custom_rendering ? {
 	}
 }
 
-$if !ui2_custom_rendering ? {
+$if !ui2_custom_rendering ? && !ui2_document_library ? {
 	@[export: 'ui2_windows_control_key_up']
 	fn ui2_windows_control_key_up(virtual_key u32, scan_code u32) int {
 		mut st := windows_state()

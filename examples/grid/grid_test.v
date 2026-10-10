@@ -24,7 +24,8 @@ fn test_grid_model_flattens_headers_and_rows() {
 }
 
 fn test_grid_vml_renders_every_cell_in_a_responsive_table() {
-	root := ui2.element_from_vml_model(grid_vml_source, initial_grid(), ui2.rect(0, 0, grid_width, grid_height)) or { panic(err) }
+	mut compiled_model_0 := initial_grid()
+	root := grid_tree(mut compiled_model_0, ui2.rect(0, 0, grid_width, grid_height))
 	ui2.validate_element_tree(root) or { panic(err) }
 
 	header := find_grid_text(root, 'One') or { panic('missing first header') }

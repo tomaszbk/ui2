@@ -40,13 +40,20 @@ fn test_contain_rejects_empty_dimensions() {
 }
 
 fn test_vml_scaled_content_keeps_child_layout_on_resize() {
-	source := 'Screen { ScaledContent { id: "slide" content_width: 1280 content_height: 720 Column { spacing: 0 Label { text: "title" height: 42 } View { height: 100 } } } Button { id: "next" width: 44 height: 64 } }'
-	small := element_from_vml(source, rect(0, 0, 640, 360))!
-	large := element_from_vml(source, rect(0, 0, 1440, 900))!
+	small := compiled_scaled_content_1(rect(0, 0, 640, 360))
+	large := compiled_scaled_content_0(rect(0, 0, 1440, 900))
 	assert small.children[0].frame.width == 640
 	assert large.children[0].frame.width == 1440
 	assert small.children[0].children[0].frame == large.children[0].children[0].frame
 	assert small.children[0].children[0].frame.width == 1280
 	assert small.children[0].children[0].children[0].frame.height == 42
 	assert small.children[1].frame.width == 44
+}
+
+fn compiled_scaled_content_0(frame Rect) Element {
+	return $vml('fixtures/scaled_content_0.vml', frame)
+}
+
+fn compiled_scaled_content_1(frame Rect) Element {
+	return $vml('fixtures/scaled_content_1.vml', frame)
 }

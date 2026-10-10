@@ -72,6 +72,7 @@ pub:
 	key   string
 }
 
+$if !ui2_document_library ? {
 @[heap]
 struct MenuState {
 mut:
@@ -133,6 +134,8 @@ fn install_declared_menus() {
 	}
 }
 
+}
+
 // menu_item builds a plain row. Attach on_select to make it actionable.
 pub fn menu_item(id string, title string) MenuItem {
 	return MenuItem{
@@ -186,55 +189,79 @@ pub fn disabled(item MenuItem) MenuItem {
 // set_menu_bar installs the application's top level menu bar, replacing any
 // previous one. Call it before or after run_window: menus declared before the
 // window exists are installed as the application finishes launching.
+$if !ui2_document_library ? {
 pub fn set_menu_bar(menus []Menu) {
 	mut st := menu_state()
 	st.menus = menus.clone()
 	native_set_menu_bar(st.menus)
 }
+}
+
 
 // menu_bar reports the menu bar last passed to set_menu_bar.
+$if !ui2_document_library ? {
 pub fn menu_bar() []Menu {
 	return menu_state().menus
 }
+}
+
 
 // menu_bar_supported reports whether set_menu_bar reaches a real menu bar.
 // iOS and Android have no menu bar, so it does nothing there.
+$if !ui2_document_library ? {
 pub fn menu_bar_supported() bool {
 	return native_menu_bar_supported()
 }
+}
+
 
 // set_tray shows the status area icon, replacing any previous one.
+$if !ui2_document_library ? {
 pub fn set_tray(cfg TrayConfig) {
 	mut st := menu_state()
 	st.tray = cfg
 	st.tray_visible = true
 	native_set_tray(cfg)
 }
+}
+
 
 // remove_tray takes the status area icon away again.
+$if !ui2_document_library ? {
 pub fn remove_tray() {
 	mut st := menu_state()
 	st.tray = TrayConfig{}
 	st.tray_visible = false
 	native_remove_tray()
 }
+}
+
 
 // tray reports the configuration last passed to set_tray.
+$if !ui2_document_library ? {
 pub fn tray() TrayConfig {
 	return menu_state().tray
 }
+}
+
 
 // tray_visible reports whether a tray icon is currently declared.
+$if !ui2_document_library ? {
 pub fn tray_visible() bool {
 	return menu_state().tray_visible
 }
+}
+
 
 // tray_supported reports whether set_tray reaches a real status area. The
 // custom renderer draws inside its own window and has none, and neither do
 // iOS and Android.
+$if !ui2_document_library ? {
 pub fn tray_supported() bool {
 	return native_tray_supported()
 }
+}
+
 
 // validate_menus rejects rows a backend cannot build before one of them tries.
 pub fn validate_menus(menus []Menu) ! {

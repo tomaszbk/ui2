@@ -29,7 +29,8 @@ fn test_logview_appends_batches_and_clears() {
 }
 
 fn test_logview_vml_uses_readonly_log_and_native_actions() {
-	root := ui2.element_from_vml_model(logview_vml_source, LogviewDemo{}, ui2.rect(0, 0, logview_width, logview_height)) or { panic(err) }
+	mut compiled_model_0 := LogviewDemo{}
+	root := logview_tree(mut compiled_model_0, ui2.rect(0, 0, logview_width, logview_height))
 	ui2.validate_element_tree(root) or { panic(err) }
 
 	log := find_logview_element(root, 'log') or { panic('missing log area') }

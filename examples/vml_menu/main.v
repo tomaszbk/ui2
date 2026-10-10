@@ -2,8 +2,6 @@ module main
 
 import ui2
 
-const menus_source = $embed_file('menus.vml').to_string()
-
 fn build() ui2.Element {
 	return ui2.screen(0xffffff, [
 		ui2.label('hint', 'Choose a menu item; its declared action is printed to the terminal.',
@@ -14,7 +12,7 @@ fn build() ui2.Element {
 }
 
 fn main() {
-	menus := ui2.menu_bar_from_vml_with_callbacks(menus_source, menu_callbacks()) or { panic(err) }
+	menus := build_menus()
 	ui2.set_menu_bar(menus)
 	ui2.run_window('VML menus', 500, 180, build)
 }
@@ -34,4 +32,15 @@ fn menu_callbacks() map[string]ui2.ElementCallback {
 		'export_png':  menu_action('export_png')
 		'word_wrap':   menu_action('word_wrap')
 	}
+}
+
+fn build_menus() []ui2.Menu {
+	callbacks := menu_callbacks()
+	callback_file_new := callbacks['file_new'] or { panic('missing file_new callback') }
+	callback_file_open := callbacks['file_open'] or { panic('missing file_open callback') }
+	callback_file_revert := callbacks['file_revert'] or { panic('missing file_revert callback') }
+	callback_export_pdf := callbacks['export_pdf'] or { panic('missing export_pdf callback') }
+	callback_export_png := callbacks['export_png'] or { panic('missing export_png callback') }
+	callback_word_wrap := callbacks['word_wrap'] or { panic('missing word_wrap callback') }
+	return $vml('menus.vml')
 }

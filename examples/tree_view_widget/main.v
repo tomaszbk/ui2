@@ -4,7 +4,6 @@ import ui2
 
 const tree_view_widget_width = 460
 const tree_view_widget_height = 360
-const tree_view_widget_vml_source = $embed_file('tree_view_widget.vml').to_string()
 
 pub struct TreeViewWidgetDemo {
 pub mut:
@@ -29,11 +28,20 @@ pub fn (mut app TreeViewWidgetDemo) select_license() {
 }
 
 fn main() {
-	ui2.run_vml[TreeViewWidgetDemo](
-		source: tree_view_widget_vml_source
-		model: TreeViewWidgetDemo{}
-		title: 'Tree View'
-		width: tree_view_widget_width
+	mut app := TreeViewWidgetDemo{}
+	ui2.run_compiled_vml[TreeViewWidgetDemo](
+		build:  build_tree_view_widget
+		model:  &app
+		title:  'Tree View'
+		width:  tree_view_widget_width
 		height: tree_view_widget_height
 	) or { panic(err) }
+}
+
+fn build_tree_view_widget(mut app TreeViewWidgetDemo) ui2.Element {
+	return $vml('tree_view_widget.vml')
+}
+
+fn tree_view_widget_tree(mut app TreeViewWidgetDemo, frame ui2.Rect) ui2.Element {
+	return $vml('tree_view_widget.vml', frame)
 }

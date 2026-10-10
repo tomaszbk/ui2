@@ -17,7 +17,7 @@ fn build() ui2.Element {
 		ui2.with_tooltip(ui2.label('status', g_idle_example_message, ui2.rect(20, 20, 480, 36), style),
 			'This deadline also works with a stationary pointer.'),
 		ui2.with_event(ui2.button('load', 'Load result', ui2.rect(20, 70, 140, 36), box, style), load),
-		ui2.text_input(
+		ui2.text_area(
 			id:         'draft'
 			text:       'Hello / Hola, año'
 			frame:      ui2.rect(20, 130, 480, 36)
@@ -29,7 +29,7 @@ fn build() ui2.Element {
 
 fn load(event ui2.ElementEvent) {
 	if event.kind != .tap { return }
-	$if linux || ( macos && ui2_custom_rendering ?) || ( windows && ui2_custom_rendering ?) {
+	$if linux || (macos && ui2_custom_rendering ?) || (windows && ui2_custom_rendering ?) {
 		// Capture on UI; the worker only computes and posts. Local editing and
 		// selection survive the unrelated status rebuild.
 		dispatcher := ui2.ui_dispatcher()

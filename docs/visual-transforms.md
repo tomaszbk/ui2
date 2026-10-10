@@ -33,24 +33,15 @@ pivot, rotation, scale, inverse pivot (`T * P * R * S * -P`). All values must be
 finite. Matrices whose determinant magnitude is at most `1e-12` reject; zero
 scale is an error, rather than a hidden but interactive surface.
 
-Runtime VML uses the same numeric properties and rejects quoted numbers, bools
+Compiled VML uses the same numeric properties and rejects quoted numbers, bools
 and string-valued model bindings:
 
 ```vml
-View {
-    rotation: 15
-    origin_x: 100
-    origin_y: 50
-    scale_x: 1.2
-    scale_y: 0.8
-    translate_x: 12
-}
+View(rotation: 15, origin_x: 100, origin_y: 50, scale_x: 1.2, scale_y: 0.8, translate_x: 12)
 ```
 
-The pinned compiled frontend's existing `rotation` lowering remains the same
-canonical `Element.rotation` surface. For other properties, compose a generated
-`Element` with `with_transform` in V until the compiler's visual lowering lands;
-this change does not modify the compiler repository or introduce an interpreter.
+Compiled VML lowers these properties to the canonical `Element` fields. A bound
+transform updates its retained node through a property effect.
 
 ## Presentation updates and coordinates
 

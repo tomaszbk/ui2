@@ -1,0 +1,37 @@
+Flex(
+    orientation: vertical,
+    gap: 4,
+) {
+    Label(text: "level 5")
+    Flex(
+        orientation: horizontal,
+        gap: 4,
+    ) {
+        Label(text: "level 4")
+        Flex(
+            orientation: vertical,
+            gap: 4,
+        ) {
+            Label(text: "level 3")
+            Flex(
+                orientation: horizontal,
+                gap: 4,
+            ) {
+                Label(text: "level 2")
+                Flex(
+                    orientation: vertical,
+                    gap: 4,
+                ) {
+                    Label(text: "level 1")
+                    Flex(
+                        orientation: horizontal,
+                        gap: 4,
+                    ) {
+                        Label(text: "level 0")
+                        Label(text: "content that wraps at a narrow width", lines: 3)
+                    }
+                }
+            }
+        }
+    }
+}

@@ -1,6 +1,8 @@
 // vfmt off
 module ui2
 
+$if !ui2_document_library ? {
+
 import macos
 
 #flag darwin -framework AppKit
@@ -73,4 +75,6 @@ fn native_file_dialog_macos_url_path(url macos.Id) string {
 		return ''
 	}
 	return macos.utf8_string(macos.msg_id(url, 'path'))
+}
+
 }

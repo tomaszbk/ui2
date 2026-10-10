@@ -1,42 +1,65 @@
-Screen {
-    id: root
-    background: #F1F5F9
-
-    Flex {
-        padding: 16
-        justify: center
-        align_items: start
-        transparent: true
-
-        Column {
-            id: card
-            width: 568
-            max_width: 568
-            height: 136
-            padding: 16
-            gap: 10
-            background: #FFFFFF
-            corner_radius: 10
-
-            Label { text: "Temperature Converter" height: 26 color: #111827 font_size: 18 bold: true }
-            Row {
-                gap: 16
-                transparent: true
-                Column {
-                    flex_basis: 0
-                    flex_grow: 1
-                    gap: 4
-                    transparent: true
-                    Label { text: "Celsius" height: 18 color: #475569 font_size: 12 }
-                    TextInput { multiline: false  id: celsius bind.text: app.celsius on_change: app.update_from_celsius() placeholder: "0" keyboard: decimal height: 42 background: app.celsius_valid ? #F8FAFC : #FED7AA color: #111827 corner_radius: 7 }
+Screen(
+    id: "root",
+    background: #F1F5F9,
+) {
+    Flex(
+        padding: 16,
+        justify: center,
+        align_items: start,
+        transparent: true,
+    ) {
+        Column(
+            id: "card",
+            width: 568,
+            max_width: 568,
+            height: 136,
+            padding: 16,
+            gap: 10,
+            background: #FFFFFF,
+            corner_radius: 10,
+        ) {
+            Label(text: "Temperature Converter", height: 26, color: #111827, font_size: 18, bold: true)
+            Row(
+                gap: 16,
+                transparent: true,
+            ) {
+                Column(
+                    flex_basis: 0,
+                    flex_grow: 1,
+                    gap: 4,
+                    transparent: true,
+                ) {
+                    Label(text: "Celsius", height: 18, color: #475569, font_size: 12)
+                    TextInput(
+                        id: "celsius",
+                        bind.text: app.celsius,
+                        on_change: app.update_from_celsius(),
+                        placeholder: "0",
+                        keyboard: decimal,
+                        height: 42,
+                        background: app.celsius_valid ? #F8FAFC : #FED7AA,
+                        color: #111827,
+                        corner_radius: 7,
+                    )
                 }
-                Column {
-                    flex_basis: 0
-                    flex_grow: 1
-                    gap: 4
-                    transparent: true
-                    Label { text: "Fahrenheit" height: 18 color: #475569 font_size: 12 }
-                    TextInput { multiline: false  id: fahrenheit bind.text: app.fahrenheit on_change: app.update_from_fahrenheit() placeholder: "32" keyboard: decimal height: 42 background: app.fahrenheit_valid ? #F8FAFC : #FED7AA color: #111827 corner_radius: 7 }
+                Column(
+                    flex_basis: 0,
+                    flex_grow: 1,
+                    gap: 4,
+                    transparent: true,
+                ) {
+                    Label(text: "Fahrenheit", height: 18, color: #475569, font_size: 12)
+                    TextInput(
+                        id: "fahrenheit",
+                        bind.text: app.fahrenheit,
+                        on_change: app.update_from_fahrenheit(),
+                        placeholder: "32",
+                        keyboard: decimal,
+                        height: 42,
+                        background: app.fahrenheit_valid ? #F8FAFC : #FED7AA,
+                        color: #111827,
+                        corner_radius: 7,
+                    )
                 }
             }
         }

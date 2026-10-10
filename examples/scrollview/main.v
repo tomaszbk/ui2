@@ -4,7 +4,6 @@ import ui2
 
 const scrollview_width = 720
 const scrollview_height = 430
-const scrollview_vml_source = $embed_file('scrollview.vml').to_string()
 
 pub struct ScrollviewDemo {
 pub:
@@ -24,11 +23,20 @@ fn initial_scrollview() ScrollviewDemo {
 }
 
 fn main() {
-	ui2.run_vml[ScrollviewDemo](
-		source: scrollview_vml_source
-		model: initial_scrollview()
-		title: 'Scrollview'
-		width: scrollview_width
+	mut app := initial_scrollview()
+	ui2.run_compiled_vml[ScrollviewDemo](
+		build:  build_scrollview
+		model:  &app
+		title:  'Scrollview'
+		width:  scrollview_width
 		height: scrollview_height
 	) or { panic(err) }
+}
+
+fn build_scrollview(mut app ScrollviewDemo) ui2.Element {
+	return $vml('scrollview.vml')
+}
+
+fn scrollview_tree(mut app ScrollviewDemo, frame ui2.Rect) ui2.Element {
+	return $vml('scrollview.vml', frame)
 }

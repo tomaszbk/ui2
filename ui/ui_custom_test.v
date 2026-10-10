@@ -469,6 +469,11 @@ $if ui2_custom_rendering ? {
 	}
 
 	fn test_custom_dropdown_click_opens_a_list_instead_of_cycling() {
+		previous_app := g_gg_app
+		previous := activate_custom_window_state(new_custom_window_state())
+		g_gg_app = &GgApp{}
+		defer { activate_custom_window_state(previous); g_gg_app = previous_app }
+		mount_custom_test_dropdown('menu-click')
 		custom_control_test_events = []ElementEvent{}
 		close_dropdown()
 		target := HitTarget{
@@ -527,10 +532,23 @@ $if ui2_custom_rendering ? {
 
 	// The control sits at 32,70 296x42 and the list rows the popup registers on
 	// the next frame start at y 120, matching the dropdown example's layout.
+	fn mount_custom_test_dropdown(id string) {
+		root := screen(0xffffff, [Element{
+			kind: .dropdown
+			id: id
+			on_event: capture_custom_control_event
+			frame: rect(32, 70, 296, 42)
+			menu: [MenuEntry{ title: 'One' }, MenuEntry{ title: 'Two' }, MenuEntry{ title: 'Three' }]
+		}])
+		update_custom_focus_tree(root)
+		sync_mounted_focus_controls(root, 'root')
+	}
+
 	fn custom_test_dropdown_targets(id string) []HitTarget {
 		options := ['One', 'Two', 'Three']
 		mut targets := [
 			HitTarget{
+				kind:     .dropdown
 				id:       id
 				on_event: capture_custom_control_event
 				x:        32
@@ -543,6 +561,7 @@ $if ui2_custom_rendering ? {
 		]
 		for index in 0 .. options.len {
 			targets << HitTarget{
+				kind:            .dropdown
 				id:              id
 				on_event:        capture_custom_control_event
 				x:               32
@@ -558,6 +577,11 @@ $if ui2_custom_rendering ? {
 	}
 
 	fn test_custom_dropdown_pointer_flow_picks_a_row_from_the_list() {
+		previous_app := g_gg_app
+		previous := activate_custom_window_state(new_custom_window_state())
+		g_gg_app = &GgApp{}
+		defer { activate_custom_window_state(previous); g_gg_app = previous_app }
+		mount_custom_test_dropdown('menu-pick')
 		custom_control_test_events = []ElementEvent{}
 		close_dropdown()
 		targets := custom_test_dropdown_targets('menu-pick')
@@ -577,6 +601,11 @@ $if ui2_custom_rendering ? {
 	}
 
 	fn test_custom_dropdown_pointer_flow_dismisses_on_an_outside_click() {
+		previous_app := g_gg_app
+		previous := activate_custom_window_state(new_custom_window_state())
+		g_gg_app = &GgApp{}
+		defer { activate_custom_window_state(previous); g_gg_app = previous_app }
+		mount_custom_test_dropdown('menu-dismiss')
 		close_dropdown()
 		targets := custom_test_dropdown_targets('menu-dismiss')
 		g_hit_targets = [targets[0]]

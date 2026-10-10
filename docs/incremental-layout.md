@@ -48,17 +48,18 @@ Use a fresh constructor when changing authored geometry, or
 `element.with_layout_frame(new_frame)` when starting from a resolved Element.
 Replacing only `frame` on a resolved Element does not discard its retained input.
 The same inputs work with ordinary V builders and `run_compiled_vml` builders;
-layout does not depend on interpreter `VNode`s. The pinned compiler's old `$vml`
-grammar/lowering migration is the separate compiler roadmap work described in the
-README; this feature does not restore removed compiler APIs.
+compiled VML creates retained nodes once and patches their properties or keyed
+child segments through this same layout engine.
 
 ## Identity, caches and environment
 
-Supply an explicit `id`, or a sibling `key`, for stable measurement identity.
+Compiled VML supplies a stable private identity for every retained node, including
+anonymous declarations; their public ids stay empty. V builders can supply an
+explicit `id` or a sibling `key` for stable measurement identity.
 Ids are unique in a window; key paths encode separators without ambiguity. Keyed
 reordering preserves generations. Removal, reintroduction and kind replacement
-retire the old generation. Anonymous children get fresh generations on each full
-build, because an array index is not durable identity. The window root has its
+retire the old generation. Anonymous children in ordinary V builders get fresh
+generations on each full build, because an array index is not durable identity. The window root has its
 own stable identity. No cache identity uses an address or event callback.
 
 Measurement keys cover generation, content version, exact constraints, metric
@@ -82,9 +83,12 @@ are also included automatically.
 `version` describes other metric environment changes;
 `scale` describes a measurer's metric environment and must be finite and positive.
 It invalidates cache entries, rather than scaling authored logical geometry.
-Device DPI and ScaledContent's presentation transform remain separate. Custom
-resize requests rebuild responsive declarations and resolve new constraints;
-unchanged logical metrics can remain cached across device DPI changes.
+Device DPI and ScaledContent's presentation transform remain separate. Compiled
+VML resize updates the retained viewport and geometry sources, then resolves new
+constraints. Geometry effects settle against the parent's assigned size before
+resolution returns; a cyclic geometry dependency reports an error. Ordinary V
+builders rebuild responsive declarations on resize. Unchanged logical metrics
+can remain cached across device DPI changes.
 
 Layout uses authored editor text. An unchanged declaration preserves the backend's
 local UTF-8 edit buffer, focus, selection, scroll and IME composition. Layout does

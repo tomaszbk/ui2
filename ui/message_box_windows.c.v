@@ -4,6 +4,8 @@
 // switch: custom-rendered Windows apps get the same system alert.
 module ui2
 
+$if !ui2_document_library ? {
+
 #flag windows -luser32
 
 #insert "@VMODROOT/windows/message_box_windows.h"
@@ -67,4 +69,6 @@ fn native_message_box(cfg MessageBoxConfig) MessageBoxResult {
 		id_cancel { MessageBoxResult.cancel }
 		else { message_box_default_result(cfg.buttons) }
 	}
+}
+
 }

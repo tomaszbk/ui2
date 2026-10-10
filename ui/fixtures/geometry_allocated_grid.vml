@@ -1,0 +1,6 @@
+Grid(
+    columns: 2,
+) {
+    View()
+    View()
+}

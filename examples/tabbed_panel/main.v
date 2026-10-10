@@ -4,7 +4,6 @@ import ui2
 
 const tabbed_width = 440
 const tabbed_height = 300
-const tabbed_vml_source = $embed_file('tabbed_panel.vml').to_string()
 
 pub struct TabbedPanelDemo {
 pub mut:
@@ -24,11 +23,20 @@ pub fn (mut app TabbedPanelDemo) show_security() {
 }
 
 fn main() {
-	ui2.run_vml[TabbedPanelDemo](
-		source: tabbed_vml_source
-		model: TabbedPanelDemo{}
-		title: 'Tabbed Panel'
-		width: tabbed_width
+	mut app := TabbedPanelDemo{}
+	ui2.run_compiled_vml[TabbedPanelDemo](
+		build:  build_tabbed_panel
+		model:  &app
+		title:  'Tabbed Panel'
+		width:  tabbed_width
 		height: tabbed_height
 	) or { panic(err) }
+}
+
+fn build_tabbed_panel(mut app TabbedPanelDemo) ui2.Element {
+	return $vml('tabbed_panel.vml')
+}
+
+fn tabbed_panel_tree(mut app TabbedPanelDemo, frame ui2.Rect) ui2.Element {
+	return $vml('tabbed_panel.vml', frame)
 }

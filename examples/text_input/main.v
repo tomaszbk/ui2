@@ -4,7 +4,6 @@ import ui2
 
 const text_input_width = 430
 const text_input_height = 300
-const text_input_vml_source = $embed_file('text_input.vml').to_string()
 
 pub struct TextInputDemo {
 pub mut:
@@ -18,11 +17,20 @@ pub fn (mut app TextInputDemo) save() {
 }
 
 fn main() {
-	ui2.run_vml[TextInputDemo](
-		source: text_input_vml_source
-		model: TextInputDemo{}
-		title: 'Text Input'
-		width: text_input_width
+	mut app := TextInputDemo{}
+	ui2.run_compiled_vml[TextInputDemo](
+		build:  build_text_input
+		model:  &app
+		title:  'Text Input'
+		width:  text_input_width
 		height: text_input_height
 	) or { panic(err) }
+}
+
+fn build_text_input(mut app TextInputDemo) ui2.Element {
+	return $vml('text_input.vml')
+}
+
+fn text_input_tree(mut app TextInputDemo, frame ui2.Rect) ui2.Element {
+	return $vml('text_input.vml', frame)
 }

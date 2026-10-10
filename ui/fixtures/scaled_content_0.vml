@@ -1,0 +1,15 @@
+Screen {
+    ScaledContent(
+        id: "slide",
+        content_width: 1280,
+        content_height: 720,
+    ) {
+        Column(
+            spacing: 0,
+        ) {
+            Label(text: "title", height: 42)
+            View(height: 100)
+        }
+    }
+    Button(id: "next", width: 44, height: 64)
+}

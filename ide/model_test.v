@@ -79,13 +79,13 @@ fn test_generated_vml_round_trips_all_palette_components() {
 	assert document.components[0].text == app.components[0].text
 	assert document.components[4].checked
 	assert document.components[1].event_handler == 'save_clicked'
-	ui2.element_from_vml(app.source_text, ui2.rect(0, 0, app.form_width, app.form_height)) or {
-		panic(err)
-	}
+	app.compile_preview() or { panic(err) }
+	defer { app.dispose_preview() }
+	ui2.validate_element_tree(app.preview_element(ui2.rect(0, 0, app.form_width, app.form_height))!)!
 }
 
 fn test_source_loader_reports_unsupported_dynamic_layout() {
-	source := 'Screen { id: Form1 Absolute { Row { width: 300 height: 40 } } }'
+	source := 'Screen(id: "Form1") { Absolute { Row(width: 300, height: 40) } }'
 	if _ := document_from_vml(source) {
 		assert false, 'Row should require source editing rather than lossy visual loading'
 	} else {
@@ -94,7 +94,7 @@ fn test_source_loader_reports_unsupported_dynamic_layout() {
 }
 
 fn test_source_loader_rejects_nested_controls_instead_of_losing_them() {
-	source := 'Screen { id: Form1 Absolute { View { id: card width: 300 height: 200 Button { id: ok } } } }'
+	source := 'Screen(id: "Form1") { Absolute { View(id: "card", width: 300, height: 200) { Button(id: "ok") } } }'
 	if _ := document_from_vml(source) {
 		assert false, 'nested controls must not be flattened or lost'
 	} else {
@@ -120,7 +120,7 @@ fn test_ide_builds_a_valid_element_tree_in_each_document_mode() {
 	frame := ui2.rect(0, 0, ide_width, ide_height)
 	for tab in ['designer', 'source', 'preview'] {
 		app.active_tab = tab
-		root := build_ide(frame, app)
+		root := build_ide(frame, mut app)
 		ui2.validate_element_tree(root) or { panic('${tab}: ${err}') }
 	}
 	ui2.validate_menus(app.menus()) or { panic(err) }
@@ -139,7 +139,7 @@ fn test_ide_docks_tree_above_inspector_and_keeps_workspace_to_the_right() {
 	assert layout.stage.y == layout.center.y
 	assert layout.tabs.y == layout.stage.y + layout.stage.height
 
-	root := build_ide(frame, app)
+	root := build_ide(frame, mut app)
 	tree := find_ide_element(root, 'object_tree_panel') or { panic('missing object tree') }
 	inspector := find_ide_element(root, 'object_inspector_panel') or {
 		panic('missing object inspector')
@@ -156,7 +156,7 @@ fn test_ide_docks_tree_above_inspector_and_keeps_workspace_to_the_right() {
 fn test_object_inspector_uses_compact_property_rows() {
 	mut app := new_ide_app('.')
 	app.add_component('button', 224, 216)
-	root := build_ide(ui2.rect(0, 0, ide_width, ide_height), app)
+	root := build_ide(ui2.rect(0, 0, ide_width, ide_height), mut app)
 	property_grid := find_ide_element(root, 'property_grid') or { panic('missing property grid') }
 	name := find_ide_element(root, 'property_name') or { panic('missing name property') }
 	font_size := find_ide_element(root, 'property_font_size') or {
@@ -189,7 +189,7 @@ fn test_palette_controls_can_be_clicked_or_dragged_onto_the_form() {
 	frame := ui2.rect(0, 0, ide_width, ide_height)
 	layout := ide_layout(frame, app)
 
-	root := build_ide(frame, app)
+	root := build_ide(frame, mut app)
 	palette_button := find_ide_element(root, 'palette_button') or {
 		panic('missing button palette control')
 	}
@@ -206,7 +206,7 @@ fn test_palette_controls_can_be_clicked_or_dragged_onto_the_form() {
 	app.handle_palette_pointer(.pointer_down, 'button', 260, 80, layout)
 	app.handle_palette_pointer(.pointer_drag, 'button', drop_x, drop_y, layout)
 	assert app.palette_drag_moved
-	drag_root := build_ide(frame, app)
+	drag_root := build_ide(frame, mut app)
 	_ := find_ide_element(drag_root, 'palette_drag_preview') or {
 		panic('missing palette drag preview')
 	}
@@ -221,7 +221,7 @@ fn test_palette_controls_can_be_clicked_or_dragged_onto_the_form() {
 fn test_source_mode_uses_monospace_and_toolbar_uses_icons() {
 	mut app := new_ide_app('.')
 	app.active_tab = 'source'
-	root := build_ide(ui2.rect(0, 0, ide_width, ide_height), app)
+	root := build_ide(ui2.rect(0, 0, ide_width, ide_height), mut app)
 	source := find_ide_element(root, 'source_editor') or { panic('missing source editor') }
 	assert source.text_style.font_family == source_code_font_family()
 	icons := {
@@ -253,7 +253,10 @@ fn test_saved_form_and_generated_main_compile_together() {
 	app.sync_source()
 	app.save_document() or { panic(err) }
 	main_path := app.generate_companion(false) or { panic(err) }
-	module_path := os.dir(@VMODROOT) + ':@vlib:@vmodules'
-	result := os.execute('${os.quoted_path(@VEXE)} -path ${os.quoted_path(module_path)} -check ${os.quoted_path(main_path)}')
+	module_path := [os.dir(@VMODROOT), '@vlib', '@vmodules'].join(os.path_delimiter)
+	mut command := [@VEXE, '-b', 'c', '-path', module_path]
+	$if ui2_custom_rendering ? { command << ['-d', 'ui2_custom_rendering'] }
+	command << ['-o', os.join_path(test_dir, 'generated'), main_path]
+	result := os.exec(command)
 	assert result.exit_code == 0, result.output
 }

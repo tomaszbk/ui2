@@ -1,6 +1,6 @@
 module ui2
 
-$if !ui2_custom_rendering ? {
+$if !ui2_custom_rendering ? && !ui2_document_library ? {
 	pub fn text_area_set_selection(id string, location int, length int) {
 		selection := clamped_text_area_selection(text(id), location, length)
 		record_portable_text_area_selection(id, selection)

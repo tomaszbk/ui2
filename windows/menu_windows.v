@@ -4,7 +4,7 @@
 // rebuilding it is what keeps the declared rows and the HMENU in step.
 module ui2
 
-$if !ui2_custom_rendering ? {
+$if !ui2_custom_rendering ? && !ui2_document_library ? {
 
 fn C.ui2_win_menubar_create() voidptr
 

@@ -1,0 +1,11 @@
+Flex(
+    orientation: vertical,
+) {
+    Grid(
+        columns: 2,
+        spacing: 10,
+    ) {
+        Label(text: "A caption long enough to wrap into multiple lines inside its narrow grid cell", lines: 10)
+        Label(text: "Another caption long enough to wrap into multiple lines inside its grid cell", lines: 10)
+    }
+}

@@ -1,0 +1,15 @@
+Screen {
+    Flex(
+        orientation: vertical,
+        width: 120,
+        height: 300,
+    ) {
+        Label(
+            width: 120,
+            lines: 10,
+            font_size: 16,
+        ) {
+            Run(text: app.content, font_size: app.run_size)
+        }
+    }
+}

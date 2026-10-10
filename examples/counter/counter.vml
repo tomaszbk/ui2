@@ -1,32 +1,23 @@
-Screen {
-    id: root
-    background: #F1F5F9
+component Counter(title string = "Count", changed event(value int)) {
+    state count := 0
+    computed doubled := count * 2
 
-    Flex {
-        padding: 16
-        justify: center
-        align_items: center
-        transparent: true
+    fn increment() {
+        count++
+        changed(count)
+    }
 
-        Row {
-            id: card
-            width: 248
-            max_width: 248
-            height: 64
-            padding: 12
-            gap: 8
-            background: #FFFFFF
-            corner_radius: 10
+    mount { app.counter_mounted() }
+    cleanup { app.counter_cleaned() }
+    unmount { app.counter_unmounted() }
 
-            Row {
-                flex_grow: 1
-                padding_left: 8
-                padding_right: 8
-                background: #F8FAFC
-                corner_radius: 7
-                Label { id: count text: app.count flex_grow: 1 color: #111827 font_size: 20 align: right }
-            }
-            Button { id: increment text: "Count" on_tap: app.increment() native: true width: 96 height: 40 background: #3478D4 color: #FFFFFF bold: true align: center corner_radius: 7 }
+    Column(id: "panel", gap: 8, padding: 12, width: 248, height: 188, background: #FFFFFF, corner_radius: 10) {
+        Label(id: "heading", text: title, height: 24, color: #111827, font_size: 18, bold: true)
+        Label(id: "value", text: count, height: 28, color: #111827, font_size: 22)
+        Label(id: "double", text: doubled, height: 24, color: #64748B, font_size: 15)
+        Row(gap: 8, height: 36) {
+            Button(id: "add", text: "Count", on_tap: increment, native: true, flex_grow: 1)
+            Button(id: "reset", text: "Reset", on_tap: { count = 0; changed(count) }, native: true, flex_grow: 1)
         }
     }
 }

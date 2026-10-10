@@ -4,7 +4,6 @@ import ui2
 
 const row_layout_width = 760
 const row_layout_height = 420
-const row_layout_vml_source = $embed_file('row_layout.vml').to_string()
 
 pub struct RowLayoutDemo {
 pub mut:
@@ -12,10 +11,10 @@ pub mut:
 	margin_choice  string = '24'
 	spacing_choice string = '20'
 	height_choice  string = '44'
-	first_ratio    f64 = 0.3
-	row_margin     f64 = 24
-	row_spacing    f64 = 20
-	button_height  f64 = 44
+	first_ratio    f64    = 0.3
+	row_margin     f64    = 24
+	row_spacing    f64    = 20
+	button_height  f64    = 44
 	status         string = '30 / 70 · margin 24 · spacing 20 · height 44'
 }
 
@@ -40,13 +39,22 @@ pub fn (mut app RowLayoutDemo) reset_layout() {
 }
 
 fn main() {
-	ui2.run_vml[RowLayoutDemo](
-		source: row_layout_vml_source
-		model: RowLayoutDemo{}
-		title: 'Row Layout'
-		width: row_layout_width
+	mut app := RowLayoutDemo{}
+	ui2.run_compiled_vml[RowLayoutDemo](
+		build:  build_row_layout
+		model:  &app
+		title:  'Row Layout'
+		width:  row_layout_width
 		height: row_layout_height
 	) or {
 		panic(err)
 	}
+}
+
+fn build_row_layout(mut app RowLayoutDemo) ui2.Element {
+	return $vml('row_layout.vml')
+}
+
+fn row_layout_tree(mut app RowLayoutDemo, frame ui2.Rect) ui2.Element {
+	return $vml('row_layout.vml', frame)
 }

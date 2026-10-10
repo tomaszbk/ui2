@@ -111,3 +111,52 @@ fn test_disposed_composite_owner_releases_surviving_author_source_edges() ! {
 	source.patch(fn (element Element) Element { return Element{ ...element, text: 'still alive' } })!
 	author.dispose()!
 }
+
+fn test_widget_structural_geometry_preserves_authored_flex_basis_across_resizes() ! {
+	mut owner := new_vml_document('widget shrink')!
+	owner.publish = fn (_ string, _ Element) {}
+	mut progress := owner.element(progress_bar(id: 'progress', frame: rect(0, 0, 0, 14), value: 50))!
+	progress.structure('fill', fn [mut progress] () !Element {
+		return progress_bar(id: 'progress', frame: progress.frame()!, value: 50)
+	})!
+	fill := progress.element().children[0].compiled_node
+	mut root := owner.element(flex(FlexConfig{
+		id: 'root'
+		frame: rect(0, 0, 100, 40)
+		orientation: .vertical
+		children: [
+			FlexChild{element: view('fixed', rect(0, 0, 100, 40), BoxStyle{}, [])},
+			FlexChild{element: progress.element()},
+		]
+	})!)!
+	root.mount()!
+	mut tree := &LayoutTree{}
+	tree.replace(root.element())!
+	initial := tree.resolve(LayoutConstraints{}, measure_layout_text, LayoutEnvironment{})!
+	assert initial.children[1].frame.height < 14 && initial.children[1].frame.height > 0
+	assert (progress.element().layout_input or { panic('missing authored geometry') }) == rect(0, 0, 0, 14)
+	assert initial.children[1].children[0].frame.width == 50
+	assert initial.children[1].children[0].compiled_node == fill
+	mut cold := &LayoutTree{}
+	cold.replace(root.element())!
+	assert cold.resolve(LayoutConstraints{}, measure_layout_text, LayoutEnvironment{})!.children[1].frame == initial.children[1].frame
+	root.set_frame(rect(0, 0, 100, 80))!
+	tree.patch('root', root.element())!
+	grown := tree.resolve(LayoutConstraints{}, measure_layout_text, LayoutEnvironment{})!
+	assert grown.children[1].frame.height == 14
+	root.set_frame(rect(0, 0, 100, 40))!
+	tree.patch('root', root.element())!
+	assert tree.resolve(LayoutConstraints{}, measure_layout_text, LayoutEnvironment{})!.children[1].frame == initial.children[1].frame
+	progress.set_frame(rect(0, 0, 0, 20))!
+	assert (progress.element().layout_input or { panic('missing explicit geometry') }) == rect(0, 0, 0, 20)
+	root.set_frame(rect(0, 0, 100, 80))!
+	tree.patch('root', root.element())!
+	changed := tree.resolve(LayoutConstraints{}, measure_layout_text, LayoutEnvironment{})!
+	assert changed.children[1].frame.height == 20
+	assert changed.children[1].compiled_node == progress
+	assert changed.children[1].children[0].compiled_node == fill
+	assert changed.children[1].children[0].frame.width == 50
+	assert tree.stats().builds == 1
+	root.dispose_document()!
+	assert owner.runtime.stats() == SignalStats{}
+}

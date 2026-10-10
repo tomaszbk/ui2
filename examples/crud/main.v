@@ -4,7 +4,6 @@ import ui2
 
 const crud_width = 620
 const crud_height = 390
-const crud_vml_source = $embed_file('crud.vml').to_string()
 
 pub struct CrudPerson {
 pub:
@@ -28,8 +27,8 @@ pub mut:
 
 fn crud_person(id int, name string, surname string) CrudPerson {
 	return CrudPerson{
-		id: id
-		name: name
+		id:      id
+		name:    name
 		surname: surname
 		display: '${surname}, ${name}'
 	}
@@ -45,7 +44,7 @@ fn initial_crud() CrudDemo {
 		crud_person(6, 'Wonder', 'Woman'),
 	]
 	return CrudDemo{
-		people: people
+		people:         people
 		visible_people: people.clone()
 	}
 }
@@ -133,11 +132,20 @@ pub fn (mut app CrudDemo) delete_person() {
 }
 
 fn main() {
-	ui2.run_vml[CrudDemo](
-		source: crud_vml_source
-		model: initial_crud()
-		title: 'CRUD'
-		width: crud_width
+	mut app := initial_crud()
+	ui2.run_compiled_vml[CrudDemo](
+		build:  build_crud
+		model:  &app
+		title:  'CRUD'
+		width:  crud_width
 		height: crud_height
 	) or { panic(err) }
+}
+
+fn build_crud(mut app CrudDemo) ui2.Element {
+	return $vml('crud.vml')
+}
+
+fn crud_tree(mut app CrudDemo, frame ui2.Rect) ui2.Element {
+	return $vml('crud.vml', frame)
 }

@@ -63,16 +63,15 @@ fn test_child_window_drag_keeps_the_panel_inside_the_card() {
 
 fn test_child_window_vml_hides_the_panel_until_it_is_created() {
 	frame := ui2.rect(0, 0, child_window_width, child_window_height)
-	closed := ui2.element_from_vml_model_with_callbacks(child_window_vml_source, ChildWindowDemo{}, frame, child_window_callbacks()) or {
-		panic(err)
-	}
+	mut compiled_model_0 := ChildWindowDemo{}
+	closed := child_window_tree(mut compiled_model_0, frame)
 	ui2.validate_element_tree(closed) or { panic(err) }
 	assert (find_child_element(closed, 'child_panel') or { panic('missing panel') }).hidden
 
 	mut app := ChildWindowDemo{}
 	app.create_window()
 	app.toggle_woman()
-	open := ui2.element_from_vml_model_with_callbacks(child_window_vml_source, app, frame, child_window_callbacks()) or { panic(err) }
+	open := child_window_tree(mut app, frame)
 	ui2.validate_element_tree(open) or { panic(err) }
 	panel := find_child_element(open, 'child_panel') or { panic('missing panel') }
 	assert !panel.hidden

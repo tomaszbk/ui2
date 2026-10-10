@@ -4,7 +4,6 @@ import ui2
 
 const slider_textbox_width = 620
 const slider_textbox_height = 560
-const slider_textbox_vml_source = $embed_file('slider_textbox.vml').to_string()
 
 @[heap]
 pub struct SliderTextboxDemo {
@@ -139,18 +138,36 @@ fn slider_textbox_callbacks() map[string]ui2.ElementCallback {
 	}
 }
 
-fn build_slider_textbox_screen() ui2.Element {
-	state := unsafe { slider_textbox_state }
-	return ui2.element_from_vml_model_with_callbacks(slider_textbox_vml_source, *state, ui2.bounds(), slider_textbox_callbacks()) or {
-		eprintln('slider-textbox VML failed: ${err}')
-		ui2.screen(0xf1f5f9, [])
-	}
-}
-
 fn main() {
 	mut state := unsafe { slider_textbox_state }
 	unsafe {
 		*state = slider_textbox_demo()
 	}
-	ui2.run_window('Slider & Textbox', slider_textbox_width, slider_textbox_height, build_slider_textbox_screen)
+	ui2.run_compiled_vml[SliderTextboxDemo](
+		build:  build_slider_textbox
+		model:  slider_textbox_state
+		title:  'Slider & Textbox'
+		width:  slider_textbox_width
+		height: slider_textbox_height
+	) or { panic(err) }
+}
+
+fn build_slider_textbox(mut app SliderTextboxDemo) ui2.Element {
+	callbacks := slider_textbox_callbacks()
+	callback_reset := callbacks['reset'] or { panic('missing reset callback') }
+	callback_horizontal_input := callbacks['horizontal_input'] or { panic('missing horizontal_input callback') }
+	callback_horizontal_slider := callbacks['horizontal_slider'] or { panic('missing horizontal_slider callback') }
+	callback_vertical_input := callbacks['vertical_input'] or { panic('missing vertical_input callback') }
+	callback_vertical_slider := callbacks['vertical_slider'] or { panic('missing vertical_slider callback') }
+	return $vml('slider_textbox.vml')
+}
+
+fn slider_textbox_tree(mut app SliderTextboxDemo, frame ui2.Rect) ui2.Element {
+	callbacks := slider_textbox_callbacks()
+	callback_reset := callbacks['reset'] or { panic('missing reset callback') }
+	callback_horizontal_input := callbacks['horizontal_input'] or { panic('missing horizontal_input callback') }
+	callback_horizontal_slider := callbacks['horizontal_slider'] or { panic('missing horizontal_slider callback') }
+	callback_vertical_input := callbacks['vertical_input'] or { panic('missing vertical_input callback') }
+	callback_vertical_slider := callbacks['vertical_slider'] or { panic('missing vertical_slider callback') }
+	return $vml('slider_textbox.vml', frame)
 }

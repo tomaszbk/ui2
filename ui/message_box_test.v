@@ -101,20 +101,7 @@ fn test_custom_message_box_names_unlabelled_actions_after_the_overlay() {
 }
 
 fn test_vml_message_box_turns_button_children_into_dialog_actions() {
-	source := 'Screen {
-		MessageBox {
-			id: overlay
-			title: "Hello"
-			text: "World"
-			dialog_width: 260
-			dialog_height: 140
-
-			Button { id: close text: "OK" on_tap: dismiss }
-		}
-	}'
-	root := element_from_vml_with_callbacks(source, rect(0, 0, 400, 300), {
-		'dismiss': ElementCallback(capture_message_box_test_event)
-	}) or { panic(err) }
+	root := compiled_message_box_0(rect(0, 0, 400, 300), ElementCallback(capture_message_box_test_event))
 	validate_element_tree(root) or { panic(err) }
 
 	overlay := root.children[0]
@@ -136,4 +123,8 @@ fn test_vml_message_box_turns_button_children_into_dialog_actions() {
 	assert message_box_test_events.len == 1
 	assert message_box_test_events[0].kind == .tap
 	assert message_box_test_events[0].id == 'close'
+}
+
+fn compiled_message_box_0(frame Rect, callback_dismiss ElementCallback) Element {
+	return $vml('fixtures/message_box_0.vml', frame)
 }

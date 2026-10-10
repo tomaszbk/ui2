@@ -4,6 +4,8 @@
 // no status area outside that window for a tray icon to dock into.
 module ui2
 
+$if !ui2_document_library ? {
+
 fn native_menu_bar_supported() bool {
 	$if ( android || linux ) && !ui2_headless ? {
 		return true
@@ -27,3 +29,5 @@ fn native_set_menu_bar(_menus []Menu) {
 fn native_set_tray(_cfg TrayConfig) {}
 
 fn native_remove_tray() {}
+
+}

@@ -1,0 +1,6 @@
+Flex(
+    gap: 10,
+) {
+    Button(id: "first", text: "First", width: 100, height: 20, flex_grow: 1, min_width: 80)
+    Button(id: "second", text: "Second", width: 200, height: 20, flex_grow: 1)
+}

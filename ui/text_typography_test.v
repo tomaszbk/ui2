@@ -1,6 +1,6 @@
 module ui2
 
-$if ( linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headless ? {
+$if (linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
 	import math
 }
 
@@ -21,14 +21,13 @@ fn test_typography_defaults_and_validation() {
 
 fn test_logical_typography_factors_and_runs_keep_fractional_sizes() {
 	assert text_style_line_height(TextStyle{ size: 18.25, line_height_factor: 1.5 }) == 27.375
-	el := element_from_vml('Screen { Label { font_size: 18.25 Run { text: "a" } Run { text: "b" font_size: 12.5 } } }', rect(0, 0, 200, 100))!
+	el := compiled_text_typography_3(rect(0, 0, 200, 100))
 	assert el.children[0].text_runs[0].style.size == 18.25
 	assert el.children[0].text_runs[1].style.size == 12.5
 }
 
 fn test_vml_runs_inherit_and_explicit_false_overrides() {
-	node := parse_vml('Label { font_size: 24 color: #123456 weight: 800 bold: true lines: 3 Run { text: "first " } Run { text: "small" font_size: 12 weight: 400 bold: false baseline_offset: 3 } }')!
-	el := node_to_element(node, rect(0, 0, 200, 100))!
+	el := compiled_text_typography_2(rect(0, 0, 200, 100))
 	assert el.text == 'first small'
 	assert el.text_runs.len == 2
 	assert el.text_runs[0].style.size == 24
@@ -44,7 +43,7 @@ fn test_vml_runs_inherit_and_explicit_false_overrides() {
 }
 
 fn test_vglyph_rich_metrics_tracking_line_grid_and_scale() {
-	$if ( linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headless ? {
+	$if (linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
 		mut engine := new_text_engine(1)!
 		defer { engine.free() }
 		base := TextStyle{ font_family: 'Inter', size: 24, lines: 5, line_height: 36 }
@@ -84,23 +83,24 @@ fn test_vglyph_rich_metrics_tracking_line_grid_and_scale() {
 	}
 }
 
-struct TypographyBindingApp {
+pub struct TypographyBindingApp {
 pub mut:
 	content  string
 	run_size f64
 }
 
-fn test_runtime_run_binding_rebuilds_intrinsic_measurement() {
-	source := 'Screen { Flex { orientation: vertical width: 120 height: 300 Label { width: 120 lines: 10 font_size: 16 Run { text: app.content font_size: app.run_size } } } }'
-	first := element_from_vml_model(source, TypographyBindingApp{ content: 'one', run_size: 12 }, rect(0, 0, 120, 300))!
-	second := element_from_vml_model(source, TypographyBindingApp{ content: 'one two three four five six seven', run_size: 24 }, rect(0, 0, 120, 300))!
+fn test_compiled_run_binding_rebuilds_intrinsic_measurement() {
+	mut fixture_model_2 := TypographyBindingApp{ content: 'one', run_size: 12 }
+	first := compiled_text_typography_1(mut fixture_model_2, rect(0, 0, 120, 300))
+	mut fixture_model_1 := TypographyBindingApp{ content: 'one two three four five six seven', run_size: 24 }
+	second := compiled_text_typography_0(mut fixture_model_1, rect(0, 0, 120, 300))
 	a := first.children[0].children[0]
 	b := second.children[0].children[0]
 	assert a.text == 'one'
 	assert b.text == 'one two three four five six seven'
 	assert a.text_runs[0].style.size == 12
 	assert b.text_runs[0].style.size == 24
-	$if ( linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headless ? {
+	$if (linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
 		assert b.frame.height > a.frame.height * 2
 	}
 	// UTF-8 slicing preserves a multi-byte tail and its style.
@@ -122,7 +122,7 @@ fn test_floating_overlay_scales_complete_typography_once() {
 }
 
 fn test_mixed_size_runs_keep_absolute_parent_line_grid() {
-	$if ( linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headless ? {
+	$if (linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
 		mut engine := new_text_engine(1)!
 		defer { engine.free() }
 		for pair in [[48.0, 15.0, 67.2], [38.0, 18.0, 38.0], [22.0, 14.0, 30.8]] {
@@ -156,7 +156,7 @@ fn test_mixed_size_runs_keep_absolute_parent_line_grid() {
 }
 
 fn test_rich_baseline_offset_is_complete_run_style() {
-	$if ( linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headless ? {
+	$if (linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
 		mut engine := new_text_engine(1)!
 		defer { engine.free() }
 		base := TextStyle{ font_family: 'Inter', size: 24, line_height: 36, baseline_offset: 3 }
@@ -164,4 +164,20 @@ fn test_rich_baseline_offset_is_complete_run_style() {
 		rich := engine.shape_runs([TextRun{ text: 'baseline', style: base }], base, -1, 1, false)!
 		assert math.abs(plain.layout.items[0].y - rich.layout.items[0].y) < 0.02
 	}
+}
+
+fn compiled_text_typography_0(mut app TypographyBindingApp, frame Rect) Element {
+	return $vml('fixtures/text_typography_0.vml', frame)
+}
+
+fn compiled_text_typography_1(mut app TypographyBindingApp, frame Rect) Element {
+	return $vml('fixtures/text_typography_1.vml', frame)
+}
+
+fn compiled_text_typography_2(frame Rect) Element {
+	return $vml('fixtures/text_typography_2.vml', frame)
+}
+
+fn compiled_text_typography_3(frame Rect) Element {
+	return $vml('fixtures/text_typography_3.vml', frame)
 }

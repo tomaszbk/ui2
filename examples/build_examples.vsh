@@ -2,21 +2,24 @@
 
 // Compiles every example under examples/ and reports all failures at once.
 // Extra arguments are passed through to the compiler, e.g.
-//   v run examples/build_examples.vsh -d ui2_custom_rendering
+//   v -b c run examples/build_examples.vsh -d ui2_custom_rendering
 
 import os
 import rand
 
-const vexe = os.quoted_path(@VEXE)
+const vexe = @VEXE
 
 fn println_one_of_many(msg string, entry_idx int, entries_len int) {
 	eprintln('${entry_idx + 1:2}/${entries_len:-2} ${msg}')
 }
 
 println('v executable: ${vexe}')
-print('v version: ${execute('${vexe} version').output}')
+print('v version: ${os.exec([vexe, 'version']).output}')
 
-extra_flags := os.args[1..].join(' ')
+extra_flags := os.args[1..]
+custom_profile := os.args.any(it in ['ui2_custom_rendering', '-d=ui2_custom_rendering', 'ui2_headless',
+	'-d=ui2_headless'] || it.ends_with(':ui2_custom_rendering') || it.ends_with(':ui2_headless'))
+mut skipped := 0
 
 examples_dir := join_path(@VMODROOT, 'examples')
 
@@ -31,15 +34,23 @@ defer {
 mut entries := []string{}
 
 for entry in ls(examples_dir)! {
-	dir := join_path(examples_dir, entry)
-	if !is_dir(dir) {
+	example_dir := join_path(examples_dir, entry)
+	if !is_dir(example_dir) {
 		continue
 	}
-	if !exists(join_path(dir, 'main.v')) {
-		eprintln('skipping ${dir}, it has no main.v')
+	if !exists(join_path(example_dir, 'main.v')) {
+		eprintln('skipping ${example_dir}, it has no main.v')
 		continue
 	}
-	entries << dir
+	// Profile declarations only exclude presentation features native controls
+	// explicitly reject. Every selected example still compiles with -W.
+	profile := read_lines(join_path(example_dir, 'main.v'))!.filter(it.starts_with('// ui2 profiles:'))
+	if !custom_profile && profile.any(it.starts_with('// ui2 profiles: custom')) {
+		println('skipping ${entry} in native profile: ${profile[0].all_after('// ui2 profiles: ')}')
+		skipped++
+		continue
+	}
+	entries << example_dir
 }
 
 entries.sort()
@@ -55,9 +66,12 @@ for entry_idx, entry in entries {
 	out := join_path(build_dir, file_name(entry) + $if windows { '.exe' } $else { '' })
 	// Reject warnings; compiler notices also cover pre-existing unused private
 	// helpers shared across backends and are not compilation failures.
-	cmd := '${vexe} -W ${extra_flags} -o ${quoted_path(out)} ${quoted_path(entry)}'
+	mut argv := [vexe, '-b', 'c', '-W']
+	argv << extra_flags
+	argv << ['-o', out, entry]
+	cmd := argv.map(quoted_path(it)).join(' ')
 	println_one_of_many('compile with: ${cmd}', entry_idx, entries.len)
-	ret := execute(cmd)
+	ret := os.exec(argv)
 	if ret.exit_code != 0 {
 		failures << cmd
 		eprintln('>>> FAILURE')
@@ -76,4 +90,4 @@ if failures.len > 0 {
 	exit(1)
 }
 
-println('\nAll ${entries.len} examples compiled successfully.')
+println('\nAll ${entries.len} compatible examples compiled successfully; ${skipped} custom-profile examples skipped.')

@@ -1,0 +1,11 @@
+Screen {
+    MessageBox(
+        id: "overlay",
+        title: "Hello",
+        text: "World",
+        dialog_width: 260,
+        dialog_height: 140,
+    ) {
+        Button(id: "close", text: "OK", on_tap: callback_dismiss)
+    }
+}

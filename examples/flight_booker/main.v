@@ -5,7 +5,6 @@ import ui2
 
 const flight_booker_width = 400
 const flight_booker_height = 390
-const flight_booker_vml_source = $embed_file('flight_booker.vml').to_string()
 
 pub struct FlightBooker {
 pub mut:
@@ -53,7 +52,7 @@ fn today_date() string {
 fn initial_flight_booker() FlightBooker {
 	today := today_date()
 	return FlightBooker{
-		departure: today
+		departure:   today
 		return_date: today
 	}
 }
@@ -92,11 +91,20 @@ pub fn (mut app FlightBooker) book() {
 }
 
 fn main() {
-	ui2.run_vml[FlightBooker](
-		source: flight_booker_vml_source
-		model: initial_flight_booker()
-		title: 'Flight Booker'
-		width: flight_booker_width
+	mut app := initial_flight_booker()
+	ui2.run_compiled_vml[FlightBooker](
+		build:  build_flight_booker
+		model:  &app
+		title:  'Flight Booker'
+		width:  flight_booker_width
 		height: flight_booker_height
 	) or { panic(err) }
+}
+
+fn build_flight_booker(mut app FlightBooker) ui2.Element {
+	return $vml('flight_booker.vml')
+}
+
+fn flight_booker_tree(mut app FlightBooker, frame ui2.Rect) ui2.Element {
+	return $vml('flight_booker.vml', frame)
 }

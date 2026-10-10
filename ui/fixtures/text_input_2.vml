@@ -1,0 +1,1 @@
+TextArea( readonly: true, disable_scroll: true)

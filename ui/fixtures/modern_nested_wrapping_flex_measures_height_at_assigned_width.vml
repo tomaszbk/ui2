@@ -1,0 +1,16 @@
+Flex(
+    gap: 10,
+    align_items: start,
+) {
+    Flex(
+        id: "wrapped",
+        flex_basis: 0,
+        flex_grow: 1,
+        wrap: true,
+        gap: 10,
+    ) {
+        Button(text: "First", width: 80, height: 30)
+        Button(text: "Second", width: 80, height: 30)
+    }
+    View(flex_basis: 0, flex_grow: 1)
+}

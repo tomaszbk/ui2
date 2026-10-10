@@ -1,5 +1,7 @@
 module ui2
 
+$if !ui2_document_library ? {
+
 import macos
 
 const ui_alert_controller_style_alert = macos.Id(usize(1))
@@ -99,4 +101,6 @@ fn wait_for_alert(alert macos.Id) int {
 		}
 	}
 	return g_alert_choice
+}
+
 }

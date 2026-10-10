@@ -4,7 +4,6 @@ import ui2
 
 const message_width = 420
 const message_height = 320
-const message_vml_source = $embed_file('message.vml').to_string()
 
 pub struct MessageDemo {
 pub mut:
@@ -40,11 +39,20 @@ pub fn (mut app MessageDemo) ask_native_question() {
 }
 
 fn main() {
-	ui2.run_vml[MessageDemo](
-		source: message_vml_source
-		model: MessageDemo{}
-		title: 'Message'
-		width: message_width
+	mut app := MessageDemo{}
+	ui2.run_compiled_vml[MessageDemo](
+		build:  build_message
+		model:  &app
+		title:  'Message'
+		width:  message_width
 		height: message_height
 	) or { panic(err) }
+}
+
+fn build_message(mut app MessageDemo) ui2.Element {
+	return $vml('message.vml')
+}
+
+fn message_tree(mut app MessageDemo, frame ui2.Rect) ui2.Element {
+	return $vml('message.vml', frame)
 }

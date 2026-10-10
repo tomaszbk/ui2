@@ -17,19 +17,19 @@ fn find_gradient_element(element ui2.Element, id string) ?ui2.Element {
 fn test_gradient_texture_generates_expected_hsv_corners_and_cycles() {
 	mut app := gradient_demo(0)
 	assert app.cells.len == gradient_columns * gradient_rows
-	assert app.cells[0].color == '#FFFFFF'
-	assert app.cells[gradient_columns - 1].color == '#000000'
-	assert app.cells[(gradient_rows - 1) * gradient_columns].color == '#FF0000'
+	assert app.cells[0].color == 0xffffff
+	assert app.cells[gradient_columns - 1].color == 0x000000
+	assert app.cells[(gradient_rows - 1) * gradient_columns].color == 0xff0000
 	app.previous_hue()
 	assert app.hue_name == 'Magenta'
-	assert app.hue_color == '#FF00FF'
+	assert app.hue_color == 0xff00ff
 	app.next_hue()
 	assert app.hue_name == 'Red'
 }
 
 fn test_gradient_texture_vml_builds_keyed_tiles_and_native_controls() {
-	app := gradient_demo(0)
-	root := ui2.element_from_vml_model(gradient_texture_vml_source, app, ui2.rect(0, 0, gradient_texture_width, gradient_texture_height)) or { panic(err) }
+	mut app := gradient_demo(0)
+	root := gradient_texture_tree(mut app, ui2.rect(0, 0, gradient_texture_width, gradient_texture_height))
 	ui2.validate_element_tree(root) or { panic(err) }
 	gradient := find_gradient_element(root, 'gradient') or { panic('missing gradient') }
 	assert gradient.children[0].children.len == gradient_columns * gradient_rows

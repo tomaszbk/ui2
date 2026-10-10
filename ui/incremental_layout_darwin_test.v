@@ -1,3 +1,4 @@
+// vtest build: macos && !ui2_custom_rendering? && !ui2_headless?
 module ui2
 
 $if macos && !ui2_custom_rendering ?&& !ui2_headless ? {

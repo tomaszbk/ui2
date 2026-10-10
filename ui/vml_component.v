@@ -21,7 +21,8 @@ mut:
 	cleanup_keys map[string]bool
 	mounted      bool
 	disposed     bool
-	publish      fn (string, Element) = refresh_element
+	publish      fn (string, Element) = compiled_vml_publish
+	command_handler fn (VmlHostCommand) ! = compiled_vml_host_command
 	app_revision &Signal[u64]
 }
 
@@ -33,6 +34,10 @@ mut:
 	declaration       Element
 	local_id          string
 	authored_id       string
+	is_fragment       bool
+	relative_key      string
+	presentation      &VmlPresentation = unsafe { nil }
+	source_snapshot   &VmlSourceSnapshot = unsafe { nil }
 	parent            &CompiledVmlNode = unsafe { nil }
 	children          []&CompiledVmlNode
 	children_revision &Signal[u64]
@@ -41,6 +46,13 @@ mut:
 	has_sources       bool
 	effects           map[string]&SignalEffect
 	mounted           bool
+
+	frame_value      &Signal[Rect] = unsafe { nil }
+	viewport_width   bool
+	viewport_height  bool
+	segments         []VmlChildSegment
+	child_layout     VmlChildLayout
+	child_layout_set bool
 }
 
 pub fn new_vml_component(name string) !&CompiledVmlComponent {
@@ -75,6 +87,17 @@ fn (component &CompiledVmlComponent) require_alive() ! {
 	if component.is_disposed() { return error('compiled VML component is disposed') }
 }
 
+// Embedded compiled documents can publish through their host's retained UI
+// runtime. Existing descendants and subsequently created scopes use this relay.
+pub fn (mut component CompiledVmlComponent) set_publisher(publish fn (string, Element)) ! {
+	component.require_alive()!
+	if publish == unsafe { nil } { return error('compiled VML publisher is nil') }
+	component.publish = publish
+	for _, mut child in component.children {
+		if !child.is_disposed() { child.set_publisher(publish)! }
+	}
+}
+
 pub fn (mut component CompiledVmlComponent) child(name string) !&CompiledVmlComponent {
 	component.require_alive()!
 	if name.len == 0 { return error('compiled VML child requires a declaration identity') }
@@ -94,6 +117,7 @@ pub fn (mut component CompiledVmlComponent) child(name string) !&CompiledVmlComp
 		parent:             &component
 		name:               name
 		publish:            component.publish
+		command_handler:    component.command_handler
 		app_revision:       component.app_revision
 	}
 	component.children[name] = child
@@ -168,13 +192,17 @@ pub fn (mut component CompiledVmlComponent) computed[T](name string, compute fn 
 }
 
 pub fn (mut component CompiledVmlComponent) element(declaration Element, config VmlNodeConfig) !&CompiledVmlNode {
+	return component.owned_element(declaration, config, false)
+}
+
+fn (mut component CompiledVmlComponent) owned_element(declaration Element, config VmlNodeConfig, fragment bool) !&CompiledVmlNode {
 	component.require_alive()!
 	local_id := if config.identity.len > 0 { config.identity } else { declaration.id }
 	if local_id.len == 0 {
 		return error('compiled VML element requires a local declaration identity')
 	}
 	if mut node := component.nodes[local_id] {
-		if node.authored_id != declaration.id || node.declaration.kind != declaration.kind {
+		if node.authored_id != declaration.id || node.declaration.kind != declaration.kind || node.is_fragment != fragment {
 			return error('compiled VML local identity changed its authored id or kind')
 		}
 		if !node.mounted {
@@ -187,6 +215,7 @@ pub fn (mut component CompiledVmlComponent) element(declaration Element, config 
 				layout:       declaration.layout
 				content_size: declaration.content_size
 			}
+			node.source_snapshot = unsafe { nil }
 			node.propagate()
 		}
 		return node
@@ -195,11 +224,14 @@ pub fn (mut component CompiledVmlComponent) element(declaration Element, config 
 		component:         &component
 		local_id:          local_id
 		authored_id:       declaration.id
+		is_fragment:       fragment
+		relative_key:      declaration.key
 		children_revision: new_signal(mut component.scope, u64(0),
 			name: '@children:' + local_id
 		)!
 		declaration:       Element{
 			...declaration
+			compiled_source: unsafe { nil }
 			id:       if declaration.id.len == 0 || component.namespace.len == 0 {
 				declaration.id
 			} else {
@@ -207,6 +239,7 @@ pub fn (mut component CompiledVmlComponent) element(declaration Element, config 
 			}
 			children: []
 		}
+		frame_value:       component.geometry(local_id, declaration.frame)!
 	}
 	component.nodes[local_id] = node
 	node.set_element_children(declaration.children)!
@@ -217,25 +250,34 @@ pub fn (mut node CompiledVmlNode) set_element_children(declarations []Element) !
 	mut children := []&CompiledVmlNode{}
 	for index, child in declarations {
 		if child.compiled_node != unsafe { nil } {
+			mut projected := child.compiled_node
+			projected.set_presentation(child, &node)!
 			children << child.compiled_node
 		} else {
 			// Composite control APIs manufacture headers/backdrops and other
 			// internal controls. Retain them with the same ownership as authored
 			// declarations, without adding a second widget implementation.
-			children << node.component.element(child, identity: node.internal_identity(child, index))!
+			children << node.component.element(child,
+				identity: node.internal_identity(child, index)
+			)!
+		}
+
+		mut owned_child := children.last()
+		if !owned_child.child_layout_set {
+			owned_child.inherit_child_layout(node.declaration.layout, index)
 		}
 	}
 	node.set_children(children)!
 }
 
 pub fn (node &CompiledVmlNode) element() Element {
-	return Element{ ...node.declaration, compiled_node: node }
+	return vml_present(node.constructor_source_element(), node.presentation)
 }
 
 pub fn (node &CompiledVmlNode) child_elements() ![]Element {
 	node.component.require_alive()!
 	node.children_revision.get()!
-	if node.has_sources { return node.source_children.map(it.element()) }
+	if node.has_sources { return node.source_children.map(it.constructor_source_element()) }
 	return node.declaration.children.clone()
 }
 
@@ -276,8 +318,8 @@ fn vml_declaration_equal(left Element, right Element) bool {
 		if *left.compiled_metadata != *right.compiled_metadata { return false }
 	}
 	if left.children.len != right.children.len { return false }
-	if Element{ ...left, compiled_metadata: unsafe { nil }, compiled_node: unsafe { nil }, children: [] } !=
-		Element{ ...right, compiled_metadata: unsafe { nil }, compiled_node: unsafe { nil }, children: [] } {
+	if Element{ ...left, compiled_metadata: unsafe { nil }, compiled_node: unsafe { nil }, compiled_source: unsafe { nil }, children: [] } !=
+		Element{ ...right, compiled_metadata: unsafe { nil }, compiled_node: unsafe { nil }, compiled_source: unsafe { nil }, children: [] } {
 		return false
 	}
 	for index, child in left.children {
@@ -296,7 +338,11 @@ pub fn (mut node CompiledVmlNode) structure(name string, update fn () !Element) 
 	effect := node.component.scope.effect('${node.declaration.id}.${key}', fn [mut node, update] () ! {
 		replacement := update()!
 		node.component.runtime.untracked(fn [mut node, replacement] () ! {
-			node.reconcile_structure(replacement, true)!
+			// A widget rebuild uses its allocated frame to place helper controls.
+			// Keep the authored input for the next measure pass; otherwise Flex
+			// shrink would repeatedly shrink the last allocation as its new basis.
+			input := node.declaration.layout_input or { node.declaration.frame }
+			node.reconcile_structure(Element{ ...replacement, layout_input: input }, true)!
 		})!
 	})!
 	node.effects[key] = effect
@@ -311,6 +357,7 @@ fn (mut node CompiledVmlNode) reconcile_structure(replacement Element, publish b
 		return error('compiled VML structural effect must preserve id')
 	}
 	before := node.element()
+	source_before := node.source_element()
 	was_mounted := node.mounted
 	node.mounted = false
 	defer { node.mounted = was_mounted }
@@ -318,10 +365,7 @@ fn (mut node CompiledVmlNode) reconcile_structure(replacement Element, publish b
 	for index, element in replacement.children {
 		if element.compiled_node != unsafe { nil } {
 			mut child := element.compiled_node
-			if child.declaration.frame != element.frame || child.declaration.layout_input != element.layout_input {
-				child.declaration = Element{ ...child.declaration, frame: element.frame, layout_input: element.layout_input }
-				child.propagate()
-			}
+			child.set_presentation(element, &node)!
 			children << child
 		} else {
 			mut child := node.component.element(Element{ ...element, children: [] },
@@ -333,14 +377,16 @@ fn (mut node CompiledVmlNode) reconcile_structure(replacement Element, publish b
 	}
 	node.declaration = Element{
 		...replacement
+		compiled_source: unsafe { nil }
 		id:            node.declaration.id
 		key:           node.declaration.key
 		compiled_node: &node
 		children:      node.declaration.children
 	}
+	node.source_snapshot = unsafe { nil }
 	node.set_children(children)!
 	changed := !vml_declaration_equal(before, node.element())
-	if changed { node.propagate() }
+	if changed || !vml_declaration_equal(source_before, node.source_element()) { node.propagate() }
 	node.mark_mounted(was_mounted)
 	if was_mounted {
 		for mut child in node.children {
@@ -348,7 +394,7 @@ fn (mut node CompiledVmlNode) reconcile_structure(replacement Element, publish b
 		}
 	}
 	if publish && was_mounted && changed {
-		node.component.publish(node.declaration.id, node.element())
+		node.publish_structure()
 	}
 }
 
@@ -359,7 +405,7 @@ pub fn (mut node CompiledVmlNode) effect(property string, update fn (Element) !E
 	if property in node.effects { return }
 	if update == unsafe { nil } { return error('compiled VML property effect is nil') }
 	effect := node.component.scope.effect('${node.declaration.id}.${property}', fn [mut node, update] () ! {
-		replacement := update(node.element())!
+		replacement := update(node.source_element())!
 		node.replace_property(replacement)!
 	})!
 	node.effects[property] = effect
@@ -367,7 +413,7 @@ pub fn (mut node CompiledVmlNode) effect(property string, update fn (Element) !E
 
 pub fn (mut node CompiledVmlNode) patch(update fn (Element) Element) ! {
 	if update == unsafe { nil } { return error('compiled VML property patch is nil') }
-	node.replace_property(update(node.element()))!
+	node.replace_property(update(node.source_element()))!
 }
 
 fn (mut node CompiledVmlNode) replace_property(replacement Element) ! {
@@ -379,11 +425,12 @@ fn (mut node CompiledVmlNode) replace_property(replacement Element) ! {
 	if replacement.children != node.declaration.children {
 		return error('compiled VML property patch cannot replace children')
 	}
-	if vml_declaration_equal(replacement, node.element()) { return }
+	if vml_declaration_equal(replacement, node.source_element()) { return }
 	validate_element_tree(replacement)!
-	node.declaration = Element{ ...replacement, compiled_node: node }
+	node.declaration = Element{ ...replacement, compiled_node: node, compiled_source: unsafe { nil } }
+	node.source_snapshot = unsafe { nil }
 	node.propagate()
-	if node.mounted { node.component.publish(node.declaration.id, node.element()) }
+	if node.mounted { node.publish_structure() }
 }
 
 fn (mut node CompiledVmlNode) notify_sources() {
@@ -398,16 +445,16 @@ fn (mut node CompiledVmlNode) propagate() {
 	node.notify_sources()
 	if node.parent == unsafe { nil } { return }
 	mut parent := node.parent
-	mut children := parent.declaration.children.clone()
-	for index, child in parent.children {
-		if child == &node {
-			children[index] = node.element()
-			break
-		}
+	children := vml_project_children(parent.children, parent.fragment_prefix(), unsafe { nil }, [])
+	visible := vml_visible_children(parent.children, unsafe { nil }, [])
+	layout := parent.layout_for_children(visible, children) or {
+		eprintln('ui2 compiled VML children layout failed: ${err}')
+		return
 	}
-	candidate := Element{ ...parent.declaration, children: children }
+	candidate := Element{ ...parent.declaration, children: children, layout: layout }
 	if vml_declaration_equal(candidate, parent.declaration) { return }
 	parent.declaration = candidate
+	parent.source_snapshot = unsafe { nil }
 	if !parent.has_sources {
 		previous := parent.children_revision.peek() or { return }
 		parent.children_revision.set(previous + 1) or { eprintln('ui2 compiled VML children failed: ${err}') }
@@ -419,9 +466,11 @@ fn (mut node CompiledVmlNode) propagate() {
 // survive a reorder, so backend key/id identity keeps edits, focus and scroll.
 pub fn (mut node CompiledVmlNode) set_children(children []&CompiledVmlNode) ! {
 	node.component.require_alive()!
-	mut elements := []Element{cap: children.len}
+	mut attached := map[voidptr]bool{}
 	for child in children {
 		child.component.require_alive()!
+		if voidptr(child) in attached { return error('compiled VML child declaration cannot appear more than once') }
+		attached[voidptr(child)] = true
 		if child == &node { return error('compiled VML element cannot contain itself') }
 		mut ancestor := &node
 		for ancestor.parent != unsafe { nil } {
@@ -431,28 +480,33 @@ pub fn (mut node CompiledVmlNode) set_children(children []&CompiledVmlNode) ! {
 		if child.parent != unsafe { nil } && child.parent != &node {
 			return error('compiled VML element already belongs to another parent')
 		}
-		elements << child.element()
 	}
-	candidate := Element{ ...node.declaration, children: elements, compiled_node: node }
+	elements := vml_project_children(children, node.fragment_prefix(), unsafe { nil }, [])
+	visible := vml_visible_children(children, unsafe { nil }, [])
+	candidate := Element{ ...node.declaration, children: elements, layout: node.layout_for_children(visible, elements)!, compiled_node: node }
 	validate_element_tree(candidate)!
-	if node.children == children { return }
+	if node.is_fragment { node.validate_fragment_children(children)! }
+	if node.children == children && vml_declaration_equal(candidate, node.source_element()) { return }
 	for mut old in node.children {
 		if old !in children {
 			old.parent = unsafe { nil }
+			old.clear_presentation()
 			old.mark_mounted(false)
 		}
 	}
 	node.children = children.clone()
 	for mut child in node.children { child.parent = &node }
+	for mut child in node.children { child.refresh_fragment_keys() }
 	node.declaration = candidate
+	node.source_snapshot = unsafe { nil }
 	if !node.has_sources { node.children_revision.set(node.children_revision.peek()! + 1)! }
 	node.propagate()
 	if node.mounted {
 		for mut child in node.children {
 			child.mark_mounted(true)
-			child.component.mount()!
 		}
-		node.component.publish(node.declaration.id, node.element())
+		node.mount_visible_owners()!
+		node.publish_structure()
 	}
 }
 
@@ -464,7 +518,7 @@ fn (mut node CompiledVmlNode) mark_mounted(mounted bool) {
 pub fn (mut node CompiledVmlNode) mount() ! {
 	node.component.require_alive()!
 	node.mark_mounted(true)
-	node.component.mount()!
+	node.mount_visible_owners()!
 }
 
 pub fn (mut component CompiledVmlComponent) on_mount(name string, action fn () !) ! {
@@ -492,7 +546,7 @@ pub fn (mut component CompiledVmlComponent) on_unmount(name string, action fn ()
 
 pub fn (mut component CompiledVmlComponent) mount() ! {
 	component.require_alive()!
-	if component.mounted { return }
+	if component.mounted || !component.has_mounted_nodes() { return }
 	component.mounted = true
 	for name in component.mount_order { component.runtime.untracked(component.mount_hooks[name])! }
 	for _, mut child in component.children {
@@ -502,7 +556,7 @@ pub fn (mut component CompiledVmlComponent) mount() ! {
 
 fn (component &CompiledVmlComponent) has_mounted_nodes() bool {
 	if component.is_disposed() { return false }
-	for _, node in component.nodes { if node.mounted { return true } }
+	for _, node in component.nodes { if node.mounted && !node.is_fragment { return true } }
 	for _, child in component.children { if child.has_mounted_nodes() { return true } }
 	return false
 }
@@ -511,7 +565,11 @@ pub fn (mut component CompiledVmlComponent) dispose() ! {
 	if component.is_disposed() { return }
 	component.scope.dispose()!
 	component.disposed = true
-	for _, mut node in component.nodes { node.mark_mounted(false) }
+	for _, mut node in component.nodes {
+		node.mark_mounted(false)
+		node.source_snapshot = unsafe { nil }
+		node.clear_presentation()
+	}
 	component.values.clear()
 	component.nodes.clear()
 	component.mount_hooks.clear()

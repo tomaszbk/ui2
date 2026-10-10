@@ -1,59 +1,58 @@
-Screen {
-    id: root
-    background: #F1F5F9
-    Absolute {
-        transparent: true
-        Label {
-            text: "Independent positioning"
-            x: 20
-            y: 16
-            width: root.width - 40
-            height: 30
-            color: #0F172A
-            font_size: 20
-            bold: true
-        }
-
-        Absolute {
-            id: canvas
-            x: 20
-            y: 60
-            width: root.width - 40
-            height: 170
-            background: #FFFFFF
-            corner_radius: 10
-
-            View {
-                width: canvas.width * 0.72
-                height: canvas.height * 0.55
-                x: canvas.width * 0.14
-                y: canvas.height * 0.225
-                background: #DBEAFE
-                corner_radius: 12
-            }
-
-            Button {
-                id: center_action
-                text: "Centered"
-                width: 120
-                height: 42
-                x: (canvas.width - 120) / 2
-                y: (canvas.height - 42) / 2
-                background: #2563EB
-                color: #FFFFFF
-                corner_radius: 8
-            }
-
-            Label {
-                text: "bottom right"
-                width: 96
-                height: 24
-                x: canvas.width * 0.96 - 96
-                y: canvas.height * 0.94 - 24
-                color: #475569
-                font_size: 12
-                align: right
-            }
+Screen(
+    id: "root",
+    background: #F1F5F9,
+) {
+    Absolute(
+        transparent: true,
+    ) {
+        Label(
+            text: "Independent positioning",
+            x: 20,
+            y: 16,
+            width: root.width - 40,
+            height: 30,
+            color: #0F172A,
+            font_size: 20,
+            bold: true,
+        )
+        Absolute(
+            id: "canvas",
+            x: 20,
+            y: 60,
+            width: root.width - 40,
+            height: 170,
+            background: #FFFFFF,
+            corner_radius: 10,
+        ) {
+            View(
+                width: canvas.width * 0.72,
+                height: canvas.height * 0.55,
+                x: canvas.width * 0.14,
+                y: canvas.height * 0.225,
+                background: #DBEAFE,
+                corner_radius: 12,
+            )
+            Button(
+                id: "center_action",
+                text: "Centered",
+                width: 120,
+                height: 42,
+                x: (canvas.width - 120) / 2,
+                y: (canvas.height - 42) / 2,
+                background: #2563EB,
+                color: #FFFFFF,
+                corner_radius: 8,
+            )
+            Label(
+                text: "bottom right",
+                width: 96,
+                height: 24,
+                x: canvas.width * 0.96 - 96,
+                y: canvas.height * 0.94 - 24,
+                color: #475569,
+                font_size: 12,
+                align: right,
+            )
         }
     }
 }

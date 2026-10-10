@@ -1,61 +1,104 @@
-Screen {
-    id: root
-    background: #F1F5F9
-
-    Column {
-        padding: 16
-        transparent: true
-
-        Column {
-            id: card
-            flex_grow: 1
-            padding: 20
-            gap: 10
-            background: #FFFFFF
-            corner_radius: 10
-
-            Row {
-                height: 34
-                align_items: center
-                transparent: true
-                Label { text: "Timer" flex_grow: 1 height: 28 color: #111827 font_size: 18 bold: true }
-                Label { text: app.elapsed_label width: 152 height: 34 align: right color: #2563EB font_size: 21 bold: true font_family: "Courier New" }
+Screen(
+    id: "root",
+    background: #F1F5F9,
+) {
+    Column(
+        padding: 16,
+        transparent: true,
+    ) {
+        Column(
+            id: "card",
+            flex_grow: 1,
+            padding: 20,
+            gap: 10,
+            background: #FFFFFF,
+            corner_radius: 10,
+        ) {
+            Row(
+                height: 34,
+                align_items: center,
+                transparent: true,
+            ) {
+                Label(text: "Timer", flex_grow: 1, height: 28, color: #111827, font_size: 18, bold: true)
+                Label(
+                    text: app.elapsed_label,
+                    width: 152,
+                    height: 34,
+                    align: right,
+                    color: #2563EB,
+                    font_size: 21,
+                    bold: true,
+                    font_family: "Courier New",
+                )
             }
-
-            Label { text: "Elapsed time" height: 20 color: #475569 font_size: 12 }
-            ProgressBar { id: elapsed_progress height: 28 value: app.elapsed max: app.duration background: #E2E8F0 color: app.running ? #22C55E : #60A5FA corner_radius: 14 accessibility_label: "Elapsed time" }
-            View { height: 12 transparent: true }
-
-            Row {
-                height: 20
-                transparent: true
-                Label { text: "Duration" flex_grow: 1 color: #475569 font_size: 12 bold: true }
-                Label { text: app.duration_label width: 140 align: right color: #334155 font_size: 12 }
+            Label(text: "Elapsed time", height: 20, color: #475569, font_size: 12)
+            ProgressBar(
+                id: "elapsed_progress",
+                height: 28,
+                value: app.elapsed,
+                max: app.duration,
+                background: #E2E8F0,
+                color: app.running ? #22C55E : #60A5FA,
+                corner_radius: 14,
+                accessibility_label: "Elapsed time",
+            )
+            View(height: 12, transparent: true)
+            Row(
+                height: 20,
+                transparent: true,
+            ) {
+                Label(text: "Duration", flex_grow: 1, color: #475569, font_size: 12, bold: true)
+                Label(text: app.duration_label, width: 140, align: right, color: #334155, font_size: 12)
             }
-            Column {
-                padding_left: 16
-                padding_right: 16
-                gap: 6
-                transparent: true
-                Slider { id: duration_slider on_change: "duration_slider" height: 24 min: 1 max: 30 value: app.duration step: 1 padding: 11 value_track: true background: #CBD5E1 value_track_color: #BFDBFE thumb_color: #2563EB thumb_size: 22 accessibility_label: "Timer duration" }
-                Row {
-                    height: 18
-                    transparent: true
-                    Label { text: "1 s" flex_grow: 1 color: #64748B font_size: 10 }
-                    Label { text: "30 s" width: 50 align: right color: #64748B font_size: 10 }
+            Column(
+                padding_left: 16,
+                padding_right: 16,
+                gap: 6,
+                transparent: true,
+            ) {
+                Slider(
+                    id: "duration_slider",
+                    on_change: callback_duration_slider,
+                    height: 24,
+                    min: 1,
+                    max: 30,
+                    value: app.duration,
+                    step: 1,
+                    padding: 11,
+                    value_track: true,
+                    background: #CBD5E1,
+                    value_track_color: #BFDBFE,
+                    thumb_color: #2563EB,
+                    thumb_size: 22,
+                    accessibility_label: "Timer duration",
+                )
+                Row(
+                    height: 18,
+                    transparent: true,
+                ) {
+                    Label(text: "1 s", flex_grow: 1, color: #64748B, font_size: 10)
+                    Label(text: "30 s", width: 50, align: right, color: #64748B, font_size: 10)
                 }
             }
-
-            Row {
-                justify: center
-                gap: 16
-                height: 34
-                transparent: true
-                Button { id: start text: app.start_label on_tap: "start" native: true width: 110 height: 34 }
-                Button { id: pause text: app.running ? "Pause" : "Resume" on_tap: "pause" native: true enabled: app.elapsed > 0 && app.elapsed < app.duration width: 110 height: 34 }
+            Row(
+                justify: center,
+                gap: 16,
+                height: 34,
+                transparent: true,
+            ) {
+                Button(id: "start", text: app.start_label, on_tap: callback_start, native: true, width: 110, height: 34)
+                Button(
+                    id: "pause",
+                    text: app.running ? "Pause" : "Resume",
+                    on_tap: callback_pause,
+                    native: true,
+                    enabled: app.elapsed > 0 && app.elapsed < app.duration,
+                    width: 110,
+                    height: 34,
+                )
             }
-            View { flex_grow: 1 transparent: true }
-            Label { id: timer_status text: app.status height: 18 align: center color: #166534 font_size: 11 }
+            View(flex_grow: 1, transparent: true)
+            Label(id: "timer_status", text: app.status, height: 18, align: center, color: #166534, font_size: 11)
         }
     }
 }

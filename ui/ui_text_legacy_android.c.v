@@ -4,7 +4,7 @@
 @[has_globals]
 module ui2
 
-$if android && !ui2_headless ? {
+$if android && !ui2_headless ? && !ui2_document_library ? {
 	import fontstash
 	import gg
 	import math

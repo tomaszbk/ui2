@@ -76,7 +76,7 @@ fn test_inside_row_vml_builds_two_panes_and_a_draggable_image() {
 	mut app := inside_row_demo()
 	app.rotate()
 	frame := ui2.rect(0, 0, inside_row_width, inside_row_height)
-	root := ui2.element_from_vml_model_with_callbacks(inside_row_vml_source, app, frame, canvas_layout_inside_row_callbacks()) or { panic(err) }
+	root := canvas_layout_inside_row_tree(mut app, frame)
 	ui2.validate_element_tree(root) or { panic(err) }
 	tray := find_inside_row_element(root, 'tray') or { panic('missing tray') }
 	canvas := find_inside_row_element(root, 'canvas') or { panic('missing canvas') }

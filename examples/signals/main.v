@@ -86,7 +86,7 @@ fn (mut demo SignalsDemo) build() ui2.Element {
 		'removed'
 	}}', ui2.rect(24, 266, 580, 32), style)
 	children << ui2.label('edit hint', 'Edit here; state changes preserve the same declared text:', ui2.rect(24, 310, 580, 26), ui2.TextStyle{ size: 14 })
-	children << ui2.text_input(
+	children << ui2.text_area(
 		id:    'notes'
 		text:  'Español: niño, acción'
 		frame: ui2.rect(24, 346, 580, 38)
