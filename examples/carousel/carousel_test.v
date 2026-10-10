@@ -9,7 +9,7 @@ fn test_carousel_demo_loops_through_slides() {
 	assert !gallery.children[0].hidden
 	assert gallery.children[1].hidden
 	control := initial.children[0].children[4]
-	control.on_event(ui2.ElementEvent{ kind: .tap, id: control.id })
+	control.on_event(ui2.ElementEvent{ kind: .click, id: control.id })
 	assert app.index == 1
 
 	rebuilt := carousel_tree(mut app, ui2.rect(0, 0, carousel_width, carousel_height))

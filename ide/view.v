@@ -356,7 +356,7 @@ fn component_event_property(component DesignerComponent) string {
 	return if component.kind in ['text_field', 'text_area', 'dropdown'] {
 		'on_change'
 	} else {
-		'on_tap'
+		'on_click'
 	}
 }
 

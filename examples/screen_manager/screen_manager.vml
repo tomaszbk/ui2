@@ -26,7 +26,7 @@ Screen(
                     Label(text: "Only this screen is mounted.", x: 24, y: 68, width: 300, height: 24, color: #64748B)
                     Button(
                         text: "Open details",
-                        on_tap: app.show_details(),
+                        on_click: app.show_details(),
                         x: 24,
                         y: 116,
                         width: 140,
@@ -55,7 +55,7 @@ Screen(
                     )
                     Button(
                         text: "Back home",
-                        on_tap: app.show_home(),
+                        on_click: app.show_home(),
                         x: 24,
                         y: 116,
                         width: 120,

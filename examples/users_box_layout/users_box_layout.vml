@@ -76,7 +76,7 @@ Screen(
                         id: "online",
                         text: "Online registration",
                         checked: app.online,
-                        on_tap: app.toggle_online(),
+                        on_click: app.toggle_online(),
                         height: 26,
                         color: #1E293B,
                         font_size: 12,
@@ -85,7 +85,7 @@ Screen(
                         id: "subscribed",
                         text: "Subscribe to the newsletter",
                         checked: app.subscribed,
-                        on_tap: app.toggle_subscribed(),
+                        on_click: app.toggle_subscribed(),
                         height: 26,
                         color: #1E293B,
                         font_size: 12,
@@ -98,7 +98,7 @@ Screen(
                         Checkbox(
                             text: item.name,
                             checked: item.name == app.country,
-                            on_tap: app.select_country(item.name),
+                            on_click: app.select_country(item.name),
                             height: 26,
                             color: #1E293B,
                             font_size: 12,
@@ -112,13 +112,13 @@ Screen(
                         Button(
                             id: "add_user",
                             text: "Add user",
-                            on_tap: app.add_user(),
+                            on_click: app.add_user(),
                             native: true,
                             tooltip: "Required fields:\nFirst name, last name, age",
                             flex_grow: 1,
                         )
-                        Button(id: "about", text: "?", on_tap: app.about(), native: true, tooltip: "about", width: 44)
-                        Button(id: "reset", text: "Clear", on_tap: app.reset(), native: true, width: 44)
+                        Button(id: "about", text: "?", on_click: app.about(), native: true, tooltip: "about", width: 44)
+                        Button(id: "reset", text: "Clear", on_click: app.reset(), native: true, width: 44)
                     }
                     View(flex_grow: 1, transparent: true)
                     ProgressBar(height: 14, value: app.progress, max: 1, background: #E2E8F0, color: #2563EB, corner_radius: 7)

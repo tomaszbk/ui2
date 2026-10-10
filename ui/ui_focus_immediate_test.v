@@ -44,7 +44,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 				on_event(&gg.Event{ typ: .char, char_code: character, key_repeat: true }, app)
 				assert text('edit') == 'seed'
 			}
-			assert focus_input_events == [ElementEvent{ kind: .tap, id: 'button' }]
+			assert focus_input_events == [ElementEvent{ kind: .click, id: 'button' }]
 			// Another physical key and scan-less UTF-8 text remain editable while
 			// the activation key is still held.
 			on_event(&gg.Event{ typ: .key_down, key_code: .n }, app)
@@ -298,13 +298,13 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		on_event(&gg.Event{ typ: .key_down, key_code: .space }, app)
 		on_event(&gg.Event{ typ: .char, char_code: ` ` }, app)
 		on_event(&gg.Event{ typ: .key_down, key_code: .space, key_repeat: true }, app)
-		assert focus_input_events == [ElementEvent{ kind: .tap, id: 'button' },
-			ElementEvent{ kind: .tap, id: 'button' }]
+		assert focus_input_events == [ElementEvent{ kind: .click, id: 'button' },
+			ElementEvent{ kind: .click, id: 'button' }]
 		assert text('edit') == 'café ñ'
 		on_event(&gg.Event{ typ: .key_down, key_code: .tab, key_repeat: true }, app)
 		assert focused_id() == 'composite'
 		on_event(&gg.Event{ typ: .key_down, key_code: .space }, app)
-		assert focus_input_events.last() == ElementEvent{ kind: .tap, id: 'composite' }
+		assert focus_input_events.last() == ElementEvent{ kind: .click, id: 'composite' }
 		on_event(&gg.Event{ typ: .key_down, key_code: .tab, modifiers: u32(gg.Modifier.shift) }, app)
 		assert focused_id() == 'button'
 	}

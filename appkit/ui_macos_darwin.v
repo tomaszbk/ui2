@@ -1129,7 +1129,7 @@ fn render_element(parent NativeView, el Element, key string, mut active map[stri
 			render_children(doc, el.children, doc_key, mut active)
 		}
 		.button {
-			register_button(native, appkit_binding(el, .tap))
+			register_button(native, appkit_binding(el, .click))
 		}
 		.checkbox {
 			register_checkbox(native, appkit_binding(el, .change))
@@ -1377,7 +1377,7 @@ fn register_pointer(native NativeView, el Element) {
 	st.cursor_ids.delete(key)
 	if el.enabled && !el.hidden && el.on_event != unsafe { nil }
 		&& (el.clickable || (el.kind == .view && el.button_behavior) || el.draggable) {
-		st.pointer_callbacks[key] = appkit_binding(el, .tap)
+		st.pointer_callbacks[key] = appkit_binding(el, .click)
 		st.pointer_clickable[key] = el.clickable
 		st.pointer_buttons[key] = el.kind == .view && el.button_behavior
 		st.pointer_draggable[key] = el.draggable
@@ -2659,7 +2659,7 @@ fn fire_pointer_event(native NativeView, phase ElementEventKind, event voidptr) 
 		point := native_event_point(st.root_view, event)
 		appkit_emit_callback(binding, ElementEvent{ kind: phase, x: point.x, y: point.y })
 	}
-	if should_activate { appkit_emit_callback(binding, ElementEvent{ kind: .tap }) }
+	if should_activate { appkit_emit_callback(binding, ElementEvent{ kind: .click }) }
 }
 
 @[export: 'ui2_pointer_mouse_down']
@@ -2683,7 +2683,7 @@ fn ui2_pointer_accessibility_press(self voidptr, _cmd voidptr) bool {
 	pointer := u64(self)
 	if !(st.pointer_buttons[pointer] or { false }) { return false }
 	binding := st.pointer_callbacks[pointer] or { return false }
-	return appkit_emit_callback(binding, ElementEvent{ kind: .tap })
+	return appkit_emit_callback(binding, ElementEvent{ kind: .click })
 }
 
 @[export: 'ui2_pointer_reset_cursor_rects']

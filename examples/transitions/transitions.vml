@@ -31,7 +31,7 @@ Screen(
                 Button(
                     id: "slide",
                     text: app.moving ? "Redirect" : "Slide",
-                    on_tap: callback_slide,
+                    on_click: callback_slide,
                     native: true,
                     x: card.width - 126,
                     y: 13,

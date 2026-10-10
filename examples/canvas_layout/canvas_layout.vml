@@ -35,22 +35,22 @@ Screen(
                     Option(text: "Green")
                     Option(text: "Slate")
                 }
-                Button(id: "about", text: "About", on_tap: callback_about, native: true, x: 346, y: 13, width: 96, height: 34)
+                Button(id: "about", text: "About", on_click: callback_about, native: true, x: 346, y: 13, width: 96, height: 34)
                 Button(
                     id: "clear_notes",
                     text: "X",
-                    on_tap: callback_clear_notes,
+                    on_click: callback_clear_notes,
                     native: true,
                     x: 452,
                     y: 13,
                     width: 44,
                     height: 34,
                 )
-                Button(id: "add_note", text: "Add", on_tap: callback_add_note, native: true, x: 506, y: 13, width: 80, height: 34)
+                Button(id: "add_note", text: "Add", on_click: callback_add_note, native: true, x: 506, y: 13, width: 80, height: 34)
                 Button(
                     id: "reset_tile",
                     text: "Reset tile",
-                    on_tap: callback_reset_tile,
+                    on_click: callback_reset_tile,
                     native: true,
                     x: 596,
                     y: 13,
@@ -60,7 +60,7 @@ Screen(
                 Button(
                     id: "toggle_menu",
                     text: app.menu_label,
-                    on_tap: callback_toggle_menu,
+                    on_click: callback_toggle_menu,
                     native: true,
                     x: 716,
                     y: 13,
@@ -150,7 +150,7 @@ Screen(
                                         Button(
                                             id: "menu_delete",
                                             text: "Delete all users",
-                                            on_tap: callback_menu_delete,
+                                            on_click: callback_menu_delete,
                                             native: true,
                                             x: 12,
                                             y: 34,
@@ -160,7 +160,7 @@ Screen(
                                         Button(
                                             id: "menu_export",
                                             text: "Export users",
-                                            on_tap: callback_menu_export,
+                                            on_click: callback_menu_export,
                                             native: true,
                                             x: 12,
                                             y: 72,
@@ -170,7 +170,7 @@ Screen(
                                         Button(
                                             id: "menu_exit",
                                             text: "Exit",
-                                            on_tap: callback_menu_exit,
+                                            on_click: callback_menu_exit,
                                             native: true,
                                             x: 12,
                                             y: 110,

@@ -45,13 +45,13 @@ fn test_file_picker_filters_and_navigates_through_attached_callbacks() {
 	) or { panic(err) }
 	assert picker.entries.map(it.name) == ['sub', 'a.V', 'c.v']
 	picker.open() or { panic(err) }
-	picker_emit(mut picker, 'entry_0', ElementEvent{ kind: .tap })
+	picker_emit(mut picker, 'entry_0', ElementEvent{ kind: .click })
 	assert picker.directory == os.real_path(os.join_path(dir, 'sub'))
 	assert picker.entries.len == 0
-	picker_emit(mut picker, 'up', ElementEvent{ kind: .tap })
+	picker_emit(mut picker, 'up', ElementEvent{ kind: .click })
 	assert picker.directory == os.real_path(dir)
 	picker_emit(mut picker, 'path', ElementEvent{ kind: .change, text: 'sub' })
-	picker_emit(mut picker, 'go', ElementEvent{ kind: .tap })
+	picker_emit(mut picker, 'go', ElementEvent{ kind: .click })
 	assert picker.directory == os.real_path(os.join_path(dir, 'sub'))
 	picker_emit(mut picker, 'path', ElementEvent{ kind: .submit, text: 'missing' })
 	assert picker.status.len > 0
@@ -78,20 +78,20 @@ fn test_file_picker_open_selection_and_typed_completion() {
 		on_result: fn [mut results] (result FilePickerResult) { results.events << result }
 	) or { panic(err) }
 	picker.open() or { panic(err) }
-	picker_emit(mut picker, 'accept', ElementEvent{ kind: .tap })
+	picker_emit(mut picker, 'accept', ElementEvent{ kind: .click })
 	assert picker.status.len > 0 && picker.visible
 	assert results.events.len == 0
-	picker_emit(mut picker, 'entry_1', ElementEvent{ kind: .tap })
-	picker_emit(mut picker, 'entry_2', ElementEvent{ kind: .tap })
+	picker_emit(mut picker, 'entry_1', ElementEvent{ kind: .click })
+	picker_emit(mut picker, 'entry_2', ElementEvent{ kind: .click })
 	assert picker.selected.len == 2
-	picker_emit(mut picker, 'entry_1', ElementEvent{ kind: .tap })
+	picker_emit(mut picker, 'entry_1', ElementEvent{ kind: .click })
 	assert picker.selected.len == 1
-	picker_emit(mut picker, 'accept', ElementEvent{ kind: .tap })
+	picker_emit(mut picker, 'accept', ElementEvent{ kind: .click })
 	assert results.events[0].kind == .selected
 	assert results.events[0].paths == [os.join_path(os.real_path(dir), 'b.txt')]
 	assert !picker.visible
 	picker.open() or { panic(err) }
-	picker_emit(mut picker, 'cancel', ElementEvent{ kind: .tap })
+	picker_emit(mut picker, 'cancel', ElementEvent{ kind: .click })
 	assert results.events[1].kind == .cancelled && results.events[1].paths.len == 0
 }
 
@@ -106,15 +106,15 @@ fn test_file_picker_save_validation_and_overwrite_confirmation() {
 	) or { panic(err) }
 	save.open() or { panic(err) }
 	picker_emit(mut save, 'filename', ElementEvent{ kind: .change, text: '../escape' })
-	picker_emit(mut save, 'accept', ElementEvent{ kind: .tap })
+	picker_emit(mut save, 'accept', ElementEvent{ kind: .click })
 	assert results.events.len == 0 && save.status.len > 0
 	picker_emit(mut save, 'filename', ElementEvent{ kind: .submit, text: 'report.txt' })
 	assert results.events[0].paths == [os.join_path(os.real_path(dir), 'report.txt')]
 	save.open() or { panic(err) }
 	picker_emit(mut save, 'filename', ElementEvent{ kind: .change, text: 'b.txt' })
-	picker_emit(mut save, 'accept', ElementEvent{ kind: .tap })
+	picker_emit(mut save, 'accept', ElementEvent{ kind: .click })
 	assert results.events.len == 1 && save.status.contains('replace')
-	picker_emit(mut save, 'accept', ElementEvent{ kind: .tap })
+	picker_emit(mut save, 'accept', ElementEvent{ kind: .click })
 	assert results.events[1].paths == [os.join_path(os.real_path(dir), 'b.txt')]
 }
 
@@ -130,8 +130,8 @@ fn test_file_picker_folder_result_and_valid_tree() {
 	assert folder.entries.map(it.name) == ['sub']
 	folder.open() or { panic(err) }
 	validate_element_tree(folder.render(rect(0, 0, 640, 480))) or { panic(err) }
-	picker_emit(mut folder, 'entry_0', ElementEvent{ kind: .tap })
-	picker_emit(mut folder, 'accept', ElementEvent{ kind: .tap })
+	picker_emit(mut folder, 'entry_0', ElementEvent{ kind: .click })
+	picker_emit(mut folder, 'accept', ElementEvent{ kind: .click })
 	assert results.events[0].paths == [os.real_path(os.join_path(dir, 'sub'))]
 }
 
@@ -142,9 +142,9 @@ fn test_file_picker_retained_entry_callback_does_not_follow_reordered_index() {
 	picker.open() or { panic(err) }
 	entry := picker_find(picker.render(rect(0, 0, 640, 480)), 'picker__entry_1') or { panic('missing entry') }
 	picker.entries.reverse_in_place()
-	entry.on_event(ElementEvent{ kind: .tap })
+	entry.on_event(ElementEvent{ kind: .click })
 	assert picker.selected == [os.join_path(os.real_path(dir), 'a.V')]
 	picker.load_directory(os.join_path(dir, 'sub')) or { panic(err) }
-	entry.on_event(ElementEvent{ kind: .tap })
+	entry.on_event(ElementEvent{ kind: .click })
 	assert picker.selected.len == 0
 }

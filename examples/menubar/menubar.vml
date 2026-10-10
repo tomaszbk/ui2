@@ -152,7 +152,7 @@ Screen(
                 Button(
                     id: "reset",
                     text: "Clear log",
-                    on_tap: callback_reset,
+                    on_click: callback_reset,
                     native: true,
                     enabled: app.chosen > 0,
                     x: 18,

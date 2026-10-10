@@ -44,8 +44,8 @@ fn test_compiled_bindable_inputs_typed_events_slots_and_refs_share_lifetime() ! 
 	first.children[0].on_event(ui2.ElementEvent{ kind: .change, text: 'María' })
 	assert app.name == 'María'
 	assert app.other == 'Ana'
-	first.children[1].on_event(ui2.ElementEvent{ kind: .tap })
-	second.children[1].on_event(ui2.ElementEvent{ kind: .tap })
+	first.children[1].on_event(ui2.ElementEvent{ kind: .click })
+	second.children[1].on_event(ui2.ElementEvent{ kind: .click })
 	assert app.observed == ['María']
 	app.suffix = 'Updated author'
 	root.component.invalidate_app()!
@@ -57,7 +57,7 @@ fn test_compiled_bindable_inputs_typed_events_slots_and_refs_share_lifetime() ! 
 	root.dispose_document()!
 	assert app.cleanups == [1, 1]
 	assert app.doubles == [2, 2]
-	first.children[1].on_event(ui2.ElementEvent{ kind: .tap })
+	first.children[1].on_event(ui2.ElementEvent{ kind: .click })
 	assert app.observed == ['María']
 	assert owner.runtime.stats() == ui2.SignalStats{}
 }

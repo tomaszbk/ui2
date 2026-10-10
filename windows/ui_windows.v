@@ -1353,7 +1353,7 @@ fn windows_register_bindings(hwnd voidptr, el Element) {
 	handle := windows_handle_id(hwnd)
 	if el.on_event != unsafe { nil }
 		&& el.kind in [.button, .checkbox, .dropdown, .slider, .switch_control, .toggle_button] {
-		st.action_bindings[handle] = windows_callback_binding(el, if el.kind == .button { .tap } else { .change })
+		st.action_bindings[handle] = windows_callback_binding(el, if el.kind == .button { .click } else { .change })
 	}
 	if el.kind == .slider {
 		st.slider_specs[handle] = slider_spec(el)
@@ -1650,7 +1650,7 @@ fn windows_emit_control(hwnd voidptr, binding WindowsCallbackBinding) bool {
 fn windows_emit_button_behavior(hwnd voidptr, binding WindowsPointerBinding) bool {
 	if binding.on_event == unsafe { nil } { return false }
 	C.ui2_win_notify_invoked(hwnd)
-	return windows_emit_callback(binding.on_event, ElementEvent{ id: binding.id, kind: .tap })
+	return windows_emit_callback(binding.on_event, ElementEvent{ id: binding.id, kind: .click })
 }
 
 fn windows_button_behavior_accessibility_available(current WindowsPointerBinding, target_available bool) bool {
@@ -2158,7 +2158,7 @@ fn ui2_windows_context_menu(hwnd voidptr, screen_x int, screen_y int) int {
 	C.ui2_win_menu_destroy(menu)
 	if command > 0 && int(command) <= entries.len {
 		entry := entries[int(command) - 1]
-		windows_emit_callback(entry.on_select, ElementEvent{ id: entry.id, kind: .tap })
+		windows_emit_callback(entry.on_select, ElementEvent{ id: entry.id, kind: .click })
 	}
 	return 1
 }
@@ -2256,7 +2256,7 @@ fn ui2_windows_control_pointer(hwnd voidptr, message u32, local_x int, local_y i
 	delta_y := y - st.pointer_start_y
 	duration := C.ui2_win_ticks() - st.pointer_started
 	mut gesture := false
-	mut gesture_kind := ElementEventKind.tap
+	mut gesture_kind := ElementEventKind.click
 	if binding.swipe_left && delta_x <= -60 && delta_y >= -40 && delta_y <= 40 {
 		gesture_kind = .swipe_left
 		gesture = true

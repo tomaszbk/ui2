@@ -62,22 +62,22 @@ Screen(
                         Button(
                             id: "actions",
                             text: "Actions",
-                            on_tap: app.open_actions(),
+                            on_click: app.open_actions(),
                             native: true,
                             x: 14,
                             y: 16,
                             width: app.compact ? 190 : menu_stage.width - 28,
                             height: 36,
                         ) {
-                            MenuItem(id: "delete_developers", text: "Delete all developers", on_tap: app.delete_developers())
-                            MenuItem(id: "delete_users", text: "Delete users", on_tap: app.delete_users())
-                            MenuItem(id: "export_users", text: "Export users", on_tap: app.export_users())
-                            MenuItem(id: "exit_selected", text: "Exit", on_tap: app.exit_selected())
+                            MenuItem(id: "delete_developers", text: "Delete all developers", on_click: app.delete_developers())
+                            MenuItem(id: "delete_users", text: "Delete users", on_click: app.delete_users())
+                            MenuItem(id: "export_users", text: "Export users", on_click: app.export_users())
+                            MenuItem(id: "exit_selected", text: "Exit", on_click: app.exit_selected())
                         }
                         Button(
                             id: "add_user",
                             text: "Add user",
-                            on_tap: app.add_user(),
+                            on_click: app.add_user(),
                             native: true,
                             x: 14,
                             y: 62,

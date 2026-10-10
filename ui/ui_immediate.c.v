@@ -1488,7 +1488,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 			fire_pointer_event(.pointer_up, target, x, y)
 		}
 		if target.button_behavior {
-			if activate { fire_target_event(target, ElementEvent{ kind: .tap, id: target.id }) }
+			if activate { fire_target_event(target, ElementEvent{ kind: .click, id: target.id }) }
 			return
 		}
 		if voidptr(target.on_event) != unsafe { nil } && (target.clickable || target.draggable) {
@@ -1541,7 +1541,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 			commit_toggle_button(target)
 			return
 		}
-		fire_target_event(target, ElementEvent{ kind: .tap, id: target.id })
+		fire_target_event(target, ElementEvent{ kind: .click, id: target.id })
 	}
 
 	// Finish a captured gesture on focus loss/cancellation so an IDE drag cannot
@@ -1990,7 +1990,7 @@ fn page_focused_text_area(direction int) {
 	// is nowhere to keep the selection, so such a control only reports the tap.
 	fn open_dropdown(target HitTarget) {
 		if target.id.len == 0 || target.options.len == 0 {
-			fire_target_event(target, ElementEvent{ kind: .tap, id: target.id })
+			fire_target_event(target, ElementEvent{ kind: .click, id: target.id })
 			return
 		}
 		close_dropdown()

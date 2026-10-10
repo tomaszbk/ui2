@@ -779,7 +779,7 @@ fn component_vml(component DesignerComponent) string {
 		event_property := if component.kind in ['text_field', 'text_area', 'dropdown'] {
 			'on_change'
 		} else {
-			'on_tap'
+			'on_click'
 		}
 		properties << '${event_property}: ${component.event_handler}'
 		if component.kind in ['label', 'view', 'image'] {
@@ -874,7 +874,7 @@ fn component_from_node(node &DesignerNode, id int) !DesignerComponent {
 		event_handler: if kind in ['text_field', 'text_area', 'dropdown'] {
 			node.prop('on_change')
 		} else {
-			node.prop('on_tap')
+			node.prop('on_click')
 		}
 	}
 }

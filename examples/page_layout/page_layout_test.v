@@ -22,7 +22,7 @@ fn test_page_layout_demo_navigates_through_model_actions() {
 
 	next := find_page_element(initial, 'next') or { panic('missing next action') }
 	control := next
-	control.on_event(ui2.ElementEvent{ kind: .tap, id: control.id })
+	control.on_event(ui2.ElementEvent{ kind: .click, id: control.id })
 	assert app.page == 1
 	rebuilt := page_layout_tree(mut app, ui2.rect(0, 0, page_width, page_height))
 	pager_after := find_page_element(rebuilt, 'pager') or { panic('missing rebuilt pager') }

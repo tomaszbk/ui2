@@ -39,7 +39,7 @@ Screen(
                 Button(
                     id: "toggle_details",
                     text: app.show_details ? "Hide details" : "Show details",
-                    on_tap: app.toggle_details(),
+                    on_click: app.toggle_details(),
                     native: true,
                     x: card.width - 138,
                     y: 16,

@@ -75,14 +75,14 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		handle_touch_move(26, 30) // boundary does not start a drag
 		assert !drag_active()
 		handle_touch_up(26, 30)
-		assert drag_kinds() == [.tap]
+		assert drag_kinds() == [.click]
 		reset_drag_fixture()
 		g_hit_targets[0] = HitTarget{...g_hit_targets[0], drag_source: DragSource{threshold: 20}}
 		g_drag_registry.owners['id:source'] = g_hit_targets[0]
 		handle_touch_down(20, 30)
 		handle_touch_move(35, 30) // below source threshold, beyond raw tap threshold
 		handle_touch_up(35, 30)
-		assert drag_kinds() == [.tap]
+		assert drag_kinds() == [.click]
 		reset_drag_fixture()
 		handle_touch_down(20, 30)
 		handle_touch_up(120, 30) // no intermediate move from host

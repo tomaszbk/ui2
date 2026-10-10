@@ -108,12 +108,12 @@ fn test_tree_view_constructor_builds_disclosure_and_selection_controls() {
 	tree_view_test_events = []ElementEvent{}
 	tree_view_test_callbacks = []string{}
 	toggle := view_element.children[0].children[0]
-	toggle.on_event(ElementEvent{ kind: .tap, id: toggle.id })
+	toggle.on_event(ElementEvent{ kind: .click, id: toggle.id })
 	assert view_element.children[0].children[0].accessibility_value == 'expanded'
 	assert view_element.children[1].children[1].frame == rect(44, 0, 256, 32)
 	assert view_element.children[1].children[1].box.bg == u32(0xdbeafe)
 	selection := view_element.children[1].children[1]
-	selection.on_event(ElementEvent{ kind: .tap, id: selection.id })
+	selection.on_event(ElementEvent{ kind: .click, id: selection.id })
 	assert tree_view_test_callbacks == ['toggle', 'select']
 	assert tree_view_test_events[0].id == toggle.id
 	assert tree_view_test_events[1].id == selection.id

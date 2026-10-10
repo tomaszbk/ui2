@@ -44,7 +44,7 @@ Screen(
                 Button(
                     id: "apply_cell",
                     text: "Apply",
-                    on_tap: app.apply_edit(),
+                    on_click: app.apply_edit(),
                     native: true,
                     x: card.width - 108,
                     y: 14,
@@ -126,7 +126,7 @@ Screen(
                         ) {
                             Button(
                                 text: item.formula ? "${item.display} ƒ" : item.display,
-                                on_tap: app.select_cell(item.id),
+                                on_click: app.select_cell(item.id),
                                 native: true,
                                 x: 37 + item.column *(((root.width - 68) - 38) / 5),
                                 y: 35 + item.row * 40,

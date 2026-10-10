@@ -10,7 +10,7 @@ Widths that exhaust the frame are proportionally clamped so the ring stays insid
 View(
     id: "card",
     button_behavior: true,
-    on_tap: app.open(),
+    on_click: app.open(),
     width: 200,
     height: 80,
     background: #ffffff,

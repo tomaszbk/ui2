@@ -99,7 +99,7 @@ fn test_appkit_consumed_activation_repeats_preserve_new_native_editor_until_rele
 				send_native_focus_key(code, characters, true, 10, 0)
 			}
 			unchanged := text('edit') == before && macos.msg_range(editor, 'selectedRange') == selection
-			activations := native_focus_events.filter(it.kind == .tap).len
+			activations := native_focus_events.filter(it.kind == .click).len
 			assert native_focus_events.filter(it.kind == .submit).len == 0
 			eprintln('native held kind=${kind} code=${code} activations=${activations} unchanged=${unchanged} text=${text('edit').bytes()}')
 			if !unchanged || activations != 1 { failures << '${kind}/${code}' }
@@ -175,9 +175,9 @@ fn test_appkit_consumed_activation_repeats_preserve_new_native_editor_until_rele
 	// Observers can release the host too; do not claim a press afterwards.
 	focus('press')
 	native_focus_resign_in_observer = true
-	taps_before := native_focus_events.filter(it.kind == .tap).len
+	taps_before := native_focus_events.filter(it.kind == .click).len
 	send_native_focus_key(0x31, ' ', false, 10, 0)
-	assert native_focus_events.filter(it.kind == .tap).len == taps_before
+	assert native_focus_events.filter(it.kind == .click).len == taps_before
 	assert st.activation_keys.len == 0
 	native_focus_resign_in_observer = false
 	focus('press')
@@ -243,7 +243,7 @@ fn test_appkit_navigation_preserves_native_editor_selection_and_reveals_offscree
 	assert handle_focus_key(KeyEvent{code: .enter}, false)
 	assert handle_focus_key(KeyEvent{code: .enter}, true)
 	assert handle_focus_key(KeyEvent{code: .space}, false)
-	assert native_focus_events == [ElementEvent{kind: .tap, id: 'press'}, ElementEvent{kind: .tap, id: 'press'}]
+	assert native_focus_events == [ElementEvent{kind: .click, id: 'press'}, ElementEvent{kind: .click, id: 'press'}]
 	focus('below')
 	assert focused_id() == 'below' && scroll_offset('pane') > 400
 	assert (semantic_node('edit') or { panic('missing semantics') }).value == 'local ñá'

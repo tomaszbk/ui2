@@ -91,7 +91,7 @@ fn activate_semantic_control(id string, action SemanticAction) bool {
 	}
 	if action != .activate || !semantic_activatable(node.el) { return false }
 	if node.el.kind == .view {
-		return ios_emit_callback(ios_binding(node.el, .tap), ElementEvent{ kind: .tap })
+		return ios_emit_callback(ios_binding(node.el, .click), ElementEvent{ kind: .click })
 	}
 	if node.el.kind == .dropdown {
 		if !ios_can_activate_dropdown(native) { return false }
@@ -105,7 +105,7 @@ fn activate_semantic_control(id string, action SemanticAction) bool {
 	commit_ios_button_activation(native, node.el.kind)
 	// Semantic actions commit live state once, then emit the current optional
 	// callback. Pointer input keeps its independent captured-release binding.
-	binding := ios_binding(node.el, if node.el.kind == .button { .tap } else { .change })
+	binding := ios_binding(node.el, if node.el.kind == .button { .click } else { .change })
 	ios_emit_callback(binding, ios_control_event(native, binding))
 	return true
 }

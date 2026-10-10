@@ -53,7 +53,7 @@ Screen(
                         ) {
                             Button(
                                 text: item.folder ?(item.expanded ? "▾  ${item.title}" : "▸  ${item.title}") : "•  ${item.title}",
-                                on_tap: app.select_node(item.id),
+                                on_click: app.select_node(item.id),
                                 native: true,
                                 x: 8 + item.depth * 24,
                                 y: 6 + index * 38,

@@ -21,7 +21,7 @@ Screen(
                 Button(
                     id: "clip_all",
                     text: "Clip all",
-                    on_tap: app.clip_all(),
+                    on_click: app.clip_all(),
                     native: true,
                     x: card.width - 226,
                     y: 13,
@@ -31,7 +31,7 @@ Screen(
                 Button(
                     id: "clip_none",
                     text: "Clip none",
-                    on_tap: app.clip_none(),
+                    on_click: app.clip_none(),
                     native: true,
                     x: card.width - 118,
                     y: 13,
@@ -50,7 +50,7 @@ Screen(
                 Button(
                     id: "quadrant1",
                     text: "Quadrant 1",
-                    on_tap: app.toggle_quadrant(1),
+                    on_click: app.toggle_quadrant(1),
                     native: true,
                     x: 18,
                     y: 72,
@@ -60,7 +60,7 @@ Screen(
                 Button(
                     id: "quadrant2",
                     text: "Quadrant 2",
-                    on_tap: app.toggle_quadrant(2),
+                    on_click: app.toggle_quadrant(2),
                     native: true,
                     x: 138,
                     y: 72,
@@ -70,7 +70,7 @@ Screen(
                 Button(
                     id: "quadrant3",
                     text: "Quadrant 3",
-                    on_tap: app.toggle_quadrant(3),
+                    on_click: app.toggle_quadrant(3),
                     native: true,
                     x: 258,
                     y: 72,
@@ -80,7 +80,7 @@ Screen(
                 Button(
                     id: "quadrant4",
                     text: "Quadrant 4",
-                    on_tap: app.toggle_quadrant(4),
+                    on_click: app.toggle_quadrant(4),
                     native: true,
                     x: 378,
                     y: 72,
@@ -177,7 +177,7 @@ Screen(
                                     )
                                     Button(
                                         text: item.clipping ? "Unclip" : "Clip",
-                                        on_tap: app.toggle_box(item.id),
+                                        on_click: app.toggle_box(item.id),
                                         native: true,
                                         x: 8,
                                         y: ((root.height - 226) / 4) - 44,

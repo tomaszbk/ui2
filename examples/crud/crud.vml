@@ -49,7 +49,7 @@ Screen(
                         ) {
                             Button(
                                 text: item.id == app.selected_id ? "✓ ${item.display}" : item.display,
-                                on_tap: app.select_person(item.id),
+                                on_click: app.select_person(item.id),
                                 native: true,
                                 x: 8,
                                 y: index * 34,
@@ -102,7 +102,7 @@ Screen(
                 Button(
                     id: "create",
                     text: "Create",
-                    on_tap: app.create_person(),
+                    on_click: app.create_person(),
                     native: true,
                     x: 246,
                     y: 184,
@@ -115,7 +115,7 @@ Screen(
                 Button(
                     id: "update",
                     text: "Update",
-                    on_tap: app.update_person(),
+                    on_click: app.update_person(),
                     native: true,
                     enabled: app.selected_id >= 0,
                     x: 254 +(card.width - 278) / 3,
@@ -128,7 +128,7 @@ Screen(
                 Button(
                     id: "delete",
                     text: "Delete",
-                    on_tap: app.delete_person(),
+                    on_click: app.delete_person(),
                     native: true,
                     enabled: app.selected_id >= 0,
                     x: 262 +(card.width - 278) / 3 * 2,

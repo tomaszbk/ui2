@@ -57,7 +57,7 @@ fn test_preview_compiles_relative_component_imports_and_reloads_dependencies() !
 	os.mkdir_all(project)!
 	defer { os.rmdir_all(project) or {} }
 	component := os.join_path(project, 'badge.vml')
-	os.write_file(component, 'component Badge() { state count := 0 Column { Label(text: "First") Button(text: count, on_tap: count++) } }')!
+	os.write_file(component, 'component Badge() { state count := 0 Column { Label(text: "First") Button(text: count, on_click: count++) } }')!
 	source := 'import Badge\nScreen { Badge() }'
 	os.write_file(os.join_path(project, 'form.vml'), source)!
 	mut app := new_ide_app(project)
@@ -70,7 +70,7 @@ fn test_preview_compiles_relative_component_imports_and_reloads_dependencies() !
 	frame := ui2.rect(0, 0, 300, 200)
 	first := app.preview_element(frame)!
 	assert first.children[0].children[0].text == 'First'
-	first.children[0].children[1].on_event(ui2.ElementEvent{ kind: .tap })
+	first.children[0].children[1].on_event(ui2.ElementEvent{ kind: .click })
 	assert app.preview_element(frame)!.children[0].children[1].text == '1'
 	os.write_file(component, 'component Badge() { Label(text: "Second") }')!
 	app.compile_preview()!
@@ -79,7 +79,7 @@ fn test_preview_compiles_relative_component_imports_and_reloads_dependencies() !
 	second := app.preview_element(frame)!
 	assert second.children[0].text == 'Second'
 	assert second.compiled_node != first.compiled_node
-	first.children[0].children[1].on_event(ui2.ElementEvent{ kind: .tap })
+	first.children[0].children[1].on_event(ui2.ElementEvent{ kind: .click })
 	assert app.preview_element(frame)!.children[0].text == 'Second'
 	app.source_text += '\n// preserve source edits'
 	app.source_modified = true

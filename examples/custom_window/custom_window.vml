@@ -61,7 +61,7 @@ Screen(
                 Button(
                     id: "close",
                     text: "×",
-                    on_tap: callback_close,
+                    on_click: callback_close,
                     x: card.width - 42,
                     y: 10,
                     width: 30,
@@ -104,7 +104,7 @@ Screen(
                 Button(
                     id: "decrement",
                     text: "−",
-                    on_tap: callback_decrement,
+                    on_click: callback_decrement,
                     enabled: app.completed > 0,
                     x: 8,
                     y: 7,
@@ -130,12 +130,12 @@ Screen(
                     font_size: 16,
                     bold: true,
                     accessibility_label: "Reset completed sessions",
-                    on_tap: callback_reset,
+                    on_click: callback_reset,
                 )
                 Button(
                     id: "increment",
                     text: "+",
-                    on_tap: callback_increment,
+                    on_click: callback_increment,
                     x: 198,
                     y: 7,
                     width: 54,

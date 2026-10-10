@@ -86,8 +86,8 @@ fn test_tabbed_panel_selects_content_and_styles_active_header() {
 	tab_test_indices = []int{}
 	tab_test_events = []ElementEvent{}
 	header := panel.children[2]
-	header.on_event(ElementEvent{ kind: .tap, id: header.id })
+	header.on_event(ElementEvent{ kind: .click, id: header.id })
 	assert tab_test_indices == [1]
 	assert tab_test_events[0].id == header.id
-	assert tab_test_events[0].kind == .tap
+	assert tab_test_events[0].kind == .click
 }

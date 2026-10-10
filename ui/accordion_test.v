@@ -78,8 +78,8 @@ fn test_accordion_constructor_selects_content_and_header_style() {
 	accordion_test_indices = []int{}
 	accordion_test_events = []ElementEvent{}
 	header := panel.children[2]
-	header.on_event(ElementEvent{ kind: .tap, id: header.id })
+	header.on_event(ElementEvent{ kind: .click, id: header.id })
 	assert accordion_test_indices == [1]
 	assert accordion_test_events[0].id == header.id
-	assert accordion_test_events[0].kind == .tap
+	assert accordion_test_events[0].kind == .click
 }

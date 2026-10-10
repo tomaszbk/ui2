@@ -184,7 +184,7 @@ fn test_vml_column_repeaters_preserve_hidden_state_keys_and_actions() {
 	assert column.children[1].key == '9'
 	assert column.children[0].children[0].frame.width == 195
 	assert column.children[0].children[1].text.f64() == 390
-	column.children[0].children[0].on_event(ElementEvent{ kind: .tap })
+	column.children[0].children[0].on_event(ElementEvent{ kind: .click })
 	assert app.selected == 7
 	assert app.calls == 1
 }
@@ -227,7 +227,7 @@ fn test_vml_flex_repeater_resolves_weights_and_preserves_keyed_actions() {
 		assert app.calls == 0
 		modern_layout_assert_siblings_fit(built)
 	}
-	(modern_flex_repeater_resolves_weights_and_preserves_keyed_actions_tree(mut app, rect(0, 0, 300, 50))).children[1].on_event(ElementEvent{ kind: .tap })
+	(modern_flex_repeater_resolves_weights_and_preserves_keyed_actions_tree(mut app, rect(0, 0, 300, 50))).children[1].on_event(ElementEvent{ kind: .click })
 	assert app.selected == 9
 	assert app.calls == 1
 }
@@ -245,7 +245,7 @@ fn test_vml_flex_measurement_preserves_binding_and_never_invokes_action() {
 	assert first.children[1].text == 'initial'
 	first.children[1].on_event(ElementEvent{ kind: .change, text: 'edited' })
 	assert app.query == 'edited'
-	first.children[0].on_event(ElementEvent{ kind: .tap })
+	first.children[0].on_event(ElementEvent{ kind: .click })
 	second := modern_flex_measurement_preserves_binding_and_never_invokes_action_tree(mut app, rect(0, 0, 700, 80))
 	assert app.calls == 1
 	assert second.children[0].frame.width > first.children[0].frame.width
@@ -310,7 +310,7 @@ fn test_responsive_example_fits_wide_and_compact_windows_and_keeps_actions() {
 		action = create.on_event
 		assert app.created == 0
 	}
-	action(ElementEvent{ kind: .tap })
+	action(ElementEvent{ kind: .click })
 	assert app.created == 1
 }
 

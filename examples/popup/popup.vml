@@ -18,7 +18,7 @@ Screen(
         )
         Button(
             text: "Edit profile",
-            on_tap: app.open_editor(),
+            on_click: app.open_editor(),
             x: (root.width - 140) / 2,
             y: 116,
             width: 140,
@@ -57,7 +57,7 @@ Screen(
                 )
                 Button(
                     text: "Cancel",
-                    on_tap: app.close_editor(),
+                    on_click: app.close_editor(),
                     x: 46,
                     y: 112,
                     width: 110,
@@ -68,7 +68,7 @@ Screen(
                 )
                 Button(
                     text: "Save",
-                    on_tap: app.save_editor(),
+                    on_click: app.save_editor(),
                     x: 184,
                     y: 112,
                     width: 110,

@@ -112,7 +112,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 				if !dispatch.valid() { return true }
 				open_dropdown(target)
 			}
-			else { fire_target_event(target, ElementEvent{ kind: .tap, id: id }) }
+			else { fire_target_event(target, ElementEvent{ kind: .click, id: id }) }
 		}
 		if dispatch.valid() { invalidate_custom_paint() }
 		return true

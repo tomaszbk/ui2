@@ -112,7 +112,7 @@ fn pointer_capture_callback(callback string, remove_on_up bool) ElementCallback 
 		}]
 		handle_touch_down(20, 20)
 		handle_touch_up(20, 20)
-		assert pointer_capture_events == [pointer_capture_expected('save_card', ElementEvent{ kind: .tap })]
+		assert pointer_capture_events == [pointer_capture_expected('save_card', ElementEvent{ kind: .click })]
 	}
 
 	fn test_button_behavior_keeps_the_pressed_target_across_a_rebuild() {
@@ -133,7 +133,7 @@ fn pointer_capture_callback(callback string, remove_on_up bool) ElementCallback 
 			button_behavior: true
 		}]
 		handle_touch_up(20, 20)
-		assert pointer_capture_events == [pointer_capture_expected('original', ElementEvent{ kind: .tap, id: 'card' })]
+		assert pointer_capture_events == [pointer_capture_expected('original', ElementEvent{ kind: .click, id: 'card' })]
 	}
 
 	fn test_button_behavior_revalidates_current_geometry_and_registration() {
@@ -197,7 +197,7 @@ fn pointer_capture_callback(callback string, remove_on_up bool) ElementCallback 
 			button_behavior: true
 		}]
 		handle_touch_up(7, 10)
-		assert pointer_capture_events == [pointer_capture_expected('save', ElementEvent{ kind: .tap, id: 'card' })]
+		assert pointer_capture_events == [pointer_capture_expected('save', ElementEvent{ kind: .click, id: 'card' })]
 
 		// Disabled and removed views are absent from the current hit-target frame.
 		reset_pointer_capture_test()
@@ -261,7 +261,7 @@ fn pointer_capture_callback(callback string, remove_on_up bool) ElementCallback 
 		]
 		handle_touch_down(10, 10)
 		handle_touch_up(10, 10)
-		assert pointer_capture_events == [pointer_capture_expected('upper', ElementEvent{ kind: .tap })]
+		assert pointer_capture_events == [pointer_capture_expected('upper', ElementEvent{ kind: .click })]
 	}
 
 	fn test_button_behavior_cancels_outside_and_nested_button_wins() {
@@ -284,7 +284,7 @@ fn pointer_capture_callback(callback string, remove_on_up bool) ElementCallback 
 		]
 		handle_touch_down(20, 20)
 		handle_touch_up(20, 20)
-		assert pointer_capture_events == [pointer_capture_expected('child', ElementEvent{ kind: .tap })]
+		assert pointer_capture_events == [pointer_capture_expected('child', ElementEvent{ kind: .click })]
 	}
 
 	fn test_button_behavior_cancels_after_drag_or_focus_loss() {
@@ -319,7 +319,7 @@ fn pointer_capture_callback(callback string, remove_on_up bool) ElementCallback 
 		assert pointer_capture_events == [
 			pointer_capture_expected('surface', ElementEvent{ kind: .pointer_down, x: 20, y: 20 }),
 			pointer_capture_expected('surface', ElementEvent{ kind: .pointer_up, x: 20, y: 20 }),
-			pointer_capture_expected('surface', ElementEvent{ kind: .tap }),
+			pointer_capture_expected('surface', ElementEvent{ kind: .click }),
 		]
 	}
 
@@ -338,7 +338,7 @@ fn pointer_capture_callback(callback string, remove_on_up bool) ElementCallback 
 		assert pointer_capture_events == [
 			pointer_capture_expected('surface', ElementEvent{ kind: .pointer_down, id: 'surface', x: 20, y: 20 }),
 			pointer_capture_expected('surface', ElementEvent{ kind: .pointer_up, id: 'surface', x: 20, y: 20 }),
-			pointer_capture_expected('surface', ElementEvent{ kind: .tap, id: 'surface' }),
+			pointer_capture_expected('surface', ElementEvent{ kind: .click, id: 'surface' }),
 		]
 	}
 

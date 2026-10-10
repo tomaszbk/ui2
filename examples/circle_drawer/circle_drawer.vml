@@ -21,7 +21,7 @@ Screen(
                 Button(
                     id: "undo",
                     text: "Undo",
-                    on_tap: callback_undo,
+                    on_click: callback_undo,
                     enabled: app.can_undo,
                     native: true,
                     x: card.width - 346,
@@ -32,7 +32,7 @@ Screen(
                 Button(
                     id: "redo",
                     text: "Redo",
-                    on_tap: callback_redo,
+                    on_click: callback_redo,
                     enabled: app.can_redo,
                     native: true,
                     x: card.width - 256,
@@ -43,7 +43,7 @@ Screen(
                 Button(
                     id: "radius_less",
                     text: "Radius −",
-                    on_tap: callback_radius_less,
+                    on_click: callback_radius_less,
                     enabled: app.selected_id >= 0,
                     native: true,
                     x: card.width - 166,
@@ -54,7 +54,7 @@ Screen(
                 Button(
                     id: "radius_more",
                     text: "+",
-                    on_tap: callback_radius_more,
+                    on_click: callback_radius_more,
                     enabled: app.selected_id >= 0,
                     native: true,
                     x: card.width - 76,

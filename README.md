@@ -50,7 +50,7 @@ updates and dispatchers. See [the embedder contract and acceptance tests](docs/c
 ## Requirements
 
 `ui2` uses the published `tomaszbk/v` compiler revision
-[`21c5801`](https://github.com/tomaszbk/v/commit/21c58013a679a6196439b30cddaea51f638b6e5f),
+[`8dbbce6`](https://github.com/tomaszbk/v/commit/8dbbce6712f33f265d61901fc4f50ee29a6df61c),
 which includes the component grammar and retained VML lowering.
 CI bootstraps the verified source revision with pinned `vc` and Boehm GC assets using
 [the shared setup action](.github/actions/setup-v/action.yml).
@@ -211,7 +211,7 @@ requires explicit conversion to a string; display `text` accepts strings and num
 
 ```vml
 TextInput(bind.text: app.name)
-Button(text: "Add", enabled: app.users.len < app.max_users, on_tap: app.add_user())
+Button(text: "Add", enabled: app.users.len < app.max_users, on_click: app.add_user())
 ```
 
 Built-in callbacks may take no arguments or one `ui2.ElementEvent` and return
@@ -243,7 +243,7 @@ Absolute(
     Button(
         id: "save",
         text: "Save",
-        on_tap: app.save(),
+        on_click: app.save(),
         x: 20,
         y: 20,
         width: 120,
@@ -270,7 +270,7 @@ Absolute(
     View(
         id: "save_card",
         button_behavior: true,
-        on_tap: app.save(),
+        on_click: app.save(),
         x: 20,
         y: 20,
         width: 180,
@@ -288,7 +288,7 @@ Absolute(
 }
 ```
 
-`button_behavior` emits the ordinary `on_tap` action once when a press starts
+`button_behavior` emits the ordinary `on_click` action once when a press starts
 on the element and is released inside without becoming a drag or scroll
 gesture. It also gives the composite the default accessibility role `button`
 and derives its accessibility label from the first visible, noninteractive
@@ -326,7 +326,7 @@ component Counter(title string = "Count", changed event(value int)) {
 
     Column {
         Label(text: "${title}: ${count} / ${doubled}")
-        Button(text: "Add", on_tap: increment)
+        Button(text: "Add", on_click: increment)
     }
 }
 ```
@@ -509,7 +509,7 @@ MessageBox(
     title: "Hello World",
     text: "This message came from the ui example.",
 ) {
-    Button(id: "close_message", text: "OK", on_tap: app.close_message())
+    Button(id: "close_message", text: "OK", on_click: app.close_message())
 }
 ```
 
@@ -579,7 +579,7 @@ absolute path.
 `set_menu_bar(...)` installs the application's top level menu bar and
 `set_tray(...)` docks an icon in the status area. Both are plain declarations,
 and each menu leaf carries `on_select`; a menu-less tray icon carries
-`on_event`. Both receive `ElementEvent` with `.tap` and source identity.
+`on_event`. Both receive `ElementEvent` with `.click` and source identity.
 
 ```v
 ui2.set_menu_bar([ui2.Menu{

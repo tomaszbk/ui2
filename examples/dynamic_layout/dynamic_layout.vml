@@ -30,7 +30,7 @@ Screen(
                 Button(
                     id: "add_last",
                     text: "Add last",
-                    on_tap: app.add_last(),
+                    on_click: app.add_last(),
                     native: true,
                     x: 16,
                     y: 56,
@@ -40,7 +40,7 @@ Screen(
                 Button(
                     id: "add_two",
                     text: "Add two",
-                    on_tap: app.add_two(),
+                    on_click: app.add_two(),
                     native: true,
                     x: 16,
                     y: 98,
@@ -50,7 +50,7 @@ Screen(
                 Button(
                     id: "remove_last",
                     text: "Remove last",
-                    on_tap: app.remove_last(),
+                    on_click: app.remove_last(),
                     native: true,
                     enabled: app.items.len > 0,
                     x: 16,
@@ -61,7 +61,7 @@ Screen(
                 Button(
                     id: "remove_second",
                     text: "Remove second",
-                    on_tap: app.remove_second(),
+                    on_click: app.remove_second(),
                     native: true,
                     enabled: app.items.len > 1,
                     x: 16,
@@ -72,7 +72,7 @@ Screen(
                 Button(
                     id: "move_first",
                     text: "Move first to end",
-                    on_tap: app.move_first(),
+                    on_click: app.move_first(),
                     native: true,
                     enabled: app.items.len > 1,
                     x: 16,
@@ -83,7 +83,7 @@ Screen(
                 Button(
                     id: "toggle_items",
                     text: app.items_hidden ? "Show buttons" : "Hide buttons",
-                    on_tap: app.toggle_items(),
+                    on_click: app.toggle_items(),
                     native: true,
                     x: 16,
                     y: 266,
@@ -151,7 +151,7 @@ Screen(
                         ) {
                             Button(
                                 text: item.label,
-                                on_tap: app.rename(item.id),
+                                on_click: app.rename(item.id),
                                 native: true,
                                 x: 12,
                                 y: 10 + index * 44,

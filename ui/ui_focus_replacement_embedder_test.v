@@ -125,7 +125,7 @@ fn test_mounted_text_to_control_replacement_retains_focus_scope_and_keyboard_act
 							replacement_send_key(if destination == .button { gg.KeyCode.space } else { gg.KeyCode.right })
 							assert replacement_events.len == 1
 							assert replacement_events[0].id == 'same'
-							assert replacement_events[0].kind == if destination == .button { ElementEventKind.tap } else { ElementEventKind.change }
+							assert replacement_events[0].kind == if destination == .button { ElementEventKind.click } else { ElementEventKind.change }
 							if destination == .slider { assert slider_value('same') == 30 }
 							assert focused_id() == 'same'
 							assert_replacement_other_editor()

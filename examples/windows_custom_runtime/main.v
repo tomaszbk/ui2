@@ -34,7 +34,7 @@ fn handle_key(event ui2.KeyEvent) {
 }
 
 fn handle_button(event ui2.ElementEvent) {
-	if event.kind == .tap {
+	if event.kind == .click {
 		update_counter()
 	}
 }

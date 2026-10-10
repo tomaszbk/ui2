@@ -7,7 +7,7 @@ pub type BuildFn = fn () Element
 pub type ElementCallback = fn (ElementEvent)
 
 pub enum ElementEventKind {
-	tap
+	click
 	change
 	submit
 	scroll

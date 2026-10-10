@@ -110,7 +110,7 @@ Screen(
         Button(
             id: "move_up",
             text: "↑",
-            on_tap: app.move_up(),
+            on_click: app.move_up(),
             native: true,
             x: root.width / 2 - 42,
             y: 536,
@@ -120,7 +120,7 @@ Screen(
         Button(
             id: "move_left",
             text: "←",
-            on_tap: app.move_left(),
+            on_click: app.move_left(),
             native: true,
             x: root.width / 2 - 132,
             y: 576,
@@ -130,7 +130,7 @@ Screen(
         Button(
             id: "move_down",
             text: "↓",
-            on_tap: app.move_down(),
+            on_click: app.move_down(),
             native: true,
             x: root.width / 2 - 42,
             y: 576,
@@ -140,7 +140,7 @@ Screen(
         Button(
             id: "move_right",
             text: "→",
-            on_tap: app.move_right(),
+            on_click: app.move_right(),
             native: true,
             x: root.width / 2 + 48,
             y: 576,
@@ -150,7 +150,7 @@ Screen(
         Button(
             id: "new_game",
             text: "New game",
-            on_tap: app.new_game(),
+            on_click: app.new_game(),
             native: true,
             x: ((root.width -(root.width - 48 < 440 ? root.width - 48 : 440)) / 2) +(root.width - 48 < 440 ? root.width - 48 : 440) - 110,
             y: 622,

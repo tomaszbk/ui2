@@ -110,7 +110,7 @@ fn test_tray_vml_offers_the_same_rows_where_there_is_no_status_area() {
 		assert !button.hidden
 		assert button.id == id
 		assert voidptr(button.on_event) != unsafe { nil }
-		button.on_event(ui2.ElementEvent{ kind: .tap, id: button.id })
+		button.on_event(ui2.ElementEvent{ kind: .click, id: button.id })
 		assert record.action == action
 		assert record.identity == id
 	}

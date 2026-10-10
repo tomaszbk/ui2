@@ -97,7 +97,7 @@ Screen(
                 Button(
                     id: "clear",
                     text: "Clear",
-                    on_tap: app.clear(),
+                    on_click: app.clear(),
                     native: true,
                     x: card.width - 106,
                     y: card.height - 52,

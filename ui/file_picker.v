@@ -262,13 +262,13 @@ pub fn (mut picker FilePicker) render(frame Rect) Element {
 		TextStyle{ size: 19, bold: true, color: 0x111827 })
 	children << with_event(button(picker.config.id + '__up', 'Up', rect(padding, 52, 56, button_height),
 		BoxStyle{ bg: 0xe2e8f0, radius: 5 }, TextStyle{ color: 0x1e293b }), fn [mut picker] (event ElementEvent) {
-		if event.kind == .tap {
+		if event.kind == .click {
 			picker.load_directory(os.dir(picker.directory)) or { picker.status = err.msg() }
 		}
 	})
 	children << with_event(button(picker.config.id + '__home', 'Home', rect(padding + 64, 52, 64,
 		button_height), BoxStyle{ bg: 0xe2e8f0, radius: 5 }, TextStyle{ color: 0x1e293b }), fn [mut picker] (event ElementEvent) {
-		if event.kind == .tap {
+		if event.kind == .click {
 			picker.load_directory(os.home_dir()) or { picker.status = err.msg() }
 		}
 	})
@@ -290,7 +290,7 @@ pub fn (mut picker FilePicker) render(frame Rect) Element {
 	}) or { panic(err) }
 	children << with_event(button(picker.config.id + '__go', 'Go', rect(width - padding - 58, 52, 58,
 		button_height), BoxStyle{ bg: 0xe2e8f0, radius: 5 }, TextStyle{ color: 0x1e293b }), fn [mut picker] (event ElementEvent) {
-		if event.kind == .tap { picker.navigate_input(picker.path_input) }
+		if event.kind == .click { picker.navigate_input(picker.path_input) }
 	})
 	list_top := f64(96)
 	footer_height := if picker.config.dialog.kind == .save { f64(132) } else { f64(92) }
@@ -320,7 +320,7 @@ pub fn (mut picker FilePicker) render(frame Rect) Element {
 			...with_event(button('${picker.config.id}__entry_${index}', prefix + entry.name,
 				rect(0, f64(index) * 34, inner_width, 34), BoxStyle{ bg: row_color },
 				TextStyle{ color: 0x111827, size: 14, align: .left }), fn [mut picker, entry] (event ElementEvent) {
-				if event.kind != .tap || !picker.visible { return }
+				if event.kind != .click || !picker.visible { return }
 				for current_index, current in picker.entries {
 					if current.path == entry.path {
 						picker.select_entry(current_index) or { picker.status = err.msg() }
@@ -366,7 +366,7 @@ pub fn (mut picker FilePicker) render(frame Rect) Element {
 	children << with_event(button(picker.config.id + '__cancel', 'Cancel',
 		rect(width - padding - button_width * 2 - 8, height - 56, button_width,
 			button_height), BoxStyle{ bg: 0xe2e8f0, radius: 5 }, TextStyle{ color: 0x1e293b }), fn [mut picker] (event ElementEvent) {
-		if event.kind == .tap { picker.cancel_selection() }
+		if event.kind == .click { picker.cancel_selection() }
 	})
 	accept_title := if picker.config.dialog.kind == .save {
 		'Save'
@@ -378,7 +378,7 @@ pub fn (mut picker FilePicker) render(frame Rect) Element {
 	children << with_event(button(picker.config.id + '__accept', accept_title,
 		rect(width - padding - button_width, height - 56, button_width, button_height),
 		BoxStyle{ bg: 0x2563eb, radius: 5 }, TextStyle{ color: 0xffffff }), fn [mut picker] (event ElementEvent) {
-		if event.kind == .tap { picker.finish_selection() }
+		if event.kind == .click { picker.finish_selection() }
 	})
 	panel := view(picker.config.id + '__panel', rect(left, top, width, height),
 		BoxStyle{ bg: 0xffffff, radius: 10 }, children)

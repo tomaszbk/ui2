@@ -19,7 +19,7 @@ Screen(
         Label(text: app.status, x: 20, y: 76, width: root.width - 40, height: 26, align: center, color: #475569)
         Button(
             text: "Open confirmation",
-            on_tap: app.open_confirmation(),
+            on_click: app.open_confirmation(),
             x: (root.width - 170) / 2,
             y: 132,
             width: 170,
@@ -65,7 +65,7 @@ Screen(
                 )
                 Button(
                     text: "Cancel",
-                    on_tap: app.close_confirmation(),
+                    on_click: app.close_confirmation(),
                     x: 46,
                     y: 126,
                     width: 110,
@@ -76,7 +76,7 @@ Screen(
                 )
                 Button(
                     text: "Confirm",
-                    on_tap: app.confirm(),
+                    on_click: app.confirm(),
                     x: 184,
                     y: 126,
                     width: 110,

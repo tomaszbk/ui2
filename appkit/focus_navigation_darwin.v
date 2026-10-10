@@ -90,7 +90,7 @@ $if !ui2_custom_rendering ? && !ui2_document_library ? {
 		}
 		if action != .activate || !semantic_activatable(node.el) { return false }
 		if node.el.kind == .view {
-			return appkit_emit_callback(appkit_binding(node.el, .tap), ElementEvent{ kind: .tap })
+			return appkit_emit_callback(appkit_binding(node.el, .click), ElementEvent{ kind: .click })
 		}
 		if node.el.kind == .dropdown {
 			macos.msg_void1(native, 'performClick:', native_nil_view())

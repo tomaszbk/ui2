@@ -60,7 +60,7 @@ $if macos && ui2_custom_rendering ? && ui2_embedder ? && !ui2_headless ? {
 			on_event(&gg.Event{typ: .key_down, key_code: .escape}, g_gg_app)
 			assert !g_touch.down && !g_touch.pointer_captured && !drag_active()
 			handle_touch_up(20, 30)
-			assert embedder_drag_events.filter(it.kind == .tap || it.kind == .drop).len == 0
+			assert embedder_drag_events.filter(it.kind == .click || it.kind == .drop).len == 0
 			assert embedder_drag_events.filter(it.kind == .drag_cancel).len == if active { 1 } else { 0 }
 			assert embedder_drag_keys == 0
 		}

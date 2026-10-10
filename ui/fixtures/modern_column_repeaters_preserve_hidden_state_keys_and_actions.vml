@@ -12,7 +12,7 @@ Screen(
                 height: 100,
                 hidden: index == 1,
             ) {
-                Button(text: item.title, flex_basis: 0, flex_grow: 1, on_tap: app.select(item.id))
+                Button(text: item.title, flex_basis: 0, flex_grow: 1, on_click: app.select(item.id))
                 Label(text: root.width, flex_basis: 0, flex_grow: 1)
             }
         }

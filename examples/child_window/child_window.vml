@@ -21,7 +21,7 @@ Screen(
                 Button(
                     id: "create",
                     text: "Create a window",
-                    on_tap: callback_create,
+                    on_click: callback_create,
                     native: true,
                     x: 18,
                     y: 52,
@@ -95,7 +95,7 @@ Screen(
                         Button(
                             id: "close",
                             text: "Close",
-                            on_tap: callback_close,
+                            on_click: callback_close,
                             native: true,
                             x: 236,
                             y: 4,
@@ -118,7 +118,7 @@ Screen(
                             id: "genre",
                             text: "Check me if woman",
                             checked: app.woman,
-                            on_tap: callback_genre,
+                            on_click: callback_genre,
                             x: 16,
                             y: 104,
                             width: 288,
@@ -129,7 +129,7 @@ Screen(
                         Button(
                             id: "greet",
                             text: "Greet me",
-                            on_tap: callback_greet,
+                            on_click: callback_greet,
                             native: true,
                             x: 16,
                             y: 144,

@@ -96,7 +96,7 @@ $if macos && ui2_custom_rendering ? && ui2_embedder ? && !ui2_headless ? {
 							registration_drag_events.clear()
 							handle_touch_down(x, 30)
 							handle_touch_up(x, 30)
-							assert registration_drag_events.map(it.kind) == [.tap]
+							assert registration_drag_events.map(it.kind) == [.click]
 							println('RENDER ancestry kind=${kind} anonymous=${anonymous} source=${source} depth=${depth} hidden=${hidden} PASS')
 						}
 					}
@@ -122,7 +122,7 @@ $if macos && ui2_custom_rendering ? && ui2_embedder ? && !ui2_headless ? {
 						if active { handle_touch_move(120, 30) }
 						handle_touch_up(if active { 120.0 } else { 20.0 }, 30)
 						assert registration_drag_events.filter(it.kind == .drop).len == 0
-						assert registration_drag_events.filter(it.kind == .tap).len == if !active && !source { 1 } else { 0 }
+						assert registration_drag_events.filter(it.kind == .click).len == if !active && !source { 1 } else { 0 }
 						assert registration_drag_events.filter(it.kind == .drag_cancel).len == if active { 1 } else { 0 }
 						assert !g_touch.pointer_captured && !drag_active()
 					}
@@ -142,7 +142,7 @@ $if macos && ui2_custom_rendering ? && ui2_embedder ? && !ui2_headless ? {
 		registration_drag_events.clear()
 		handle_touch_down(120, 30)
 		handle_touch_up(120, 30)
-		assert registration_drag_events.map(it.kind) == [.tap]
+		assert registration_drag_events.map(it.kind) == [.click]
 	}
 
 	fn test_selected_image_asset_validity_controls_current_pointer_and_drop_eligibility() {
@@ -175,7 +175,7 @@ $if macos && ui2_custom_rendering ? && ui2_embedder ? && !ui2_headless ? {
 			handle_touch_down(120,30); handle_touch_up(120,30)
 			assert registration_drag_events.map(it.kind)==if available {
 				[ElementEventKind.pointer_down,.pointer_up]
-			} else { [ElementEventKind.tap] }
+			} else { [ElementEventKind.click] }
 			assert registration_drag_events.all(it.id==expected)
 			registration_drag_events.clear()
 			handle_touch_down(20,30); handle_touch_up(120,30)

@@ -44,7 +44,7 @@ Screen(
                         ) {
                             Button(
                                 text: item.family,
-                                on_tap: app.choose_font(item.id),
+                                on_click: app.choose_font(item.id),
                                 x: 8,
                                 y: 8 + index * 34,
                                 width: (240) - 32,
@@ -79,7 +79,7 @@ Screen(
                     id: "bold",
                     text: "Bold",
                     bind.checked: app.bold,
-                    on_tap: app.emphasis_changed(),
+                    on_click: app.emphasis_changed(),
                     x: 156 +(240),
                     y: 80,
                     width: 90,
@@ -91,7 +91,7 @@ Screen(
                     id: "italic",
                     text: "Italic",
                     bind.checked: app.italic,
-                    on_tap: app.emphasis_changed(),
+                    on_click: app.emphasis_changed(),
                     x: 250 +(240),
                     y: 80,
                     width: 90,

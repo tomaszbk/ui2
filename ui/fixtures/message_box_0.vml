@@ -6,6 +6,6 @@ Screen {
         dialog_width: 260,
         dialog_height: 140,
     ) {
-        Button(id: "close", text: "OK", on_tap: callback_dismiss)
+        Button(id: "close", text: "OK", on_click: callback_dismiss)
     }
 }

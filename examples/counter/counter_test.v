@@ -33,8 +33,8 @@ fn test_counter_instances_keep_state_computed_events_and_lifecycle_independent()
 	creation := retained.component.runtime.stats()
 	left_add := counter_add(initial[0])
 	assert left_add.native_style
-	left_add.on_event(ui2.ElementEvent{ kind: .tap, id: left_add.id })
-	left_add.on_event(ui2.ElementEvent{ kind: .tap, id: left_add.id })
+	left_add.on_event(ui2.ElementEvent{ kind: .click, id: left_add.id })
+	left_add.on_event(ui2.ElementEvent{ kind: .click, id: left_add.id })
 	after_left := counter_panels(retained.element())
 	assert counter_value(after_left[0]) == '2'
 	assert counter_double(after_left[0]) == '4'
@@ -45,14 +45,14 @@ fn test_counter_instances_keep_state_computed_events_and_lifecycle_independent()
 	assert app.mounted == 2
 	// The second instance has no changed handler; emitting is a valid no-op.
 	right_add := counter_add(after_left[1])
-	right_add.on_event(ui2.ElementEvent{ kind: .tap, id: right_add.id })
+	right_add.on_event(ui2.ElementEvent{ kind: .click, id: right_add.id })
 	after_right := counter_panels(retained.element())
 	assert counter_value(after_right[0]) == '2'
 	assert counter_value(after_right[1]) == '1'
 	assert counter_double(after_right[1]) == '2'
 	assert app.events == 2
 	reset := counter_reset(after_right[0])
-	reset.on_event(ui2.ElementEvent{ kind: .tap, id: reset.id })
+	reset.on_event(ui2.ElementEvent{ kind: .click, id: reset.id })
 	after_reset := counter_panels(retained.element())
 	assert counter_value(after_reset[0]) == '0'
 	assert counter_double(after_reset[0]) == '0'
@@ -72,6 +72,6 @@ fn test_counter_instances_keep_state_computed_events_and_lifecycle_independent()
 	owner.dispose() or { panic(err) }
 	assert app.cleaned == 2
 	assert app.unmounted == 2
-	left_add.on_event(ui2.ElementEvent{ kind: .tap, id: left_add.id })
+	left_add.on_event(ui2.ElementEvent{ kind: .click, id: left_add.id })
 	assert app.events == 3
 }

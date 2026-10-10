@@ -39,7 +39,7 @@ Screen(
                 Button(
                     id: "open_source",
                     text: "Open source",
-                    on_tap: app.open_source(),
+                    on_click: app.open_source(),
                     native: true,
                     x: 20,
                     y: 98,
@@ -49,7 +49,7 @@ Screen(
                 Button(
                     id: "save_text",
                     text: "Save text",
-                    on_tap: app.save_text(),
+                    on_click: app.save_text(),
                     native: true,
                     x: 194,
                     y: 98,
@@ -59,7 +59,7 @@ Screen(
                 Button(
                     id: "choose_folder",
                     text: "Choose folder",
-                    on_tap: app.choose_folder(),
+                    on_click: app.choose_folder(),
                     native: true,
                     x: 368,
                     y: 98,

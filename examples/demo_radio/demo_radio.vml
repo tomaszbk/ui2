@@ -66,7 +66,7 @@ Screen(
                             Checkbox(
                                 text: item.name,
                                 checked: item.name == app.selected_country,
-                                on_tap: app.select_country(item.name),
+                                on_click: app.select_country(item.name),
                                 x: app.compact ? 12 + index *((choices.width - 24) / 4) : 16,
                                 y: app.compact ? 18 : 10 + index * 36,
                                 width: app.compact ?(choices.width - 24) / 4 : choices.width - 32,

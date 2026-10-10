@@ -16,7 +16,7 @@ fn menus() []ui2.Menu {
 ```vml
 MenuBar {
     Menu(title: "File") {
-        MenuItem(id: "new_row", text: "New", on_tap: file_new, shortcut: "cmd+n")
+        MenuItem(id: "new_row", text: "New", on_click: file_new, shortcut: "cmd+n")
         MenuSeparator {}
         Menu(title: "Export") { MenuItem(id: "export_pdf", text: "PDF") }
     }

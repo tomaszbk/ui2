@@ -47,8 +47,8 @@ Screen(
                 }
             }
         }
-        Button(id: "previous", text: "Previous", on_tap: app.previous(), x: 20, y: 226, width: 110, height: 38)
+        Button(id: "previous", text: "Previous", on_click: app.previous(), x: 20, y: 226, width: 110, height: 38)
         Label(text: "${app.page + 1} / 3", x: 160, y: 226, width: 100, height: 38, align: center, color: #475569)
-        Button(id: "next", text: "Next", on_tap: app.next(), x: root.width - 130, y: 226, width: 110, height: 38)
+        Button(id: "next", text: "Next", on_click: app.next(), x: root.width - 130, y: 226, width: 110, height: 38)
     }
 }

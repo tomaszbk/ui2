@@ -54,7 +54,7 @@ Screen(
                 Button(
                     id: "more_ipsum",
                     text: "More ipsum!",
-                    on_tap: app.more_ipsum(),
+                    on_click: app.more_ipsum(),
                     native: true,
                     x: 16,
                     y: 158,
@@ -110,7 +110,7 @@ Screen(
                 Button(
                     id: "submit",
                     text: "Submit",
-                    on_tap: app.submit(),
+                    on_click: app.submit(),
                     native: true,
                     x: 16,
                     y: 158,

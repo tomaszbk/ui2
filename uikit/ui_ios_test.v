@@ -19,7 +19,7 @@ fn test_ios_button_behavior_release_preserves_the_captured_callback() {
 	assert !ios_button_behavior_release_available(IosCallbackBinding{}, current, true, true, false, true)
 	ios_callback_test_events = []ElementEvent{}
 	if ios_button_behavior_release_available(captured, current, true, true, false, true) {
-		ios_emit_callback(captured, ElementEvent{ kind: .tap })
+		ios_emit_callback(captured, ElementEvent{ kind: .click })
 	}
 	assert ios_callback_test_events.len == 1
 	assert ios_callback_test_events[0].id == 'original'
@@ -83,12 +83,12 @@ fn capture_ios_control_b(event ElementEvent) {
 }
 
 fn test_ios_ordinary_control_press_keeps_callback_and_cancels_without_current_registration() {
-	first := IosCallbackBinding{ id: 'same', on_event: capture_ios_control_a, kind: .button, event: .tap }
+	first := IosCallbackBinding{ id: 'same', on_event: capture_ios_control_a, kind: .button, event: .click }
 	second := IosCallbackBinding{ ...first, on_event: capture_ios_control_b }
 	ios_control_test_handlers = []string{}
 	ios_callback_test_events = []ElementEvent{}
 	selected := ios_control_release_binding(first, second, true) or { panic('eligible native control must activate') }
-	assert ios_emit_callback(selected, ElementEvent{ kind: .tap })
+	assert ios_emit_callback(selected, ElementEvent{ kind: .click })
 	assert ios_control_test_handlers == ['a']
 	assert ios_callback_test_events[0].id == 'same'
 	if _ := ios_control_release_binding(first, second, false) {

@@ -106,8 +106,8 @@ fn test_custom_windows_same_ids_keep_independent_edits_focus_scroll_and_menus() 
 		assert window_state_events == [
 			WindowStateEvent{ window: 'first', event: ElementEvent{ kind: .change, id: 'editor', text: 'A draft' } },
 			WindowStateEvent{ window: 'second', event: ElementEvent{ kind: .change, id: 'editor', text: 'second B' } },
-			WindowStateEvent{ window: 'second', event: ElementEvent{ kind: .tap, id: 'command' } },
-			WindowStateEvent{ window: 'first', event: ElementEvent{ kind: .tap, id: 'command' } },
+			WindowStateEvent{ window: 'second', event: ElementEvent{ kind: .click, id: 'command' } },
+			WindowStateEvent{ window: 'first', event: ElementEvent{ kind: .click, id: 'command' } },
 		]
 	}
 }

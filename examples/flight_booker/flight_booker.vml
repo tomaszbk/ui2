@@ -71,7 +71,7 @@ Screen(
             Button(
                 id: "book",
                 text: "Book",
-                on_tap: app.book(),
+                on_click: app.book(),
                 native: true,
                 enabled: (app.departure_valid &&(!(app.flight_type == "return flight") || app.return_valid)),
                 height: 40,

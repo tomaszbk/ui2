@@ -212,7 +212,7 @@ fn slot_resize_fixture(composite SlotComposite, layout LayoutKind) ! {
 		assert content.on_event == authored.on_event
 		assert content.focused && content.text_selection == TextSelection{ anchor: 1, caret: 4 }
 		slot_events = []ElementEvent{}
-		content.on_event(ElementEvent{ kind: .tap, id: content.id })
+		content.on_event(ElementEvent{ kind: .click, id: content.id })
 		assert slot_events.len == 1 && slot_events[0].id == 'content'
 		leaf_identity := 'id:' + 'nested'.bytes().hex() + '/key:' + 'leaf/key'.bytes().hex()
 		current := [

@@ -36,7 +36,7 @@ Screen(
         ) {
             Button(
                 text: item.text,
-                on_tap: app.press(item.text),
+                on_click: app.press(item.text),
                 x: (root.width * 0.04) + item.column *(((root.width -(root.width * 0.04) * 2 -(root.height * 0.02) * 3) / 4) +(root.height * 0.02)),
                 y: ((root.width * 0.04) +(root.height * 0.16) +(root.height * 0.02)) + item.row *(((root.height -((root.width * 0.04) +(root.height * 0.16) +(root.height * 0.02)) -(root.width * 0.04) -(root.height * 0.02) * 4) / 5) +(root.height * 0.02)),
                 width: ((root.width -(root.width * 0.04) * 2 -(root.height * 0.02) * 3) / 4),

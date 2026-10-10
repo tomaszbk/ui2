@@ -98,7 +98,7 @@ Screen(
                             id: "add-user",
                             text: "Add user",
                             enabled: app.users.len < app.max_users,
-                            on_tap: app.add_user(),
+                            on_click: app.add_user(),
                             native: true,
                             flex_grow: 1,
                             background: #3478D4,
@@ -110,7 +110,7 @@ Screen(
                         Button(
                             id: "help",
                             text: "?",
-                            on_tap: app.open_help(),
+                            on_click: app.open_help(),
                             native: true,
                             tooltip: "About this example",
                             width: 48,
@@ -226,7 +226,7 @@ Screen(
                 Button(
                     id: "close-help",
                     text: "Close",
-                    on_tap: app.close_help(),
+                    on_click: app.close_help(),
                     native: true,
                     width: 120,
                     height: 34,

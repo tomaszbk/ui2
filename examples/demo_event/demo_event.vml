@@ -21,7 +21,7 @@ Screen(
                 Button(
                     id: "sample_button",
                     text: "Native event",
-                    on_tap: callback_sample_button,
+                    on_click: callback_sample_button,
                     native: true,
                     x: card.width - 246,
                     y: 14,
@@ -31,7 +31,7 @@ Screen(
                 Button(
                     id: "clear_events",
                     text: "Clear",
-                    on_tap: callback_clear,
+                    on_click: callback_clear,
                     native: true,
                     x: card.width - 114,
                     y: 14,

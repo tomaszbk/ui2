@@ -1242,7 +1242,7 @@ fn register_native_handlers(native View, el Element) {
 	if has_callback && el.kind in [.view, .button]
 		&& (el.button_behavior || el.long_press || el.swipe_left) {
 		g_action_callbacks[pointer] = ios_binding(el, if el.kind in [.view, .button] {
-			.tap
+			.click
 		} else {
 			.change
 		})
@@ -1255,7 +1255,7 @@ fn register_native_handlers(native View, el Element) {
 		g_slider_specs[pointer] = slider_spec(el)
 		if has_callback {
 			g_action_callbacks[pointer] = ios_binding(el, if el.kind in [.view, .button] {
-				.tap
+				.click
 			} else {
 				.change
 			})
@@ -1268,7 +1268,7 @@ fn register_native_handlers(native View, el Element) {
 		remove_control_target_action(native, g_button_handler, 'handleTap:', 131072)
 		if has_callback {
 			g_action_callbacks[pointer] = ios_binding(el, if el.kind in [.view, .button] {
-				.tap
+				.click
 			} else {
 				.change
 			})
@@ -1289,7 +1289,7 @@ fn register_native_handlers(native View, el Element) {
 			}
 		}
 		if has_callback || el.kind in [.checkbox, .toggle_button] {
-			g_action_callbacks[pointer] = ios_binding(el, if el.kind == .button { .tap } else { .change })
+			g_action_callbacks[pointer] = ios_binding(el, if el.kind == .button { .click } else { .change })
 			add_button_target(native, g_button_handler)
 			macos.set_associated_object(native, assoc_handler_key(), g_button_handler, macos.assoc_retain_nonatomic)
 		} else {
@@ -1369,7 +1369,7 @@ fn render_element(parent View, el Element, key string, mut active map[string]boo
 			macos.msg_void(old_native, 'removeFromSuperview')
 		}
 		if (el.kind == .view && el.button_behavior) || el.long_press || el.swipe_left {
-			attach_view_gestures(native, ios_binding(el, .tap), el.kind == .view
+			attach_view_gestures(native, ios_binding(el, .click), el.kind == .view
 				&& el.button_behavior, el.long_press, el.swipe_left)
 		}
 	} else {
@@ -1631,7 +1631,7 @@ fn vui_view_tap(_self voidptr, _cmd voidptr, sender voidptr) {
 		&& location.y >= view_bounds.y && location.y <= view_bounds.y + view_bounds.height
 	if ios_button_behavior_release_available(captured, current, g_button_behavior_views[pointer] or { false },
 		macos.msg_bool(view, 'isUserInteractionEnabled'), macos.msg_bool(view, 'isHidden'), inside) {
-		ios_emit_callback(captured, ElementEvent{ kind: .tap })
+		ios_emit_callback(captured, ElementEvent{ kind: .click })
 	}
 }
 
@@ -1691,7 +1691,7 @@ fn vui_button_behavior_accessibility_activate(self voidptr, _cmd voidptr) bool {
 		return false
 	}
 	binding := g_action_callbacks[u64(self)] or { return false }
-	return ios_emit_callback(binding, ElementEvent{ kind: .tap })
+	return ios_emit_callback(binding, ElementEvent{ kind: .click })
 }
 
 @[export: 'vui_request_refresh']

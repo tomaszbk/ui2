@@ -79,7 +79,7 @@ Screen(
                 Button(
                     id: "add_user",
                     text: "Add user",
-                    on_tap: app.submit(),
+                    on_click: app.submit(),
                     native: true,
                     x: 16,
                     y: 224,

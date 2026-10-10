@@ -40,7 +40,7 @@ Screen(
                 ) {
                     Button(
                         text: item.text,
-                        on_tap: app.press(item.text),
+                        on_click: app.press(item.text),
                         native: true,
                         background: item.role == "clear" ? #EF4444 : item.role == "operator" ? #3478D4 : item.role == "utility" ? #CBD5E1 : #F8FAFC,
                         color: item.role == "clear" || item.role == "operator" ? #FFFFFF : #111827,

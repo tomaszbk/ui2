@@ -133,7 +133,7 @@ $if macos && ui2_custom_rendering ? && !ui2_headless ? {
 			mount_paint_drag('over', change, false)
 			handle_touch_down(20, 30)
 			handle_touch_up(120, 30)
-			assert paint_drag_events.filter(it.kind == .drop || it.kind == .tap).len == 0, change
+			assert paint_drag_events.filter(it.kind == .drop || it.kind == .click).len == 0, change
 			assert paint_drag_events.filter(it.kind == .drag_cancel).len == 1
 			assert !g_touch.down && !g_touch.pointer_captured && !drag_active()
 		}
@@ -153,6 +153,6 @@ $if macos && ui2_custom_rendering ? && !ui2_headless ? {
 		handle_touch_down(20, 30)
 		handle_touch_up(120, 30)
 		assert paint_drag_events.filter(it.kind == .drop).len == 1
-		assert paint_drag_events.filter(it.kind == .drag_cancel || it.kind == .tap).len == 0
+		assert paint_drag_events.filter(it.kind == .drag_cancel || it.kind == .click).len == 0
 	}
 }

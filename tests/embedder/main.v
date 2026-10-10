@@ -163,14 +163,14 @@ fn build_window(model WindowModel, on_change ui2.ElementCallback, on_animate ui2
 }
 
 fn first_close(event ui2.ElementEvent) {
-	if event.kind == .tap {
+	if event.kind == .click {
 		end_japanese_ime()
 		first_window.close()
 	}
 }
 
 fn first_animate(event ui2.ElementEvent) {
-	if event.kind == .tap { start_first_animation() }
+	if event.kind == .click { start_first_animation() }
 }
 
 fn first_change(event ui2.ElementEvent) {
@@ -187,11 +187,11 @@ fn end_japanese_ime() {
 }
 
 fn second_close(event ui2.ElementEvent) {
-	if event.kind == .tap { second_window.close() }
+	if event.kind == .click { second_window.close() }
 }
 
 fn second_animate(event ui2.ElementEvent) {
-	if event.kind == .tap { ui2.animation(duration: 0.8, x: 440.0).start('moving') }
+	if event.kind == .click { ui2.animation(duration: 0.8, x: 440.0).start('moving') }
 }
 
 fn second_change(event ui2.ElementEvent) {
