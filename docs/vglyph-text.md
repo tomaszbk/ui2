@@ -24,7 +24,7 @@ grapheme, and complete bidirectional editing, remain separate work.
 ## Build dependencies
 
 Use the published `tomaszbk/v` compiler revision
-[`8dbbce6`](https://github.com/tomaszbk/v/commit/8dbbce6712f33f265d61901fc4f50ee29a6df61c).
+[`147c8f7`](https://github.com/tomaszbk/v/commit/147c8f795369672d4006dfd9ef14d1bc80e0583d).
 It includes the component grammar and retained VML lowering.
 The V 0.5.2 release binary lacks required
 Sokol sampler APIs and does not compile the current UI2 source. CI uses
