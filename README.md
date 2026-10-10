@@ -50,7 +50,7 @@ updates and dispatchers. See [the embedder contract and acceptance tests](docs/c
 ## Requirements
 
 `ui2` uses the published `tomaszbk/v` compiler revision
-[`da778c5`](https://github.com/tomaszbk/v/commit/da778c500ae5153100da6cbac278f3c92bca5ef4),
+[`21c5801`](https://github.com/tomaszbk/v/commit/21c58013a679a6196439b30cddaea51f638b6e5f),
 which includes the component grammar and retained VML lowering.
 CI bootstraps the verified source revision with pinned `vc` and Boehm GC assets using
 [the shared setup action](.github/actions/setup-v/action.yml).
@@ -1024,8 +1024,9 @@ vab run --device auto --name "ui2 counter" \
 Run `make test` for portable and host-native tests. `make examples` compiles
 every example under `examples/` for the host platform and reports all failures
 at once; `make examples-custom` repeats that with the custom `gg` renderer.
-GitHub Actions runs `make examples` on Linux, macOS, and Windows, plus
-`make examples-custom` on macOS and Windows, for every push and pull request.
+GitHub Actions runs focused desktop tests on Linux, macOS, and Windows,
+including native and custom profiles, for every push and pull request. These
+cover Counter, menus, compiled VML contracts, scrolling, text, and backend checks.
 `make check-macos`,
 `make check-ios`, `make check-android`, `make check-linux`, and
 `make check-windows` type-check each renderer; cross-target checks require their

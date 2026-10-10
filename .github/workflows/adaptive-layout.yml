@@ -74,6 +74,7 @@ jobs:
         run: |
           v -b c -cc gcc test ui2/ui/vml_modern_layout_test.v
           v -b c -cc gcc test ui2/ui/vml_keyed_list_test.v
+          v -b c -cc gcc test ui2/ui/vml_keyed_dependencies_test.v
 
       - name: Test designer and generated companion
         run: v -b c -cc gcc test ui2/ide
