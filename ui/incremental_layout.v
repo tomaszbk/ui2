@@ -794,6 +794,9 @@ struct LayoutPatch {
 	id      string
 	element Element
 	compiled &CompiledVmlNode = unsafe { nil }
+	serial   u64
+	// document marks a compiled document's own publication.
+	document bool
 }
 
 // declaration returns authored inputs, suitable for subsequent targeted patches.
