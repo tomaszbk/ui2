@@ -4,6 +4,12 @@ module ui2
 pub struct VmlNodeConfig {
 pub:
 	identity string
+	// A present VML dimension keeps zero; an omitted dimension measures content.
+	authored_width  bool
+	authored_height bool
+	// Generic content follows its allocated parent's omitted dimensions.
+	inherit_width  bool
+	inherit_height bool
 }
 
 @[heap]

@@ -187,7 +187,7 @@ fn (mut tree LayoutTree) patch_identity(target &RetainedLayoutNode, element Elem
 		mut node := tree.nodes[ancestor] or { return error('missing layout ancestor') }
 		tree.revision++
 		node.subtree_version = tree.revision
-		if changed_size && !(node.input.width > 0 && node.input.height > 0) {
+		if changed_size && !(layout_authored_width(node.declaration) && layout_authored_height(node.declaration)) {
 			tree.revision++
 			node.version = tree.revision
 			node.measures.clear()
@@ -237,7 +237,7 @@ fn layout_metric_style(style TextStyle) TextStyle {
 fn layout_metric_key(element Element, input Rect) string {
 	runs := element.text_runs.map(TextRun{ text: it.text.bytes().hex(), style: layout_metric_style(it.style) })
 	// Hex-encode user strings so delimiters cannot alias key components.
-	return '${element.kind}|${input}|${element.hidden}|${element.text.bytes().hex()}|${element.placeholder.bytes().hex()}|${layout_metric_style(element.text_style)}|${runs}|${element.layout}|${element.content_size}|${element.padding_left}|${element.disable_scroll}|${element.secure}|${element.image_path.bytes().hex()}|${element.image_asset.logical_size}'
+	return '${element.kind}|${input}|${layout_authored_width(element)}:${layout_authored_height(element)}:${layout_inherits_width(element)}:${layout_inherits_height(element)}|${element.hidden}|${element.text.bytes().hex()}|${element.placeholder.bytes().hex()}|${layout_metric_style(element.text_style)}|${runs}|${element.layout}|${element.content_size}|${element.padding_left}|${element.disable_scroll}|${element.secure}|${element.image_path.bytes().hex()}|${element.image_asset.logical_size}'
 }
 
 fn (mut tree LayoutTree) reconcile(element Element, parent string, mut active map[string]bool) string {
@@ -290,16 +290,16 @@ fn (mut tree LayoutTree) reconcile(element Element, parent string, mut active ma
 		changed_below = changed_below || previous_subtree != current.subtree_version
 	}
 	own_changed := own != node.own_key || old_children != children
-	exterior := if input.width > 0 && input.height > 0 { '${input}|${element.hidden}' } else { own }
+	exterior := if layout_authored_width(element) && layout_authored_height(element) { '${input}|${element.hidden}' } else { own }
 	// Fixed leaves paint new content without changing any geometry dependency.
-	geometry_changed := own_changed && !(input.width > 0 && input.height > 0 && children.len == 0 && exterior == node.exterior_key)
+	geometry_changed := own_changed && !(layout_authored_width(element) && layout_authored_height(element) && children.len == 0 && exterior == node.exterior_key)
 	if geometry_changed || changed_below {
 		tree.revision++
 		node.subtree_version = tree.revision
 	}
 	// A fixed exterior is a proven relayout boundary. Its descendants still
 	// invalidate disposition, but cannot change the parent's preferred size.
-	if exterior != node.exterior_key || (old_children != children && !(input.width > 0 && input.height > 0)) || (changed_size && !(input.width > 0 && input.height > 0)) {
+	if exterior != node.exterior_key || (old_children != children && !(layout_authored_width(element) && layout_authored_height(element))) || (changed_size && !(layout_authored_width(element) && layout_authored_height(element))) {
 		tree.revision++
 		node.version = tree.revision
 		node.measures.clear()
@@ -391,7 +391,7 @@ fn (mut tree LayoutTree) measure_node(identity string, constraints LayoutConstra
 	mut preferred := LayoutSize{}
 	if node.declaration.hidden {
 		preferred = constraints.constrain(LayoutSize{})!
-	} else if input.width > 0 && input.height > 0 {
+	} else if layout_authored_width(node.declaration) && layout_authored_height(node.declaration) {
 		preferred = constraints.constrain(LayoutSize{ width: input.width, height: input.height })!
 	} else if layout_measure_is_text(node.declaration) {
 		text_key := '${node.text_key}|${constraints}|${tree.environment}|${voidptr(tree.measurer)}'
@@ -408,18 +408,20 @@ fn (mut tree LayoutTree) measure_node(identity string, constraints LayoutConstra
 		// Authored dimensions are preferences. Measure dependent content using
 		// the dimensions accepted by the parent, before deriving intrinsic size.
 		assigned := constraints.constrain(LayoutSize{
-			width:  if input.width > 0 { input.width } else { math.max(0.0, constraints.max_width) }
-			height: if input.height > 0 { input.height } else { math.max(0.0, constraints.max_height) }
+			width:  if layout_authored_width(node.declaration) { input.width } else { math.max(0.0, constraints.max_width) }
+			height: if layout_authored_height(node.declaration) { input.height } else { math.max(0.0, constraints.max_height) }
 		})!
 		mut available := rect(0, 0, assigned.width, assigned.height)
-		sizes := tree.child_sizes(node, LayoutConstraints{})!
-		if input.width <= 0 && constraints.max_width < 0 {
+		sizes := tree.child_sizes(node, available,
+			layout_authored_width(node.declaration) || (constraints.max_width >= 0 && constraints.min_width == constraints.max_width),
+			layout_authored_height(node.declaration) || (constraints.max_height >= 0 && constraints.min_height == constraints.max_height))!
+		if !layout_authored_width(node.declaration) && constraints.max_width < 0 {
 			available = rect(0, 0, layout_constrain_axis(layout_natural_width(node, sizes)!,
 				constraints.min_width, constraints.max_width), available.height)
 		}
 		frames, natural := tree.container_geometry(node, available, sizes, true, constraints)!
 		_ = frames
-		accepted_width := layout_constrain_axis(if input.width > 0 { input.width } else { natural.width },
+		accepted_width := layout_constrain_axis(if layout_authored_width(node.declaration) { input.width } else { natural.width },
 			constraints.min_width, constraints.max_width)
 		mut intrinsic_height := natural.height
 		if accepted_width != available.width {
@@ -433,7 +435,7 @@ fn (mut tree LayoutTree) measure_node(identity string, constraints LayoutConstra
 		}
 		preferred = constraints.constrain(LayoutSize{
 			width:  accepted_width
-			height: if input.height > 0 { input.height } else { intrinsic_height }
+			height: if layout_authored_height(node.declaration) { input.height } else { intrinsic_height }
 		})!
 	}
 	// Bound memory during arbitrary resize; retired content drops all entries.
@@ -442,22 +444,39 @@ fn (mut tree LayoutTree) measure_node(identity string, constraints LayoutConstra
 	return preferred
 }
 
-fn (mut tree LayoutTree) child_sizes(node &RetainedLayoutNode, constraints LayoutConstraints) ![]Rect {
+fn (mut tree LayoutTree) child_sizes(node &RetainedLayoutNode, available Rect, fixed_width bool, fixed_height bool) ![]Rect {
 	mut sizes := []Rect{cap: node.children.len}
+	offers_width := node.declaration.layout.kind in [.none, .absolute] && node.declaration.kind != .scroll
 	for child in node.children {
 		child_node := tree.nodes[child] or { return error('missing child') }
 		if child_node.declaration.hidden {
 			sizes << Rect{}
 			continue
 		}
-		size := tree.measure_node(child, constraints)!
+		// Absolute preserves authored overflow. Automatic layout may use the
+		// positive offered width to choose its columns before selecting width.
+		maximum := if !offers_width || layout_authored_width(child_node.declaration) || available.width <= 0 {
+			-1.0
+		} else {
+			available.width
+		}
+		inherit_width := node.declaration.layout.kind == .none && layout_inherits_width(child_node.declaration)
+			&& fixed_width && available.width > 0
+		inherit_height := node.declaration.layout.kind == .none && layout_inherits_height(child_node.declaration)
+			&& fixed_height && available.height > 0
+		size := tree.measure_node(child, LayoutConstraints{
+			min_width: if inherit_width { available.width } else { 0 }
+			max_width: if inherit_width { available.width } else { maximum }
+			min_height: if inherit_height { available.height } else { 0 }
+			max_height: if inherit_height { available.height } else { -1 }
+		})!
 		sizes << rect(child_node.input.x, child_node.input.y, size.width, size.height)
 	}
 	return sizes
 }
 
 fn (tree &LayoutTree) width_depends_on_height(node &RetainedLayoutNode) bool {
-	if node.input.width > 0 || node.declaration.hidden { return false }
+	if layout_authored_width(node.declaration) || node.declaration.hidden { return false }
 	if node.declaration.layout.kind == .flex && node.declaration.layout.flex.orientation == .vertical
 		&& node.declaration.layout.flex.wrap { return true }
 	if node.declaration.layout.kind in [.flex, .grid, .stack] {
@@ -505,7 +524,7 @@ fn (mut tree LayoutTree) container_geometry(node &RetainedLayoutNode, available 
 			}
 			// Automatic content fills the viewport horizontally and keeps its
 			// natural height. Authored widths can intentionally overflow it.
-			content_width := if child_node.input.width > 0 { sizes[i].width } else {
+			content_width := if layout_authored_width(child_node.declaration) { sizes[i].width } else {
 				math.max(0.0, available.width - sizes[i].x)
 			}
 			measured := tree.measure_node(child, LayoutConstraints{
@@ -534,7 +553,7 @@ fn (mut tree LayoutTree) container_geometry(node &RetainedLayoutNode, available 
 			// An unconstrained intrinsic height uses natural content. A bounded
 			// height, including a tight zero, determines vertical wrapping first.
 			initial := flex_preferred_size(config)!
-			if measuring && node.input.height <= 0 {
+			if measuring && !layout_authored_height(node.declaration) {
 				config = FlexConfig{ ...config, frame: rect(0, 0, available.width,
 					layout_constrain_axis(initial.height, constraints.min_height, constraints.max_height)) }
 			}
@@ -547,7 +566,7 @@ fn (mut tree LayoutTree) container_geometry(node &RetainedLayoutNode, available 
 			}
 			for i, child in node.children {
 				child_node := tree.nodes[child] or { return error('missing child') }
-				if child_node.input.height > 0 { continue }
+				if layout_authored_height(child_node.declaration) { continue }
 				// Measure natural height at the assigned width. The first frame's
 				// height is provisional, and must not prevent a wrapper's text from
 				// growing or replace a wrapped column's natural main-axis basis.
@@ -556,7 +575,7 @@ fn (mut tree LayoutTree) container_geometry(node &RetainedLayoutNode, available 
 			}
 			config = FlexConfig{ ...config, children: items }
 			mut natural := flex_preferred_size(config)!
-			if measuring && node.input.height <= 0 {
+			if measuring && !layout_authored_height(node.declaration) {
 				config = FlexConfig{ ...config, frame: rect(0, 0, available.width,
 					layout_constrain_axis(natural.height, constraints.min_height, constraints.max_height)) }
 			}
@@ -579,7 +598,7 @@ fn (mut tree LayoutTree) container_geometry(node &RetainedLayoutNode, available 
 		.grid {
 			mut config := GridConfig{ ...node.declaration.layout.grid, frame: available }
 			initial := grid_preferred_size(config, sizes)!
-			if measuring && node.input.height <= 0 {
+			if measuring && !layout_authored_height(node.declaration) {
 				config = GridConfig{ ...config, frame: rect(0, 0, available.width,
 					layout_constrain_axis(initial.height, constraints.min_height, constraints.max_height)) }
 			}
@@ -588,12 +607,12 @@ fn (mut tree LayoutTree) container_geometry(node &RetainedLayoutNode, available 
 			mut measured_sizes := preferred.clone()
 			for i, child in node.children {
 				child_node := tree.nodes[child] or { return error('missing child') }
-				if child_node.input.height > 0 { continue }
+				if layout_authored_height(child_node.declaration) { continue }
 				measured := tree.measure_node(child, LayoutConstraints{ min_width: first[i].width, max_width: first[i].width })!
 				measured_sizes[i] = rect(0, 0, preferred[i].width, measured.height)
 			}
 			natural := grid_preferred_size(config, measured_sizes)!
-			if measuring && node.input.height <= 0 {
+			if measuring && !layout_authored_height(node.declaration) {
 				config = GridConfig{ ...config, frame: rect(0, 0, available.width,
 					layout_constrain_axis(natural.height, constraints.min_height, constraints.max_height)) }
 			}
@@ -611,7 +630,7 @@ fn (mut tree LayoutTree) container_geometry(node &RetainedLayoutNode, available 
 			}
 			mut config := StackConfig{ ...node.declaration.layout.stack, frame: available, children: children }
 			initial := stack_preferred_size(config)!
-			if measuring && node.input.height <= 0 {
+			if measuring && !layout_authored_height(node.declaration) {
 				config = StackConfig{ ...config, frame: rect(0, 0, available.width,
 					layout_constrain_axis(initial.height, constraints.min_height, constraints.max_height)) }
 			}
@@ -624,13 +643,13 @@ fn (mut tree LayoutTree) container_geometry(node &RetainedLayoutNode, available 
 			}
 			for i, child in node.children {
 				child_node := tree.nodes[child] or { return error('missing child') }
-				if child_node.input.height > 0 { continue }
+				if layout_authored_height(child_node.declaration) { continue }
 				measured := tree.measure_node(child, LayoutConstraints{ min_width: first[i].width, max_width: first[i].width })!
 				children[i] = StackChild{ ...children[i], element: Element{ frame: rect(0, 0, children[i].element.frame.width, measured.height) } }
 			}
 			config = StackConfig{ ...config, children: children }
 			natural := stack_preferred_size(config)!
-			if measuring && node.input.height <= 0 {
+			if measuring && !layout_authored_height(node.declaration) {
 				config = StackConfig{ ...config, frame: rect(0, 0, available.width,
 					layout_constrain_axis(natural.height, constraints.min_height, constraints.max_height)) }
 			}
@@ -677,12 +696,12 @@ fn (mut tree LayoutTree) place_node(identity string, frame Rect) ! {
 	} else {
 		tree.counters.layout_visits++
 
-		sizes := tree.child_sizes(node, LayoutConstraints{})!
 		available := if node.declaration.content_size.width > 0 {
 			rect(0, 0, node.declaration.content_size.width, node.declaration.content_size.height)
 		} else {
 			rect(0, 0, frame.width, frame.height)
 		}
+		sizes := tree.child_sizes(node, available, true, true)!
 		computed, _ := tree.container_geometry(node, available, sizes, false, LayoutConstraints{})!
 		frames = computed.clone()
 	}
