@@ -34,6 +34,10 @@ mut:
 	declaration       Element
 	local_id          string
 	authored_id       string
+	authored_width    bool
+	authored_height   bool
+	inherit_width     bool
+	inherit_height    bool
 	is_fragment       bool
 	relative_key      string
 	presentation      &VmlPresentation = unsafe { nil }
@@ -224,6 +228,10 @@ fn (mut component CompiledVmlComponent) owned_element(declaration Element, confi
 		component:         &component
 		local_id:          local_id
 		authored_id:       declaration.id
+		authored_width:    config.authored_width
+		authored_height:   config.authored_height
+		inherit_width:     config.inherit_width
+		inherit_height:    config.inherit_height
 		is_fragment:       fragment
 		relative_key:      declaration.key
 		children_revision: new_signal(mut component.scope, u64(0),

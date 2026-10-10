@@ -89,8 +89,26 @@ fn layout_constrain_axis(value f64, minimum f64, maximum f64) f64 {
 // or GPU and lets an embedder use its own font engine without changing layout.
 pub type LayoutTextMeasureFn = fn (string, TextStyle, f64) !LayoutSize
 
-// measure_layout_element keeps positive declared dimensions and measures zero
-// axes from text or children. The retained LayoutTree uses this leaf contract;
+fn layout_authored_width(element Element) bool {
+	return (element.layout_input or { element.frame }).width > 0 || (element.compiled_node != unsafe { nil }
+		&& element.compiled_node.authored_width)
+}
+
+fn layout_authored_height(element Element) bool {
+	return (element.layout_input or { element.frame }).height > 0 || (element.compiled_node != unsafe { nil }
+		&& element.compiled_node.authored_height)
+}
+
+fn layout_inherits_width(element Element) bool {
+	return element.compiled_node != unsafe { nil } && element.compiled_node.inherit_width
+}
+
+fn layout_inherits_height(element Element) bool {
+	return element.compiled_node != unsafe { nil } && element.compiled_node.inherit_height
+}
+
+// measure_layout_element keeps authored dimensions, including explicit VML zero,
+// and measures omitted axes from text or children. LayoutTree uses this contract;
 // constructing an Element alone does not open a measurement environment. Containers with
 // a layout algorithm measure/place their children before this extent fallback.
 pub fn measure_layout_element(element Element, constraints LayoutConstraints, measure LayoutTextMeasureFn) !LayoutSize {
@@ -98,7 +116,7 @@ pub fn measure_layout_element(element Element, constraints LayoutConstraints, me
 	if element.hidden {
 		return constraints.constrain(LayoutSize{})
 	}
-	if element.frame.width > 0 && element.frame.height > 0 {
+	if layout_authored_width(element) && layout_authored_height(element) {
 		return constraints.constrain(LayoutSize{ width: element.frame.width, height: element.frame.height })
 	}
 	mut preferred := LayoutSize{}
@@ -107,7 +125,7 @@ pub fn measure_layout_element(element Element, constraints LayoutConstraints, me
 			return error('intrinsic text sizing requires a text measurer')
 		}
 		insets := layout_measure_control_insets(element)
-		outer_width := if element.frame.width > 0 {
+		outer_width := if layout_authored_width(element) {
 			layout_constrain_axis(element.frame.width, constraints.min_width, constraints.max_width)
 		} else {
 			constraints.max_width
@@ -163,8 +181,8 @@ pub fn measure_layout_element(element Element, constraints LayoutConstraints, me
 		preferred = LayoutSize{ width: width, height: height }
 	}
 	return constraints.constrain(LayoutSize{
-		width:  if element.frame.width > 0 { element.frame.width } else { preferred.width }
-		height: if element.frame.height > 0 { element.frame.height } else { preferred.height }
+		width:  if layout_authored_width(element) { element.frame.width } else { preferred.width }
+		height: if layout_authored_height(element) { element.frame.height } else { preferred.height }
 	})
 }
 
