@@ -118,17 +118,18 @@ fn test_clip_cache_misses_and_cancellation_preserve_published_clip_snapshots() !
 		transform := VisualTransform{ rotation: 19, origin_x: 60, origin_y: 40 }.matrix(rect(10, 10, 120, 80))!
 		ctx.begin()
 		first := ctx.retained_clip(ClipRegion{}, rect(10, 10, 120, 80), transform)
-		first_points := first.points.clone()
+		first_snapshot := first
+		first_bounds := first.bounds()
 		ctx.cancel()
 		ctx.begin()
 		changed := ctx.retained_clip(ClipRegion{}, rect(10, 10, 140, 80), transform)
 		ctx.cancel()
-		assert changed.points != first_points
-		assert first.points == first_points
+		assert changed.bounds() != first_bounds
+		assert first == first_snapshot && first.bounds() == first_bounds
 		ctx.begin()
 		cached := ctx.retained_clip(ClipRegion{}, rect(10, 10, 140, 80), transform)
 		ctx.cancel()
-		assert cached.points.data == changed.points.data
+		assert cached == changed
 		assert ctx.clip_snapshots.len == 1
 		before := gc_allocation_snapshot()!
 		for _ in 0 .. 100 {

@@ -419,6 +419,9 @@ pub struct Element {
 	// Constructor projections compare against the snapshot they received, even
 	// when effects have subsequently updated the retained declaration.
 	compiled_source &VmlSourceSnapshot = unsafe { nil }
+	// Presentation state is retained separately from authored binding values.
+	motion_state     &ElementMotionState = unsafe { nil }
+	presence_exiting bool
 pub:
 	// Compiled components retain their declaration owner independently of layout.
 	// It is not an authored property or a model/binding value.
@@ -466,6 +469,8 @@ pub:
 	drag_source               ?DragSource
 	drop_target               ?DropTarget
 	draggable                 bool // view/image: emit pointer drag events
+	opacity               f64 = 1 // custom: inherited per-primitive opacity
+	motion                ?MotionConfig
 	rotation                  f64  // custom: clockwise visual rotation, for every element
 	translate_x               f64
 	translate_y               f64
@@ -582,8 +587,17 @@ pub fn validate_element_tree(root Element) ! {
 
 fn validate_element_node(el Element, path string, mut ids map[string]bool) ! {
 	validate_drag_element(el)!
-	el.visual_transform().matrix(el.frame)!
-	if el.visual_transform() != VisualTransform{} {
+	if !finite_number(el.opacity) || el.opacity < 0 || el.opacity > 1 {
+		return error('opacity must be finite and between zero and one at ${path}')
+	}
+	if config := el.motion { config.validate()! }
+	if el.opacity != 1 || el.motion != none {
+		$if !(linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ?&& !ui2_document_library ? {
+			return error('opacity and motion require the desktop custom renderer at ${path}')
+		}
+	}
+	el.authored_visual_transform().matrix(el.frame)!
+	if el.authored_visual_transform() != VisualTransform{} {
 		$if !( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headless ? {
 			return error('visual transforms require the custom renderer at ${path}')
 		}

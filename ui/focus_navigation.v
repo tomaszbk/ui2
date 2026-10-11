@@ -31,6 +31,7 @@ struct FocusNode {
 	local_frame Rect
 	scrolls     []string
 	menu_options []string
+	pointer_owner_identity string
 mut:
 	frame       Rect
 	subtree_len int
@@ -59,6 +60,9 @@ mut:
 	geometry_revision u64
 	geometry_serial u64
 	presentation_serial u64
+	motion_serial                u64
+	geometry_motion_serial       u64
+	refresh_motion_changed       bool
 	refresh_presentation_changed bool
 	refresh_offsets_changed bool
 	geometry_frame Rect
@@ -117,9 +121,12 @@ fn (mut manager FocusManager) set_root(root Element) {
 fn (mut manager FocusManager) update_geometry(root Element, offsets map[string]f64, transform ContentTransform, root_frame Rect, clip ClipRegion) {
 	manager.set_root(root)
 	if manager.geometry_serial > 0 && manager.geometry_revision == manager.root_revision
+		&& manager.geometry_motion_serial == manager.motion_serial
 		&& manager.geometry_frame == root_frame && manager.geometry_transform == transform
 		&& manager.geometry_clip == clip && manager.scroll_offsets == offsets { return }
 	manager.refresh_presentation_changed = manager.geometry_serial == 0
+	manager.refresh_motion_changed = manager.geometry_motion_serial != manager.motion_serial
+	manager.geometry_motion_serial = manager.motion_serial
 	manager.geometry_revision = manager.root_revision
 	manager.geometry_serial++
 	manager.geometry_frame = root_frame
@@ -171,11 +178,13 @@ fn (mut manager FocusManager) refresh_geometry(el Element, frame Rect, path stri
 	if !rebuild && index >= manager.nodes.len { return -1 }
 	previous := if rebuild { FocusNode{} } else { manager.nodes[index] }
 	if !rebuild && (previous.path != path || previous.parent != parent || previous.el.id != el.id
-		|| previous.el.children.len != el.children.len) { return -1 }
-	hidden := ancestor_hidden || el.hidden
-	enabled := ancestor_enabled && el.enabled
+		|| previous.el.children.len != el.children.len) {
+		return -1
+	}
+	hidden := ancestor_hidden || el.presented_hidden()
+	enabled := ancestor_enabled && el.presented_enabled()
 	local := rect(off_x + frame.x, off_y + frame.y, frame.width, frame.height)
-	if !rebuild && !manager.refresh_offsets_changed && previous.el == el && previous.local_frame == local && previous.parent_transform == outer
+	if !rebuild && !manager.refresh_offsets_changed && !manager.refresh_motion_changed && previous.el == el && previous.local_frame == local && previous.parent_transform == outer
 		&& previous.clip == clip && previous.hidden == hidden && previous.enabled == enabled
 		&& previous.scrolls == scrolls && !el.focus_scope && previous.scopes == scopes {
 		return index + previous.subtree_len
@@ -190,7 +199,10 @@ fn (mut manager FocusManager) refresh_geometry(el Element, frame Rect, path stri
 		if previous.el.focus_scope && previous.scopes.len == scopes.len + 1
 			&& previous.scopes[..scopes.len] == scopes && previous.scopes.last() == el.id {
 			child_scopes = previous.scopes
-		} else { child_scopes = scopes.clone(); child_scopes << el.id }
+		} else {
+			child_scopes = scopes.clone()
+			child_scopes << el.id
+		}
 	}
 	mut menu_options := unsafe { previous.menu_options }
 	if rebuild || previous.el.menu != el.menu { menu_options = element_menu_options(el) }
@@ -202,10 +214,24 @@ fn (mut manager FocusManager) refresh_geometry(el Element, frame Rect, path stri
 		manager.nodes << FocusNode{}
 	}
 	manager.nodes[index] = FocusNode{
-		el: el, path: path, parent: parent, eligible: !hidden && enabled && element_focusable(el),
-		hidden: hidden, enabled: enabled, scopes: child_scopes, frame: transform.project(local),
-		transform: transform, parent_transform: outer, clip: clip, local_frame: local,
-		scrolls: scrolls, menu_options: menu_options, subtree_len: previous.subtree_len,
+		el:               el
+		path:             path
+		parent:           parent
+		eligible:         !hidden && enabled && element_focusable(el)
+		hidden:           hidden
+		enabled:          enabled
+		scopes:           child_scopes
+		frame:            transform.project(local)
+		transform:        transform
+		parent_transform: outer
+		clip:             clip
+		local_frame:      local
+		scrolls:          scrolls
+		menu_options:     menu_options
+		pointer_owner_identity: if previous.pointer_owner_identity.len > 0 {
+			previous.pointer_owner_identity
+		} else if el.id.len > 0 { 'id:' + el.id } else { 'path:' + path }
+		subtree_len:      previous.subtree_len
 	}
 	mut child_x := local.x
 	mut child_y := local.y
@@ -235,7 +261,10 @@ fn (mut manager FocusManager) refresh_geometry(el Element, frame Rect, path stri
 		child_y -= manager.scroll_offsets[path] or { 0.0 }
 		if previous.el.kind == .scroll && previous.scrolls == scrolls && previous.subtree_len > 1 {
 			child_scrolls = manager.nodes[index + 1].scrolls
-		} else { child_scrolls = scrolls.clone(); child_scrolls << path }
+		} else {
+			child_scrolls = scrolls.clone()
+			child_scrolls << path
+		}
 	}
 	mut next := index + 1
 	for i, child in el.children {
@@ -424,7 +453,7 @@ fn focus_reveal_offset(offset f64, viewport_height f64, target Rect) f64 {
 fn scroll_content_height(el Element) f64 {
 	mut bottom := 0.0
 	for child in el.children {
-		if !child.hidden { bottom = math.max(bottom, child.frame.y + child.frame.height) }
+		if !child.layout_excluded() { bottom = math.max(bottom, child.frame.y + child.frame.height) }
 	}
 	return if bottom > 0 { bottom + 16 } else { 0.0 }
 }

@@ -54,6 +54,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 			field_text_buffer   FrameTextBuffer
 			prefix_text_buffer  FrameTextBuffer
 			interaction_enabled bool               = true
+			opacity             f64 = 1
 			submitted_polygon   fn ([]PaintVertex) = unsafe { nil }
 			ft                  &gg.FT             = unsafe { nil }
 			font_inited         bool
@@ -88,6 +89,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 			selection_rects      []Rect
 			glyph_selection_rects []gg.Rect
 			interaction_enabled  bool               = true
+			opacity              f64 = 1
 			submitted_polygon    fn ([]PaintVertex) = unsafe { nil }
 			text                 &TextEngine        = unsafe { nil }
 			text_renderer        &vglyph.Renderer   = unsafe { nil }
@@ -538,17 +540,22 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		return PaintVertex{ x: p.x, y: p.y, r: f64(c.r), g: f64(c.g), b: f64(c.b), a: f64(c.a) }
 	}
 	fn (ctx &DrawContext) emit_window_polygon(vertices []PaintVertex, dpi f64) {
+		if ctx.opacity <= 0 { return }
 		mut buffer := unsafe { &ctx.paint_clip }
 		clipped := ctx.clip_region.clip_polygon_buffered(vertices, mut buffer)
 		if clipped.len < 3 { return }
 		$if ui2_geometry_capture ? {
-			if voidptr(ctx.submitted_polygon) != unsafe { nil } { ctx.submitted_polygon(clipped) }
+			if voidptr(ctx.submitted_polygon) != unsafe { nil } {
+				mut submitted := []PaintVertex{cap: clipped.len}
+				for vertex in clipped { submitted << PaintVertex{ ...vertex, a: vertex.a * ctx.opacity } }
+				ctx.submitted_polygon(submitted)
+			}
 		}
 		sgl.begin_triangles()
 		for i in 1 .. clipped.len - 1 {
 			for index in [0, i, i + 1]! {
 				v := clipped[index]
-				sgl.c4b(u8(math.clamp(v.r, 0.0, 255.0)), u8(math.clamp(v.g, 0.0, 255.0)), u8(math.clamp(v.b, 0.0, 255.0)), u8(math.clamp(v.a, 0.0, 255.0)))
+				sgl.c4b(u8(math.clamp(v.r, 0.0, 255.0)), u8(math.clamp(v.g, 0.0, 255.0)), u8(math.clamp(v.b, 0.0, 255.0)), u8(math.clamp(v.a * ctx.opacity, 0.0, 255.0)))
 				sgl.v2f_t2f(f32(v.x * dpi), f32(v.y * dpi), f32(v.u), f32(v.v))
 			}
 		}

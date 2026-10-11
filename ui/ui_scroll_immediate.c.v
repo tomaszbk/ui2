@@ -40,31 +40,43 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 			&& g_gg_app.pointer_popup_scroll == g_dropdown_scroll
 			&& g_gg_app.pointer_popup_selected == selected
 			&& g_hit_targets.len >= g_gg_app.mounted_hit_count { return }
-		for id in g_scroll_targets.keys() {
-			// Anonymous text areas keep their separate editor/layout lifecycle.
-			if id.starts_with(anonymous_text_area_scroll_prefix) { continue }
-			if node := mounted_scroll_node(id) {
-				if node.el.kind == .scroll { continue }
-				previous := g_scroll_targets[id] or { HitTarget{} }
-				if node.el.kind == .text_area && previous.kind != .scroll {
-					g_scroll_targets[id] = HitTarget{ id: node.el.id, kind: node.el.kind,
-						on_event: if !node.hidden && node.enabled { node.el.on_event } else { ElementCallback(unsafe { nil }) } }
-					continue
+		// Mounted identities change with declarations, not with sampled motion.
+		// Enumerating keys is only needed when a source tree changes.
+		if g_drag_registry.root_revision != g_focus_navigation.root_revision {
+			for id in g_scroll_targets.keys() {
+				// Anonymous text areas keep their separate editor/layout lifecycle.
+				if id.starts_with(anonymous_text_area_scroll_prefix) { continue }
+				if node := mounted_scroll_node(id) {
+					if node.el.kind == .scroll { continue }
+					previous := g_scroll_targets[id] or { HitTarget{} }
+					if node.el.kind == .text_area && previous.kind != .scroll {
+						g_scroll_targets[id] = HitTarget{ id: node.el.id, kind: node.el.kind,
+							on_event: if !node.hidden && node.enabled { node.el.on_event } else { ElementCallback(unsafe { nil }) } }
+						continue
+					}
 				}
+				g_scroll_targets.delete(id)
+				g_scroll_viewports.delete(id)
+				g_scroll_content_h.delete(id)
+				g_scroll_transforms.delete(id)
+				g_scroll_areas.delete(id)
+				g_scroll_parents.delete(id)
+				g_scrollbar_geometries.delete(id)
 			}
-			g_scroll_targets.delete(id)
-			g_scroll_viewports.delete(id)
-			g_scroll_content_h.delete(id)
-			g_scroll_transforms.delete(id)
-			g_scroll_areas.delete(id)
-			g_scroll_parents.delete(id)
-			g_scrollbar_geometries.delete(id)
 		}
-		mut mounted_hits := []HitTarget{}
-		mut mounted_owners := map[string]HitTarget{}
+		mut mounted_hits := unsafe { g_hit_targets }
+		mounted_hits.clear()
+		mut mounted_owners := unsafe { g_drag_registry.owners }
+		g_drag_registry.pointer_publication++
+		mut owner_count := 0
 		g_dropdown_popup.mounted=false
 		for node in g_focus_navigation.nodes {
 			publish_mounted_pointer(node,mut mounted_hits,mut mounted_owners)
+			if !node.hidden && node.enabled && (node.el.drag_source!=none || node.el.drop_target!=none)
+				&& node.pointer_owner_identity in mounted_owners
+				&& mounted_owners[node.pointer_owner_identity].pointer_publication==g_drag_registry.pointer_publication {
+				owner_count++
+			}
 			if node.el.kind==.dropdown && node.el.id==g_open_dropdown && !node.hidden && node.enabled {
 				options := node.menu_options_snapshot()
 				ctx := g_gg_app.ctx
@@ -81,17 +93,24 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 			g_scroll_viewports[id] = node.local_frame
 			g_scroll_content_h[id] = scroll_content_height(node.el)
 			g_scroll_transforms[id] = node.transform
-			g_scroll_parents.delete(id)
 			if node.scrolls.len > 0 {
 				parent := g_focus_navigation.path_node(node.scrolls.last()) or { continue }
 				g_scroll_parents[id] = scroll_view_state_id(parent.el, parent.path)
+			} else {
+				g_scroll_parents.delete(id)
 			}
 			if node.hidden || !node.enabled {
 				g_scroll_areas.delete(id)
 				g_scrollbar_geometries.delete(id)
 			}
 		}
-		g_drag_registry.owners=mounted_owners
+		if mounted_owners.len > owner_count {
+			for key, target in mounted_owners {
+				if target.pointer_publication!=g_drag_registry.pointer_publication { mounted_owners.delete(key) }
+			}
+		}
+		unsafe { g_drag_registry.owners=mounted_owners }
+		g_drag_registry.root_revision=g_focus_navigation.root_revision
 		if g_open_dropdown.len>0 && !g_dropdown_popup.mounted { close_dropdown() }
 		// Popup rows are window overlays; all tree targets came from the same
 		// mounted frames/affine/clip above, including offscreen declarations.
@@ -101,7 +120,10 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 			list := dropdown_list_frame(g_dropdown_popup,window)
 			for i, _ in g_dropdown_popup.options {
 				target := dropdown_row_target(g_dropdown_popup,i,list)
-				if target.w>0 && target.h>0 { mounted_hits << target }
+				if target.w>0 && target.h>0 {
+					mounted_hits << HitTarget{}
+					mounted_hits[mounted_hits.len-1]=target
+				}
 			}
 		}
 		unsafe { g_hit_targets=mounted_hits }

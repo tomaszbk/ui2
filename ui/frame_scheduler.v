@@ -18,6 +18,8 @@ pub enum RenderReason {
 	paint
 	surface
 	animation
+	// Retained presentation motion samples without rerunning the builder.
+	motion
 	// Event callbacks may update the model after animation evaluation. Build
 	// their next snapshot without canceling the current animated presentation.
 	animation_follow_up
@@ -49,6 +51,7 @@ pub:
 	pending_reasons       []RenderReason
 	next_deadline         i64 = -1
 	animation_active      bool
+	motion_active         bool
 	presentation_required bool
 	suspended             bool
 	closed                bool
@@ -85,7 +88,7 @@ struct FrameWork {
 	serial     u64
 	build      bool
 	draw       bool
-	reasons    [9]RenderReason
+	reasons    [10]RenderReason
 	reason_count int
 }
 
@@ -109,12 +112,13 @@ mut:
 	requests              u64
 	generation            u64
 	finished_generation   u64
-	pending_reasons       [9]RenderReason
+	pending_reasons       [10]RenderReason
 	pending_count         int
 	next_serial           u64
 	active_serial         u64
 	next_deadline         i64 = -1
 	animation_active      bool
+	motion_active         bool
 	presentation_required bool
 	suspended             bool
 	closed                bool
@@ -163,7 +167,7 @@ fn (mut coordinator FrameCoordinator) next_wake(now i64, last_frame i64, interva
 		return now
 	}
 	mut deadline := coordinator.next_deadline
-	if coordinator.animation_active {
+	if coordinator.animation_active || coordinator.motion_active {
 		frame_at := if last_frame < 0 {
 			now
 		} else {
@@ -231,6 +235,9 @@ fn (mut coordinator FrameCoordinator) begin_frame(now i64) ?FrameWork {
 	}
 	if coordinator.animation_active {
 		coordinator.invalidate_locked(.animation)
+	}
+	if coordinator.motion_active {
+		coordinator.invalidate_locked(.motion)
 	}
 	if coordinator.pending_count == 0
 		&& !coordinator.presentation_required {
@@ -327,6 +334,16 @@ fn (mut coordinator FrameCoordinator) set_animation_active(active bool) {
 	}
 }
 
+fn (mut coordinator FrameCoordinator) set_motion_active(active bool) {
+	coordinator.mutex.lock()
+	mut changed := false
+	defer { coordinator.unlock_and_wake(changed) }
+	if !coordinator.closed {
+		changed = coordinator.motion_active != active
+		coordinator.motion_active = active
+	}
+}
+
 fn (mut coordinator FrameCoordinator) suspend() {
 	coordinator.mutex.lock()
 	defer { coordinator.mutex.unlock() }
@@ -354,6 +371,7 @@ fn (mut coordinator FrameCoordinator) close() {
 	coordinator.closed = true
 	coordinator.suspended = false
 	coordinator.animation_active = false
+	coordinator.motion_active = false
 	coordinator.next_deadline = -1
 	coordinator.active_serial = 0
 	coordinator.pending_count = 0
@@ -429,6 +447,7 @@ fn (mut coordinator FrameCoordinator) stats() RenderStats {
 		pending_reasons:       coordinator.pending_reason_list()
 		next_deadline:         coordinator.next_deadline
 		animation_active:      coordinator.animation_active
+		motion_active:         coordinator.motion_active
 		presentation_required: coordinator.presentation_required
 		suspended:             coordinator.suspended
 		closed:                coordinator.closed

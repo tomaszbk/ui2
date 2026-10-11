@@ -1,0 +1,7 @@
+component MotionChild(title string = "Motion") {
+    state count := 0
+    Column(id: "body", opacity: app.alpha, motion: app.config, translate_x: app.offset, hidden: app.hidden, width: 120, height: 60) {
+        Button(id: "increment", text: count, width: 100, height: 30, on_click: count++)
+        Label(text: title, width: 100, height: 20)
+    }
+}

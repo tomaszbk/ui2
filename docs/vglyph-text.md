@@ -24,7 +24,7 @@ grapheme, and complete bidirectional editing, remain separate work.
 ## Build dependencies
 
 Use the published `tomaszbk/v` compiler revision
-[`4c58652`](https://github.com/tomaszbk/v/commit/4c5865254bda6cb2ff20dfc2af18ee50f676276a).
+[`fd993df`](https://github.com/tomaszbk/v/commit/fd993df6d7bac3deb7e393fa4752b07f5b13f491).
 It includes the component grammar, retained VML lowering, fixed-array
 callback/ownership fixes, a retained gg frame pass, precise Boehm allocation
 sampling in V3 and map equality without key allocations.

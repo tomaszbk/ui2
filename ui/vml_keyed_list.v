@@ -20,6 +20,9 @@ struct VmlKeyedEntry[T] {
 	item      &Signal[T]
 	index     &Signal[int]
 	nodes     []&CompiledVmlNode
+mut:
+	leaving       bool
+	exit_revision u64
 }
 
 // A typed wrapper retains the immutable key returned by the callback. Appending
@@ -42,6 +45,7 @@ pub struct VmlKeyedList[T] {
 mut:
 	entries map[string]&VmlKeyedEntry[T]
 	order   []string
+	leaving []string
 	key_buffer []VmlListKey
 	effect  &SignalEffect = unsafe { nil }
 }
@@ -60,6 +64,13 @@ pub fn new_vml_keyed_list[T](mut parent CompiledVmlNode, name string, key fn (T)
 	}
 	parent.set_segment('list:' + name, []&CompiledVmlNode{})!
 	list := &VmlKeyedList[T]{ owner: owner, parent: &parent, key: key, build: build, segment: 'list:' + name }
+	owner.on_cleanup('@presence', fn [mut list] [T]() {
+		// Scope cleanup also runs when an ancestor/window is disposed directly.
+		// Node-owned cleanup cancels the timelines and their completion hooks.
+		list.entries.clear()
+		list.order.clear()
+		list.leaving.clear()
+	})!
 	owner.values['@list'] = voidptr(list)
 	owner.value_types['@list'] = 'VmlKeyedList[${T.name}]'
 	return list
@@ -125,7 +136,15 @@ fn (mut list VmlKeyedList[T]) reconcile(items []T, keys []string, active map[str
 	mut inserted := []string{}
 	for index, item in items {
 		key := keys[index]
-		if key in list.entries { continue }
+		if mut entry := list.entries[key] {
+			if entry.leaving {
+				entry.exit_revision++
+				entry.leaving = false
+				entry.component.leaving = false
+				for mut node in entry.nodes { node.resume_presence_enter(entry.component)! }
+			}
+			continue
+		}
 		mut component := list.owner.child(key)!
 		signal := component.state('item', item)!
 		position := component.state('@index', index)!
@@ -154,16 +173,57 @@ fn (mut list VmlKeyedList[T]) reconcile(items []T, keys []string, active map[str
 		inserted << key
 	}
 	list.update_items(items, keys)!
-	mut children := []&CompiledVmlNode{cap: keys.len}
-	for key in keys { children << list.entries[key].nodes }
-	list.parent.set_segment(list.segment, children)!
+	list.leaving = list.leaving.filter(it !in active)
+	mut immediate := []string{}
 	for old in list.order {
 		if old !in active {
-			list.entries[old].component.dispose()!
-			list.entries.delete(old)
+			mut entry := list.entries[old] or { continue }
+			entry.exit_revision++
+			revision := entry.exit_revision
+			entry.leaving = true
+			entry.component.leaving = true
+			mut pending := &VmlPresenceExit{
+				completion: fn [mut list, old, revision] [T]() {
+					list.finish_presence_exit(old, revision) or {
+						eprintln('ui2 presence removal failed: ${err}')
+					}
+				}
+			}
+			for mut node in entry.nodes { node.begin_presence_exit(mut pending)! }
+			if pending.remaining > 0 {
+				list.leaving << old
+			} else {
+				immediate << old
+			}
 		}
 	}
 	list.order = keys
+	list.publish_presence_children()!
+	for key in immediate {
+		list.entries[key].component.dispose()!
+		list.entries.delete(key)
+	}
+}
+
+fn (mut list VmlKeyedList[T]) publish_presence_children() ! {
+	mut children := []&CompiledVmlNode{cap: list.order.len + list.leaving.len}
+	for key in list.order { children << list.entries[key].nodes }
+	// Exits keep their old resolved frames, but do not take an active position
+	// or prevent inserted/reordered items from using the current logical order.
+	for key in list.leaving { children << list.entries[key].nodes }
+	// Presence may change while the exact retained handles stay in place.
+	list.parent.segments_current = false
+	list.parent.set_segment(list.segment, children)!
+}
+
+fn (mut list VmlKeyedList[T]) finish_presence_exit(key string, revision u64) ! {
+	if list.owner.is_disposed() { return }
+	mut entry := list.entries[key] or { return }
+	if !entry.leaving || entry.exit_revision != revision { return }
+	list.leaving = list.leaving.filter(it != key)
+	list.publish_presence_children()!
+	entry.component.dispose()!
+	list.entries.delete(key)
 }
 
 fn (mut list VmlKeyedList[T]) update_items(items []T, keys []string) ! {
@@ -184,4 +244,5 @@ pub fn (mut list VmlKeyedList[T]) dispose() ! {
 	list.owner.dispose()!
 	list.entries.clear()
 	list.order.clear()
+	list.leaving.clear()
 }

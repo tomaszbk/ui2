@@ -41,6 +41,10 @@ caps/joins and shape-based pointer hits. See `examples/vector_canvas`.
 Custom windows support [typed drag sources, drop targets and previews](docs/drag-drop.md).
 Run `v -b c -d ui2_custom_rendering run examples/drag_drop` to try the interaction.
 
+Custom rendering supports retained [motion and presence](docs/motion-presence.md):
+entry and exit, fading, animated transforms, reduced motion and controlled clocks.
+Run `v -b c -d ui2_custom_rendering run examples/motion_presence` to try it.
+
 On macOS, the experimental owned embedder adds native windows, Metal surfaces,
 IME composition and a blocking event loop. Enable it with both
 `-d ui2_custom_rendering -d ui2_embedder` for idle sleep.
@@ -50,8 +54,9 @@ updates and dispatchers. See [the embedder contract and acceptance tests](docs/c
 ## Requirements
 
 `ui2` uses the published `tomaszbk/v` compiler revision
-[`147c8f7`](https://github.com/tomaszbk/v/commit/147c8f795369672d4006dfd9ef14d1bc80e0583d),
-which includes the component grammar and retained VML lowering.
+[`fd993df`](https://github.com/tomaszbk/v/commit/fd993df6d7bac3deb7e393fa4752b07f5b13f491),
+which incorporates upstream master `f1c3ee4`, component and motion lowering,
+and the verified retained-rendering and compiler fixes.
 CI bootstraps the verified source revision with pinned `vc` and Boehm GC assets using
 [the shared setup action](.github/actions/setup-v/action.yml).
 The module is split across `ui/`, `appkit/`,
