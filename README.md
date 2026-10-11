@@ -54,7 +54,7 @@ updates and dispatchers. See [the embedder contract and acceptance tests](docs/c
 ## Requirements
 
 `ui2` uses the published `tomaszbk/v` compiler revision
-[`e045d20`](https://github.com/tomaszbk/v/commit/e045d20ca73d77ff73ecad43bdff84ddf00e8b66),
+[`fdbded6`](https://github.com/tomaszbk/v/commit/fdbded6ef455f56f34319f2d6fb500fb0520bfe1),
 which incorporates upstream master `f1c3ee4`, component and motion lowering,
 and the verified retained-rendering and compiler fixes.
 CI bootstraps the verified source revision with pinned `vc` and Boehm GC assets using
