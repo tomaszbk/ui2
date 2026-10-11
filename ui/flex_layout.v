@@ -58,7 +58,7 @@ fn flex_validate(config FlexConfig) ! {
 	}
 	for value in [config.frame.x, config.frame.y, config.frame.width, config.frame.height,
 		config.padding.left, config.padding.top, config.padding.right, config.padding.bottom,
-		config.gap, config.line_gap] {
+		config.gap, config.line_gap]! {
 		if !layout_finite(value) {
 			return error('flex layout dimensions and spacing must be finite')
 		}
@@ -78,7 +78,7 @@ fn flex_validate(config FlexConfig) ! {
 	for child in config.children {
 		for value in [child.element.frame.x, child.element.frame.y, child.element.frame.width,
 			child.element.frame.height, child.basis, child.grow, child.shrink, child.minimum_width,
-			child.minimum_height, child.maximum_width, child.maximum_height] {
+			child.minimum_height, child.maximum_width, child.maximum_height]! {
 			if !layout_finite(value) {
 				return error('flex child sizes, bounds, and weights must be finite')
 			}

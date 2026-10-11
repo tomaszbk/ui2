@@ -22,15 +22,15 @@ fn (node &CompiledVmlNode) source_element() Element {
 }
 
 fn (node &CompiledVmlNode) constructor_source_element() Element {
-	source := node.source_element()
 	mut snapshot := node.source_snapshot
-	if snapshot == unsafe { nil } || !vml_declaration_equal(snapshot.value, source) {
-		snapshot = &VmlSourceSnapshot{ node: node, value: source }
+	if snapshot == unsafe { nil } {
+		snapshot = &VmlSourceSnapshot{ node: node, value: node.source_element() }
 		// This memoizes an immutable value. Previously returned Elements retain
-		// their own baseline; unchanged declarations reuse the same allocation.
+		// their own baseline; declaration writes invalidate the memo explicitly.
+		// A read never walks or clones the unchanged descendant tree.
 		unsafe { node.source_snapshot = snapshot }
 	}
-	return Element{ ...source, compiled_source: snapshot }
+	return Element{ ...snapshot.value, compiled_source: snapshot }
 }
 
 fn (mut node CompiledVmlNode) set_presentation(element Element, parent &CompiledVmlNode) ! {

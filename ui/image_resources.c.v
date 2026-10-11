@@ -41,6 +41,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	mut:
 		entries map[string]ImageEntry
 		pages map[int]&ImageAtlasPage
+		stale_pages []int
 		next_page int
 		frame u64
 		in_frame bool
@@ -180,8 +181,12 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		for key, entry in resources.entries {
 			if entry.seen != resources.frame { resources.forget(key) }
 		}
+		resources.stale_pages.clear()
 		for id, page in resources.pages {
-			if page.live > 0 { continue }
+			if page.live <= 0 { resources.stale_pages << id }
+		}
+		for id in resources.stale_pages {
+			page := resources.pages[id] or { continue }
 			gfx.destroy_image(page.image); gfx.destroy_sampler(page.sampler)
 			resources.pages.delete(id)
 			resources.destroyed++
@@ -261,14 +266,15 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		sgl.load_pipeline(ctx.images.pipeline)
 		sgl.enable_texture(); sgl.texture(page.image,page.sampler)
 		tint := el.image_style.tint
-		uvs := [ImagePoint{u0,v0},ImagePoint{u1,v0},ImagePoint{u1,v1},ImagePoint{u0,v1}]
-		mut vertices := []PaintVertex{cap:4}
+		uvs := [ImagePoint{u0,v0},ImagePoint{u1,v0},ImagePoint{u1,v1},ImagePoint{u0,v1}]!
+		mut vertices := unsafe { &ctx.paint_vertices }
+		vertices.clear()
 		for i, point in geometry.points {
-			p := ctx.content_transform.point(point.x,point.y)
+			p := ctx.content_transform.point(point.x, point.y)
 			vertices << PaintVertex{x:p.x,y:p.y,u:uvs[i].x,v:uvs[i].y,
 				r:f64(tint.r),g:f64(tint.g),b:f64(tint.b),a:f64(tint.a)}
 		}
-		ctx.emit_window_polygon(vertices,f64(ctx.scale))
+		ctx.emit_window_polygon(unsafe { *vertices },f64(ctx.scale))
 		sgl.disable_texture()
 		return true
 	}

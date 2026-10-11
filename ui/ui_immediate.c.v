@@ -10,6 +10,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 	import sokol.sapp
 	import sokol.gfx
 	import time
+	import arena
 
 	struct HitTarget {
 		is_image bool
@@ -85,6 +86,11 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		scrollbar_grab_y   f64
 	}
 
+	struct BuildArena {
+	mut:
+		allocator arena.Arena
+	}
+
 	@[heap]
 	struct GgApp {
 	mut:
@@ -123,11 +129,22 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		editable_fields map[string]bool
 		presentation_revision u64
 		visual_geometries map[string]VisualGeometry
+		visual_geometry_serial u64
+		pointer_geometry_serial u64
+		mounted_hit_count int
+		pointer_popup_owner string
+		pointer_popup_scroll f64
+		pointer_popup_selected string
+		controls_root Element
+		controls_initialized bool
+		controls_prune_pending bool
+		focus_offsets map[string]f64
+		build_arena &BuildArena = unsafe { nil }
 	}
 
 	// DropdownPopup caches the geometry of the open dropdown list. The list is
 	// drawn after the element tree so it floats above every other control, and
-	// it is recomputed each frame to stay anchored to a moving control.
+	// it is refreshed when its owner, selection or presentation geometry changes.
 	struct DropdownPopup {
 	mut:
 		id         string
@@ -807,8 +824,23 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		state.ctx = unsafe { nil }
 		clear_text_area_layouts()
 		state.declared_root = Element{}
+		state.controls_root = Element{}
+		state.controls_initialized = false
+		state.controls_prune_pending = false
+		state.focus_offsets.clear()
+		state.visual_geometries.clear()
+		state.pointer_geometry_serial = 0
+		state.visual_geometry_serial = 0
+		state.mounted_hit_count = 0
+		state.pointer_popup_owner = ''
+		state.pointer_popup_scroll = 0
+		state.pointer_popup_selected = ''
 		state.declaration_pending = false
 		state.layout_tree.clear()
+		if state.build_arena != unsafe { nil } {
+			state.build_arena.allocator.free()
+			state.build_arena = unsafe { nil }
+		}
 		state.layout_patches.clear()
 		state.has_root = false
 		state.editable_fields.clear()
@@ -873,7 +905,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		dispatch := custom_input_dispatch(&app)
 		ctx := app.ctx
 		animated := if input { app.declared_root } else { apply_custom_widget_animations(app.declared_root) }
-		if !dispatch.valid() || app.ctx != ctx || (ctx != unsafe { nil } && !custom_layout_owner_current(dispatch,ctx,input)) {
+		if !dispatch.valid() || voidptr(app.ctx) != voidptr(ctx) || (ctx != unsafe { nil } && !custom_layout_owner_current(dispatch,ctx,input)) {
 			return error('layout frame canceled')
 		}
 		if work.build || app.declaration_pending || app.layout_tree.root.len == 0 {
@@ -884,7 +916,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 			// A compiled declaration already contains this or a newer state.
 			if patch.document && patch.serial <= app.declared_patch_serial { continue }
 			element := if input { patch.element } else { apply_custom_widget_animations(patch.element) }
-			if !dispatch.valid() || app.ctx != ctx || (ctx != unsafe { nil } && !custom_layout_owner_current(dispatch,ctx,input)) {
+			if !dispatch.valid() || voidptr(app.ctx) != voidptr(ctx) || (ctx != unsafe { nil } && !custom_layout_owner_current(dispatch,ctx,input)) {
 				return error('layout frame canceled')
 			}
 			if patch.compiled != unsafe { nil } {
@@ -894,13 +926,33 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 			}
 			app.declared_root = app.layout_tree.declaration()
 		}
-		resolved := app.layout_tree.resolve(LayoutConstraints{}, measure, app.layout_environment)!
-		return effective_element_state(resolved, true)
+		return app.layout_tree.resolve(LayoutConstraints{}, measure, app.layout_environment)!
 	}
 
 	fn custom_layout_owner_current(dispatch CustomInputDispatch, ctx &DrawContext, input bool) bool {
-		return if input { dispatch.valid() && dispatch.app.ctx==ctx && !ctx.destroyed && !ctx.destroying
+		return if input { dispatch.valid() && voidptr(dispatch.app.ctx)==voidptr(ctx) && !ctx.destroyed && !ctx.destroying
 			&& !dispatch.app.iconified && !dispatch.app.suspended } else { custom_frame_current(dispatch,ctx) }
+	}
+
+	// Only pure declaration validation uses this arena. Builders, reactive
+	// callbacks, retained nodes and text caches keep their normal GC ownership.
+	// Copy a diagnostic after popping, before releasing any temporary storage.
+	fn validate_custom_build(mut app GgApp, root Element) ! {
+		if app.build_arena == unsafe { nil } {
+			app.build_arena = &BuildArena{ allocator: arena.new() }
+		}
+		mut scratch := &app.build_arena.allocator
+		scratch.push()
+		mut message := ''
+		mut code := 0
+		validate_element_tree(root) or { message = err.msg(); code = err.code() }
+		scratch.pop()
+		if message.len > 0 {
+			owned := message.clone()
+			scratch.reset()
+			return error_with_code(owned, code)
+		}
+		scratch.reset()
 	}
 
 	fn build_custom_declaration(mut app GgApp, input bool) bool {
@@ -924,10 +976,10 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		// declaration under the owner/context guard so retained recovery never
 		// replays business callbacks merely because window input changed.
 		current := if input {
-			dispatch.valid() && app.ctx==ctx && app.scheduler.stats().generation==generation && !app.iconified && !app.suspended
+			dispatch.valid() && voidptr(app.ctx)==voidptr(ctx) && app.scheduler.stats().generation==generation && !app.iconified && !app.suspended
 		} else { custom_frame_owner_current(dispatch,ctx) && !dispatch.scheduler.build_pending() }
 		if !current { return false }
-		validate_element_tree(declared) or { eprintln('ui2: ${err}'); return false }
+		validate_custom_build(mut app, declared) or { eprintln('ui2: ${err}'); return false }
 		app.declared_root=declared
 		app.declared_patch_serial=math.max(app.declared_patch_serial, app.compiled_snapshot_serial)
 		app.declaration_pending=true
@@ -960,27 +1012,28 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 			}
 			return false
 		}
-		if !dispatch.valid() || app.ctx != ctx
+		if !dispatch.valid() || voidptr(app.ctx) != voidptr(ctx)
 			|| (ctx != unsafe { nil } && !custom_layout_owner_current(dispatch, ctx, true)) { return false }
 		// Input adopts the same declaration as paint. Publish its editor buffers,
 		// edit permissions and live control state before focus can notify user code.
 		reconcile_mounted_focus_controls(root)
 		update_custom_focus_tree(root)
-		if !dispatch.valid() || app.ctx != ctx || g_focus_navigation.root != root
+		if !dispatch.valid() || voidptr(app.ctx) != voidptr(ctx) || g_focus_navigation.root != root
 			|| (ctx != unsafe { nil } && !custom_layout_owner_current(dispatch, ctx, true)) { return false }
 		return dispatch.valid()
 	}
 
 	fn custom_frame_current(dispatch CustomInputDispatch, ctx &DrawContext) bool {
-		return dispatch.valid() && dispatch.app.ctx == ctx && !ctx.destroyed && !ctx.destroying
+		mut scheduler := dispatch.scheduler
+		return dispatch.valid() && voidptr(dispatch.app.ctx) == voidptr(ctx) && !ctx.destroyed && !ctx.destroying
 			&& !dispatch.app.iconified && !dispatch.app.suspended
-			&& !dispatch.scheduler.build_pending()
+			&& !scheduler.build_pending()
 	}
 
 	// Only retained work may survive an input-generation change. Presentation
 	// still uses custom_frame_current, and never crosses a replaced owner/context.
 	fn custom_frame_owner_current(dispatch CustomInputDispatch, ctx &DrawContext) bool {
-		return dispatch.owner_current() && dispatch.app.ctx == ctx && !ctx.destroyed && !ctx.destroying
+		return dispatch.owner_current() && voidptr(dispatch.app.ctx) == voidptr(ctx) && !ctx.destroyed && !ctx.destroying
 	}
 
 	fn on_frame(mut app GgApp) {
@@ -1022,7 +1075,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		patches := take_custom_layout_patches(mut app)
 		mut patches_resolved := false
 		defer {
-			if !patches_resolved && patches.len > 0 && app.scheduler == scheduler && !scheduler.is_closed() {
+			if !patches_resolved && patches.len > 0 && voidptr(app.scheduler) == voidptr(scheduler) && !scheduler.is_closed() {
 				// A canceled frame must not drop its unapplied work. New callback
 				// patches follow it so their newer declarations win next time.
 				mut pending := patches.clone()
@@ -1048,22 +1101,19 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		if !custom_frame_current(dispatch, ctx) {
 			return
 		}
-		validate_element_tree(root) or {
-			eprintln('ui2: ${err}')
-			return
-		}
-
 		// Restoring focus can notify user code. Its mounted control state must
 		// already agree with the new root, including editors outside the viewport.
 		reconcile_mounted_focus_controls(root)
 		update_custom_focus_tree(root)
 		if !custom_frame_current(dispatch, ctx) || g_focus_navigation.root != root { return }
 		mounted := g_focus_navigation.root_revision
-		g_hit_targets = []HitTarget{}
+		// Mounted targets survive paint-only frames. Drop only the previous paint
+		// tail (popup/fallback targets), before adding this frame's overlays.
+		g_hit_targets.trim(app.mounted_hit_count)
 		g_tooltip_targets.clear()
 		g_tooltip_owners = 0
 		app.text_caret = Rect{}
-		reset_scroll_frame()
+		g_scroll_order.clear()
 		// Paint-time clamping can also notify user code before another pane is
 		// painted. Keep every mounted Scroll available to nested public calls.
 		sync_mounted_scroll_views()
@@ -1087,8 +1137,9 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		ctx.images.begin_frame()
 		preload_images(mut ctx)
 		preload_drag_preview(mut ctx)
-		previous_geometry := app.visual_geometries
-		app.visual_geometries = map[string]VisualGeometry{}
+		previous_geometry := unsafe { app.visual_geometries }
+		geometry_changed := app.visual_geometry_serial != g_focus_navigation.presentation_serial
+		if geometry_changed { app.visual_geometries = map[string]VisualGeometry{} }
 		defer {
 			if !custom_frame_current(dispatch, ctx) || g_focus_navigation.root_revision != mounted {
 				app.visual_geometries = previous_geometry
@@ -1118,7 +1169,10 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 			draw_menu_bar(ctx)
 			update_tooltip(now)
 			draw_tooltip(ctx)
-			prune_unmounted_state()
+			if app.controls_prune_pending {
+				prune_unmounted_state()
+				app.controls_prune_pending = false
+			}
 			if app.composition.field_id.len > 0 && app.composition.field_id != g_focused_field {
 				app.composition = TextComposition{}
 			}
@@ -1130,6 +1184,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 			if ctx.font_inited { ctx.ft.flush() }
 		}
 		app.scheduler.record_draw()
+		app.visual_geometry_serial = g_focus_navigation.presentation_serial
 		app.last_frame = renderer_now_ms()
 		app.scheduler.set_deadline(custom_visual_deadline())
 		app.scheduler.set_animation_active(custom_animations_need_frame(app.declared_root))
@@ -1278,7 +1333,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 	}
 
 	fn discard_custom_pointer_start(dispatch CustomInputDispatch) {
-		if dispatch.window == g_active_custom_window_state {
+		if voidptr(dispatch.window) == voidptr(g_active_custom_window_state) {
 			if g_touch.input_generation == dispatch.generation { g_touch = TouchState{} }
 		} else {
 			mut owner := dispatch.window
@@ -2012,6 +2067,7 @@ fn page_focused_text_area(direction int) {
 		g_dropdown_scroll = 0.0
 		g_dropdown_popup = DropdownPopup{}
 		g_hit_targets = g_hit_targets.filter(!it.dropdown_option)
+		g_gg_app.pointer_geometry_serial = 0
 	}
 
 	// While the list is open it owns every release: pick the row under the
@@ -2222,7 +2278,7 @@ fn page_focused_text_area(direction int) {
 		visible := intersect_rect(frame,list)
 		return HitTarget{kind:.dropdown,id:state.id,on_event:state.on_event,dropdown_option:true,
 			option_index:index,options:state.options,local_frame:frame,has_geometry:true,
-			clip_region:transformed_clip(list,ContentTransform{}),x:visible.x,y:visible.y,w:visible.width,h:visible.height}
+			clip_region:paint_transformed_clip(list,ContentTransform{}),x:visible.x,y:visible.y,w:visible.width,h:visible.height}
 	}
 
 	fn draw_dropdown_popup(ctx &DrawContext) {
@@ -2357,10 +2413,10 @@ fn page_focused_text_area(direction int) {
 		return TooltipTarget{}
 	}
 
-	// tooltip_key names an element's target. An id stays the same while the
-	// element moves; an element without one is known by where it is drawn,
-	// which holds for as long as nothing, such as a scroll, moves it.
+	// Mounted targets retain their key across paint and scroll. Unmounted
+	// callers use their explicit id or their supplied drawing area.
 	fn tooltip_key(el Element, area Rect) string {
+		if el.mounted_tooltip_key.len > 0 { return el.mounted_tooltip_key }
 		if el.id.len > 0 {
 			return '${el.kind}#${el.id}'
 		}
@@ -2372,7 +2428,7 @@ fn page_focused_text_area(direction int) {
 	// cannot answer for the pointer.
 	fn add_tooltip_target(key string, text string, area Rect, clip Rect) {
 		region := current_clip_region(clip)
-		visible := region.intersect(transformed_clip(area, current_content_transform())).bounds()
+		visible := retained_paint_clip(region, area, current_content_transform()).bounds()
 		if visible.width <= 0 || visible.height <= 0 {
 			return
 		}
@@ -2410,7 +2466,7 @@ fn page_focused_text_area(direction int) {
 	// fills the window below its offset, whatever its frame says.
 	fn element_area(ctx &DrawContext, el Element, off_x f64, off_y f64) Rect {
 		if el.kind == .screen {
-			host_window := if g_gg_app.ctx == ctx { g_gg_app.native_window } else { unsafe { nil } }
+			host_window := if voidptr(g_gg_app.ctx) == voidptr(ctx) { g_gg_app.native_window } else { unsafe { nil } }
 			viewport := ctx.logical_viewport(host_window)
 			return mounted_root_frame(el, rect(off_x, off_y, viewport.width - off_x, viewport.height - off_y))
 		}
@@ -2586,7 +2642,7 @@ fn page_focused_text_area(direction int) {
 	// ── Rendering ──────────────────────────────────────────────────────
 
 	fn element_hit_geometry(el Element, area Rect, transform ContentTransform, clip ClipRegion) HitTarget {
-		visible := clip.intersect(transformed_clip(area, transform)).bounds()
+		visible := retained_paint_clip(clip, area, transform).bounds()
 		return HitTarget{x: visible.x, y: visible.y, w: visible.width, h: visible.height,
 			local_frame: area, content_transform: transform, clip_region: clip, has_geometry: true,
 			is_vector_canvas: el.is_vector_canvas, vector_shapes: el.vector_shapes,
@@ -2623,7 +2679,7 @@ fn page_focused_text_area(direction int) {
 		outer := ctx.content_transform
 		base := ctx.clip_base
 		region := ctx.clip_region
-		exact := base.intersect(transformed_clip(viewport, outer))
+		exact := ctx.retained_clip(base, viewport, outer)
 		unsafe {
 			ctx.content_transform = outer.compose(local)
 			ctx.clip_base = exact
@@ -2652,7 +2708,7 @@ fn page_focused_text_area(direction int) {
 		base := ctx.clip_base
 		region := ctx.clip_region
 		enabled := ctx.interaction_enabled
-		parent_clip := base.intersect(transformed_clip(clip, outer))
+		parent_clip := ctx.retained_clip(base, clip, outer)
 		area := element_area(ctx, declared_el, off_x, off_y)
 		visual := declared_el.visual_transform().matrix(area) or { return }
 		inv := visual.inverted() or { return }
@@ -2963,10 +3019,7 @@ fn page_focused_text_area(direction int) {
 				draw_chevron_down(ctx, x + el.frame.width - 17, y + el.frame.height / 2,
 					if el.enabled { u32(0x475569) } else { u32(0x94a3b8) })
 				if el.enabled {
-					mut options := []string{cap: el.menu.len}
-					for entry in el.menu {
-						options << entry.title
-					}
+					options := mounted_menu_options(el, path)
 					add_hit_target(HitTarget{
 						identity: path
 						kind:     el.kind
@@ -2983,8 +3036,7 @@ fn page_focused_text_area(direction int) {
 						// The inverse clip AABB only accelerates traversal. Decide
 						// overlay ownership with the same exact window clip used
 						// for paint and fresh pointer hits.
-						visible := ctx.clip_region.intersect(transformed_clip(area,
-							ctx.content_transform)).bounds()
+						visible := ctx.retained_clip(ctx.clip_region, area, ctx.content_transform).bounds()
 						if options.len > 0 && visible.width > 0 && visible.height > 0 {
 							track_dropdown_popup(el, x, y, options, selected)
 						} else {
@@ -3013,7 +3065,7 @@ fn page_focused_text_area(direction int) {
 				$if macos && ui2_embedder ? {
 					editor = custom_composition_editor(el.id, editor)
 				}
-				display_text := text_field_display_text(editor.text, el.secure)
+				display_text := ctx.field_display_text(editor.text, el.secure)
 				is_focused := g_focused_field == el.id
 				draw_control_surface(ctx, x, y, el.frame.width, el.frame.height, el.box,
 					is_focused, el.enabled)
@@ -3038,8 +3090,7 @@ fn page_focused_text_area(direction int) {
 							draw_editable_text(ctx, el.placeholder, x + padding_left, y, content_width, el.frame.height, placeholder_style)
 						}
 						if is_focused {
-							before := editor.text.runes()[..editor.selection.caret].string()
-							caret_text := text_field_display_text(before, el.secure)
+							caret_text := ctx.field_prefix_text(editor.text, editor.selection.caret, el.secure)
 							text_w := f64(ctx.text_width(caret_text))
 							text_origin := text_field_aligned_text_origin(x + padding_left, content_width,
 								f64(ctx.text_width(display_text)), el.text_style.align)
@@ -3051,9 +3102,9 @@ fn page_focused_text_area(direction int) {
 							$if macos && ui2_embedder ? {
 								composition := g_gg_app.composition
 								if composition.field_id == el.id {
-									marked_start := text_field_display_text(editor.text.runes()[..composition.start + composition.mark_start].string(), el.secure)
-									marked_end := text_field_display_text(editor.text.runes()[..composition.start + composition.mark_start + composition.mark_length].string(), el.secure)
+									marked_start := ctx.field_prefix_text(editor.text, composition.start + composition.mark_start, el.secure)
 									left := text_origin + f64(ctx.text_width(marked_start))
+									marked_end := ctx.field_prefix_text(editor.text, composition.start + composition.mark_start + composition.mark_length, el.secure)
 									right := text_origin + f64(ctx.text_width(marked_end))
 									draw_rect(ctx, left, cursor_y + cursor_h, right - left, 1, el.text_style.color, 0)
 								}
@@ -3222,6 +3273,11 @@ fn page_focused_text_area(direction int) {
 		return if g_gg_app.ctx != unsafe { nil } { g_gg_app.ctx.content_transform } else { ContentTransform{} }
 	}
 
+	fn retained_paint_clip(base ClipRegion, frame Rect, transform ContentTransform) ClipRegion {
+		if g_gg_app.ctx != unsafe { nil } { return g_gg_app.ctx.retained_clip(base, frame, transform) }
+		return base.intersect(paint_transformed_clip(frame, transform))
+	}
+
 	fn current_presentation_rect(area Rect) Rect {
 		transform := current_content_transform()
 		region := if g_gg_app.ctx != unsafe { nil } {
@@ -3229,7 +3285,7 @@ fn page_focused_text_area(direction int) {
 		} else {
 			ClipRegion{}
 		}
-		projected := region.intersect(transformed_clip(area, transform)).bounds()
+		projected := retained_paint_clip(region, area, transform).bounds()
 		return if g_gg_app.ctx != unsafe { nil } {
 			presentation_rect(projected, f64(g_gg_app.ctx.scale))
 		} else {
@@ -3239,7 +3295,7 @@ fn page_focused_text_area(direction int) {
 
 	fn current_clip_region(clip Rect) ClipRegion {
 		base := if g_gg_app.ctx != unsafe { nil } { g_gg_app.ctx.clip_base } else { ClipRegion{} }
-		return base.intersect(transformed_clip(clip, current_content_transform()))
+		return retained_paint_clip(base, clip, current_content_transform())
 	}
 	fn add_hit_target(declared HitTarget, clip Rect) {
 		if !declared.dropdown_option && declared.identity.len>0 && g_focus_navigation.path_node(declared.identity)!=none { return }
@@ -3249,7 +3305,7 @@ fn page_focused_text_area(direction int) {
 		frame := rect(target.x, target.y, target.w, target.h)
 		transform := current_content_transform()
 		region := current_clip_region(clip)
-		visible := region.intersect(transformed_clip(frame, transform)).bounds()
+		visible := retained_paint_clip(region, frame, transform).bounds()
 		// A clipped owner remains mounted for capture, with its current matrix.
 		// Empty bounds reject fresh hits without losing terminal/drag coordinates.
 		g_hit_targets << HitTarget{
@@ -3481,7 +3537,9 @@ fn page_focused_text_area(direction int) {
 
 	fn draw_box_borders(ctx &DrawContext, x f64, y f64, w f64, h f64, box BoxStyle) {
 		frame := ctx.content_transform.rounded_local_rect(rect(x, y, w, h), f64(ctx.scale))
-		for triangle in box_border_triangles(frame, box) {
+		mut triangles := unsafe { &ctx.border_triangles }
+		box_border_triangles_into(frame, box, mut triangles)
+		for triangle in unsafe { *triangles } {
 			ctx.draw_triangle_filled(f32(triangle.a.x), f32(triangle.a.y),
 				f32(triangle.b.x), f32(triangle.b.y), f32(triangle.c.x), f32(triangle.c.y),
 				hex_color(triangle.color))
@@ -3648,7 +3706,7 @@ fn page_focused_text_area(direction int) {
 			top := text_block_top(y, h, shaped.size.height, .middle)
 			if focused && editor.text.len > 0 && !editor.selection.collapsed() {
 				start, end := editor.selection.ordered()
-				for selected in shaped.selection(start, end) {
+				for selected in ctx.shaped_selection(shaped, start, end) {
 					draw_rect(ctx, origin + selected.x, top + selected.y, selected.width,
 						selected.height, 0xb8d7ff, 0)
 				}
@@ -3677,7 +3735,7 @@ fn page_focused_text_area(direction int) {
 				composition := g_gg_app.composition
 				if composition.field_id == el.id {
 					start := composition.start + composition.mark_start
-					for marked in shaped.selection(start, start + composition.mark_length) {
+					for marked in ctx.shaped_selection(shaped, start, start + composition.mark_length) {
 						draw_rect(ctx, origin + marked.x, top + marked.y + marked.height - 1,
 							marked.width, 1, el.text_style.color, 0)
 					}

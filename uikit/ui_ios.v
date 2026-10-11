@@ -1048,14 +1048,12 @@ fn render_mounted_layout() {
 	render_resolved_root(root)
 }
 
-fn render_resolved_root(resolved Element) {
+fn render_resolved_root(root Element) {
 	previous_focus := focused_id()
 	previous_responder := g_views[previous_focus] or { objc_nil() }
 	// Stale-node removal can release the previous responder.
 	if !objc_is_nil(previous_responder) { macos.retain(previous_responder) }
 	defer { if !objc_is_nil(previous_responder) { macos.release(previous_responder) } }
-	root := effective_element_state(resolved, true)
-	validate_element_tree(root) or { eprintln('ui2: ${err}'); return }
 	remember_scroll_offsets()
 	g_views = map[string]View{}
 	g_view_kinds = map[string]Kind{}

@@ -1,5 +1,9 @@
 module ui2
 
+const named_scroll_prefix = '@scroll-id:'
+const anonymous_text_area_scroll_prefix = '@text-area-key:'
+const anonymous_scroll_prefix = '@scroll-path:'
+
 pub type BuildFn = fn () Element
 
 // Element callbacks are attached to their declaration. An id identifies live
@@ -408,6 +412,10 @@ fn box_border_width(width f64, extent f64) f64 {
 pub struct Element {
 	// Produced by the retained layout owner, excluded from authored inputs.
 	mounted_generation u64
+	mounted_path string
+	mounted_parent_path string
+	mounted_scroll_id string
+	mounted_tooltip_key string
 	// Constructor projections compare against the snapshot they received, even
 	// when effects have subsequently updated the retained declaration.
 	compiled_source &VmlSourceSnapshot = unsafe { nil }
@@ -535,10 +543,34 @@ pub fn control_support(kind Kind) BackendSupport {
 // reconciliation_child_key encodes user keys so separators inside a key
 // cannot alias a nested key path.
 fn reconciliation_child_key(parent string, index int, el Element) string {
+	if el.mounted_path.len > 0 && el.mounted_parent_path == parent { return el.mounted_path }
+	return authored_child_key(parent, index, el)
+}
+
+fn authored_child_key(parent string, index int, el Element) string {
 	suffix := if el.key.len > 0 { 'k:' + el.key.bytes().hex() }
 		else if el.compiled_node != unsafe { nil } { 'c:' + el.compiled_node.identity().bytes().hex() }
 		else { 'i:' + index.str() }
 	return if parent.len == 0 { suffix } else { parent + '/' + suffix }
+}
+
+// These private keys keep authored ids, keyed anonymous editors and scroll
+// paths in disjoint namespaces. Resolved declarations retain the string so
+// input refreshes and repaints do not concatenate it again.
+fn authored_scroll_state_id(el Element, path string) string {
+	if el.kind !in [.scroll, .text_area] { return '' }
+	if el.id.len > 0 { return named_scroll_prefix + el.id }
+	if el.kind == .text_area {
+		return if el.key.len > 0 { anonymous_text_area_scroll_prefix + el.key } else { '' }
+	}
+	return anonymous_scroll_prefix + path
+}
+
+// Tooltip ownership follows mounted identity, so scrolling or repainting an
+// anonymous keyed element does not restart its hover delay.
+fn authored_tooltip_key(el Element, path string) string {
+	if el.id.len > 0 { return '${el.kind}#${el.id}' }
+	return '${el.kind}@${path}'
 }
 
 // validate_element_tree rejects ambiguous declarative identity before a
@@ -937,19 +969,6 @@ pub fn dropdown(id string, selected string, options []string, frame Rect, box_ B
 		text_style: style
 		menu:       entries
 	}
-}
-
-// text_field_display_text preserves the number of Unicode code points while
-// keeping secure field contents out of the portable renderer.
-fn text_field_display_text(text string, secure bool) string {
-	if !secure || text.len == 0 {
-		return text
-	}
-	mut masked := []rune{cap: rune_len(text)}
-	for _ in text.runes() {
-		masked << `•`
-	}
-	return masked.string()
 }
 
 // scaled_content fits fixed logical child geometry inside a viewport without reflow.

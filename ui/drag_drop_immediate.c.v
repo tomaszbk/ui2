@@ -121,7 +121,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		if !owns_drag_token(token) { return false }
 		session := g_touch.drag
 		stats := session.dispatch.scheduler.stats()
-		if !session.dispatch.valid() || session.dispatch.app.ctx!=session.context
+		if !session.dispatch.valid() || voidptr(session.dispatch.app.ctx)!=voidptr(session.context)
 			|| stats.suspended || session.dispatch.app.iconified || session.dispatch.app.suspended {
 			cancel_drag_session(.cancelled)
 			return false
@@ -130,7 +130,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	}
 
 	fn drag_session_current(session DragSession) bool {
-		if !session.dispatch.valid() && session.dispatch.window!=g_active_custom_window_state {
+		if !session.dispatch.valid() && voidptr(session.dispatch.window)!=voidptr(g_active_custom_window_state) {
 			// A window switch moved capture into its owning snapshot. Retire that
 			// gesture without touching input in the newly active window.
 			mut window := session.dispatch.window
@@ -365,7 +365,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		outer := ctx.content_transform
 		base := ctx.clip_base
 		region := ctx.clip_region
-		window := transformed_clip(rect(0,0,f64(ctx.width),f64(ctx.height)),ContentTransform{})
+		window := ctx.retained_clip(ClipRegion{},rect(0,0,f64(ctx.width),f64(ctx.height)),ContentTransform{})
 		unsafe {
 			ctx.content_transform=drag_preview_transform(g_touch.drag.preview_transform,g_touch.current_x,g_touch.current_y)
 			ctx.clip_base=window

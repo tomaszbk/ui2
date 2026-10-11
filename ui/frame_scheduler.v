@@ -54,10 +54,30 @@ pub:
 	closed                bool
 }
 
+// Reasons travel by value so a new request cannot overwrite an in-flight frame.
+fn (work FrameWork) reason_list() []RenderReason {
+	mut result := []RenderReason{cap: work.reason_count}
+	for i in 0 .. work.reason_count { result << work.reasons[i] }
+	return result
+}
+
+fn (coordinator &FrameCoordinator) has_reason(reason RenderReason) bool {
+	for i in 0 .. coordinator.pending_count {
+		if coordinator.pending_reasons[i] == reason { return true }
+	}
+	return false
+}
+
+fn (coordinator &FrameCoordinator) pending_reason_list() []RenderReason {
+	mut result := []RenderReason{cap: coordinator.pending_count}
+	for i in 0 .. coordinator.pending_count { result << coordinator.pending_reasons[i] }
+	return result
+}
+
 fn (mut coordinator FrameCoordinator) build_pending() bool {
 	coordinator.mutex.lock()
 	defer { coordinator.mutex.unlock() }
-	return RenderReason.build in coordinator.pending_reasons
+	return coordinator.has_reason(.build)
 }
 
 struct FrameWork {
@@ -65,7 +85,8 @@ struct FrameWork {
 	serial     u64
 	build      bool
 	draw       bool
-	reasons    []RenderReason
+	reasons    [9]RenderReason
+	reason_count int
 }
 
 // Each renderer context owns one coordinator. The lock protects only scheduler
@@ -88,7 +109,8 @@ mut:
 	requests              u64
 	generation            u64
 	finished_generation   u64
-	pending_reasons       []RenderReason
+	pending_reasons       [9]RenderReason
+	pending_count         int
 	next_serial           u64
 	active_serial         u64
 	next_deadline         i64 = -1
@@ -137,7 +159,7 @@ fn (mut coordinator FrameCoordinator) next_wake(now i64, last_frame i64, interva
 	if coordinator.suspended {
 		return -1
 	}
-	if coordinator.pending_reasons.len > 0 {
+	if coordinator.pending_count > 0 {
 		return now
 	}
 	mut deadline := coordinator.next_deadline
@@ -173,7 +195,7 @@ fn (mut coordinator FrameCoordinator) set_presentation_required(required bool) {
 
 fn (mut coordinator FrameCoordinator) invalidate(reason RenderReason) {
 	coordinator.mutex.lock()
-	was_pending := coordinator.pending_reasons.len > 0
+	was_pending := coordinator.pending_count > 0
 	coordinator.invalidate_locked(reason)
 	coordinator.unlock_and_wake(!was_pending)
 }
@@ -184,11 +206,12 @@ fn (mut coordinator FrameCoordinator) invalidate_locked(reason RenderReason) {
 	}
 	coordinator.requests++
 	coordinator.generation++
-	if coordinator.pending_reasons.len > 0 {
+	if coordinator.pending_count > 0 {
 		coordinator.coalesced++
 	}
-	if reason !in coordinator.pending_reasons {
-		coordinator.pending_reasons << reason
+	if !coordinator.has_reason(reason) {
+		coordinator.pending_reasons[coordinator.pending_count] = reason
+		coordinator.pending_count++
 	}
 }
 
@@ -209,23 +232,22 @@ fn (mut coordinator FrameCoordinator) begin_frame(now i64) ?FrameWork {
 	if coordinator.animation_active {
 		coordinator.invalidate_locked(.animation)
 	}
-	if coordinator.pending_reasons.len == 0
+	if coordinator.pending_count == 0
 		&& !coordinator.presentation_required {
 		return none
 	}
-	reasons := if coordinator.pending_reasons.len == 0
-		&& coordinator.presentation_required {
-		// This is a platform presentation requirement, not a new invalidation.
-		// Keep request/generation counters about actual application work.
-		[RenderReason.presentation]
-	} else {
-		coordinator.pending_reasons
+	mut reasons := coordinator.pending_reasons
+	mut reason_count := coordinator.pending_count
+	if reason_count == 0 && coordinator.presentation_required {
+		reasons[0] = .presentation
+		reason_count = 1
 	}
-	coordinator.pending_reasons = []RenderReason{}
+	coordinator.pending_count = 0
 	coordinator.next_serial++
 	coordinator.active_serial = coordinator.next_serial
 	mut build := false
-	for reason in reasons {
+	for index in 0 .. reason_count {
+		reason := reasons[index]
 		if reason in [.build, .surface, .animation, .animation_follow_up, .worker] {
 			build = true
 			break
@@ -237,6 +259,7 @@ fn (mut coordinator FrameCoordinator) begin_frame(now i64) ?FrameWork {
 		build:      build
 		draw:       true
 		reasons:    reasons
+		reason_count: reason_count
 	}
 }
 
@@ -333,7 +356,7 @@ fn (mut coordinator FrameCoordinator) close() {
 	coordinator.animation_active = false
 	coordinator.next_deadline = -1
 	coordinator.active_serial = 0
-	coordinator.pending_reasons = []RenderReason{}
+	coordinator.pending_count = 0
 	coordinator.tasks = []fn (){}
 	coordinator.wakeup = unsafe { nil }
 }
@@ -377,7 +400,7 @@ fn (mut coordinator FrameCoordinator) take_tasks() []fn () {
 	// A callback in an earlier batch can post another task before begin_frame.
 	// Its post may have been acknowledged by that frame while the task itself
 	// waited for the next drain. Delivery must still invalidate its own frame.
-	if tasks.len > 0 && RenderReason.worker !in coordinator.pending_reasons {
+	if tasks.len > 0 && !coordinator.has_reason(.worker) {
 		coordinator.invalidate_locked(.worker)
 	}
 	return tasks
@@ -401,9 +424,9 @@ fn (mut coordinator FrameCoordinator) stats() RenderStats {
 		requests:              coordinator.requests
 		generation:            coordinator.generation
 		finished_generation:   coordinator.finished_generation
-		pending:               coordinator.pending_reasons.len > 0
+		pending:               coordinator.pending_count > 0
 		in_flight:             coordinator.active_serial != 0
-		pending_reasons:       coordinator.pending_reasons.clone()
+		pending_reasons:       coordinator.pending_reason_list()
 		next_deadline:         coordinator.next_deadline
 		animation_active:      coordinator.animation_active
 		presentation_required: coordinator.presentation_required

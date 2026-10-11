@@ -21,6 +21,18 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 	#include "@VMODROOT/ui/draw_commands.h"
 	fn C.ui2_sgl_discard_commands(context sgl.Context)
 
+	// Scope clips are immutable snapshots. A traversal slot replaces its
+	// snapshot on a miss, so hit/visual geometry retained from an older frame
+	// never aliases writable clipping scratch, including a cancelled frame.
+	@[heap]
+	struct PaintClipSnapshot {
+	mut:
+		base      ClipRegion
+		frame     Rect
+		transform ContentTransform
+		result    ClipRegion
+	}
+
 	$if android {
 		struct DrawContext {
 		mut:
@@ -31,6 +43,16 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 			content_transform   ContentTransform
 			clip_base           ClipRegion
 			clip_region         ClipRegion
+			clip_snapshots      []&PaintClipSnapshot
+			clip_cursor         int
+			painting            bool
+			surface_pass        gfx.Pass
+			paint_clip          PaintClipBuffer = new_paint_clip_buffer()
+			paint_vertices      []PaintVertex = []PaintVertex{cap: 80}
+			paint_points        [68]Point
+			border_triangles    []BorderTriangle = []BorderTriangle{cap: 256}
+			field_text_buffer   FrameTextBuffer
+			prefix_text_buffer  FrameTextBuffer
 			interaction_enabled bool               = true
 			submitted_polygon   fn ([]PaintVertex) = unsafe { nil }
 			ft                  &gg.FT             = unsafe { nil }
@@ -52,6 +74,19 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 			content_transform    ContentTransform
 			clip_base            ClipRegion
 			clip_region          ClipRegion
+			clip_snapshots       []&PaintClipSnapshot
+			clip_cursor          int
+			painting             bool
+			surface_pass         gfx.Pass
+			paint_clip           PaintClipBuffer = new_paint_clip_buffer()
+			paint_vertices       []PaintVertex = []PaintVertex{cap: 80}
+			paint_points         [68]Point
+			border_triangles     []BorderTriangle = []BorderTriangle{cap: 256}
+			field_text_buffer    FrameTextBuffer
+			prefix_text_buffer   FrameTextBuffer
+			visible_text_items   []vglyph.Item
+			selection_rects      []Rect
+			glyph_selection_rects []gg.Rect
 			interaction_enabled  bool               = true
 			submitted_polygon    fn ([]PaintVertex) = unsafe { nil }
 			text                 &TextEngine        = unsafe { nil }
@@ -322,9 +357,16 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 
 		fn (ctx &DrawContext) draw_shaped_clipped(shaped ShapedText, x f64, y f64, clip Rect) {
 			if ctx.destroyed || ctx.text_renderer == unsafe { nil } || clip.height <= 0 { return }
-			mut visible := shaped.layout
-			visible.items = shaped.layout.items.filter(
-				y + it.y + it.descent > clip.y && y + it.y - it.ascent < clip.y + clip.height)
+			// Submission is synchronous: filter into this window's retained item
+			// storage instead of allocating an array on every editor repaint.
+			mut items := unsafe { &ctx.visible_text_items }
+			items.clear()
+			for item in shaped.layout.items {
+				if y + item.y + item.descent > clip.y && y + item.y - item.ascent < clip.y + clip.height {
+					items << item
+				}
+			}
+			visible := vglyph.Layout{ ...shaped.layout, items: unsafe { *items } }
 			ctx.prepare_text_draw()
 			mut renderer := ctx.text_renderer
 			ctx.draw_transformed_layout(mut renderer, visible, x, y)
@@ -341,14 +383,23 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 			renderer.quad_userdata = unsafe { nil }
 		}
 
-		fn draw_glyph_quad(userdata voidptr, quad []vglyph.QuadVertex) {
+		fn draw_glyph_quad(userdata voidptr, quad &vglyph.QuadVertex, count int) {
 			ctx := unsafe { &DrawContext(userdata) }
-			mut vertices := []PaintVertex{cap: 4}
-			for v in quad {
+			mut vertices := unsafe { &ctx.paint_vertices }
+			vertices.clear()
+			for i in 0 .. count {
+				v := unsafe { quad[i] }
 				vertices << PaintVertex{ x: f64(v.x), y: f64(v.y), u: f64(v.u), v: f64(v.v), r: f64(v.color.r), g: f64(v.color.g), b: f64(v.color.b), a: f64(v.color.a) }
 			}
 			// vglyph uses a logical projection; do not apply device DPI a second time.
-			ctx.emit_window_polygon(vertices, 1)
+			ctx.emit_window_polygon(unsafe { *vertices }, 1)
+		}
+
+		fn (ctx &DrawContext) shaped_selection(shaped ShapedText, start int, end int) []Rect {
+			mut result := unsafe { &ctx.selection_rects }
+			mut glyph_rects := unsafe { &ctx.glyph_selection_rects }
+			shaped.selection_into(start, end, mut result, mut glyph_rects)
+			return unsafe { *result }
 		}
 
 		fn (ctx &DrawContext) prepare_text_draw() {
@@ -384,6 +435,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 	}
 
 	fn (ctx &DrawContext) begin() {
+		unsafe { ctx.clip_cursor = 0; ctx.painting = true }
 		if !ctx.owns_surface {
 			ctx.inner.begin()
 			return
@@ -398,6 +450,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 	}
 
 	fn (ctx &DrawContext) end() {
+		unsafe { ctx.painting = false }
 		unsafe { mut images := &ctx.images; images.commit() }
 		$if !android {
 			if !ctx.destroyed && ctx.text_renderer != unsafe { nil } {
@@ -413,7 +466,8 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 			return
 		}
 		ctx.activate()
-		gfx.begin_pass(gfx.Pass{ action: ctx.inner.clear_pass, swapchain: ctx.swapchain })
+		unsafe { ctx.surface_pass = gfx.Pass{ action: ctx.inner.clear_pass, swapchain: ctx.swapchain } }
+		gfx.begin_pass(&ctx.surface_pass)
 		sgl.draw()
 		gfx.end_pass()
 		gfx.commit()
@@ -424,6 +478,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 	// begin records commands; the GPU pass starts only in end. An invalidated
 	// frame must discard those commands without submitting to its old surface.
 	fn (ctx &DrawContext) cancel() {
+		unsafe { ctx.painting = false }
 		if ctx.destroyed || !gfx.is_valid() { return }
 		context := if ctx.owns_surface { ctx.gl_context } else { sgl.default_context() }
 		C.ui2_sgl_discard_commands(context)
@@ -469,18 +524,30 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		release_draw_device()
 	}
 
+	fn (ctx &DrawContext) field_display_text(text string, secure bool) string {
+		mut buffer := unsafe { &ctx.field_text_buffer }
+		return buffer.field_text(text, secure)
+	}
+
+	fn (ctx &DrawContext) field_prefix_text(text string, runes int, secure bool) string {
+		mut buffer := unsafe { &ctx.prefix_text_buffer }
+		return buffer.field_prefix(text, runes, secure)
+	}
+
 	fn color_vertex(p Point, c gg.Color) PaintVertex {
 		return PaintVertex{ x: p.x, y: p.y, r: f64(c.r), g: f64(c.g), b: f64(c.b), a: f64(c.a) }
 	}
 	fn (ctx &DrawContext) emit_window_polygon(vertices []PaintVertex, dpi f64) {
-		clipped := ctx.clip_region.clip_polygon(vertices)
+		mut buffer := unsafe { &ctx.paint_clip }
+		clipped := ctx.clip_region.clip_polygon_buffered(vertices, mut buffer)
 		if clipped.len < 3 { return }
 		$if ui2_geometry_capture ? {
 			if voidptr(ctx.submitted_polygon) != unsafe { nil } { ctx.submitted_polygon(clipped) }
 		}
 		sgl.begin_triangles()
 		for i in 1 .. clipped.len - 1 {
-			for v in [clipped[0], clipped[i], clipped[i + 1]] {
+			for index in [0, i, i + 1]! {
+				v := clipped[index]
 				sgl.c4b(u8(math.clamp(v.r, 0.0, 255.0)), u8(math.clamp(v.g, 0.0, 255.0)), u8(math.clamp(v.b, 0.0, 255.0)), u8(math.clamp(v.a, 0.0, 255.0)))
 				sgl.v2f_t2f(f32(v.x * dpi), f32(v.y * dpi), f32(v.u), f32(v.v))
 			}
@@ -491,13 +558,20 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		ctx.activate()
 		sgl.load_pipeline(ctx.inner.pipeline.alpha)
 		sgl.disable_texture()
-		vertices := points.map(color_vertex(ctx.content_transform.point(it.x, it.y), c))
-		ctx.emit_window_polygon(vertices, f64(ctx.scale))
+		mut vertices := unsafe { &ctx.paint_vertices }
+		vertices.clear()
+		for point in points { vertices << color_vertex(ctx.content_transform.point(point.x, point.y), c) }
+		ctx.emit_window_polygon(unsafe { *vertices }, f64(ctx.scale))
 	}
 	fn (ctx &DrawContext) draw_rect_filled(x f32, y f32, w f32, h f32, c gg.Color) {
 		if w <= 0 || h <= 0 { return }
 		area := ctx.content_transform.rounded_local_rect(rect(f64(x), f64(y), f64(w), f64(h)), f64(ctx.scale))
-		ctx.draw_local_polygon(ContentTransform{}.quad(area), c)
+		mut points := unsafe { &ctx.paint_points }
+		unsafe { points[0] = Point{area.x, area.y} }
+		unsafe { points[1] = Point{area.x + area.width, area.y} }
+		unsafe { points[2] = Point{area.x + area.width, area.y + area.height} }
+		unsafe { points[3] = Point{area.x, area.y + area.height} }
+		ctx.draw_local_polygon(unsafe { borrow_points(&points[0], 4) }, c)
 	}
 	fn (ctx &DrawContext) draw_rect_empty(x f32, y f32, w f32, h f32, c gg.Color) {
 		ctx.draw_rounded_rect_empty(x, y, w, h, 0, c)
@@ -510,25 +584,34 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		}
 		area := ctx.content_transform.rounded_local_rect(rect(f64(x), f64(y), f64(w), f64(h)), f64(ctx.scale))
 		r := math.max(0.0, math.min(f64(radius), math.min(area.width, area.height) / 2))
-		mut points := []Point{}
+		mut points := unsafe { &ctx.paint_points }
 		for corner in 0 .. 4 {
 			for index in 0 .. 17 {
 				p := border_corner_point(area, corner, r, r, 180 + f64(corner) * 90 + f64(index) * 90 / 16)
-				points << Point{p.x, p.y}
+				unsafe { points[corner * 17 + index] = Point{p.x, p.y} }
 			}
 		}
-		ctx.draw_local_polygon(points, c)
+		ctx.draw_local_polygon(unsafe { borrow_points(&points[0], 68) }, c)
 	}
 	fn (ctx &DrawContext) draw_rounded_rect_empty(x f32, y f32, w f32, h f32, radius f32, c gg.Color) {
 		area := ctx.content_transform.rounded_local_rect(rect(f64(x), f64(y), f64(w), f64(h)), f64(ctx.scale))
 		box_ := BoxStyle{ radius: f64(radius), border_left: 1, border_top: 1, border_right: 1, border_bottom: 1 }
-		for triangle in box_border_triangles(area, box_) {
-			ctx.draw_local_polygon([Point{triangle.a.x, triangle.a.y},
-				Point{triangle.b.x, triangle.b.y}, Point{triangle.c.x, triangle.c.y}], c)
+		mut triangles := unsafe { &ctx.border_triangles }
+		box_border_triangles_into(area, box_, mut triangles)
+		for triangle in unsafe { *triangles } {
+			mut points := unsafe { &ctx.paint_points }
+			unsafe { points[0] = Point{triangle.a.x, triangle.a.y} }
+			unsafe { points[1] = Point{triangle.b.x, triangle.b.y} }
+			unsafe { points[2] = Point{triangle.c.x, triangle.c.y} }
+			ctx.draw_local_polygon(unsafe { borrow_points(&points[0], 3) }, c)
 		}
 	}
 	fn (ctx &DrawContext) draw_triangle_filled(x f32, y f32, x2 f32, y2 f32, x3 f32, y3 f32, c gg.Color) {
-		ctx.draw_local_polygon([Point{f64(x), f64(y)}, Point{f64(x2), f64(y2)}, Point{f64(x3), f64(y3)}], c)
+		mut points := unsafe { &ctx.paint_points }
+		unsafe { points[0] = Point{f64(x), f64(y)} }
+		unsafe { points[1] = Point{f64(x2), f64(y2)} }
+		unsafe { points[2] = Point{f64(x3), f64(y3)} }
+		ctx.draw_local_polygon(unsafe { borrow_points(&points[0], 3) }, c)
 	}
 	fn (ctx &DrawContext) draw_line_with_config(x f32, y f32, x2 f32, y2 f32, config gg.PenConfig) {
 		dx := f64(x2 - x)
@@ -537,13 +620,38 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		if length <= 0 || config.thickness <= 0 { return }
 		nx := -dy / length * f64(config.thickness) / 2
 		ny := dx / length * f64(config.thickness) / 2
-		ctx.draw_local_polygon([Point{f64(x) + nx, f64(y) + ny}, Point{f64(x2) + nx, f64(y2) + ny},
-			Point{f64(x2) - nx, f64(y2) - ny}, Point{f64(x) - nx, f64(y) - ny}], config.color)
+		mut points := unsafe { &ctx.paint_points }
+		unsafe { points[0] = Point{f64(x) + nx, f64(y) + ny} }
+		unsafe { points[1] = Point{f64(x2) + nx, f64(y2) + ny} }
+		unsafe { points[2] = Point{f64(x2) - nx, f64(y2) - ny} }
+		unsafe { points[3] = Point{f64(x) - nx, f64(y) - ny} }
+		ctx.draw_local_polygon(unsafe { borrow_points(&points[0], 4) }, config.color)
 	}
 	fn (ctx &DrawContext) scissor_rect(x f64, y f64, w f64, h f64) {
-		region := ctx.clip_base.intersect(transformed_clip(rect(x, y, w, h), ctx.content_transform))
+		region := ctx.retained_clip(ctx.clip_base, rect(x, y, w, h), ctx.content_transform)
 		unsafe { ctx.clip_region = region }
 		ctx.sync_scissor()
+	}
+	fn (ctx &DrawContext) retained_clip(base ClipRegion, frame Rect, transform ContentTransform) ClipRegion {
+		if !ctx.painting { return base.intersect(paint_transformed_clip(frame, transform)) }
+		index := ctx.clip_cursor
+		unsafe { ctx.clip_cursor++ }
+		mut snapshots := unsafe { &ctx.clip_snapshots }
+		if index < snapshots.len {
+			mut snapshot := unsafe { snapshots[index] }
+			if snapshot.base == base && snapshot.frame == frame && snapshot.transform == transform {
+				return snapshot.result
+			}
+			result := base.intersect(paint_transformed_clip(frame, transform))
+			snapshot.base = base
+			snapshot.frame = frame
+			snapshot.transform = transform
+			snapshot.result = result
+			return result
+		}
+		result := base.intersect(paint_transformed_clip(frame, transform))
+		snapshots << &PaintClipSnapshot{base: base, frame: frame, transform: transform, result: result}
+		return result
 	}
 	fn (ctx &DrawContext) sync_scissor() {
 		// Scissor only accelerates the exact polygon clipper, never defines the clip.

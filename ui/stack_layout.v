@@ -25,7 +25,7 @@ fn stack_validate(config StackConfig) ! {
 	if config.align_x == .auto || config.align_y == .auto {
 		return error('stack container alignment cannot be auto')
 	}
-	for value in [config.padding.left, config.padding.top, config.padding.right, config.padding.bottom] {
+	for value in [config.padding.left, config.padding.top, config.padding.right, config.padding.bottom]! {
 		if !layout_finite(value) || value < 0 {
 			return error('stack padding must be finite and non-negative')
 		}

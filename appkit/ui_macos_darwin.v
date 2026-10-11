@@ -944,10 +944,8 @@ fn render_mounted_layout() {
 	render_resolved_root(root)
 }
 
-fn render_resolved_root(resolved Element) {
+fn render_resolved_root(root Element) {
 	previous_focus := focused_id()
-	root := effective_element_state(resolved, true)
-	validate_element_tree(root) or { eprintln('ui2: ${err}'); return }
 	mut st := state()
 	st.views = map[string]NativeView{}
 	st.view_keys = map[string]string{}

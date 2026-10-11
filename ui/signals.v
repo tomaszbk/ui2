@@ -268,13 +268,24 @@ fn (mut runtime SignalRuntime) values_equal[T](equals fn (T, T) bool, left T, ri
 pub fn (mut runtime SignalRuntime) batch(action fn () !) ! {
 	runtime.require_action()!
 	if action == unsafe { nil } { return error('signals: batch callback is nil') }
-	runtime.batch_depth++
+	runtime.begin_batch()!
 	mut action_error := ''
 	mut action_failed := false
 	action() or {
 		action_error = err.msg()
 		action_failed = true
 	}
+	runtime.finish_batch(action_failed, action_error)!
+}
+
+// Internal synchronous publishers can enter a batch without constructing a
+// temporary closure. They share the same error/flush contract as public batch.
+fn (mut runtime SignalRuntime) begin_batch() ! {
+	runtime.require_action()!
+	runtime.batch_depth++
+}
+
+fn (mut runtime SignalRuntime) finish_batch(action_failed bool, action_error string) ! {
 	runtime.batch_depth--
 	mut flush_error := ''
 	runtime.flush_if_ready() or { flush_error = err.msg() }

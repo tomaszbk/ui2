@@ -67,10 +67,11 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	}
 
 	fn (dispatch CustomInputDispatch) owner_current() bool {
-		return dispatch.app == g_gg_app
-			&& dispatch.window == g_active_custom_window_state
-			&& dispatch.scheduler == dispatch.app.scheduler
-			&& !dispatch.scheduler.is_closed()
+		mut scheduler := dispatch.scheduler
+		return voidptr(dispatch.app) == voidptr(g_gg_app)
+			&& voidptr(dispatch.window) == voidptr(g_active_custom_window_state)
+			&& voidptr(dispatch.scheduler) == voidptr(dispatch.app.scheduler)
+			&& !scheduler.is_closed()
 	}
 
 	fn (dispatch CustomInputDispatch) valid() bool {

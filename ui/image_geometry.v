@@ -71,7 +71,7 @@ pub fn (asset ImageAsset) validate() ! {
 
 pub fn (style ImageStyle) validate() ! {
 	for v in [style.align_x, style.align_y, style.source.x, style.source.y, style.source.width,
-		style.source.height] {
+		style.source.height]! {
 		if !math.is_finite(v) { return error('image style geometry must be finite') }
 	}
 	if style.align_x < 0 || style.align_x > 1 || style.align_y < 0 || style.align_y > 1 {
@@ -104,7 +104,7 @@ pub:
 // the shared affine projects these points once for paint and interaction.
 pub fn image_geometry(frame Rect, intrinsic LayoutSize, style ImageStyle) !ImageGeometry {
 	style.validate()!
-	for v in [frame.x, frame.y, frame.width, frame.height, intrinsic.width, intrinsic.height] {
+	for v in [frame.x, frame.y, frame.width, frame.height, intrinsic.width, intrinsic.height]! {
 		if !math.is_finite(v) { return error('image geometry must be finite') }
 	}
 	if intrinsic.width <= 0 || intrinsic.height <= 0 || frame.width <= 0 || frame.height <= 0 {
@@ -137,7 +137,7 @@ pub fn image_geometry(frame Rect, intrinsic LayoutSize, style ImageStyle) !Image
 	mut max_x, max_y := math.inf(-1), math.inf(-1)
 	for i, p in [ImagePoint{visible.x, visible.y}, ImagePoint{visible.x + visible.width, visible.y},
 		ImagePoint{visible.x + visible.width, visible.y + visible.height},
-		ImagePoint{visible.x, visible.y + visible.height}] {
+		ImagePoint{visible.x, visible.y + visible.height}]! {
 		x, y := p.x, p.y
 		points[i] = ImagePoint{x, y}
 		min_x = math.min(min_x, x)

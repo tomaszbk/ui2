@@ -14,9 +14,17 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 	}
 
 	fn sync_focus_navigation() {
-		mut offsets := map[string]f64{}
-		custom_focus_offsets(g_focus_navigation.root, 'root', mut offsets)
-		g_focus_navigation.update_mounted(g_focus_navigation.root, offsets, bounds(), ContentTransform{ y: menu_bar_height() })
+		if g_focus_navigation.geometry_revision != g_focus_navigation.root_revision || g_focus_navigation.geometry_serial == 0 {
+			g_gg_app.focus_offsets.clear()
+			custom_focus_offsets(g_focus_navigation.root, 'root', mut g_gg_app.focus_offsets)
+		} else {
+			for node in g_focus_navigation.nodes {
+				if node.el.kind == .scroll {
+					g_gg_app.focus_offsets[node.path] = scroll_state_offset(scroll_view_state_id(node.el, node.path))
+				}
+			}
+		}
+		g_focus_navigation.update_mounted(g_focus_navigation.root, g_gg_app.focus_offsets, bounds(), ContentTransform{ y: menu_bar_height() })
 		sync_mounted_scroll_views()
 	}
 
@@ -49,10 +57,16 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		sync_focus_navigation()
 	}
 
+	fn mounted_menu_options(el Element, path string) []string {
+		if node := g_focus_navigation.path_node(path) {
+			if node.el.menu == el.menu { return node.menu_options_snapshot() }
+		}
+		return element_menu_options(el)
+	}
+
 	fn custom_focus_target(node FocusNode) HitTarget {
 		el := node.el
-		mut options := []string{}
-		for entry in el.menu { options << entry.title }
+		options := node.menu_options_snapshot()
 		geometry := element_hit_geometry(el,node.local_frame,node.transform,node.clip)
 		return HitTarget{
 			...geometry
@@ -154,6 +168,10 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 	// This pass retains every mounted input, including culled subtrees. Editor
 	// reconciliation lives here, so scrolling never discards local edits/IME.
 	fn reconcile_mounted_focus_controls(root Element) {
+		if g_gg_app.controls_initialized && g_gg_app.controls_root == root { return }
+		g_gg_app.controls_root = root
+		g_gg_app.controls_initialized = true
+		g_gg_app.controls_prune_pending = true
 		g_active_fields.clear()
 		g_gg_app.editable_fields.clear()
 		g_active_sliders.clear()

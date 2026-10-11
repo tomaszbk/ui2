@@ -125,11 +125,16 @@ pub fn (l Layout) get_closest_offset(x f32, y f32) int {
 
 // get_selection_rects returns a list of rectangles covering the text range [start, end).
 pub fn (l Layout) get_selection_rects(start int, end int) []gg.Rect {
-	if start >= end || l.lines.len == 0 {
-		return []gg.Rect{}
-	}
-
 	mut rects := []gg.Rect{}
+	l.get_selection_rects_into(start, end, mut rects)
+	return rects
+}
+
+// get_selection_rects_into reuses host-owned paint storage. Returned snapshots
+// continue to use get_selection_rects; borrowed paint is consumed immediately.
+pub fn (l Layout) get_selection_rects_into(start int, end int, mut rects []gg.Rect) {
+	rects.clear()
+	if start >= end || l.lines.len == 0 { return }
 	mut s := start
 	mut e := end
 
@@ -178,7 +183,6 @@ pub fn (l Layout) get_selection_rects(start int, end int) []gg.Rect {
 			}
 		}
 	}
-	return rects
 }
 
 // get_font_name_at_index returns the family name of the font used to render
@@ -293,6 +297,17 @@ pub fn (l Layout) get_valid_cursor_positions() []int {
 	}
 	positions.sort()
 	return positions
+}
+
+// cursor_at_or_before finds the same preceding insertion boundary without
+// materializing and sorting every valid position during a caret repaint.
+pub fn (l Layout) cursor_at_or_before(byte_index int) int {
+	mut previous := 0
+	for index, attribute in l.log_attr_by_index {
+		if index <= byte_index && index >= previous && attribute >= 0 && attribute < l.log_attrs.len
+			&& l.log_attrs[attribute].is_cursor_position { previous = index }
+	}
+	return previous
 }
 
 // move_cursor_left returns the byte index of the previous valid cursor position.

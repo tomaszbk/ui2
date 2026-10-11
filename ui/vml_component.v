@@ -40,6 +40,8 @@ mut:
 	inherit_height    bool
 	is_fragment       bool
 	relative_key      string
+	fragment_keys_prefix string
+	fragment_keys_ready bool
 	presentation      &VmlPresentation = unsafe { nil }
 	source_snapshot   &VmlSourceSnapshot = unsafe { nil }
 	parent            &CompiledVmlNode = unsafe { nil }
@@ -55,6 +57,7 @@ mut:
 	viewport_width   bool
 	viewport_height  bool
 	segments         []VmlChildSegment
+	segments_current bool
 	child_layout     VmlChildLayout
 	child_layout_set bool
 }
@@ -209,7 +212,10 @@ fn (mut component CompiledVmlComponent) owned_element(declaration Element, confi
 		if node.authored_id != declaration.id || node.declaration.kind != declaration.kind || node.is_fragment != fragment {
 			return error('compiled VML local identity changed its authored id or kind')
 		}
-		if !node.mounted {
+		if !node.mounted && (node.declaration.frame != declaration.frame
+			|| node.declaration.layout_input != declaration.layout_input
+			|| node.declaration.layout != declaration.layout
+			|| node.declaration.content_size != declaration.content_size) {
 			// Preferred-size passes and allocated-size passes share one instance.
 			// Only authored geometry follows the latter; effects retain values.
 			node.declaration = Element{
@@ -234,6 +240,7 @@ fn (mut component CompiledVmlComponent) owned_element(declaration Element, confi
 		inherit_height:    config.inherit_height
 		is_fragment:       fragment
 		relative_key:      declaration.key
+		fragment_keys_ready: true
 		children_revision: new_signal(mut component.scope, u64(0),
 			name: '@children:' + local_id
 		)!
@@ -255,7 +262,7 @@ fn (mut component CompiledVmlComponent) owned_element(declaration Element, confi
 }
 
 pub fn (mut node CompiledVmlNode) set_element_children(declarations []Element) ! {
-	mut children := []&CompiledVmlNode{}
+	mut children := []&CompiledVmlNode{cap: declarations.len}
 	for index, child in declarations {
 		if child.compiled_node != unsafe { nil } {
 			mut projected := child.compiled_node
@@ -479,13 +486,13 @@ pub fn (mut node CompiledVmlNode) set_children(children []&CompiledVmlNode) ! {
 		child.component.require_alive()!
 		if voidptr(child) in attached { return error('compiled VML child declaration cannot appear more than once') }
 		attached[voidptr(child)] = true
-		if child == &node { return error('compiled VML element cannot contain itself') }
+		if voidptr(child) == voidptr(&node) { return error('compiled VML element cannot contain itself') }
 		mut ancestor := &node
 		for ancestor.parent != unsafe { nil } {
 			ancestor = ancestor.parent
-			if ancestor == child { return error('compiled VML element cannot contain an ancestor') }
+			if voidptr(ancestor) == voidptr(child) { return error('compiled VML element cannot contain an ancestor') }
 		}
-		if child.parent != unsafe { nil } && child.parent != &node {
+		if child.parent != unsafe { nil } && voidptr(child.parent) != voidptr(&node) {
 			return error('compiled VML element already belongs to another parent')
 		}
 	}
@@ -502,6 +509,7 @@ pub fn (mut node CompiledVmlNode) set_children(children []&CompiledVmlNode) ! {
 			old.mark_mounted(false)
 		}
 	}
+	if node.children != children { node.segments_current = false }
 	node.children = children.clone()
 	for mut child in node.children { child.parent = &node }
 	for mut child in node.children { child.refresh_fragment_keys() }

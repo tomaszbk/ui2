@@ -21,9 +21,49 @@ pub:
 // area are empty, including public snapshots constructed with points directly.
 // Regions are immutable snapshots, shared by paint, hit, hover and scroll.
 pub struct ClipRegion {
+	// Paint scopes keep rectangular snapshots inline; public points snapshots
+	// and arbitrary convex polygons retain their owned vertex arrays.
+	inline_axis [4]Point
+	has_inline_axis bool
 pub:
 	bounded bool
 	points  []Point
+}
+
+fn (clip ClipRegion) axis_edges() (f64, f64, f64, f64, int) {
+	if clip.has_inline_axis { return clip.inline_axis[0].x, clip.inline_axis[0].y, clip.inline_axis[2].x, clip.inline_axis[2].y, 1 }
+	return clip_axis_edges(clip.points)
+}
+
+fn (clip ClipRegion) basis() (Rect, int) {
+	if clip.has_inline_axis {
+		return rect(clip.inline_axis[0].x, clip.inline_axis[0].y,
+			clip.inline_axis[2].x - clip.inline_axis[0].x, clip.inline_axis[2].y - clip.inline_axis[0].y), 1
+	}
+	return clip_basis(clip.points)
+}
+
+fn inline_axis_clip(left f64, top f64, right f64, bottom f64) ClipRegion {
+	if !finite_number(left) || !finite_number(top) || !finite_number(right) || !finite_number(bottom)
+		|| !finite_number(right - left) || !finite_number(bottom - top) || right <= left || bottom <= top {
+		return ClipRegion{bounded: true}
+	}
+	return ClipRegion{bounded: true, has_inline_axis: true,
+		inline_axis: [Point{left, top}, Point{right, top}, Point{right, bottom}, Point{left, bottom}]!}
+}
+
+// Internal presentation scopes need immutable region snapshots but axis clips
+// need no heap-backed polygons. General affine clips keep the exact polygon API.
+fn paint_transformed_clip(frame Rect, t ContentTransform) ClipRegion {
+	if t.xy != 0 || t.yx != 0 { return transformed_clip(frame, t) }
+	if !finite_number(frame.x) || !finite_number(frame.y) || !finite_number(frame.width)
+		|| !finite_number(frame.height) || frame.width <= 0 || frame.height <= 0 || !t.invertible() {
+		return ClipRegion{bounded: true}
+	}
+	first := t.point(frame.x, frame.y)
+	last := t.point(frame.x + frame.width, frame.y + frame.height)
+	return inline_axis_clip(math.min(first.x, last.x), math.min(first.y, last.y),
+		math.max(first.x, last.x), math.max(first.y, last.y))
 }
 
 // Scale the two axes independently, after subtraction. World-space shoelace
@@ -173,9 +213,10 @@ fn convex_clip_result(vertices []Point) ClipRegion {
 
 fn (clip ClipRegion) normalized() ClipRegion {
 	if !clip.bounded { return ClipRegion{} }
+	if clip.has_inline_axis { return clip }
 	_, axis_winding := clip_axis_rect(clip.points)
 	if axis_winding > 0 { return clip }
-	extent, winding := clip_basis(clip.points)
+	extent, winding := clip.basis()
 	if winding == 0 { return ClipRegion{ bounded: true } }
 	// Valid canonical snapshots can be shared without allocating. Remove only
 	// exact redundant vertices; tolerance must never erase a thin valid region.
@@ -204,7 +245,15 @@ pub fn transformed_clip(frame Rect, t ContentTransform) ClipRegion {
 pub fn (clip ClipRegion) contains(x f64, y f64) bool {
 	if !finite_number(x) || !finite_number(y) { return false }
 	if !clip.bounded { return true }
-	extent, winding := clip_basis(clip.points)
+	if clip.has_inline_axis {
+		extent, _ := clip.basis()
+		nx := (x - extent.x) / extent.width
+		ny := (y - extent.y) / extent.height
+		edge_error := 8 * 2.220446049250313e-16
+		return finite_number(nx) && finite_number(ny) && nx >= -edge_error && nx <= 1 + edge_error
+			&& ny >= -edge_error && ny <= 1 + edge_error
+	}
+	extent, winding := clip.basis()
 	if winding == 0 { return false }
 	// A nearly collinear valid polygon still bounds a finite area. Halfplane
 	// roundoff alone must not admit arbitrarily far extensions of its edges.
@@ -226,7 +275,7 @@ pub fn (clip ClipRegion) contains(x f64, y f64) bool {
 
 pub fn (clip ClipRegion) bounds() Rect {
 	if !clip.bounded { return Rect{} }
-	extent, _ := clip_basis(clip.points)
+	extent, _ := clip.basis()
 	return extent
 }
 
@@ -243,32 +292,71 @@ fn lerp_vertex(a PaintVertex, b PaintVertex, t f64) PaintVertex {
 	}
 }
 
-// clip_axis_halfplane keeps x >= bound (or y, or <= with keep_greater false)
-// with the same nearer-endpoint interpolation as the general clipper.
-fn clip_axis_halfplane(polygon []PaintVertex, horizontal bool, bound f64, keep_greater bool) []PaintVertex {
-	if polygon.len == 0 { return []PaintVertex{} }
-	mut output := []PaintVertex{cap: polygon.len + 1}
+// Paint clipping borrows ping-pong storage for immediate submission. A window
+// owns one buffer; growing an unusually complex polygon raises its high-water
+// capacity once, and subsequent paints reuse it. No temporary is a clip snapshot.
+struct PaintClipBuffer {
+mut:
+	first []PaintVertex
+	second []PaintVertex
+}
+
+fn new_paint_clip_buffer() PaintClipBuffer {
+	return PaintClipBuffer{
+		first: []PaintVertex{cap: 80}
+		second: []PaintVertex{cap: 80}
+	}
+}
+
+// clip_axis_halfplane_into keeps x >= bound (or y, or <=) with the same
+// nearer-endpoint interpolation as the general clipper.
+fn clip_axis_halfplane_into(polygon []PaintVertex, horizontal bool, bound f64, keep_greater bool, mut output []PaintVertex) {
+	output.clear()
+	if polygon.len == 0 { return }
 	mut previous := polygon[polygon.len - 1]
 	mut previous_side := clip_axis_side(previous, horizontal, bound, keep_greater)
-	if !finite_number(previous_side) { return []PaintVertex{} }
+	if !finite_number(previous_side) { return }
 	for current in polygon {
 		side := clip_axis_side(current, horizontal, bound, keep_greater)
-		if !finite_number(side) { return []PaintVertex{} }
+		if !finite_number(side) { output.clear(); return }
 		if (side >= 0) != (previous_side >= 0) {
-			magnitude := math.max(math.abs(previous_side), math.abs(side))
-			previous_fraction := math.abs(previous_side) / magnitude
-			current_fraction := math.abs(side) / magnitude
-			if previous_fraction <= current_fraction {
-				output << lerp_vertex(previous, current, previous_fraction / (previous_fraction + current_fraction))
-			} else {
-				output << lerp_vertex(current, previous, current_fraction / (previous_fraction + current_fraction))
-			}
+			output << clip_edge_vertex(previous, current, previous_side, side)
 		}
 		if side >= 0 { output << current }
 		previous = current
 		previous_side = side
 	}
-	return output
+}
+
+fn clip_edge_vertex(previous PaintVertex, current PaintVertex, previous_side f64, side f64) PaintVertex {
+	magnitude := math.max(math.abs(previous_side), math.abs(side))
+	previous_fraction := math.abs(previous_side) / magnitude
+	current_fraction := math.abs(side) / magnitude
+	// Anchor at the nearer endpoint so a tiny fraction never rounds to 1 and
+	// collapses a small but valid clipped polygon.
+	return if previous_fraction <= current_fraction {
+		lerp_vertex(previous, current, previous_fraction / (previous_fraction + current_fraction))
+	} else {
+		lerp_vertex(current, previous, current_fraction / (previous_fraction + current_fraction))
+	}
+}
+
+fn clip_halfplane_into(polygon []PaintVertex, extent Rect, a Point, b Point, winding int, mut output []PaintVertex) {
+	output.clear()
+	if polygon.len == 0 { return }
+	mut previous := polygon[polygon.len - 1]
+	mut previous_side := clip_side(extent, a, b, previous.x, previous.y) * winding
+	if !finite_number(previous_side) { return }
+	for current in polygon {
+		side := clip_side(extent, a, b, current.x, current.y) * winding
+		if !finite_number(side) { output.clear(); return }
+		if (side >= 0) != (previous_side >= 0) {
+			output << clip_edge_vertex(previous, current, previous_side, side)
+		}
+		if side >= 0 { output << current }
+		previous = current
+		previous_side = side
+	}
 }
 
 fn clip_axis_side(v PaintVertex, horizontal bool, bound f64, keep_greater bool) f64 {
@@ -301,85 +389,68 @@ fn paint_polygon_has_area(vertices []PaintVertex) bool {
 	return finite_number(area) && area != 0
 }
 
+// Public clipping returns an owned result. Paint instead borrows the retained
+// window buffer until submission has consumed it.
 pub fn (clip ClipRegion) clip_polygon(vertices []PaintVertex) []PaintVertex {
+	mut buffer := PaintClipBuffer{}
+	return clip.clip_polygon_buffered(vertices, mut buffer)
+}
+
+fn (clip ClipRegion) clip_polygon_buffered(vertices []PaintVertex, mut buffer PaintClipBuffer) []PaintVertex {
 	if !clip.bounded { return vertices }
-	extent, winding := clip_basis(clip.points)
+	extent, winding := clip.basis()
 	if winding == 0 || vertices.len < 3 { return []PaintVertex{} }
 	for v in vertices {
 		if !finite_number(v.x) || !finite_number(v.y) { return []PaintVertex{} }
 	}
-	left, top, right, bottom, axis_winding := clip_axis_edges(clip.points)
+	left, top, right, bottom, axis_winding := clip.axis_edges()
+	mut polygon := unsafe { vertices }
+	mut use_first := true
 	if axis_winding != 0 {
-		// Axis-aligned halfplanes have exact signed distances. Clip only against
-		// the edges some vertex crosses; wholly inside paint is returned as is.
-		mut outside_left, mut outside_right, mut outside_top, mut outside_bottom := false, false, false, false
-		mut beyond_left, mut beyond_right, mut beyond_top, mut beyond_bottom := true, true, true, true
+		// Axis-aligned halfplanes have exact signed distances. Clip only crossed
+		// edges; wholly inside paint keeps the caller's vertex storage.
+		mut outside := [4]bool{}
+		mut beyond := [true, true, true, true]!
 		for v in vertices {
-			outside_left = outside_left || v.x < left
-			outside_right = outside_right || v.x > right
-			outside_top = outside_top || v.y < top
-			outside_bottom = outside_bottom || v.y > bottom
-			beyond_left = beyond_left && v.x < left
-			beyond_right = beyond_right && v.x > right
-			beyond_top = beyond_top && v.y < top
-			beyond_bottom = beyond_bottom && v.y > bottom
+			outside[0] = outside[0] || v.y < top
+			outside[1] = outside[1] || v.x > right
+			outside[2] = outside[2] || v.y > bottom
+			outside[3] = outside[3] || v.x < left
+			beyond[0] = beyond[0] && v.y < top
+			beyond[1] = beyond[1] && v.x > right
+			beyond[2] = beyond[2] && v.y > bottom
+			beyond[3] = beyond[3] && v.x < left
 		}
-		if beyond_left || beyond_right || beyond_top || beyond_bottom { return []PaintVertex{} }
-		if !(outside_left || outside_right || outside_top || outside_bottom) {
-			return if paint_polygon_has_area(vertices) { vertices } else { []PaintVertex{} }
-		}
-		mut polygon := []PaintVertex{}
-		mut clipped := false
-		if outside_top {
-			polygon = clip_axis_halfplane(vertices, false, top, true)
-			clipped = true
-		}
-		if outside_right {
-			polygon = clip_axis_halfplane(if clipped { polygon } else { vertices }, true, right, false)
-			clipped = true
-		}
-		if outside_bottom {
-			polygon = clip_axis_halfplane(if clipped { polygon } else { vertices }, false, bottom, false)
-			clipped = true
-		}
-		if outside_left {
-			polygon = clip_axis_halfplane(if clipped { polygon } else { vertices }, true, left, true)
-		}
-		return if paint_polygon_has_area(polygon) { polygon } else { []PaintVertex{} }
-	}
-	mut polygon := vertices.clone()
-	for i, a in clip.points {
-		if polygon.len == 0 { break }
-		b := clip.points[(i + 1) % clip.points.len]
-		mut output := []PaintVertex{cap: polygon.len + 1}
-		mut previous := polygon[polygon.len - 1]
-		mut previous_side := clip_side(extent, a, b, previous.x, previous.y) * winding
-		if !finite_number(previous_side) { return []PaintVertex{} }
-		for current in polygon {
-			side := clip_side(extent, a, b, current.x, current.y) * winding
-			if !finite_number(side) { return []PaintVertex{} }
-			if (side >= 0) != (previous_side >= 0) {
-				magnitude := math.max(math.abs(previous_side), math.abs(side))
-				previous_fraction := math.abs(previous_side) / magnitude
-				current_fraction := math.abs(side) / magnitude
-				// Anchor at the nearer endpoint: 1 - a tiny fraction can round
-				// to 1 and collapse a small but valid clipped polygon otherwise.
-				if previous_fraction <= current_fraction {
-					output << lerp_vertex(previous, current, previous_fraction / (previous_fraction + current_fraction))
-				} else {
-					output << lerp_vertex(current, previous, current_fraction / (previous_fraction + current_fraction))
-				}
+		for value in beyond { if value { return []PaintVertex{} } }
+		edge_bounds := [top, right, bottom, left]!
+		for edge in 0 .. 4 {
+			if !outside[edge] { continue }
+			if use_first {
+				clip_axis_halfplane_into(polygon, edge % 2 == 1, edge_bounds[edge], edge == 0 || edge == 3, mut buffer.first)
+				polygon = unsafe { buffer.first }
+			} else {
+				clip_axis_halfplane_into(polygon, edge % 2 == 1, edge_bounds[edge], edge == 0 || edge == 3, mut buffer.second)
+				polygon = unsafe { buffer.second }
 			}
-			if side >= 0 { output << current }
-			previous = current
-			previous_side = side
+			use_first = !use_first
 		}
-		polygon = unsafe { output }
+	} else {
+		for i, a in clip.points {
+			if polygon.len == 0 { break }
+			b := clip.points[(i + 1) % clip.points.len]
+			if use_first {
+				clip_halfplane_into(polygon, extent, a, b, winding, mut buffer.first)
+				polygon = unsafe { buffer.first }
+			} else {
+				clip_halfplane_into(polygon, extent, a, b, winding, mut buffer.second)
+				polygon = unsafe { buffer.second }
+			}
+			use_first = !use_first
+		}
 	}
-	// Tangency submits no triangles. Keep every attribute-bearing vertex of
-	// positive-area paint polygons, including coincident UV/color seams.
-	_, area_winding := clip_area(polygon.map(Point{it.x, it.y}))
-	return if area_winding == 0 { []PaintVertex{} } else { polygon }
+	// Tangency submits no triangles. Keep all attribute-bearing vertices in
+	// positive-area polygons, including coincident UV/color seams.
+	return if paint_polygon_has_area(polygon) { polygon } else { []PaintVertex{} }
 }
 
 pub fn (clip ClipRegion) intersect(other ClipRegion) ClipRegion {
@@ -387,16 +458,25 @@ pub fn (clip ClipRegion) intersect(other ClipRegion) ClipRegion {
 	right := other.normalized()
 	if !left.bounded { return right }
 	if !right.bounded { return left }
-	l0, t0, r0, b0, left_axis := clip_axis_edges(left.points)
-	l1, t1, r1, b1, right_axis := clip_axis_edges(right.points)
+	l0, t0, r0, b0, left_axis := left.axis_edges()
+	l1, t1, r1, b1, right_axis := right.axis_edges()
 	if left_axis != 0 && right_axis != 0 {
 		x0, y0 := math.max(l0, l1), math.max(t0, t1)
 		x1, y1 := math.min(r0, r1), math.min(b0, b1)
 		if x1 <= x0 || y1 <= y0 { return ClipRegion{ bounded: true } }
+		if left.has_inline_axis || right.has_inline_axis { return inline_axis_clip(x0, y0, x1, y1) }
 		return ClipRegion{ bounded: true, points: [Point{x0, y0}, Point{x1, y0}, Point{x1, y1}, Point{x0, y1}] }
 	}
-	vertices := right.points.map(PaintVertex{ x: it.x, y: it.y })
-	return convex_clip_result(left.clip_polygon(vertices).map(Point{it.x, it.y}))
+	// General intersections need owned polygon snapshots. Materialize an inline
+	// rectangular operand only here, outside the common axis paint path.
+	left_points := if left.has_inline_axis {
+		[left.inline_axis[0], left.inline_axis[1], left.inline_axis[2], left.inline_axis[3]]
+	} else { left.points }
+	right_points := if right.has_inline_axis {
+		[right.inline_axis[0], right.inline_axis[1], right.inline_axis[2], right.inline_axis[3]]
+	} else { right.points }
+	vertices := right_points.map(PaintVertex{ x: it.x, y: it.y })
+	return convex_clip_result(ClipRegion{bounded: true, points: left_points}.clip_polygon(vertices).map(Point{it.x, it.y}))
 }
 
 // Inclusive conservative broad phase. Inverse/projection roundoff must not

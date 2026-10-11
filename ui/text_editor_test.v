@@ -298,6 +298,7 @@ fn test_submit_callback_filters_changes_and_preserves_secure_display_text() {
 	el.on_event(ElementEvent{ kind: .change, id: el.id, text: 'draft' })
 	el.on_event(ElementEvent{ kind: .submit, id: el.id, text: el.text })
 	assert text_editor_submit_events == [ElementEvent{ kind: .submit, id: 'message', text: 'Привет🙂' }]
-	assert text_field_display_text(el.text, false) == 'Привет🙂'
-	assert text_field_display_text(el.text, true) == '•••••••'
+	mut display := FrameTextBuffer{}
+	assert display.field_text(el.text, false) == 'Привет🙂'
+	assert display.field_text(el.text, true) == '•••••••'
 }

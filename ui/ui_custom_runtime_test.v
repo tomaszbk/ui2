@@ -15,14 +15,16 @@ $if ( linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headl
 	}
 
 	fn mount_custom_runtime_editor(multiline bool, value string, readonly bool) {
-		root := effective_element_state(screen(0xffffff, [Element{
+		mut tree := LayoutTree{}
+		tree.replace(screen(0xffffff, [Element{
 			kind:     if multiline { Kind.text_area } else { Kind.text_field }
 			id:       'editor'
 			frame:    rect(0, 0, 180, 60)
 			text:     value
 			readonly: readonly
 			on_event: custom_runtime_change
-		}]), true)
+		}])) or { panic(err) }
+		root := tree.resolve(LayoutConstraints{}, unsafe { nil }, LayoutEnvironment{}) or { panic(err) }
 		g_active_fields.clear()
 		update_custom_focus_tree(root)
 		sync_mounted_focus_controls(root, 'root')
@@ -50,7 +52,7 @@ $if ( linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headl
 		baseline := app.scheduler.stats()
 		for now in 1 .. 4 {
 			idle := app.scheduler.begin_frame(now) or { panic('D3D must repaint its backbuffer') }
-			assert idle.draw && !idle.build && idle.reasons == [.presentation]
+			assert idle.draw && !idle.build && idle.reason_list() == [.presentation]
 			app.scheduler.finish_frame(idle)
 		}
 		assert app.scheduler.stats().requests == baseline.requests
@@ -60,7 +62,7 @@ $if ( linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headl
 		app.scheduler.invalidate(.build)
 		app.scheduler.finish_frame(presenting)
 		changed := app.scheduler.begin_frame(5) or { panic('lost model update') }
-		assert changed.build && changed.reasons == [.build]
+		assert changed.build && changed.reason_list() == [.build]
 		app.scheduler.finish_frame(changed)
 		on_event(&gg.Event{ typ: .iconified }, app)
 		if _ := app.scheduler.begin_frame(6) {
@@ -68,10 +70,10 @@ $if ( linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headl
 		}
 		on_event(&gg.Event{ typ: .restored }, app)
 		restored := app.scheduler.begin_frame(7) or { panic('missing restored surface') }
-		assert restored.build && restored.draw && RenderReason.surface in restored.reasons
+		assert restored.build && restored.draw && RenderReason.surface in restored.reason_list()
 		app.scheduler.finish_frame(restored)
 		retained := app.scheduler.begin_frame(8) or { panic('lost D3D presentation after restore') }
-		assert retained.draw && !retained.build && retained.reasons == [.presentation]
+		assert retained.draw && !retained.build && retained.reason_list() == [.presentation]
 		app.scheduler.finish_frame(retained)
 		app.scheduler.close()
 		if _ := app.scheduler.begin_frame(9) {

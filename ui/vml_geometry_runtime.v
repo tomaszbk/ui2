@@ -75,9 +75,15 @@ fn compiled_vml_sync_geometry(element Element) ![]Element {
 	if element.compiled_node != unsafe { nil } {
 		if element.compiled_node.component.is_disposed() { return updates }
 		before := element.compiled_node.element()
-		element.compiled_node.component.runtime.batch(fn [element] () ! {
-			compiled_vml_record_geometry(element)!
-		})!
+		mut runtime := element.compiled_node.component.runtime
+		runtime.begin_batch()!
+		mut action_error := ''
+		mut action_failed := false
+		compiled_vml_record_geometry(element) or {
+			action_error = err.msg()
+			action_failed = true
+		}
+		runtime.finish_batch(action_failed, action_error)!
 		after := element.compiled_node.element()
 		if !vml_declaration_equal(before, after) { updates << after }
 	} else {

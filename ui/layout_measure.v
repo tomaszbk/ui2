@@ -21,12 +21,12 @@ pub:
 }
 
 pub fn (constraints LayoutConstraints) validate() ! {
-	for minimum in [constraints.min_width, constraints.min_height] {
+	for minimum in [constraints.min_width, constraints.min_height]! {
 		if !math.is_finite(minimum) || minimum < 0 {
 			return error('layout minimums must be finite and nonnegative')
 		}
 	}
-	for maximum in [constraints.max_width, constraints.max_height] {
+	for maximum in [constraints.max_width, constraints.max_height]! {
 		if !math.is_finite(maximum) || (maximum < 0 && maximum != -1) {
 			return error('layout maximums must be nonnegative or -1 (unbounded)')
 		}
@@ -56,7 +56,7 @@ pub fn (constraints LayoutConstraints) loosen() LayoutConstraints {
 // larger than a bounded axis leaves a tight zero, never a negative maximum.
 pub fn (constraints LayoutConstraints) deflate(padding LayoutPadding) !LayoutConstraints {
 	constraints.validate()!
-	for inset in [padding.left, padding.top, padding.right, padding.bottom] {
+	for inset in [padding.left, padding.top, padding.right, padding.bottom]! {
 		if !math.is_finite(inset) || inset < 0 {
 			return error('layout padding must be finite and nonnegative')
 		}
@@ -243,7 +243,7 @@ fn layout_validate_text_measurement(style TextStyle, max_width f64) ! {
 		return error('text weight must be zero or 100–900')
 	}
 	for value in [style.letter_spacing, style.line_height, style.line_height_factor,
-		style.baseline_offset] {
+		style.baseline_offset]! {
 		if !math.is_finite(value) { return error('typography values must be finite') }
 	}
 	if style.line_height < 0 || style.line_height_factor < 0 || (style.line_height > 0 && style.line_height_factor > 0) {

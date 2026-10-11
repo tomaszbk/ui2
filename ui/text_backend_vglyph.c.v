@@ -102,12 +102,20 @@ $if (linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ?
 		key ShapeCacheKey
 		shaped ShapedText
 	mut:
-		// The last painted colors and their recolored items, reused while unchanged.
-		colored ShapedText
-		colored_style u32
-		colored_runs []u32
-		has_colored bool
+		// Reuse warmed interaction palettes while retaining immutable snapshots.
+		// Bound animation-driven color changes independently of shaping capacity.
+		painted []&ShapePaintCache
+		next_paint int
 	}
+
+	@[heap]
+	struct ShapePaintCache {
+		shaped ShapedText
+		color u32
+		run_colors []u32
+	}
+
+	const shape_paint_cache_limit = 8
 
 	// Fontconfig application-font registration is process-wide in vglyph. Guard
 	// it, including CPU measurements, and register each file once; GPU resources
@@ -401,15 +409,13 @@ $if (linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ?
 			}
 			engine.shape_cache_insert(h, entry)
 		}
-		if entry.has_colored && entry.colored_style == style.color && entry.colored_runs.len == runs.len {
+		for painted in entry.painted {
+			if painted.color != style.color || painted.run_colors.len != runs.len { continue }
 			mut same := true
 			for i, run in runs {
-				if entry.colored_runs[i] != run.style.color {
-					same = false
-					break
-				}
+				if painted.run_colors[i] != run.style.color { same = false; break }
 			}
-			if same { return entry.colored }
+			if same { return painted.shaped }
 		}
 		shaped := entry.shaped
 		mut items := shaped.layout.items.clone()
@@ -424,10 +430,13 @@ $if (linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ?
 			items[i] = vglyph.Item{ ...item, color: hex_color(color) }
 		}
 		colored := ShapedText{ ...shaped, layout: vglyph.Layout{ ...shaped.layout, items: items } }
-		entry.colored = colored
-		entry.colored_style = style.color
-		entry.colored_runs = runs.map(it.style.color)
-		entry.has_colored = true
+		painted := &ShapePaintCache{shaped: colored, color: style.color, run_colors: runs.map(it.style.color)}
+		if entry.painted.len < shape_paint_cache_limit {
+			entry.painted << painted
+		} else {
+			entry.painted[entry.next_paint] = painted
+			entry.next_paint = (entry.next_paint + 1) % shape_paint_cache_limit
+		}
 		return colored
 	}
 
@@ -593,9 +602,7 @@ $if (linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ?
 			return rect(cursor.x, cursor.y, 1, cursor.height)
 		}
 		// Keep the editor's rune index; only its geometry snaps to a cluster edge.
-		positions := shaped.layout.get_valid_cursor_positions()
-		mut previous := 0
-		for position in positions { if position > byte_index { break }; previous = position }
+		previous := shaped.layout.cursor_at_or_before(byte_index)
 		if cursor := shaped.layout.get_cursor_pos(previous) {
 			return rect(cursor.x, cursor.y, 1, cursor.height)
 		}
@@ -604,11 +611,16 @@ $if (linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ?
 
 	fn (shaped ShapedText) selection(start int, end int) []Rect {
 		mut result := []Rect{}
-		for r in shaped.layout.get_selection_rects(text_rune_to_byte(shaped.text, start),
-			text_rune_to_byte(shaped.text, end)) {
-			result << rect(r.x, r.y, r.width, r.height)
-		}
+		mut glyph_rects := []gg.Rect{}
+		shaped.selection_into(start, end, mut result, mut glyph_rects)
 		return result
+	}
+
+	fn (shaped ShapedText) selection_into(start int, end int, mut result []Rect, mut glyph_rects []gg.Rect) {
+		result.clear()
+		shaped.layout.get_selection_rects_into(text_rune_to_byte(shaped.text, start),
+			text_rune_to_byte(shaped.text, end), mut glyph_rects)
+		for r in glyph_rects { result << rect(r.x, r.y, r.width, r.height) }
 	}
 
 	fn (shaped ShapedText) hit_test(x f64, y f64) int {
@@ -616,7 +628,7 @@ $if (linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ?
 	}
 
 	fn (mut engine TextEngine) measure(text string, style TextStyle, request TextMeasureRequest) !TextMeasurement {
-		for value in [request.known_width, request.known_height, request.available_width] {
+		for value in [request.known_width, request.known_height, request.available_width]! {
 			if !math.is_finite(value) || (value < 0 && value != -1) {
 				return error('text dimensions must be nonnegative or -1')
 			}

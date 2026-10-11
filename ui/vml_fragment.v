@@ -21,31 +21,50 @@ fn (node &CompiledVmlNode) fragment_prefix() string {
 }
 
 fn vml_visible_children(children []&CompiledVmlNode, replacement &CompiledVmlNode, replacements []&CompiledVmlNode) []&CompiledVmlNode {
-	mut visible := []&CompiledVmlNode{}
+	mut visible := []&CompiledVmlNode{cap: vml_visible_child_count(children, replacement, replacements)}
+	vml_append_visible_children(children, replacement, replacements, mut visible)
+	return visible
+}
+
+fn vml_visible_child_count(children []&CompiledVmlNode, replacement &CompiledVmlNode, replacements []&CompiledVmlNode) int {
+	mut count := 0
+	for child in children {
+		count += if child.is_fragment {
+			vml_visible_child_count(if voidptr(child) == voidptr(replacement) { replacements } else { child.children }, replacement, replacements)
+		} else { 1 }
+	}
+	return count
+}
+
+fn vml_append_visible_children(children []&CompiledVmlNode, replacement &CompiledVmlNode, replacements []&CompiledVmlNode, mut visible []&CompiledVmlNode) {
 	for child in children {
 		if child.is_fragment {
-			visible << vml_visible_children(if child == replacement {
+			vml_append_visible_children(if voidptr(child) == voidptr(replacement) {
 				replacements
 			} else {
 				child.children
-			}, replacement, replacements)
+			}, replacement, replacements, mut visible)
 		} else {
 			visible << child
 		}
 	}
-	return visible
 }
 
 fn vml_project_children(children []&CompiledVmlNode, prefix string, replacement &CompiledVmlNode, replacements []&CompiledVmlNode) []Element {
-	mut visible := []Element{}
+	mut visible := []Element{cap: vml_visible_child_count(children, replacement, replacements)}
+	vml_append_projected_children(children, prefix, replacement, replacements, mut visible)
+	return visible
+}
+
+fn vml_append_projected_children(children []&CompiledVmlNode, prefix string, replacement &CompiledVmlNode, replacements []&CompiledVmlNode, mut visible []Element) {
 	for child in children {
 		if child.is_fragment {
-			visible << vml_project_children(if child == replacement {
+			vml_append_projected_children(if voidptr(child) == voidptr(replacement) {
 				replacements
 			} else {
 				child.children
 			},
-				vml_composed_key(prefix, child.relative_key), replacement, replacements)
+				vml_composed_key(prefix, child.relative_key), replacement, replacements, mut visible)
 		} else {
 			// Unkeyed controls continue to use their private retained identity.
 			key := if child.relative_key.len == 0 {
@@ -56,21 +75,26 @@ fn vml_project_children(children []&CompiledVmlNode, prefix string, replacement 
 			visible << Element{ ...child.element(), key: key }
 		}
 	}
-	return visible
 }
 
 fn (mut node CompiledVmlNode) refresh_fragment_keys() {
+	prefix := node.fragment_prefix()
 	key := if node.is_fragment || node.relative_key.len == 0 {
 		node.relative_key
 	} else {
-		vml_composed_key(node.fragment_prefix(), node.relative_key)
+		vml_composed_key(prefix, node.relative_key)
 	}
+	if node.fragment_keys_ready && node.fragment_keys_prefix == prefix && node.declaration.key == key {
+		return
+	}
+	node.fragment_keys_ready = true
+	node.fragment_keys_prefix = prefix
 	node.declaration = Element{ ...node.declaration, key: key }
 	node.source_snapshot = unsafe { nil }
 	for mut child in node.children { child.refresh_fragment_keys() }
 	node.declaration = Element{
 		...node.declaration
-		children: vml_project_children(node.children, node.fragment_prefix(), unsafe { nil }, [])
+		children: vml_project_children(node.children, prefix, unsafe { nil }, [])
 	}
 }
 

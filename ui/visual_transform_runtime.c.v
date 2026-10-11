@@ -37,6 +37,13 @@ fn (mut tree LayoutTree) set_transform(id string, transform VisualTransform) ! {
 	mut node := tree.find_id(id) or { return error('no mounted element `${id}`') }
 	transform.matrix(node.frame)!
 	node.declaration = with_transform(node.declaration, transform)
+	mut ancestor := node.identity
+	for ancestor.len > 0 {
+		mut changed := tree.nodes[ancestor] or { return error('missing layout ancestor') }
+		changed.authored_dirty = true
+		changed.output_dirty = true
+		ancestor = changed.parent
+	}
 }
 
 $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headless ? && !ui2_document_library ? {

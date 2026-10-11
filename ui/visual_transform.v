@@ -19,7 +19,7 @@ pub:
 
 pub fn (t VisualTransform) matrix(frame Rect) !ContentTransform {
 	for value in [t.translate_x, t.translate_y, t.scale_x, t.scale_y, t.rotation, t.origin_x,
-		t.origin_y, frame.x, frame.y] {
+		t.origin_y, frame.x, frame.y]! {
 		if !finite_number(value) { return error('visual transform values must be finite') }
 	}
 	angle := t.rotation * math.pi / 180

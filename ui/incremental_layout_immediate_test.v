@@ -38,7 +38,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		app.layout_tree.reset_stats()
 		refresh_element('label', Element{ ...label, text_style: TextStyle{ color: 0xff0000 } })
 		work := app.scheduler.begin_frame(1) or { panic('no patch') }
-		assert !work.build && work.reasons == [.layout]
+		assert !work.build && work.reason_list() == [.layout]
 		_ = resolve_custom_layout(mut app, work, incremental_runtime_measure, take_custom_layout_patches(mut app))!
 		assert layout_stats().text_measurements == 0
 		assert layout_stats().layout_visits == 0
@@ -67,7 +67,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		app.scheduler.finish_frame(initial)
 		on_event(&gg.Event{ typ: .mouse_move, mouse_x: -100, mouse_y: -100 }, app)
 		work := app.scheduler.begin_frame(1) or { panic('no paint') }
-		assert !work.build && work.reasons == [.paint]
+		assert !work.build && work.reason_list() == [.paint]
 		app.scheduler.finish_frame(work)
 	}
 
@@ -88,7 +88,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		start_widget_animation_at('tile', animation(AnimationConfig{ duration: 1, width: 80, background: u32(0x123456) }), animation_now_ms() - 2_000, false)
 		app.scheduler.set_animation_active(true)
 		work := app.scheduler.begin_frame(1) or { panic('no animation frame') }
-		assert work.build && work.reasons == [.animation]
+		assert work.build && work.reason_list() == [.animation]
 		root := resolve_custom_layout(mut app, work, incremental_runtime_measure, take_custom_layout_patches(mut app))!
 		app.scheduler.finish_frame(work)
 		assert root.children[0].frame.width == 80

@@ -76,12 +76,12 @@ fn grid_validate_config(config GridConfig, child_count int) ! {
 	for value in [config.frame.width, config.frame.height, config.padding.left, config.padding.top,
 		config.padding.right, config.padding.bottom, config.spacing.horizontal,
 		config.spacing.vertical, config.column_default_width, config.row_default_height,
-		config.auto_columns_min_width] {
+		config.auto_columns_min_width]! {
 		if math.is_nan(value) || math.is_inf(value, 0) || value < 0 {
 			return error('grid dimensions, spacing and padding must be finite and non-negative')
 		}
 	}
-	for minimum in [config.columns_minimum, config.rows_minimum] {
+	for minimum in [config.columns_minimum, config.rows_minimum]! {
 		for index, value in minimum {
 			if index < 0 {
 				return error('grid minimum indices cannot be negative')

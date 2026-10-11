@@ -118,7 +118,7 @@ fn validate_drag_element(el Element) ! {
 		preview := source.preview
 		preview.image_asset.validate()!
 		preview.image_style.validate()!
-		for value in [preview.width, preview.height, preview.offset_x, preview.offset_y] {
+		for value in [preview.width, preview.height, preview.offset_x, preview.offset_y]! {
 			if math.is_nan(value) || math.is_inf(value, 0) {
 				return error('drag preview geometry must be finite')
 			}
