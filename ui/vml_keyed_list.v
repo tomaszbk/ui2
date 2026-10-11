@@ -22,6 +22,12 @@ struct VmlKeyedEntry[T] {
 	nodes     []&CompiledVmlNode
 }
 
+// A typed wrapper retains the immutable key returned by the callback. Appending
+// strings directly clones their bytes; keys only need to keep their GC owner.
+struct VmlListKey {
+	value string
+}
+
 // A repeater owns one child component scope per key and flattens its roots into
 // a named segment of the receiving parent, without a presentation container.
 // Its item signal changes when the same key receives new data; build is called
@@ -36,6 +42,7 @@ pub struct VmlKeyedList[T] {
 mut:
 	entries map[string]&VmlKeyedEntry[T]
 	order   []string
+	key_buffer []VmlListKey
 	effect  &SignalEffect = unsafe { nil }
 }
 
@@ -79,14 +86,35 @@ pub fn (list &VmlKeyedList[T]) nodes() []&CompiledVmlNode {
 
 pub fn (mut list VmlKeyedList[T]) update(items []T) ! {
 	list.owner.require_alive()!
-	mut keys := []string{cap: items.len}
-	mut active := map[string]bool{}
-	for item in items {
+	// The key reader still runs so captured key signals remain dependencies.
+	// Keep its temporary storage across actions. Unchanged order already has
+	// validated unique keys and needs neither a new map nor a new projection.
+	list.key_buffer.clear()
+	mut same_order := items.len == list.order.len
+	for index, item in items {
 		key := list.key(item)
 		if key.len == 0 { return error('compiled VML list key cannot be empty') }
+		list.key_buffer << VmlListKey{ value: key }
+		if index >= list.order.len || key != list.order[index] { same_order = false }
+	}
+	if same_order {
+		mut same_items := true
+		for index, item in items {
+			entry := list.entries[list.order[index]] or { return error('compiled VML list entry is missing') }
+			if entry.item.peek()! != item { same_items = false; break }
+		}
+		if same_items { return }
+		list.owner.runtime.untracked(fn [mut list, items] [T]() ! {
+			list.update_items(items, list.order)!
+		})!
+		return
+	}
+	mut keys := []string{cap: list.key_buffer.len}
+	for retained in list.key_buffer { keys << retained.value }
+	mut active := map[string]bool{}
+	for key in keys {
 		if key in active { return error('duplicate compiled VML list key `${key}`') }
 		active[key] = true
-		keys << key
 	}
 	list.owner.runtime.untracked(fn [mut list, items, keys, active] [T]() ! {
 		list.reconcile(items, keys, active)!
@@ -125,12 +153,7 @@ fn (mut list VmlKeyedList[T]) reconcile(items []T, keys []string, active map[str
 		list.entries[key] = &VmlKeyedEntry[T]{ component: component, item: signal, index: position, nodes: nodes }
 		inserted << key
 	}
-	list.owner.runtime.batch(fn [mut list, items, keys] [T]() ! {
-		for index, item in items {
-			list.entries[keys[index]].item.set(item)!
-			list.entries[keys[index]].index.set(index)!
-		}
-	})!
+	list.update_items(items, keys)!
 	mut children := []&CompiledVmlNode{cap: keys.len}
 	for key in keys { children << list.entries[key].nodes }
 	list.parent.set_segment(list.segment, children)!
@@ -141,6 +164,16 @@ fn (mut list VmlKeyedList[T]) reconcile(items []T, keys []string, active map[str
 		}
 	}
 	list.order = keys
+}
+
+fn (mut list VmlKeyedList[T]) update_items(items []T, keys []string) ! {
+	list.owner.runtime.batch(fn [mut list, items, keys] [T]() ! {
+		for index, item in items {
+			entry := list.entries[keys[index]] or { return error('compiled VML list entry is missing') }
+			entry.item.set(item)!
+			entry.index.set(index)!
+		}
+	})!
 }
 
 pub fn (mut list VmlKeyedList[T]) dispose() ! {

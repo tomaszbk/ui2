@@ -7,10 +7,8 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 	import math
 
 	const text_area_vertical_padding = 8.0
-	const named_scroll_prefix = '@scroll-id:'
-	const anonymous_text_area_scroll_prefix = '@text-area-key:'
-	const anonymous_scroll_prefix = '@scroll-path:'
 
+	@[markused]
 	fn reset_scroll_frame() {
 		g_scroll_targets = map[string]HitTarget{}
 		g_scroll_areas = map[string]Rect{}
@@ -35,6 +33,13 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 	// Nested public scroll calls then see the same handlers and logical ranges
 	// as the current focus registry, including panes culled by painting.
 	fn sync_mounted_scroll_views() {
+		selected := g_text_values[g_open_dropdown] or { '' }
+		if g_gg_app.pointer_geometry_serial == g_focus_navigation.geometry_serial
+			&& g_focus_navigation.geometry_serial > 0
+			&& g_gg_app.pointer_popup_owner == g_open_dropdown
+			&& g_gg_app.pointer_popup_scroll == g_dropdown_scroll
+			&& g_gg_app.pointer_popup_selected == selected
+			&& g_hit_targets.len >= g_gg_app.mounted_hit_count { return }
 		for id in g_scroll_targets.keys() {
 			// Anonymous text areas keep their separate editor/layout lifecycle.
 			if id.starts_with(anonymous_text_area_scroll_prefix) { continue }
@@ -61,11 +66,10 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		for node in g_focus_navigation.nodes {
 			publish_mounted_pointer(node,mut mounted_hits,mut mounted_owners)
 			if node.el.kind==.dropdown && node.el.id==g_open_dropdown && !node.hidden && node.enabled {
-				mut options := []string{}
-				for entry in node.el.menu { options << entry.title }
+				options := node.menu_options_snapshot()
 				ctx := g_gg_app.ctx
 				window := if ctx!=unsafe { nil } { rect(0,0,f64(ctx.width),f64(ctx.height)) } else { bounds() }
-				visible := node.clip.intersect(transformed_clip(node.local_frame,node.transform)).bounds()
+				visible := node.clip.intersect(paint_transformed_clip(node.local_frame,node.transform)).bounds()
 				if options.len>0 && visible.width>0 && visible.height>0 {
 					track_dropdown_popup_for(node.el,node.local_frame,node.transform,options,g_text_values[node.el.id] or { node.el.text },window)
 				}
@@ -101,10 +105,15 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 			}
 		}
 		unsafe { g_hit_targets=mounted_hits }
+		g_gg_app.mounted_hit_count = mounted_hits.len
+		g_gg_app.pointer_geometry_serial = g_focus_navigation.geometry_serial
+		g_gg_app.pointer_popup_owner = g_open_dropdown
+		g_gg_app.pointer_popup_scroll = g_dropdown_scroll
+		g_gg_app.pointer_popup_selected = g_text_values[g_open_dropdown] or { '' }
 	}
 
 	fn custom_scroll_dispatch_current(dispatch CustomInputDispatch, ctx &DrawContext, root u64) bool {
-		return dispatch.valid() && dispatch.app.ctx == ctx
+		return dispatch.valid() && voidptr(dispatch.app.ctx) == voidptr(ctx)
 			&& (ctx == unsafe { nil } || !ctx.destroyed)
 			&& !dispatch.app.iconified && !dispatch.app.suspended
 			&& g_focus_navigation.root_revision == root
@@ -149,10 +158,10 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		if !custom_scroll_dispatch_current(dispatch, ctx, root)
 			|| (!build_pending && dispatch.scheduler.build_pending()) || g_focused_field != focused { return 0 }
 		offset := scroll_state_offset(id)
-		area := current_clip_region(clip).intersect(transformed_clip(frame, current_content_transform())).bounds()
+		area := retained_paint_clip(current_clip_region(clip), frame, current_content_transform()).bounds()
 		if enabled && area.width > 0 && area.height > 0 {
 			g_scroll_areas[id] = area
-			g_scroll_order << id
+			g_scroll_order << unsafe { id }
 			if show_scrollbar {
 				bar := scrollbar_geometry(frame, content_height, offset, persistent)
 				g_scrollbar_geometries[id] = bar
@@ -334,20 +343,13 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 	// Anonymous Scroll nodes retain state by structural/key identity. The
 	// private state key never becomes the event's authored source id.
 	fn scroll_view_state_id(el Element, path string) string {
-		return if el.id.len > 0 { named_scroll_state_id(el.id) } else { anonymous_scroll_prefix + path }
+		if el.mounted_scroll_id.len > 0 && el.mounted_path == path { return el.mounted_scroll_id }
+		return authored_scroll_state_id(Element{...el, kind: .scroll}, path)
 	}
 
 	fn text_area_scroll_id(el Element) string {
-		if el.id.len > 0 {
-			return named_scroll_state_id(el.id)
-		}
-		// Keyed repeater children do not need public ids for reconciliation, but
-		// the immediate backend still needs stable private state to scroll them.
-		// This namespace is distinct from named ids and anonymous Scroll paths.
-		if el.key.len > 0 {
-			return anonymous_text_area_scroll_prefix + el.key
-		}
-		return ''
+		if el.mounted_scroll_id.len > 0 { return el.mounted_scroll_id }
+		return authored_scroll_state_id(Element{...el, kind: .text_area}, '')
 	}
 
 	// Like editor state, a layout snapshot owns its text independently of the
@@ -441,6 +443,9 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 	$if !android {
 		fn remember_shaped_text_area(id string, shaped ShapedText, width f64, style TextStyle) {
 			if id.len == 0 { return }
+			if previous := g_text_area_layouts[id] {
+				if previous.text == shaped.text && previous.width == width && previous.style == style { return }
+			}
 			mut lines := []string{cap: shaped.lines.len}
 			mut ranges := []TextAreaLineRange{cap: shaped.lines.len}
 			for line in shaped.lines {
@@ -489,7 +494,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 				top := content.y - offset
 				if g_focused_field == el.id && !editor.selection.collapsed() {
 					start, end := editor.selection.ordered()
-					for selected in shaped.selection(start, end) {
+					for selected in ctx.shaped_selection(shaped, start, end) {
 						if top + selected.y + selected.height <= text_clip.y
 							|| top + selected.y >= text_clip.y + text_clip.height {
 							continue
@@ -510,7 +515,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 						composition := g_gg_app.composition
 						if composition.field_id == el.id {
 							start := composition.start + composition.mark_start
-							for marked in shaped.selection(start, start + composition.mark_length) {
+							for marked in ctx.shaped_selection(shaped, start, start + composition.mark_length) {
 								if top + marked.y + marked.height <= text_clip.y
 									|| top + marked.y >= text_clip.y + text_clip.height {
 									continue

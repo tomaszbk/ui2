@@ -1,3 +1,4 @@
+// vtest vflags: -gc boehm -d no_gc_thread_local_alloc
 module ui2
 
 @[heap]
@@ -10,6 +11,65 @@ mut:
 struct GeometryFrameTrace {
 mut:
 	values []Rect
+}
+
+fn test_geometry_publication_batches_values_and_recovers_after_effect_error() ! {
+	mut owner := new_vml_component('geometry batch')!
+	defer { owner.dispose() or { panic(err) } }
+	owner.publish = fn (_ string, _ Element) {}
+	mut child := owner.element(view('child', rect(0, 0, 20, 10), BoxStyle{}, []))!
+	mut root := owner.element(view('root', rect(0, 0, 80, 40), BoxStyle{}, []))!
+	root.set_children([child])!
+	mut runs := &GeometryRunCount{}
+	owner.scope.effect('geometry observer', fn [root, child, mut runs] () ! {
+		width := root.frame()!.width
+		assert child.frame()!.width * 4 == width
+		runs.count++
+		if width == 100 { return error('geometry effect failure') }
+	})!
+	assert runs.count == 1
+	changed := Element{
+		...root.element()
+		frame: rect(0, 0, 100, 40)
+		children: [Element{ ...child.element(), frame: rect(0, 0, 25, 10) }]
+	}
+	mut reported := false
+	compiled_vml_sync_geometry(changed) or {
+		reported = true
+		assert err.msg().contains('geometry effect failure')
+	}
+	assert reported
+	assert runs.count == 2
+	assert owner.runtime.batch_depth == 0
+	assert root.frame()!.width == 100
+	assert child.frame()!.width == 25
+	recovered := Element{
+		...changed
+		frame: rect(0, 0, 120, 40)
+		children: [Element{ ...child.element(), frame: rect(0, 0, 30, 10) }]
+	}
+	_ = compiled_vml_sync_geometry(recovered)!
+	assert runs.count == 3
+	assert owner.runtime.batch_depth == 0
+	assert root.frame()!.width == 120
+	assert child.frame()!.width == 30
+}
+
+fn test_unchanged_geometry_publication_allocates_no_temporary_callbacks() ! {
+	mut owner := new_vml_component('stable geometry')!
+	defer { owner.dispose() or { panic(err) } }
+	owner.publish = fn (_ string, _ Element) {}
+	mut root := owner.element(view('root', rect(0, 0, 80, 40), BoxStyle{}, []))!
+	element := root.element()
+	_ = compiled_vml_sync_geometry(element)!
+	before := gc_allocation_snapshot()!
+	mut count := 0
+	for _ in 0 .. 1024 { count += compiled_vml_sync_geometry(element)!.len }
+	delta := gc_allocation_snapshot()!.delta_since(before)
+	assert count == 0
+	assert owner.runtime.batch_depth == 0
+	assert delta.allocated_bytes == 0
+	assert delta.collections == 0
 }
 
 fn test_hidden_subtree_retains_logical_frames_for_effects_and_refs_after_resize() ! {

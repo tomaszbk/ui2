@@ -779,6 +779,10 @@ fn apply_widget_animations_for_visibility(root Element, now i64, visible_only bo
 	mut runtime := g_animation_runtime
 	mut pending := []PendingAnimationEvent{}
 	runtime.mutex.lock()
+	if runtime.runs.len == 0 {
+		runtime.mutex.unlock()
+		return root
+	}
 	result := apply_widget_animation_node(root, now, visible_only, mut pending)
 	runtime.mutex.unlock()
 	dispatch_animation_events(pending)

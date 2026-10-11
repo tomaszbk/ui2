@@ -79,7 +79,7 @@ pub fn (t ContentTransform) inverted() !ContentTransform {
 		x:  (t.xy * t.y - t.yy * t.x) / d
 		y:  (t.yx * t.x - t.xx * t.y) / d
 	}
-	for value in [result.xx, result.xy, result.yx, result.yy, result.x, result.y] {
+	for value in [result.xx, result.xy, result.yx, result.yy, result.x, result.y]! {
 		if !finite_number(value) { return error('visual transform inverse must be finite') }
 	}
 	return result
@@ -104,6 +104,13 @@ pub fn (t ContentTransform) quad(area Rect) []Point {
 		t.point(area.x + area.width, area.y + area.height), t.point(area.x, area.y + area.height)]
 }
 
+// Borrowed views are consumed synchronously; public polygon snapshots own
+// their storage. V's ordinary fixed-array slicing creates an owned copy.
+@[unsafe]
+fn borrow_points(data &Point, length int) []Point {
+	return unsafe { array{data: data, len: length, cap: length, element_size: sizeof(Point), flags: .nogrow | .nofree} }
+}
+
 fn point_bounds(points []Point) Rect {
 	if points.len == 0 { return Rect{} }
 	mut left := points[0].x
@@ -120,7 +127,18 @@ fn point_bounds(points []Point) Rect {
 }
 
 // project/inverse_rect return bounding boxes, for culling/semantics/IME only.
-pub fn (t ContentTransform) project(area Rect) Rect { return point_bounds(t.quad(area)) }
+pub fn (t ContentTransform) project(area Rect) Rect {
+	// Four scalars avoid an owned fixed-array slice or an escaping stack view.
+	a := t.point(area.x, area.y)
+	b := t.point(area.x + area.width, area.y)
+	c := t.point(area.x + area.width, area.y + area.height)
+	d := t.point(area.x, area.y + area.height)
+	left := math.min(math.min(a.x, b.x), math.min(c.x, d.x))
+	right := math.max(math.max(a.x, b.x), math.max(c.x, d.x))
+	top := math.min(math.min(a.y, b.y), math.min(c.y, d.y))
+	bottom := math.max(math.max(a.y, b.y), math.max(c.y, d.y))
+	return rect(left, top, right - left, bottom - top)
+}
 
 pub fn (t ContentTransform) inverse_rect(area Rect) Rect {
 	inv := t.inverted() or { return Rect{} }

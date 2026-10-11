@@ -584,10 +584,8 @@ fn windows_render_mounted_layout() {
 	windows_render_resolved(root)
 }
 
-fn windows_render_resolved(resolved Element) {
+fn windows_render_resolved(root Element) {
 	previous_focus := focused_id()
-	root := effective_element_state(resolved, true)
-	validate_element_tree(root) or { eprintln('ui2: ${err}'); return }
 	mut st := windows_state()
 	st.rendering = true
 	st.views = map[string]voidptr{}

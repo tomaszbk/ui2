@@ -28,7 +28,8 @@ pub:
 	color gg.Color
 }
 
-pub type QuadSink = fn (voidptr, []QuadVertex)
+// The vertex pointer borrows this renderer's fixed buffer until the callback returns.
+pub type QuadSink = fn (voidptr, &QuadVertex, int)
 
 pub struct Renderer {
 mut:
@@ -1298,7 +1299,7 @@ fn (mut renderer Renderer) quad_textured_vertex(x f32, y f32, u f32, v f32) {
 	renderer.quad_vertices[renderer.quad_count] = QuadVertex{ x: x, y: y, u: u, v: v, color: renderer.quad_color }
 	renderer.quad_count++
 	if renderer.quad_count == 4 {
-		renderer.quad_sink(renderer.quad_userdata, renderer.quad_vertices[..])
+		renderer.quad_sink(renderer.quad_userdata, &renderer.quad_vertices[0], 4)
 		renderer.quad_count = 0
 	}
 }

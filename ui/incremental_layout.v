@@ -58,6 +58,8 @@ pub mut:
 	text_hits         u64
 	layout_visits     u64
 	layout_hits       u64
+	output_visits     u64
+	authored_visits   u64
 }
 
 pub struct LayoutIdentity {
@@ -98,6 +100,14 @@ mut:
 	placed_width    f64
 	placed_height   f64
 	frame           Rect
+	// Immutable projections are shared until this node or a descendant changes.
+	// Authored and effective/resolved state have independent invalidation.
+	authored_snapshot &Element = unsafe { nil }
+	output_snapshot   &Element = unsafe { nil }
+	authored_dirty    bool = true
+	output_dirty      bool = true
+	output_enabled    bool
+	output_index      int
 }
 
 struct LayoutMeasure {
@@ -131,6 +141,7 @@ mut:
 	environment LayoutEnvironment
 	measurer    LayoutTextMeasureFn = unsafe { nil }
 	counters    LayoutStats
+	geometry_snapshot &Element = unsafe { nil }
 }
 
 pub fn (tree &LayoutTree) stats() LayoutStats { return tree.counters }
@@ -140,6 +151,7 @@ pub fn (mut tree LayoutTree) reset_stats() { tree.counters = LayoutStats{} }
 pub fn (mut tree LayoutTree) clear() {
 	tree.nodes.clear()
 	tree.root = ''
+	tree.geometry_snapshot = unsafe { nil }
 	// Never reuse a retired generation, including after clear.
 }
 
@@ -169,7 +181,7 @@ pub fn (mut tree LayoutTree) replace(root Element) ! {
 }
 
 // patch replaces a mounted subtree without invoking the screen builder. The
-// complete candidate is validated so ids cannot collide with outside nodes.
+// replacement is validated against ids and sibling keys outside that subtree.
 pub fn (mut tree LayoutTree) patch(id string, element Element) ! {
 	if tree.root.len == 0 { return error('layout tree is empty') }
 	target := tree.find_id(id) or { return error('no mounted element `${id}`') }
@@ -201,9 +213,31 @@ pub fn (mut tree LayoutTree) patch_compiled(owner &CompiledVmlNode, element Elem
 }
 
 fn (mut tree LayoutTree) patch_identity(target &RetainedLayoutNode, element Element) ! {
-	mut found := []bool{len: 1}
-	candidate := tree.patch_declaration(tree.root, target.identity, element, mut found)
-	validate_element_tree(candidate)!
+	// Validate the replacement and its ids against the rest of the mounted tree,
+	// without materializing a copy of every unrelated declaration.
+	if element.key.len > 0 && target.parent.len > 0 {
+		parent := tree.nodes[target.parent] or { return error('missing layout parent') }
+		for sibling_id in parent.children {
+			if sibling_id == target.identity { continue }
+			sibling := tree.nodes[sibling_id] or { return error('missing layout sibling') }
+			if sibling.declaration.key == element.key {
+				return error('duplicate sibling key `${element.key}` outside patched subtree')
+			}
+		}
+	}
+	mut ids := map[string]bool{}
+	validate_element_node(element, 'root', mut ids)!
+	for _, existing in tree.nodes {
+		if existing.declaration.id !in ids { continue }
+		mut ancestor := existing.identity
+		mut replaced := false
+		for ancestor.len > 0 {
+			if ancestor == target.identity { replaced = true; break }
+			parent_node := tree.nodes[ancestor] or { return error('missing layout ancestor') }
+			ancestor = parent_node.parent
+		}
+		if !replaced { return error('duplicate element id `${existing.declaration.id}` outside patched subtree') }
+	}
 	mut retired := []string{}
 	tree.subtree_identities(target.identity, mut retired)
 	previous_version := target.version
@@ -219,16 +253,20 @@ fn (mut tree LayoutTree) patch_identity(target &RetainedLayoutNode, element Elem
 	mut changed_size := previous_version != current.version
 	changed_below := previous_subtree != current.subtree_version
 	mut ancestor := parent
-	for ancestor.len > 0 && changed_below {
+	for ancestor.len > 0 {
 		mut node := tree.nodes[ancestor] or { return error('missing layout ancestor') }
-		tree.revision++
-		node.subtree_version = tree.revision
-		if changed_size && !(layout_authored_width(node.declaration) && layout_authored_height(node.declaration)) {
+		node.authored_dirty = true
+		node.output_dirty = true
+		if changed_below {
 			tree.revision++
-			node.version = tree.revision
-			node.measures.clear()
-		} else {
-			changed_size = false
+			node.subtree_version = tree.revision
+			if changed_size && !(layout_authored_width(node.declaration) && layout_authored_height(node.declaration)) {
+				tree.revision++
+				node.version = tree.revision
+				node.measures.clear()
+			} else {
+				changed_size = false
+			}
 		}
 		ancestor = node.parent
 	}
@@ -238,19 +276,6 @@ fn (tree &LayoutTree) subtree_identities(identity string, mut identities []strin
 	node := tree.nodes[identity] or { return }
 	identities << identity
 	for child in node.children { tree.subtree_identities(child, mut identities) }
-}
-
-fn (tree &LayoutTree) patch_declaration(identity string, target string, replacement Element, mut found []bool) Element {
-	node := tree.nodes[identity] or { return Element{} }
-	if identity == target {
-		found[0] = true
-		return replacement
-	}
-	mut children := []Element{cap: node.children.len}
-	for child in node.children {
-		children << tree.patch_declaration(child, target, replacement, mut found)
-	}
-	return Element{ ...node.declaration, frame: node.input, children: children }
 }
 
 fn layout_metric_style(style TextStyle) TextStyle {
@@ -342,6 +367,8 @@ fn (mut tree LayoutTree) reconcile(element Element, known string, parent string)
 		children << resolved
 		changed_size = changed_size || previous_version != current.version
 		changed_below = changed_below || previous_subtree != current.subtree_version
+		node.authored_dirty = node.authored_dirty || current.authored_dirty
+		node.output_dirty = node.output_dirty || current.output_dirty
 	}
 	fixed := flags & 3 == 3
 	metrics_same := node.mounted && node.metric_flags == flags && layout_metrics_equal(element, node.declaration)
@@ -368,6 +395,11 @@ fn (mut tree LayoutTree) reconcile(element Element, known string, parent string)
 		node.text_measures.clear()
 	}
 	if !own_same { node.own_revision++ }
+	declaration := Element{ ...element, children: [], frame: input, layout_input: input }
+	if !node.mounted || !children_same || node.declaration != declaration {
+		node.authored_dirty = true
+		node.output_dirty = true
+	}
 	node.mounted = true
 	node.seen = tree.pass
 	node.metric_flags = flags
@@ -375,7 +407,7 @@ fn (mut tree LayoutTree) reconcile(element Element, known string, parent string)
 	node.parent = parent
 	node.input = input
 	if !children_same { node.children = children }
-	node.declaration = Element{ ...element, children: [], frame: input, layout_input: input }
+	node.declaration = declaration
 	return identity
 }
 
@@ -405,12 +437,15 @@ pub fn (mut tree LayoutTree) resolve(constraints LayoutConstraints, measure Layo
 		// A newly resolved font can advance the backend generation during a
 		// cold pass. Stabilize once all fonts used by the tree are registered.
 		if layout_effective_environment(environment, measure) == effective {
-			output := tree.output(tree.root)
+			output := tree.output(tree.root, true, 'root', '')
+			output_root := tree.nodes[tree.root] or { return error('missing root') }
+			if voidptr(tree.geometry_snapshot) == voidptr(output_root.output_snapshot) { return output }
 			updates := compiled_vml_sync_geometry(output)!
 			if updates.len > 0 {
 				for updated in updates { tree.patch_compiled(updated.compiled_node, updated)! }
 				continue
 			}
+			tree.geometry_snapshot = output_root.output_snapshot
 			return output
 		}
 	}
@@ -726,7 +761,15 @@ fn (mut tree LayoutTree) container_geometry(node &RetainedLayoutNode, available 
 fn (mut tree LayoutTree) place_node(identity string, frame Rect) ! {
 	mut node := tree.nodes[identity] or { return error('missing layout node') }
 	// Position-only changes do not require arranging the node's local children.
-	node.frame = frame
+	if node.frame != frame {
+		node.frame = frame
+		mut ancestor := identity
+		for ancestor.len > 0 {
+			mut changed := tree.nodes[ancestor] or { return error('missing layout ancestor') }
+			changed.output_dirty = true
+			ancestor = changed.parent
+		}
+	}
 	placed := node.placed && node.placed_subtree == node.subtree_version
 		&& node.placed_width == frame.width && node.placed_height == frame.height
 	if node.declaration.hidden {
@@ -785,11 +828,39 @@ fn (mut tree LayoutTree) place_node(identity string, frame Rect) ! {
 	node.placed_height = frame.height
 }
 
-fn (tree &LayoutTree) output(identity string) Element {
-	node := tree.nodes[identity] or { return Element{} }
+fn (mut tree LayoutTree) output(identity string, parent_enabled bool, path string, parent_path string) Element {
+	mut node := tree.nodes[identity] or { return Element{} }
+	enabled := parent_enabled && node.declaration.enabled
+	if !node.output_dirty && node.output_enabled == enabled && node.output_snapshot != unsafe { nil }
+		&& node.output_snapshot.mounted_path == path {
+		return *node.output_snapshot
+	}
+	tree.counters.output_visits++
 	mut children := []Element{cap: node.children.len}
-	for child in node.children { children << tree.output(child) }
-	return Element{ ...node.declaration, frame: node.frame, children: children, mounted_generation: node.generation }
+	for i, child in node.children {
+		mut child_node := tree.nodes[child] or { panic('missing layout child') }
+		child_path := if child_node.output_snapshot != unsafe { nil } && child_node.output_snapshot.mounted_parent_path == path
+			&& child_node.output_snapshot.key == child_node.declaration.key
+			&& (child_node.declaration.key.len > 0 || child_node.declaration.compiled_node != unsafe { nil } || child_node.output_index == i) {
+			child_node.output_snapshot.mounted_path
+		} else { authored_child_key(path, i, child_node.declaration) }
+		children << tree.output(child, enabled, child_path, path)
+		child_node.output_index = i
+	}
+	scroll_id := if node.output_snapshot != unsafe { nil } && node.output_snapshot.kind == node.declaration.kind
+		&& node.output_snapshot.id == node.declaration.id && node.output_snapshot.key == node.declaration.key
+		&& node.output_snapshot.mounted_path == path {
+		node.output_snapshot.mounted_scroll_id
+	} else { authored_scroll_state_id(node.declaration, path) }
+	cached_tooltip_key := if node.output_snapshot != unsafe { nil } && node.output_snapshot.kind == node.declaration.kind
+		&& node.output_snapshot.id == node.declaration.id
+		&& (node.declaration.id.len > 0 || node.output_snapshot.mounted_path == path) {
+		node.output_snapshot.mounted_tooltip_key
+	} else { authored_tooltip_key(node.declaration, path) }
+	node.output_snapshot = &Element{ ...node.declaration, frame: node.frame, children: children, enabled: enabled, mounted_generation: node.generation, mounted_path: path, mounted_parent_path: parent_path, mounted_scroll_id: scroll_id, mounted_tooltip_key: cached_tooltip_key }
+	node.output_enabled = enabled
+	node.output_dirty = false
+	return *node.output_snapshot
 }
 
 struct LayoutPatch {
@@ -802,15 +873,19 @@ struct LayoutPatch {
 }
 
 // declaration returns authored inputs, suitable for subsequent targeted patches.
-pub fn (tree &LayoutTree) declaration() Element {
+pub fn (mut tree LayoutTree) declaration() Element {
 	return tree.authored(tree.root)
 }
 
-fn (tree &LayoutTree) authored(identity string) Element {
-	node := tree.nodes[identity] or { return Element{} }
+fn (mut tree LayoutTree) authored(identity string) Element {
+	mut node := tree.nodes[identity] or { return Element{} }
+	if !node.authored_dirty && node.authored_snapshot != unsafe { nil } { return *node.authored_snapshot }
+	tree.counters.authored_visits++
 	mut children := []Element{cap: node.children.len}
 	for child in node.children { children << tree.authored(child) }
-	return Element{ ...node.declaration, children: children, frame: node.input }
+	node.authored_snapshot = &Element{ ...node.declaration, children: children, frame: node.input }
+	node.authored_dirty = false
+	return *node.authored_snapshot
 }
 
 fn layout_natural_width(node &RetainedLayoutNode, sizes []Rect) !f64 {

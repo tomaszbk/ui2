@@ -30,8 +30,10 @@ struct FocusNode {
 	clip ClipRegion
 	local_frame Rect
 	scrolls     []string
+	menu_options []string
 mut:
 	frame       Rect
+	subtree_len int
 }
 
 struct FocusScopeEntry {
@@ -54,6 +56,14 @@ mut:
 	// root_revision advances whenever a different root is published. In-flight
 	// frames compare it instead of comparing whole Element trees per child.
 	root_revision  u64
+	geometry_revision u64
+	geometry_serial u64
+	presentation_serial u64
+	refresh_presentation_changed bool
+	refresh_offsets_changed bool
+	geometry_frame Rect
+	geometry_transform ContentTransform
+	geometry_clip ClipRegion
 	nodes          []FocusNode
 	// Index the retained registry itself, including named non-focusable nodes
 	// painted by custom backends and anonymous ancestors addressed by path.
@@ -71,13 +81,18 @@ fn element_focusable(el Element) bool {
 		.switch_control, .toggle_button] || (el.kind == .view && el.button_behavior)
 }
 
-// Native disabled containers do not necessarily disable their children. Use
-// effective enabled state in every backend, including pointer/action routing.
-fn effective_element_state(el Element, parent_enabled bool) Element {
-	enabled := parent_enabled && el.enabled
-	mut children := []Element{cap: el.children.len}
-	for child in el.children { children << effective_element_state(child, enabled) }
-	return Element{ ...el, enabled: enabled, children: children }
+// Mounted option arrays are immutable snapshots. Recompute only when the
+// declaration changes, so paint and pointer geometry share the same options.
+fn element_menu_options(el Element) []string {
+	mut options := []string{cap: el.menu.len}
+	for entry in el.menu { options << entry.title }
+	return options
+}
+
+fn (node FocusNode) menu_options_snapshot() []string {
+	// Geometry-only callers can construct a node without mounting a registry.
+	if node.menu_options.len == node.el.menu.len { return node.menu_options }
+	return element_menu_options(node.el)
 }
 
 fn (mut manager FocusManager) update(root Element, offsets map[string]f64) {
@@ -89,7 +104,7 @@ fn (mut manager FocusManager) update_presented(root Element, offsets map[string]
 }
 
 fn (mut manager FocusManager) update_mounted(root Element, offsets map[string]f64, viewport Rect, transform ContentTransform) {
-	manager.update_geometry(root, offsets, transform, mounted_root_frame(root, viewport), transformed_clip(viewport, transform))
+	manager.update_geometry(root, offsets, transform, mounted_root_frame(root, viewport), paint_transformed_clip(viewport, transform))
 }
 
 // set_root publishes a mounted tree. Republishing an equal tree keeps the
@@ -101,11 +116,29 @@ fn (mut manager FocusManager) set_root(root Element) {
 
 fn (mut manager FocusManager) update_geometry(root Element, offsets map[string]f64, transform ContentTransform, root_frame Rect, clip ClipRegion) {
 	manager.set_root(root)
-	manager.scroll_offsets = offsets.clone()
-	manager.nodes.clear()
-	manager.node_indices.clear()
-	manager.path_indices.clear()
-	manager.collect(root, root_frame, 'root', '', 0, 0, transform, clip, false, true, []string{}, []string{})
+	if manager.geometry_serial > 0 && manager.geometry_revision == manager.root_revision
+		&& manager.geometry_frame == root_frame && manager.geometry_transform == transform
+		&& manager.geometry_clip == clip && manager.scroll_offsets == offsets { return }
+	manager.refresh_presentation_changed = manager.geometry_serial == 0
+	manager.geometry_revision = manager.root_revision
+	manager.geometry_serial++
+	manager.geometry_frame = root_frame
+	manager.geometry_transform = transform
+	manager.geometry_clip = clip
+	manager.refresh_offsets_changed = manager.scroll_offsets != offsets
+	if manager.refresh_offsets_changed { manager.scroll_offsets = offsets.clone() }
+	// Keep the flat registry and its indexes when identity/order are stable.
+	// A retained subtree with unchanged inherited geometry can be skipped whole.
+	refreshed := manager.refresh_geometry(root, root_frame, 'root', '', 0, 0,
+		transform, clip, false, true, []string{}, []string{}, 0, false)
+	if refreshed != manager.nodes.len || refreshed < 0 {
+		manager.refresh_presentation_changed = true
+		manager.nodes.clear()
+		manager.node_indices.clear()
+		manager.path_indices.clear()
+		manager.refresh_geometry(root, root_frame, 'root', '', 0, 0, transform, clip, false, true, []string{}, []string{}, 0, true)
+	}
+	if manager.refresh_presentation_changed { manager.presentation_serial++ }
 	// Validate the complete active chain: a surviving inner scope may have
 	// moved out of its parent, or that parent may have disappeared entirely.
 	mut valid_scopes := 0
@@ -130,60 +163,88 @@ fn (mut manager FocusManager) update_geometry(root Element, offsets map[string]f
 	}
 }
 
-fn (mut manager FocusManager) collect(el Element, frame Rect, path string, parent string,
+// Returns the first index after this subtree, or -1 when a structural change
+// needs a fresh registry. No callbacks run until the complete registry is ready.
+fn (mut manager FocusManager) refresh_geometry(el Element, frame Rect, path string, parent string,
 	off_x f64, off_y f64, outer ContentTransform, clip ClipRegion, ancestor_hidden bool,
-	ancestor_enabled bool, scopes []string, scrolls []string) {
+	ancestor_enabled bool, scopes []string, scrolls []string, index int, rebuild bool) int {
+	if !rebuild && index >= manager.nodes.len { return -1 }
+	previous := if rebuild { FocusNode{} } else { manager.nodes[index] }
+	if !rebuild && (previous.path != path || previous.parent != parent || previous.el.id != el.id
+		|| previous.el.children.len != el.children.len) { return -1 }
 	hidden := ancestor_hidden || el.hidden
 	enabled := ancestor_enabled && el.enabled
 	local := rect(off_x + frame.x, off_y + frame.y, frame.width, frame.height)
-	visual := el.visual_transform().matrix(local) or { return }
+	if !rebuild && !manager.refresh_offsets_changed && previous.el == el && previous.local_frame == local && previous.parent_transform == outer
+		&& previous.clip == clip && previous.hidden == hidden && previous.enabled == enabled
+		&& previous.scrolls == scrolls && !el.focus_scope && previous.scopes == scopes {
+		return index + previous.subtree_len
+	}
+	visual := el.visual_transform().matrix(local) or { return if rebuild { index } else { -1 } }
 	transform := outer.compose(visual)
-	mut child_scopes := scopes.clone()
-	if el.focus_scope { child_scopes << el.id }
-	index := manager.nodes.len
-	if el.id.len > 0 { manager.node_indices[el.id] = index }
-	manager.path_indices[path] = index
-	manager.nodes << FocusNode{
-		el:          el
-		path:        path
-		parent:      parent
-		eligible:    !hidden && enabled && element_focusable(el)
-		hidden:      hidden
-		enabled:     enabled
-		scopes:      child_scopes
-		frame:       transform.project(local)
-		transform:   transform
-		parent_transform: outer
-		clip: clip
-		local_frame: local
-		scrolls:     scrolls
+	if previous.local_frame != local || previous.transform != transform || previous.parent_transform != outer
+		|| previous.clip != clip || previous.hidden != hidden { manager.refresh_presentation_changed = true }
+	// Ancestor chains are immutable; clone only when this node extends one.
+	mut child_scopes := unsafe { scopes }
+	if el.focus_scope {
+		if previous.el.focus_scope && previous.scopes.len == scopes.len + 1
+			&& previous.scopes[..scopes.len] == scopes && previous.scopes.last() == el.id {
+			child_scopes = previous.scopes
+		} else { child_scopes = scopes.clone(); child_scopes << el.id }
+	}
+	mut menu_options := unsafe { previous.menu_options }
+	if rebuild || previous.el.menu != el.menu { menu_options = element_menu_options(el) }
+	if rebuild {
+		if el.id.len > 0 { manager.node_indices[el.id] = index }
+		manager.path_indices[path] = index
+		// Append an empty slot first: moving a populated node into an array can
+		// otherwise clone its retained Element subtree under array ownership.
+		manager.nodes << FocusNode{}
+	}
+	manager.nodes[index] = FocusNode{
+		el: el, path: path, parent: parent, eligible: !hidden && enabled && element_focusable(el),
+		hidden: hidden, enabled: enabled, scopes: child_scopes, frame: transform.project(local),
+		transform: transform, parent_transform: outer, clip: clip, local_frame: local,
+		scrolls: scrolls, menu_options: menu_options, subtree_len: previous.subtree_len,
 	}
 	mut child_x := local.x
 	mut child_y := local.y
 	mut child_transform := transform
 	mut child_clip := clip
-	mut child_scrolls := scrolls.clone()
+	mut child_scrolls := unsafe { scrolls }
 	if el.kind == .screen {
-		child_clip = clip.intersect(transformed_clip(local, transform))
+		child_clip = clip.intersect(paint_transformed_clip(local, transform))
 		child_x = off_x
 		child_y = off_y
 	}
 	if el.content_size.width > 0 && el.content_size.height > 0 {
-		fit := contain_content(local, el.content_size.width, el.content_size.height) or { return }
+		fit := contain_content(local, el.content_size.width, el.content_size.height) or {
+			if !rebuild { return -1 }
+			// A zero-size composition contributes this mounted owner only. Its
+			// children cannot be projected, but later siblings must still register.
+			manager.nodes[index].subtree_len = 1
+			return index + 1
+		}
 		child_transform = transform.compose(fit)
-		child_clip = clip.intersect(transformed_clip(local, transform))
+		child_clip = clip.intersect(paint_transformed_clip(local, transform))
 		child_x = 0
 		child_y = 0
 	}
 	if el.kind == .scroll {
-		child_clip = child_clip.intersect(transformed_clip(local, transform))
+		child_clip = child_clip.intersect(paint_transformed_clip(local, transform))
 		child_y -= manager.scroll_offsets[path] or { 0.0 }
-		child_scrolls << path
+		if previous.el.kind == .scroll && previous.scrolls == scrolls && previous.subtree_len > 1 {
+			child_scrolls = manager.nodes[index + 1].scrolls
+		} else { child_scrolls = scrolls.clone(); child_scrolls << path }
 	}
+	mut next := index + 1
 	for i, child in el.children {
-		manager.collect(child, child.frame, reconciliation_child_key(path, i, child), path,
-			child_x, child_y, child_transform, child_clip, hidden, enabled, child_scopes, child_scrolls)
+		next = manager.refresh_geometry(child, child.frame, reconciliation_child_key(path, i, child), path,
+			child_x, child_y, child_transform, child_clip, hidden, enabled, child_scopes, child_scrolls, next, rebuild)
+		if next < 0 { return -1 }
 	}
+	manager.nodes[index].subtree_len = next - index
+	return next
 }
 
 fn (manager &FocusManager) node(id string) ?FocusNode {

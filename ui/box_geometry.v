@@ -16,10 +16,16 @@ struct BorderTriangle {
 
 // A border is a closed ring tessellated into colored side strips. Matching
 // outer/inner vertices share joins, so corners neither overlap nor leave gaps.
+@[markused]
 fn box_border_triangles(frame Rect, box BoxStyle) []BorderTriangle {
-	if frame.width <= 0 || frame.height <= 0 || !box_draws_border(box) {
-		return []BorderTriangle{}
-	}
+	mut triangles := []BorderTriangle{}
+	box_border_triangles_into(frame, box, mut triangles)
+	return triangles
+}
+
+fn box_border_triangles_into(frame Rect, box BoxStyle, mut triangles []BorderTriangle) {
+	triangles.clear()
+	if frame.width <= 0 || frame.height <= 0 || !box_draws_border(box) { return }
 	mut left := box_border_width(box.border_left, frame.width)
 	mut right := box_border_width(box.border_right, frame.width)
 	mut top := box_border_width(box.border_top, frame.height)
@@ -41,11 +47,14 @@ fn box_border_triangles(frame Rect, box BoxStyle) []BorderTriangle {
 		width:  frame.width - left - right
 		height: frame.height - top - bottom
 	}
-	mut outer_points := []BorderPoint{}
-	mut inner_points := []BorderPoint{}
-	mut sides := []int{}
-	mut alternate_sides := []int{}
-	widths := [top, right, bottom, left]
+	// The four rounded corners plus the closing half-corner use at most 69
+	// samples. Dash tessellation grows only the retained output, without a cap.
+	mut outer_points := [69]BorderPoint{}
+	mut inner_points := [69]BorderPoint{}
+	mut sides := [69]int{}
+	mut alternate_sides := [69]int{}
+	mut point_count := 0
+	widths := [top, right, bottom, left]!
 	// Begin halfway around top-left, then follow the perimeter clockwise.
 	for corner in 0 .. 5 {
 		actual := corner % 4
@@ -58,19 +67,19 @@ fn box_border_triangles(frame Rect, box BoxStyle) []BorderTriangle {
 		}
 		for index in 0 .. steps + 1 {
 			angle := start + (end - start) * f64(index) / f64(steps)
-			outer_points << border_corner_point(frame, actual, radius, radius, angle)
+			outer_points[point_count] = border_corner_point(frame, actual, radius, radius, angle)
 			rx := math.max(0.0, radius - if actual == 0 || actual == 3 { left } else { right })
 			ry := math.max(0.0, radius - if actual == 0 || actual == 1 { top } else { bottom })
-			inner_points << border_corner_point(inner, actual, rx, ry, angle)
+			inner_points[point_count] = border_corner_point(inner, actual, rx, ry, angle)
 			// A corner's halves meet on its diagonal; sides use their own colors.
 			selected := if angle < 225 + f64(actual) * 90 { (actual + 3) % 4 } else { actual }
-			sides << selected
-			alternate_sides << if selected == actual { (actual + 3) % 4 } else { actual }
+			sides[point_count] = selected
+			alternate_sides[point_count] = if selected == actual { (actual + 3) % 4 } else { actual }
+			point_count++
 		}
 	}
-	mut triangles := []BorderTriangle{}
 	mut distance := 0.0
-	for index in 1 .. outer_points.len {
+	for index in 1 .. point_count {
 		a := outer_points[index - 1]
 		b := outer_points[index]
 		ia := inner_points[index - 1]
@@ -114,7 +123,6 @@ fn box_border_triangles(frame Rect, box BoxStyle) []BorderTriangle {
 		}
 		distance += length
 	}
-	return triangles
 }
 
 fn border_lerp(a BorderPoint, b BorderPoint, t f64) BorderPoint {

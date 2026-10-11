@@ -200,14 +200,17 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 	}
 
 	fn mount_focus_fixture(root Element) {
+		mut tree := LayoutTree{}
+		tree.replace(root) or { panic(err) }
+		resolved := tree.resolve(LayoutConstraints{}, measure_layout_text, LayoutEnvironment{}) or { panic(err) }
 		g_active_fields.clear()
 		g_active_sliders.clear()
 		g_active_switches.clear()
 		g_active_checkboxes.clear()
 		g_active_toggles.clear()
 		g_active_scrolls.clear()
-		update_custom_focus_tree(effective_element_state(root, true))
-		sync_mounted_focus_controls(effective_element_state(root, true), 'root')
+		update_custom_focus_tree(resolved)
+		sync_mounted_focus_controls(resolved, 'root')
 		prune_unmounted_state()
 	}
 

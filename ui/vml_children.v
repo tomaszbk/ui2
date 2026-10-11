@@ -126,6 +126,12 @@ mut:
 pub fn (mut node CompiledVmlNode) set_segment(name string, nodes []&CompiledVmlNode) ! {
 	node.component.require_alive()!
 	if name.len == 0 { return error('compiled VML child segment requires a name') }
+	for segment in node.segments {
+		if node.segments_current && segment.name == name && segment.nodes == nodes {
+			for child in nodes { child.component.require_alive()! }
+			return
+		}
+	}
 	mut replacement := node.segments.clone()
 	mut found := false
 	for mut segment in replacement {
@@ -140,4 +146,5 @@ pub fn (mut node CompiledVmlNode) set_segment(name string, nodes []&CompiledVmlN
 	for segment in replacement { children << segment.nodes }
 	node.set_children(children)!
 	node.segments = replacement
+	node.segments_current = true
 }

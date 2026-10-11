@@ -62,6 +62,15 @@ retire the old generation. Anonymous children in ordinary V builders get fresh
 generations on each full build, because an array index is not durable identity. The window root has its
 own stable identity. No cache identity uses an address or event callback.
 
+Resolved and authored snapshots retain unchanged subtrees. A property patch
+recreates only its changed branch and ancestor arrays; older snapshots keep their
+previous values. Effective enabled state is projected into the resolved snapshot,
+while `declaration()` preserves authored state. Repeated unchanged `resolve()` or
+`declaration()` reads reuse their existing arrays. Treat these trees as snapshots:
+construct replacement Elements and pass them to `patch`, rather than mutating a
+shared child array. A flat ancestor still copies its direct child array when one
+child changes; group independent regions into retained subtrees to bound that work.
+
 Measurement keys cover generation, content version, exact constraints, metric
 text styles and rich runs, text/placeholder, declared dimensions, container rules,
 control insets and scroll gutter, measurer identity, and `LayoutEnvironment`.
@@ -119,15 +128,20 @@ replacements; patches do not increment it. `reconciled` counts declarations
 diffed, `measure_visits` counts measurement cache misses, and `layout_visits`
 counts local arrangements. `text_measurements` counts shared typography measure
 requests. `measure_hits`, `text_hits` and `layout_hits` count cache reuse
-separately. These counters exclude tree validation, assembling output Elements, painting, shaping performed by the
+separately. `output_visits` and `authored_visits` count recreated resolved and
+standalone declaration projections. Unchanged snapshot reads add neither count.
+These counters exclude tree validation, painting, shaping performed by the
 renderer itself, and native control reconciliation. The desktop custom text
-engine separately retains shaping geometry (up to 128 blocks per context), keys font/environment
+engine separately retains shaping geometry (two generations of up to 1,024 blocks per context), keys font/environment
 revisions and exact text constraints, and applies foreground paint without
-reshaping, including rich runs and synthetic ellipsis ownership. Link metadata
+reshaping, including rich runs and synthetic ellipsis ownership. Each shaped
+block retains up to eight foreground palettes for warmed interaction states. Link metadata
 also reuses shaping; decoration attributes remain shaping dependencies. Native
 AppKit measurement consults its actual cell for the required text height.
 Cached layout does not imply
-zero allocations, partial painting or avoided declarative builds.
+zero allocations, partial painting or avoided declarative builds. The
+[retained-frame allocation fixture](../benchmarks/steady_state/README.md) measures
+actual GC allocation traffic and enforces idle, hover and property-tick budgets.
 
 Run the maintained example:
 

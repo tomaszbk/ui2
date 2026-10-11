@@ -58,7 +58,7 @@ fn layout_max(left f64, right f64) f64 {
 }
 
 fn validate_layout_frame(frame Rect) ! {
-	for value in [frame.x, frame.y, frame.width, frame.height] {
+	for value in [frame.x, frame.y, frame.width, frame.height]! {
 		if !layout_finite(value) { return error('layout geometry must be finite') }
 	}
 	if frame.width < 0 || frame.height < 0 {
