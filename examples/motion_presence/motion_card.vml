@@ -1,0 +1,12 @@
+component MotionCard(title string) {
+    state count := 0
+    cleanup { app.card_cleaned() }
+
+    Row(motion: app.panel_motion(), height: 82, padding: 12, gap: 12, background: #DBEAFE, corner_radius: 8) {
+        Column(gap: 4, width: 160) {
+            Label(text: title, height: 24, bold: true, color: #1E3A8A)
+            Button(text: "Count: ${count}", height: 30, on_click: count++)
+        }
+        TextInput(text: "España, café y ñ", flex_grow: 1, height: 36)
+    }
+}

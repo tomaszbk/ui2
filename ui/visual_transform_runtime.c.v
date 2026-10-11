@@ -1,6 +1,8 @@
 module ui2
 
 pub struct VisualGeometry {
+	// The renderer prunes stale entries only after publishing a complete frame.
+	generation u64
 pub:
 	frame            Rect
 	transform        ContentTransform
@@ -10,7 +12,7 @@ pub:
 
 // Both presented and mounted snapshots use window-logical units.
 pub fn (g VisualGeometry) bounds() Rect {
-	return g.clip.intersect(transformed_clip(g.frame, g.transform)).bounds()
+	return g.clip.intersect(paint_transformed_clip(g.frame, g.transform)).bounds()
 }
 
 pub fn (g VisualGeometry) contains(x f64, y f64) bool {
@@ -20,7 +22,11 @@ pub fn (g VisualGeometry) contains(x f64, y f64) bool {
 fn replace_visual_transform(el Element, id string, transform VisualTransform) !(Element, bool) {
 	if el.id == id {
 		transform.matrix(el.frame)!
-		return with_transform(el, transform), true
+		replaced := with_transform(el, transform)
+		if replaced.motion_state != unsafe { nil } {
+			replaced.motion_state.update(replaced)!
+		}
+		return replaced, true
 	}
 	for index, child in el.children {
 		replaced, found := replace_visual_transform(child, id, transform)!
@@ -36,7 +42,9 @@ fn replace_visual_transform(el Element, id string, transform VisualTransform) !(
 fn (mut tree LayoutTree) set_transform(id string, transform VisualTransform) ! {
 	mut node := tree.find_id(id) or { return error('no mounted element `${id}`') }
 	transform.matrix(node.frame)!
-	node.declaration = with_transform(node.declaration, transform)
+	updated := with_transform(node.declaration, transform)
+	if updated.motion_state != unsafe { nil } { updated.motion_state.update(updated)! }
+	node.declaration = updated
 	mut ancestor := node.identity
 	for ancestor.len > 0 {
 		mut changed := tree.nodes[ancestor] or { return error('missing layout ancestor') }
@@ -48,7 +56,7 @@ fn (mut tree LayoutTree) set_transform(id string, transform VisualTransform) ! {
 
 $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headless ? && !ui2_document_library ? {
 	// UI-thread presentation update. A subsequent declarative rebuild replaces it.
-	// No business callback, layout, text mutation or animation loop is introduced.
+	// A configured motion retargets its retained timeline without rebuilding.
 	pub fn set_visual_transform(id string, transform VisualTransform) ! {
 		$if android {
 			return error('visual transforms require the desktop custom text renderer')
@@ -74,8 +82,12 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		sync_focus_navigation()
 		node := g_focus_navigation.node(id) or { return error('element `${id}` has no mounted geometry') }
 		if node.hidden { return error('element `${id}` is hidden') }
-		return VisualGeometry{frame: node.local_frame, transform: node.transform,
-			parent_transform: node.parent_transform, clip: node.clip}
+		return VisualGeometry{
+			frame:            node.local_frame
+			transform:        node.transform
+			parent_transform: node.parent_transform
+			clip:             node.clip
+		}
 	}
 	pub fn visual_geometry(id string) !VisualGeometry {
 		return g_gg_app.visual_geometries[id] or { return error('element `${id}` has no presented geometry') }

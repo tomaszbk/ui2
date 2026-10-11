@@ -59,6 +59,8 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		drop_target ?DropTarget
 		drag_generation u64
 		drag_mount_generation u64
+		pointer_publication u64
+		pointer_owner_identity string
 	}
 
 	struct TouchState {
@@ -97,6 +99,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		ctx &DrawContext = unsafe { nil }
 		scheduler &FrameCoordinator = new_frame_coordinator()
 		layout_tree &LayoutTree = &LayoutTree{}
+		motion_tree &MotionTree = &MotionTree{}
 		layout_environment LayoutEnvironment
 		layout_patches []LayoutPatch
 		// Every queued patch gets a serial. A compiled declaration contains the
@@ -129,6 +132,9 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		editable_fields map[string]bool
 		presentation_revision u64
 		visual_geometries map[string]VisualGeometry
+		visual_geometry_buffer map[string]VisualGeometry
+		visual_geometry_generation u64
+		visual_geometry_count int
 		visual_geometry_serial u64
 		pointer_geometry_serial u64
 		mounted_hit_count int
@@ -828,7 +834,11 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		state.controls_initialized = false
 		state.controls_prune_pending = false
 		state.focus_offsets.clear()
-		state.visual_geometries.clear()
+		// A canceled callback can close this owner after its geometry rollback.
+		// Keep its last published snapshot until the owner itself is released.
+		state.visual_geometry_buffer.clear()
+		state.visual_geometry_generation = 0
+		state.visual_geometry_count = 0
 		state.pointer_geometry_serial = 0
 		state.visual_geometry_serial = 0
 		state.mounted_hit_count = 0
@@ -844,6 +854,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		state.layout_patches.clear()
 		state.has_root = false
 		state.editable_fields.clear()
+		state.motion_tree.dispose()
 		configure_animation_driver(unsafe { nil }, false)
 		reset_widget_animations()
 		g_tooltip = TooltipState{}
@@ -904,11 +915,13 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 	fn resolve_custom_layout_snapshot(mut app GgApp, work FrameWork, measure LayoutTextMeasureFn, patches []LayoutPatch, input bool) !Element {
 		dispatch := custom_input_dispatch(&app)
 		ctx := app.ctx
-		animated := if input { app.declared_root } else { apply_custom_widget_animations(app.declared_root) }
+		mut animated := if input { app.declared_root } else { apply_custom_widget_animations(app.declared_root) }
 		if !dispatch.valid() || voidptr(app.ctx) != voidptr(ctx) || (ctx != unsafe { nil } && !custom_layout_owner_current(dispatch,ctx,input)) {
 			return error('layout frame canceled')
 		}
 		if work.build || app.declaration_pending || app.layout_tree.root.len == 0 {
+			animated = app.motion_tree.prepare(animated)!
+			app.declared_root = animated
 			app.layout_tree.replace(animated)!
 			app.declaration_pending = false
 		}
@@ -926,7 +939,32 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 			}
 			app.declared_root = app.layout_tree.declaration()
 		}
-		return app.layout_tree.resolve(LayoutConstraints{}, measure, app.layout_environment)!
+		if patches.len > 0 {
+			prepared := app.motion_tree.prepare(app.declared_root)!
+			if prepared != app.declared_root {
+				app.declared_root = prepared
+				app.layout_tree.replace(prepared)!
+			}
+		}
+		if !input && app.motion_tree.sample(app.declared_root)! {
+			if app.motion_tree.geometry_changed { g_focus_navigation.motion_serial++ }
+			app.presentation_revision++
+		}
+		// A target setter can finish an exit before the host samples it. Pending
+		// retirement still has to run when that next sample is unchanged.
+		if !input && app.motion_tree.prune_pending {
+			pruned := app.motion_tree.prune(app.declared_root)
+			app.motion_tree.prune_pending = false
+			if pruned != app.declared_root {
+				app.declared_root = pruned
+				app.presentation_revision++
+				app.layout_tree.replace(pruned)!
+			}
+		}
+		if !dispatch.valid() || (ctx != unsafe { nil } && !custom_layout_owner_current(dispatch, ctx, input)) { return error('motion frame canceled') }
+		resolved := app.layout_tree.resolve(LayoutConstraints{}, measure, app.layout_environment)!
+		app.motion_tree.previous = resolved
+		return resolved
 	}
 
 	fn custom_layout_owner_current(dispatch CustomInputDispatch, ctx &DrawContext, input bool) bool {
@@ -1138,14 +1176,35 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		preload_images(mut ctx)
 		preload_drag_preview(mut ctx)
 		previous_geometry := unsafe { app.visual_geometries }
+		app.visual_geometry_count = 0
 		geometry_changed := app.visual_geometry_serial != g_focus_navigation.presentation_serial
-		if geometry_changed { app.visual_geometries = map[string]VisualGeometry{} }
+		if geometry_changed {
+			// Reuse both published and draft maps. Clearing a map would clone every
+			// string key again on insertion during an animated transform frame.
+			app.visual_geometries = unsafe { app.visual_geometry_buffer }
+			app.visual_geometry_generation++
+		}
 		defer {
 			if !custom_frame_current(dispatch, ctx) || g_focus_navigation.root_revision != mounted {
-				app.visual_geometries = previous_geometry
+				if geometry_changed {
+					app.visual_geometry_buffer = unsafe { app.visual_geometries }
+					app.visual_geometries = previous_geometry
+				}
+			} else if geometry_changed {
+				// V snapshots a map iterated while deleting keys. Only structural
+				// retirement needs that scan; all ids in a motion frame stay mounted.
+				if app.visual_geometries.len > app.visual_geometry_count {
+					for id, geometry in app.visual_geometries {
+						if geometry.generation != app.visual_geometry_generation {
+							app.visual_geometries.delete(id)
+						}
+					}
+				}
+				app.visual_geometry_buffer = previous_geometry
 			}
 		}
 		ctx.content_transform = ContentTransform{}
+		ctx.opacity = 1
 		ctx.clip_base = ClipRegion{}
 		ctx.clip_region = ClipRegion{}
 		ctx.begin()
@@ -1188,6 +1247,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		app.last_frame = renderer_now_ms()
 		app.scheduler.set_deadline(custom_visual_deadline())
 		app.scheduler.set_animation_active(custom_animations_need_frame(app.declared_root))
+		app.scheduler.set_motion_active(motion_tree_needs_frame(app.declared_root))
 	}
 
 	fn on_event(e &gg.Event, app &GgApp) {
@@ -2671,7 +2731,7 @@ fn page_focused_text_area(direction int) {
 	fn render_scaled_content(ctx &DrawContext, el Element, off_x f64, off_y f64, clip Rect, scroll_parent_id string, path string) {
 		dispatch := custom_input_dispatch(g_gg_app)
 		root := g_focus_navigation.root_revision
-		if el.hidden { return }
+		if el.presented_hidden() { return }
 		viewport := rect(el.frame.x + off_x, el.frame.y + off_y, el.frame.width, el.frame.height)
 		local := contain_content(viewport, el.content_size.width, el.content_size.height) or { return }
 		render_element_body(ctx, Element{ ...el, children: [], content_size: LayoutSize{} }, off_x, off_y, clip, scroll_parent_id, path)
@@ -2703,11 +2763,12 @@ fn page_focused_text_area(direction int) {
 	}
 
 	fn render_element(ctx &DrawContext, declared_el Element, off_x f64, off_y f64, clip Rect, scroll_parent_id string, path string) {
-		if declared_el.hidden { return }
+		if declared_el.presented_hidden() { return }
 		outer := ctx.content_transform
 		base := ctx.clip_base
 		region := ctx.clip_region
 		enabled := ctx.interaction_enabled
+		opacity := ctx.opacity
 		parent_clip := ctx.retained_clip(base, clip, outer)
 		area := element_area(ctx, declared_el, off_x, off_y)
 		visual := declared_el.visual_transform().matrix(area) or { return }
@@ -2717,19 +2778,22 @@ fn page_focused_text_area(direction int) {
 			ctx.content_transform = outer.compose(visual)
 			ctx.clip_base = parent_clip
 			ctx.clip_region = parent_clip
-			ctx.interaction_enabled = enabled && declared_el.enabled
+			ctx.interaction_enabled = enabled && declared_el.presented_enabled()
+			ctx.opacity = opacity * declared_el.presented_opacity()
 		}
 		defer { unsafe {
 			ctx.content_transform = outer
 			ctx.clip_base = base
 			ctx.clip_region = region
 			ctx.interaction_enabled = enabled
+			ctx.opacity = opacity
 		}
 		ctx.sync_scissor()
 		 }
-		el := Element{ ...declared_el, enabled: enabled && declared_el.enabled }
+		el := Element{ ...declared_el, enabled: enabled && declared_el.presented_enabled() }
 		if el.id.len > 0 {
-			g_gg_app.visual_geometries[el.id] = VisualGeometry{ frame: area, transform: ctx.content_transform, parent_transform: outer, clip: parent_clip }
+			g_gg_app.visual_geometry_count++
+			g_gg_app.visual_geometries[el.id] = VisualGeometry{ generation: g_gg_app.visual_geometry_generation, frame: area, transform: ctx.content_transform, parent_transform: outer, clip: parent_clip }
 		}
 		render_element_body(ctx, el, off_x, off_y, local_clip, scroll_parent_id, path)
 	}
@@ -2741,7 +2805,7 @@ fn page_focused_text_area(direction int) {
 			render_scaled_content(ctx, declared_el, off_x, off_y, clip, scroll_parent_id, path)
 			return
 		}
-		if declared_el.hidden {
+		if declared_el.presented_hidden() {
 			return
 		}
 		sync_mounted_control(declared_el)

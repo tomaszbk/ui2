@@ -21,17 +21,24 @@ pub:
 // area are empty, including public snapshots constructed with points directly.
 // Regions are immutable snapshots, shared by paint, hit, hover and scroll.
 pub struct ClipRegion {
-	// Paint scopes keep rectangular snapshots inline; public points snapshots
-	// and arbitrary convex polygons retain their owned vertex arrays.
-	inline_axis [4]Point
+	// Internal presentation snapshots copy small convex regions by value.
+	// Public points snapshots and unusually complex regions own their arrays.
+	inline_axis     [4]Point
 	has_inline_axis bool
+	inline_convex   [32]Point
+	inline_count    int
 pub:
 	bounded bool
 	points  []Point
 }
 
 fn (clip ClipRegion) axis_edges() (f64, f64, f64, f64, int) {
-	if clip.has_inline_axis { return clip.inline_axis[0].x, clip.inline_axis[0].y, clip.inline_axis[2].x, clip.inline_axis[2].y, 1 }
+	if clip.has_inline_axis {
+		return clip.inline_axis[0].x, clip.inline_axis[0].y, clip.inline_axis[2].x, clip.inline_axis[2].y, 1
+	}
+	if clip.inline_count > 0 {
+		return clip_axis_edges(unsafe { borrow_points(&clip.inline_convex[0], clip.inline_count) })
+	}
 	return clip_axis_edges(clip.points)
 }
 
@@ -40,25 +47,155 @@ fn (clip ClipRegion) basis() (Rect, int) {
 		return rect(clip.inline_axis[0].x, clip.inline_axis[0].y,
 			clip.inline_axis[2].x - clip.inline_axis[0].x, clip.inline_axis[2].y - clip.inline_axis[0].y), 1
 	}
+	if clip.inline_count > 0 {
+		return clip_area(unsafe { borrow_points(&clip.inline_convex[0], clip.inline_count) })
+	}
 	return clip_basis(clip.points)
+}
+
+fn (clip ClipRegion) point_count() int {
+	return if clip.has_inline_axis {
+		4
+	} else if clip.inline_count > 0 {
+		clip.inline_count
+	} else {
+		clip.points.len
+	}
+}
+
+fn (clip ClipRegion) point_at(index int) Point {
+	return if clip.has_inline_axis {
+		clip.inline_axis[index]
+	} else if clip.inline_count > 0 {
+		clip.inline_convex[index]
+	} else {
+		clip.points[index]
+	}
+}
+
+fn (clip ClipRegion) inline_storage() bool {
+	return clip.has_inline_axis || clip.inline_count > 0
+}
+
+// Fixed work buffers never expose a borrowed array. Their owned profile also
+// serves large public polygons, so normalization shares one control flow.
+struct ClipPointBuffer {
+mut:
+	fixed    bool
+	storage  [64]Point
+	length   int
+	owned    []Point
+	overflow bool
+}
+
+fn new_clip_point_buffer(fixed bool, capacity int) ClipPointBuffer {
+	return ClipPointBuffer{
+		fixed: fixed
+		owned: if fixed {
+			[]Point{}
+		} else {
+			[]Point{cap: capacity}
+		}
+	}
+}
+
+@[inline]
+fn (buffer ClipPointBuffer) count() int {
+	return if buffer.fixed { buffer.length } else { buffer.owned.len }
+}
+
+@[inline]
+fn (buffer ClipPointBuffer) point(index int) Point {
+	return if buffer.fixed { buffer.storage[index] } else { buffer.owned[index] }
+}
+
+@[inline]
+fn (buffer ClipPointBuffer) pushed(point Point) ClipPointBuffer {
+	mut result := buffer
+	if buffer.fixed {
+		if buffer.length == 64 {
+			result.overflow = true
+			return result
+		}
+		result.storage[buffer.length] = point
+		result.length++
+	} else {
+		result.owned << point
+	}
+	return result
+}
+
+@[inline]
+fn (buffer ClipPointBuffer) popped() ClipPointBuffer {
+	mut result := buffer
+	if buffer.fixed { result.length-- } else { result.owned.delete_last() }
+	return result
+}
+
+@[inline]
+fn (buffer ClipPointBuffer) cleared() ClipPointBuffer {
+	mut result := buffer
+	if buffer.fixed { result.length = 0 } else { result.owned.clear() }
+	result.overflow = false
+	return result
+}
+
+fn (buffer ClipPointBuffer) sorted() ClipPointBuffer {
+	mut result := buffer
+	if !buffer.fixed {
+		result.owned.sort_with_compare(compare_clip_points)
+		return result
+	}
+	for i in 1 .. buffer.length {
+		point := result.storage[i]
+		mut j := i - 1
+		for j >= 0 && clip_point_order(result.storage[j], point) > 0 {
+			result.storage[j + 1] = result.storage[j]
+			j--
+		}
+		result.storage[j + 1] = point
+	}
+	return result
+}
+
+fn (buffer ClipPointBuffer) region(inline bool) ClipRegion {
+	if !inline { return ClipRegion{ bounded: true, points: buffer.owned } }
+	mut points := [32]Point{}
+	for i in 0 .. buffer.count() { points[i] = buffer.point(i) }
+	return ClipRegion{ bounded: true, inline_convex: points, inline_count: buffer.count() }
 }
 
 fn inline_axis_clip(left f64, top f64, right f64, bottom f64) ClipRegion {
 	if !finite_number(left) || !finite_number(top) || !finite_number(right) || !finite_number(bottom)
 		|| !finite_number(right - left) || !finite_number(bottom - top) || right <= left || bottom <= top {
-		return ClipRegion{bounded: true}
+		return ClipRegion{ bounded: true }
 	}
-	return ClipRegion{bounded: true, has_inline_axis: true,
-		inline_axis: [Point{left, top}, Point{right, top}, Point{right, bottom}, Point{left, bottom}]!}
+	return ClipRegion{
+		bounded:         true
+		has_inline_axis: true
+		inline_axis:     [Point{left, top}, Point{right, top}, Point{right, bottom},
+			Point{left, bottom}]!
+	}
 }
 
-// Internal presentation scopes need immutable region snapshots but axis clips
-// need no heap-backed polygons. General affine clips keep the exact polygon API.
+// Internal presentation scopes keep immutable snapshots without heap-backed
+// quads. The public transformed_clip API still returns owned points.
 fn paint_transformed_clip(frame Rect, t ContentTransform) ClipRegion {
-	if t.xy != 0 || t.yx != 0 { return transformed_clip(frame, t) }
 	if !finite_number(frame.x) || !finite_number(frame.y) || !finite_number(frame.width)
 		|| !finite_number(frame.height) || frame.width <= 0 || frame.height <= 0 || !t.invertible() {
-		return ClipRegion{bounded: true}
+		return ClipRegion{ bounded: true }
+	}
+	if t.xy != 0 || t.yx != 0 {
+		mut points := new_clip_point_buffer(true, 4)
+		points = points.pushed(t.point(frame.x, frame.y))
+		points = points.pushed(t.point(frame.x + frame.width, frame.y))
+		points = points.pushed(t.point(frame.x + frame.width, frame.y + frame.height))
+		points = points.pushed(t.point(frame.x, frame.y + frame.height))
+		clip := points.region(true)
+		extent, winding := clip.basis()
+		if winding == 0 { return ClipRegion{ bounded: true } }
+		if winding > 0 && !clip.has_redundant_points(extent) { return clip }
+		return convex_clip_result_buffer(points, true)
 	}
 	first := t.point(frame.x, frame.y)
 	last := t.point(frame.x + frame.width, frame.y + frame.height)
@@ -103,21 +240,37 @@ fn clip_roundoff(extent Rect, a Point, b Point, x f64, y f64) f64 {
 	dy := math.ldexp(b.y - a.y, -y_exp)
 	px := math.ldexp(x - a.x, -x_exp)
 	py := math.ldexp(y - a.y, -y_exp)
-	return 8 * 2.220446049250313e-16 * (math.abs(dx * py) + math.abs(dy * px)
-		+ math.abs(dx) + math.abs(dy))
+	return 8 * 2.220446049250313e-16 * (math.abs(dx * py) + math.abs(dy * px) +
+		math.abs(dx) + math.abs(dy))
 }
 
 fn clip_area(points []Point) (Rect, int) {
-	if points.len < 3 { return Rect{}, 0 }
-	for p in points {
+	return clip_buffer_area(ClipPointBuffer{ owned: points })
+}
+
+fn clip_buffer_area(points ClipPointBuffer) (Rect, int) {
+	if points.count() < 3 { return Rect{}, 0 }
+	mut left := points.point(0).x
+	mut right := left
+	mut top := points.point(0).y
+	mut bottom := top
+	for i in 0 .. points.count() {
+		p := points.point(i)
 		if !finite_number(p.x) || !finite_number(p.y) { return Rect{}, 0 }
+		left = math.min(left, p.x)
+		right = math.max(right, p.x)
+		top = math.min(top, p.y)
+		bottom = math.max(bottom, p.y)
 	}
-	extent := point_bounds(points)
+	extent := rect(left, top, right - left, bottom - top)
 	if !finite_number(extent.width) || !finite_number(extent.height)
-		|| extent.width <= 0 || extent.height <= 0 { return Rect{}, 0 }
+		|| extent.width <= 0 || extent.height <= 0 {
+		return Rect{}, 0
+	}
 	mut area := 0.0
-	for i in 1 .. points.len - 1 {
-		area += clip_side(extent, points[0], points[i], points[i + 1].x, points[i + 1].y)
+	for i in 1 .. points.count() - 1 {
+		end := points.point(i + 1)
+		area += clip_side(extent, points.point(0), points.point(i), end.x, end.y)
 	}
 	if !finite_number(area) || area == 0 { return Rect{}, 0 }
 	winding := if area > 0 { 1 } else { -1 }
@@ -165,13 +318,19 @@ fn clip_basis(points []Point) (Rect, int) {
 	for i, a in points {
 		b := points[(i + 1) % points.len]
 		for p in points {
-			if clip_side(extent, a, b, p.x, p.y) * winding < -clip_roundoff(extent, a, b, p.x, p.y) { return Rect{}, 0 }
+			if clip_side(extent, a, b, p.x, p.y) * winding < -clip_roundoff(extent, a, b, p.x, p.y) {
+				return Rect{}, 0
+			}
 		}
 	}
 	return extent, winding
 }
 
 fn compare_clip_points(a &Point, b &Point) int {
+	return clip_point_order(a, b)
+}
+
+fn clip_point_order(a Point, b Point) int {
 	if a.x < b.x || (a.x == b.x && a.y < b.y) { return -1 }
 	if a.x == b.x && a.y == b.y { return 0 }
 	return 1
@@ -182,57 +341,72 @@ fn compare_clip_points(a &Point, b &Point) int {
 // roundoff, rather than rejecting a positive-area result or using an epsilon
 // that could erase a genuine small sliver. Paint attributes are never hulled.
 fn convex_clip_result(vertices []Point) ClipRegion {
-	extent, winding := clip_area(vertices)
+	return convex_clip_result_storage(vertices, false)
+}
+
+// Both storage profiles share hull normalization and its robust area math.
+// Inline results copy vertices and do not retain work buffers.
+fn convex_clip_result_storage(vertices []Point, inline bool) ClipRegion {
+	return convex_clip_result_buffer(ClipPointBuffer{ owned: vertices }, inline && vertices.len <= 32)
+}
+
+fn convex_clip_result_buffer(vertices ClipPointBuffer, inline bool) ClipRegion {
+	extent, winding := clip_buffer_area(vertices)
 	if winding == 0 { return ClipRegion{ bounded: true } }
-	mut points := vertices.clone()
-	points.sort_with_compare(compare_clip_points)
-	mut lower := []Point{cap: points.len}
-	mut upper := []Point{cap: points.len}
-	for p in points {
-		if lower.len > 0 && p == lower.last() { continue }
-		for lower.len >= 2 && clip_side(extent, lower[lower.len - 2], lower.last(), p.x, p.y) <= 0 {
-			lower.pop()
+	mut points := new_clip_point_buffer(inline, vertices.count())
+	for i in 0 .. vertices.count() { points = points.pushed(vertices.point(i)) }
+	points = points.sorted()
+	mut lower := new_clip_point_buffer(inline, points.count())
+	mut upper := new_clip_point_buffer(inline, points.count())
+	for i in 0 .. points.count() {
+		p := points.point(i)
+		if lower.count() > 0 && p == lower.point(lower.count() - 1) { continue }
+		for lower.count() >= 2 && clip_side(extent, lower.point(lower.count() - 2), lower.point(lower.count() - 1), p.x, p.y) <= 0 {
+			lower = lower.popped()
 		}
-		lower << p
+		lower = lower.pushed(p)
 	}
-	for i := points.len - 1; i >= 0; i-- {
-		p := points[i]
-		if upper.len > 0 && p == upper.last() { continue }
-		for upper.len >= 2 && clip_side(extent, upper[upper.len - 2], upper.last(), p.x, p.y) <= 0 {
-			upper.pop()
+	for i := points.count() - 1; i >= 0; i-- {
+		p := points.point(i)
+		if upper.count() > 0 && p == upper.point(upper.count() - 1) { continue }
+		for upper.count() >= 2 && clip_side(extent, upper.point(upper.count() - 2), upper.point(upper.count() - 1), p.x, p.y) <= 0 {
+			upper = upper.popped()
 		}
-		upper << p
+		upper = upper.pushed(p)
 	}
-	lower.pop()
-	upper.pop()
-	lower << upper
-	_, result_winding := clip_area(lower)
+	lower = lower.popped()
+	upper = upper.popped()
+	for i in 0 .. upper.count() { lower = lower.pushed(upper.point(i)) }
+	_, result_winding := clip_buffer_area(lower)
 	if result_winding == 0 { return ClipRegion{ bounded: true } }
-	return ClipRegion{ bounded: true, points: lower }
+	return lower.region(inline)
 }
 
 fn (clip ClipRegion) normalized() ClipRegion {
 	if !clip.bounded { return ClipRegion{} }
-	if clip.has_inline_axis { return clip }
+	if clip.inline_storage() { return clip }
 	_, axis_winding := clip_axis_rect(clip.points)
 	if axis_winding > 0 { return clip }
 	extent, winding := clip.basis()
 	if winding == 0 { return ClipRegion{ bounded: true } }
 	// Valid canonical snapshots can be shared without allocating. Remove only
 	// exact redundant vertices; tolerance must never erase a thin valid region.
-	mut redundant := false
-	for i, p in clip.points {
-		previous := clip.points[(i + clip.points.len - 1) % clip.points.len]
-		next := clip.points[(i + 1) % clip.points.len]
+	if !clip.has_redundant_points(extent) && winding > 0 { return clip }
+	return convex_clip_result(clip.points)
+}
+
+fn (clip ClipRegion) has_redundant_points(extent Rect) bool {
+	for i in 0 .. clip.point_count() {
+		p := clip.point_at(i)
+		previous := clip.point_at((i + clip.point_count() - 1) % clip.point_count())
+		next := clip.point_at((i + 1) % clip.point_count())
 		if p == previous || (clip_side(extent, previous, next, p.x, p.y) == 0
 			&& p.x >= math.min(previous.x, next.x) && p.x <= math.max(previous.x, next.x)
 			&& p.y >= math.min(previous.y, next.y) && p.y <= math.max(previous.y, next.y)) {
-			redundant = true
-			break
+			return true
 		}
 	}
-	if !redundant && winding > 0 { return clip }
-	return convex_clip_result(clip.points)
+	return false
 }
 
 pub fn transformed_clip(frame Rect, t ContentTransform) ClipRegion {
@@ -261,9 +435,12 @@ pub fn (clip ClipRegion) contains(x f64, y f64) bool {
 	ny := (y - extent.y) / extent.height
 	edge_error := 8 * 2.220446049250313e-16
 	if !finite_number(nx) || !finite_number(ny) || nx < -edge_error || nx > 1 + edge_error
-		|| ny < -edge_error || ny > 1 + edge_error { return false }
-	for i, a in clip.points {
-		b := clip.points[(i + 1) % clip.points.len]
+		|| ny < -edge_error || ny > 1 + edge_error {
+		return false
+	}
+	for i in 0 .. clip.point_count() {
+		a := clip.point_at(i)
+		b := clip.point_at((i + 1) % clip.point_count())
 		side := clip_side(extent, a, b, x, y) * winding
 		// Relative floating-point roundoff only, never an absolute cross/area
 		// threshold that lets tiny regions contain arbitrary distant points.
@@ -297,13 +474,13 @@ fn lerp_vertex(a PaintVertex, b PaintVertex, t f64) PaintVertex {
 // capacity once, and subsequent paints reuse it. No temporary is a clip snapshot.
 struct PaintClipBuffer {
 mut:
-	first []PaintVertex
+	first  []PaintVertex
 	second []PaintVertex
 }
 
 fn new_paint_clip_buffer() PaintClipBuffer {
 	return PaintClipBuffer{
-		first: []PaintVertex{cap: 80}
+		first:  []PaintVertex{cap: 80}
 		second: []PaintVertex{cap: 80}
 	}
 }
@@ -318,7 +495,10 @@ fn clip_axis_halfplane_into(polygon []PaintVertex, horizontal bool, bound f64, k
 	if !finite_number(previous_side) { return }
 	for current in polygon {
 		side := clip_axis_side(current, horizontal, bound, keep_greater)
-		if !finite_number(side) { output.clear(); return }
+		if !finite_number(side) {
+			output.clear()
+			return
+		}
 		if (side >= 0) != (previous_side >= 0) {
 			output << clip_edge_vertex(previous, current, previous_side, side)
 		}
@@ -349,7 +529,10 @@ fn clip_halfplane_into(polygon []PaintVertex, extent Rect, a Point, b Point, win
 	if !finite_number(previous_side) { return }
 	for current in polygon {
 		side := clip_side(extent, a, b, current.x, current.y) * winding
-		if !finite_number(side) { output.clear(); return }
+		if !finite_number(side) {
+			output.clear()
+			return
+		}
 		if (side >= 0) != (previous_side >= 0) {
 			output << clip_edge_vertex(previous, current, previous_side, side)
 		}
@@ -380,7 +563,9 @@ fn paint_polygon_has_area(vertices []PaintVertex) bool {
 	}
 	extent := rect(left, top, right - left, bottom - top)
 	if !finite_number(extent.width) || !finite_number(extent.height) || extent.width <= 0
-		|| extent.height <= 0 { return false }
+		|| extent.height <= 0 {
+		return false
+	}
 	origin := Point{vertices[0].x, vertices[0].y}
 	mut area := 0.0
 	for i in 1 .. vertices.len - 1 {
@@ -435,9 +620,10 @@ fn (clip ClipRegion) clip_polygon_buffered(vertices []PaintVertex, mut buffer Pa
 			use_first = !use_first
 		}
 	} else {
-		for i, a in clip.points {
+		for i in 0 .. clip.point_count() {
 			if polygon.len == 0 { break }
-			b := clip.points[(i + 1) % clip.points.len]
+			a := clip.point_at(i)
+			b := clip.point_at((i + 1) % clip.point_count())
 			if use_first {
 				clip_halfplane_into(polygon, extent, a, b, winding, mut buffer.first)
 				polygon = unsafe { buffer.first }
@@ -464,19 +650,72 @@ pub fn (clip ClipRegion) intersect(other ClipRegion) ClipRegion {
 		x0, y0 := math.max(l0, l1), math.max(t0, t1)
 		x1, y1 := math.min(r0, r1), math.min(b0, b1)
 		if x1 <= x0 || y1 <= y0 { return ClipRegion{ bounded: true } }
-		if left.has_inline_axis || right.has_inline_axis { return inline_axis_clip(x0, y0, x1, y1) }
-		return ClipRegion{ bounded: true, points: [Point{x0, y0}, Point{x1, y0}, Point{x1, y1}, Point{x0, y1}] }
+		if left.inline_storage() || right.inline_storage() {
+			return inline_axis_clip(x0, y0, x1, y1)
+		}
+		return ClipRegion{
+			bounded: true
+			points:  [Point{x0, y0}, Point{x1, y0}, Point{x1, y1}, Point{x0, y1}]
+		}
 	}
-	// General intersections need owned polygon snapshots. Materialize an inline
-	// rectangular operand only here, outside the common axis paint path.
-	left_points := if left.has_inline_axis {
-		[left.inline_axis[0], left.inline_axis[1], left.inline_axis[2], left.inline_axis[3]]
-	} else { left.points }
-	right_points := if right.has_inline_axis {
-		[right.inline_axis[0], right.inline_axis[1], right.inline_axis[2], right.inline_axis[3]]
-	} else { right.points }
-	vertices := right_points.map(PaintVertex{ x: it.x, y: it.y })
-	return convex_clip_result(ClipRegion{bounded: true, points: left_points}.clip_polygon(vertices).map(Point{it.x, it.y}))
+	if (left.inline_storage() || right.inline_storage()) && left.point_count() <= 32 && right.point_count() <= 32 {
+		return intersect_inline_convex(left, right)
+	}
+	return intersect_owned_convex(left, right)
+}
+
+fn intersect_owned_convex(left ClipRegion, right ClipRegion) ClipRegion {
+	mut vertices := []PaintVertex{cap: right.point_count()}
+	for i in 0 .. right.point_count() {
+		p := right.point_at(i)
+		vertices << PaintVertex{ x: p.x, y: p.y }
+	}
+	return convex_clip_result(left.clip_polygon(vertices).map(Point{it.x, it.y}))
+}
+
+// A convex n-vertex subject clipped by m halfplanes has at most n + m
+// intermediate vertices. Two 32-vertex operands therefore fit these work
+// buffers; a result beyond the inline capacity promotes to an owned snapshot.
+fn intersect_inline_convex(left ClipRegion, right ClipRegion) ClipRegion {
+	mut polygon := new_clip_point_buffer(true, 32)
+	mut output := new_clip_point_buffer(true, 64)
+	for i in 0 .. right.point_count() {
+		polygon = polygon.pushed(right.point_at(i))
+	}
+	extent, winding := left.basis()
+	if winding == 0 { return ClipRegion{ bounded: true } }
+	for i in 0 .. left.point_count() {
+		if polygon.count() == 0 { break }
+		output = clip_point_halfplane(polygon, extent, left.point_at(i), left.point_at((i + 1) % left.point_count()), winding, output)
+		if output.overflow { return intersect_owned_convex(left, right) }
+		previous := polygon
+		polygon = output
+		output = previous
+	}
+	return convex_clip_result_buffer(polygon, polygon.count() <= 32)
+}
+
+fn clip_point_halfplane(polygon ClipPointBuffer, extent Rect, a Point, b Point, winding int, target ClipPointBuffer) ClipPointBuffer {
+	mut output := target.cleared()
+	if polygon.count() == 0 { return output }
+	mut previous := polygon.point(polygon.count() - 1)
+	mut previous_side := clip_side(extent, a, b, previous.x, previous.y) * winding
+	if !finite_number(previous_side) { return output }
+	for i in 0 .. polygon.count() {
+		current := polygon.point(i)
+		side := clip_side(extent, a, b, current.x, current.y) * winding
+		if !finite_number(side) {
+			return output.cleared()
+		}
+		if (side >= 0) != (previous_side >= 0) {
+			vertex := clip_edge_vertex(PaintVertex{ x: previous.x, y: previous.y }, PaintVertex{ x: current.x, y: current.y }, previous_side, side)
+			output = output.pushed(Point{vertex.x, vertex.y})
+		}
+		if side >= 0 { output = output.pushed(current) }
+		previous = current
+		previous_side = side
+	}
+	return output
 }
 
 // Inclusive conservative broad phase. Inverse/projection roundoff must not

@@ -25,10 +25,13 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		owners map[string]HitTarget
 		generation u64
 		serial u64
+		pointer_publication u64
+		root_revision u64
 	}
 	__global g_drag_registry = DragRegistry{}
 
 	fn drag_owner_key(target HitTarget) string {
+		if target.pointer_owner_identity.len > 0 { return target.pointer_owner_identity }
 		return if target.id.len > 0 { 'id:' + target.id } else { 'path:' + target.identity }
 	}
 
@@ -60,9 +63,13 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 				g_drag_registry.generation++
 				target=HitTarget{...target,drag_generation:g_drag_registry.generation,drag_mount_generation:mount}
 			}
+			target=HitTarget{...target,pointer_publication:g_drag_registry.pointer_publication}
 			owners[key]=target
 		}
-		hits << target
+		// Append an empty slot, then retain the mounted strings and geometry.
+		// Appending the populated struct would clone its string fields.
+		hits << HitTarget{}
+		hits[hits.len-1]=target
 	}
 
 	fn current_drag_owner(captured HitTarget) ?HitTarget {

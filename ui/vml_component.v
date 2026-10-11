@@ -21,6 +21,7 @@ mut:
 	cleanup_keys map[string]bool
 	mounted      bool
 	disposed     bool
+	leaving         bool
 	publish      fn (string, Element) = compiled_vml_publish
 	command_handler fn (VmlHostCommand) ! = compiled_vml_host_command
 	app_revision &Signal[u64]
@@ -88,6 +89,10 @@ fn new_vml_owner(name string, namespace string) !&CompiledVmlComponent {
 
 pub fn (component &CompiledVmlComponent) is_disposed() bool {
 	return component.disposed || component.scope.is_disposed()
+}
+
+fn (component &CompiledVmlComponent) is_leaving() bool {
+	return component.leaving || (component.parent != unsafe { nil } && component.parent.is_leaving())
 }
 
 fn (component &CompiledVmlComponent) require_alive() ! {
@@ -256,6 +261,7 @@ fn (mut component CompiledVmlComponent) owned_element(declaration Element, confi
 		}
 		frame_value:       component.geometry(local_id, declaration.frame)!
 	}
+	node.declaration = node.update_motion(node.declaration)!
 	component.nodes[local_id] = node
 	node.set_element_children(declaration.children)!
 	return node
@@ -286,7 +292,11 @@ pub fn (mut node CompiledVmlNode) set_element_children(declarations []Element) !
 }
 
 pub fn (node &CompiledVmlNode) element() Element {
-	return vml_present(node.constructor_source_element(), node.presentation)
+	element := vml_present(node.constructor_source_element(), node.presentation)
+	if node.component.is_leaving() {
+		return Element{ ...element, presence_exiting: true, enabled: false }
+	}
+	return element
 }
 
 pub fn (node &CompiledVmlNode) child_elements() ![]Element {
@@ -375,7 +385,7 @@ fn (mut node CompiledVmlNode) reconcile_structure(replacement Element, publish b
 	source_before := node.source_element()
 	was_mounted := node.mounted
 	node.mounted = false
-	defer { node.mounted = was_mounted }
+	defer { if !node.component.is_disposed() { node.mounted = was_mounted } }
 	mut children := []&CompiledVmlNode{cap: replacement.children.len}
 	for index, element in replacement.children {
 		if element.compiled_node != unsafe { nil } {
@@ -390,18 +400,20 @@ fn (mut node CompiledVmlNode) reconcile_structure(replacement Element, publish b
 			children << child
 		}
 	}
-	node.declaration = Element{
+	node.declaration = node.update_motion(Element{
 		...replacement
 		compiled_source: unsafe { nil }
 		id:            node.declaration.id
 		key:           node.declaration.key
 		compiled_node: &node
 		children:      node.declaration.children
-	}
+	})!
 	node.source_snapshot = unsafe { nil }
+	if node.component.is_disposed() { return }
 	node.set_children(children)!
 	changed := !vml_declaration_equal(before, node.element())
 	if changed || !vml_declaration_equal(source_before, node.source_element()) { node.propagate() }
+	if was_mounted { node.prepare_motion_mount()! }
 	node.mark_mounted(was_mounted)
 	if was_mounted {
 		for mut child in node.children {
@@ -442,8 +454,9 @@ fn (mut node CompiledVmlNode) replace_property(replacement Element) ! {
 	}
 	if vml_declaration_equal(replacement, node.source_element()) { return }
 	validate_element_tree(replacement)!
-	node.declaration = Element{ ...replacement, compiled_node: node, compiled_source: unsafe { nil } }
+	node.declaration = node.update_motion(Element{ ...replacement, compiled_node: node, compiled_source: unsafe { nil } })!
 	node.source_snapshot = unsafe { nil }
+	if node.component.is_disposed() { return }
 	node.propagate()
 	if node.mounted { node.publish_structure() }
 }
@@ -519,6 +532,7 @@ pub fn (mut node CompiledVmlNode) set_children(children []&CompiledVmlNode) ! {
 	node.propagate()
 	if node.mounted {
 		for mut child in node.children {
+			child.prepare_motion_mount()!
 			child.mark_mounted(true)
 		}
 		node.mount_visible_owners()!
@@ -533,6 +547,7 @@ fn (mut node CompiledVmlNode) mark_mounted(mounted bool) {
 
 pub fn (mut node CompiledVmlNode) mount() ! {
 	node.component.require_alive()!
+	node.prepare_motion_mount()!
 	node.mark_mounted(true)
 	node.mount_visible_owners()!
 }
@@ -598,7 +613,7 @@ pub fn (mut component CompiledVmlComponent) dispose() ! {
 // nothing after their owning component has been removed.
 pub fn (component &CompiledVmlComponent) callback(action fn (ElementEvent) !) ElementCallback {
 	return fn [component, action] (event ElementEvent) {
-		if component.is_disposed() || action == unsafe { nil } { return }
+		if component.is_disposed() || component.is_leaving() || action == unsafe { nil } { return }
 		component.runtime.batch(fn [component, action, event] () ! {
 			action(event) or {
 				component.invalidate_app()!

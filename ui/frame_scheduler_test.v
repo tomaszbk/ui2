@@ -1,5 +1,30 @@
 module ui2
 
+fn test_motion_frames_only_paint_and_stop_waking_at_completion() {
+	mut coordinator := new_frame_coordinator()
+	finish_scheduler_test_frame(mut coordinator, 0)
+	coordinator.set_motion_active(true)
+	assert coordinator.next_wake(1, 0, 16) == 16
+	for now in [i64(16), 32, 48] {
+		frame := finish_scheduler_test_frame(mut coordinator, now)
+		assert !frame.build && frame.draw
+		assert frame.reason_list() == [RenderReason.motion]
+	}
+	assert coordinator.stats().builds == 1
+	coordinator.suspend()
+	assert coordinator.begin_frame(100) == none
+	assert coordinator.next_wake(100, 48, 16) == -1
+	coordinator.resume()
+	finish_scheduler_test_frame(mut coordinator, 101)
+	coordinator.set_motion_active(false)
+	assert coordinator.begin_frame(102) == none
+	assert coordinator.next_wake(102, 101, 16) == -1
+	assert !coordinator.stats().motion_active
+	coordinator.close()
+	coordinator.set_motion_active(true)
+	assert !coordinator.stats().motion_active
+}
+
 fn finish_scheduler_test_frame(mut coordinator FrameCoordinator, now i64) FrameWork {
 	work := coordinator.begin_frame(now) or { panic('expected a frame') }
 	if work.build {

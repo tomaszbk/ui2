@@ -156,6 +156,13 @@ jobs:
         if: runner.os == 'Linux' || matrix.custom
         run: v ${{ matrix.compiler_flags }} ${{ matrix.custom && '-d ui2_custom_rendering' || '' }} test ui2/tests/compiled_vml
 
+      - name: Test deterministic motion controllers
+        run: v ${{ matrix.compiler_flags }} ${{ matrix.custom && '-d ui2_custom_rendering' || '' }} test ui2/ui/motion_test.v ui2/ui/frame_scheduler_test.v
+
+      - name: Test retained motion and presence
+        if: runner.os == 'Linux' || matrix.custom
+        run: v ${{ matrix.compiler_flags }} ${{ matrix.custom && '-d ui2_custom_rendering' || '' }} test ui2/ui/vml_presence_test.v ui2/ui/motion_runtime_immediate_test.v
+
       - name: Test immediate scrolling
         if: runner.os == 'Linux' || matrix.custom
         shell: bash
@@ -181,7 +188,8 @@ jobs:
           v ${{ matrix.compiler_flags }} -gc boehm -d no_gc_thread_local_alloc ${{ matrix.custom && '-d ui2_custom_rendering' || '' }} test \
             ui2/ui/gc_allocation_test.v ui2/ui/vml_allocation_test.v \
             ui2/ui/vml_geometry_runtime_test.v \
-            ui2/ui/paint_allocation_test.v ui2/ui/retained_layout_snapshot_test.v \
+            ui2/ui/paint_allocation_test.v ui2/ui/retained_motion_clip_test.v \
+            ui2/ui/retained_layout_snapshot_test.v \
             ui2/ui/retained_focus_geometry_test.v ui2/ui/retained_patch_validation_test.v \
             ui2/ui/retained_transform_snapshot_test.v ui2/ui/retained_scroll_identity_test.v \
             ui2/ui/retained_tooltip_identity_test.v ui2/ui/retained_menu_options_test.v \
@@ -198,9 +206,14 @@ jobs:
         working-directory: ui2
         run: v ${{ matrix.compiler_flags }} -gc boehm -d no_gc_thread_local_alloc -d ui2_custom_rendering test ui/gg_pass_allocation_test.v
 
+      - name: Test motion on the owned Metal surface
+        if: runner.os == 'macOS' && matrix.custom
+        working-directory: ui2
+        run: v ${{ matrix.compiler_flags }} -d ui2_custom_rendering -d ui2_embedder -d ui2_geometry_capture test ui/motion_presence_embedder_test.v
+
       - name: Test retained-frame allocation budgets with GC enabled
         if: runner.os == 'macOS' && matrix.custom
         working-directory: ui2
         run: |
           UI2_ALLOCATION_FRAMES=1000 make bench-allocations VFLAGS="${{ matrix.compiler_flags }}"
-          v ${{ matrix.compiler_flags }} -gc boehm -d no_gc_thread_local_alloc -d ui2_custom_rendering -d ui2_embedder test ui/paint_allocation_embedder_test.v ui/affine_scene_allocation_embedder_test.v ui/dropdown_allocation_embedder_test.v
+          v ${{ matrix.compiler_flags }} -gc boehm -d no_gc_thread_local_alloc -d ui2_custom_rendering -d ui2_embedder test ui/paint_allocation_embedder_test.v ui/affine_scene_allocation_embedder_test.v ui/dropdown_allocation_embedder_test.v ui/motion_allocation_embedder_test.v

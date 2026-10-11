@@ -34,6 +34,14 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		g_focus_navigation.current = g_focused_field
 		sync_focus_navigation()
 		g_focused_field = g_focus_navigation.current
+		if g_touch.down && g_touch.pointer_captured {
+			captured := g_touch.pointer_target
+			if node := g_focus_navigation.node(captured.id) {
+				if !node.enabled || node.hidden { cancel_touch() }
+			} else if node := g_focus_navigation.path_node(captured.identity) {
+				if !node.enabled || node.hidden { cancel_touch() }
+			}
+		}
 		if g_gg_app.composition.field_id.len > 0 && g_gg_app.composition.field_id != g_focused_field {
 			g_gg_app.composition = TextComposition{}
 		}
@@ -71,6 +79,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		return HitTarget{
 			...geometry
 			identity:                  node.path
+			pointer_owner_identity:    node.pointer_owner_identity
 			id:                        el.id
 			kind:                      el.kind
 			on_event:                  el.on_event
@@ -183,12 +192,17 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 	}
 
 	fn sync_mounted_focus_controls(el Element, path string) {
-		sync_mounted_control(el)
+		sync_mounted_focus_control_subtree(el, path, true)
+	}
+
+	fn sync_mounted_focus_control_subtree(el Element, path string, ancestor_enabled bool) {
+		enabled := ancestor_enabled && el.presented_enabled() && !el.presented_hidden()
+		sync_mounted_control(Element{ ...el, enabled: enabled })
 		if el.kind == .scroll {
 			g_active_scrolls[scroll_view_state_id(el, path)] = true
 		}
 		for i, child in el.children {
-			sync_mounted_focus_controls(child, reconciliation_child_key(path, i, child))
+			sync_mounted_focus_control_subtree(child, reconciliation_child_key(path, i, child), enabled)
 		}
 	}
 
