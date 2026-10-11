@@ -1,9 +1,9 @@
 Screen(
     id: "root",
-    background: #F1F5F9,
+    style: [background(#F1F5F9)],
 ) {
     Absolute(
-        transparent: true,
+        style: [transparent(true)],
     ) {
         View(
             id: "card",
@@ -11,11 +11,10 @@ Screen(
             y: 16,
             width: root.width - 32,
             height: root.height - 32,
-            background: #FFFFFF,
-            corner_radius: 10,
+            style: [background(#FFFFFF), radius(10)],
         ) {
             Absolute(
-                transparent: true,
+                style: [transparent(true)],
             ) {
                 Label(
                     text: "Nested scrollviews in a box layout",
@@ -23,9 +22,7 @@ Screen(
                     y: 14,
                     width: card.width - 32,
                     height: 28,
-                    color: #111827,
-                    font_size: 18,
-                    bold: true,
+                    style: [foreground(#111827), font_size(18), weight(700)],
                 )
                 Label(
                     text: "The outer canvas and every text box scroll independently.",
@@ -33,8 +30,7 @@ Screen(
                     y: 42,
                     width: card.width - 32,
                     height: 20,
-                    color: #64748B,
-                    font_size: 12,
+                    style: [foreground(#64748B), font_size(12)],
                 )
                 Scroll(
                     id: "box_grid",
@@ -42,10 +38,10 @@ Screen(
                     y: 74,
                     width: card.width - 32,
                     height: card.height - 90,
-                    background: #FEF9C3,
+                    style: [background(#FEF9C3)],
                 ) {
                     Absolute(
-                        transparent: true,
+                        style: [transparent(true)],
                     ) {
                         Repeater(
                             model: app.boxes,
@@ -57,10 +53,7 @@ Screen(
                                 y: 8 + item.row * 112,
                                 width: (box_grid.width - 16) / 5 - 8,
                                 height: 104,
-                                background: #FFFFFF,
-                                color: #475569,
-                                font_size: 11,
-                                corner_radius: 6,
+                                style: [background(#FFFFFF), foreground(#475569), font_size(11), radius(6)],
                             )
                         }
                     }

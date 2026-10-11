@@ -1,9 +1,9 @@
 Screen(
     id: "root",
-    background: #F1F5F9,
+    style: [background(#F1F5F9)],
 ) {
     Absolute(
-        transparent: true,
+        style: [transparent(true)],
     ) {
         View(
             id: "card",
@@ -11,11 +11,10 @@ Screen(
             y: 16,
             width: (root.width - 32 < 288 ? root.width - 32 : 288),
             height: 128,
-            background: #FFFFFF,
-            corner_radius: 10,
+            style: [background(#FFFFFF), radius(10)],
         ) {
             Absolute(
-                transparent: true,
+                style: [transparent(true)],
             ) {
                 Label(
                     id: "state",
@@ -24,11 +23,9 @@ Screen(
                     y: 14,
                     width: card.width - 32,
                     height: 34,
-                    color: app.enabled ? #166534 : #991B1B,
-                    font_size: 20,
-                    bold: true,
+                    style: [foreground(app.enabled ? #166534 : #991B1B), font_size(20), weight(700)],
                 )
-                Label(text: "Feature enabled", x: 16, y: 62, width: card.width - 96, height: 42, color: #111827, font_size: 15)
+                Label(text: "Feature enabled", x: 16, y: 62, width: card.width - 96, height: 42, style: [foreground(#111827), font_size(15)])
                 Switch(
                     id: "switch-control",
                     bind.active: app.enabled,

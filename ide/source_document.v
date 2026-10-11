@@ -6,6 +6,7 @@ struct DesignerNode {
 	tag      string
 	id       string
 	props    map[string]string
+	styles   map[string]string
 	children []DesignerNode
 }
 
@@ -16,6 +17,8 @@ fn (node &DesignerNode) prop_or(name string, fallback string) string {
 }
 
 fn (node &DesignerNode) prop_bool(name string) bool { return node.prop(name) == 'true' }
+
+fn (node &DesignerNode) style(name string) string { return node.styles[name] or { '' } }
 
 struct DesignerSource {
 	source string
@@ -102,12 +105,33 @@ fn (mut reader DesignerSource) value(property string) !string {
 		}
 	} else if property in ['hidden', 'checked', 'clickable'] {
 		if value !in ['true', 'false'] { return error('`${property}` must be a boolean literal') }
-	} else if property in ['background', 'color'] {
+	} else if property in ['background', 'foreground'] {
 		parse_color_property(value) or { return error('`${property}` must be a #RRGGBB literal') }
 	} else {
 		parse_f64_property(value) or { return error('`${property}` must be a literal; keep expressions in source mode') }
 	}
 	return value
+}
+
+fn (mut reader DesignerSource) styles() !map[string]string {
+	mut styles := map[string]string{}
+	reader.take(`[`)!
+	reader.whitespace()
+	for reader.pos < reader.source.len && reader.source[reader.pos] != `]` {
+		name := reader.name()!
+		if name !in ['background', 'foreground', 'font_size', 'radius'] {
+			return error('style `${name}` is not editable by the visual designer; keep this document in source mode')
+		}
+		reader.take(`(`)!
+		styles[name] = reader.value(name)!
+		reader.take(`)`)!
+		reader.whitespace()
+		if reader.pos < reader.source.len && reader.source[reader.pos] == `]` { break }
+		reader.take(`,`)!
+		reader.whitespace()
+	}
+	reader.take(`]`)!
+	return styles
 }
 
 fn (mut reader DesignerSource) node() !DesignerNode {
@@ -116,6 +140,7 @@ fn (mut reader DesignerSource) node() !DesignerNode {
 	defer { reader.depth-- }
 	tag := reader.name()!
 	mut props := map[string]string{}
+	mut styles := map[string]string{}
 	reader.whitespace()
 	if reader.pos < reader.source.len && reader.source[reader.pos] == `(` {
 		reader.pos++
@@ -124,7 +149,12 @@ fn (mut reader DesignerSource) node() !DesignerNode {
 			name := reader.name()!
 			if name in props { return error('duplicate `${name}` argument on ${tag}') }
 			reader.take(`:`)!
-			props[name] = reader.value(name)!
+			if name == 'style' {
+				styles = reader.styles()!
+				props[name] = '[]'
+			} else {
+				props[name] = reader.value(name)!
+			}
 			reader.whitespace()
 			if reader.pos < reader.source.len && reader.source[reader.pos] == `)` { break }
 			reader.take(`,`)!
@@ -133,17 +163,29 @@ fn (mut reader DesignerSource) node() !DesignerNode {
 		reader.take(`)`)!
 	}
 	allowed := match tag {
-		'Screen' { ['id', 'width', 'height', 'background'] }
+		'Screen' { ['id', 'width', 'height', 'style'] }
 		'Absolute' { []string{} }
 		'Option' { ['text'] }
 		else {
-			['id', 'x', 'y', 'width', 'height', 'hidden', 'text', 'placeholder', 'source', 'background',
-				'color', 'font_size', 'checked', 'corner_radius', 'on_click', 'on_change', 'clickable']
+			['id', 'x', 'y', 'width', 'height', 'hidden', 'text', 'placeholder', 'source', 'style',
+				'checked', 'on_click', 'on_change', 'clickable']
 		}
 	}
 	for property, _ in props {
 		if property !in allowed {
 			return error('`${property}` on ${tag} is not editable by the visual designer')
+		}
+	}
+	allowed_styles := match tag {
+		'Screen' { ['background'] }
+		'Label', 'Checkbox' { ['foreground', 'font_size'] }
+		'View' { ['background', 'radius'] }
+		'Button', 'TextInput', 'TextArea', 'Dropdown' { ['background', 'foreground', 'font_size', 'radius'] }
+		else { []string{} }
+	}
+	for name, _ in styles {
+		if name !in allowed_styles {
+			return error('style `${name}` on ${tag} is not editable by the visual designer; keep this document in source mode')
 		}
 	}
 	mut children := []DesignerNode{}
@@ -157,7 +199,7 @@ fn (mut reader DesignerSource) node() !DesignerNode {
 		}
 		reader.take(`}`)!
 	}
-	return DesignerNode{ tag: tag, id: props['id'] or { '' }, props: props, children: children }
+	return DesignerNode{ tag: tag, id: props['id'] or { '' }, props: props, styles: styles, children: children }
 }
 
 fn designer_document(source string) !DesignerNode {

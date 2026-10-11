@@ -1,9 +1,9 @@
 Screen(
     id: "root",
-    background: #F1F5F9,
+    style: [background(#F1F5F9)],
 ) {
     Absolute(
-        transparent: true,
+        style: [transparent(true)],
     ) {
         View(
             id: "card",
@@ -11,11 +11,10 @@ Screen(
             y: 16,
             width: root.width - 32,
             height: root.height - 32,
-            background: #FFFFFF,
-            corner_radius: 10,
+            style: [background(#FFFFFF), radius(10)],
         ) {
             Absolute(
-                transparent: true,
+                style: [transparent(true)],
             ) {
                 Label(
                     text: "Change title",
@@ -23,9 +22,7 @@ Screen(
                     y: 14,
                     width: card.width - 36,
                     height: 28,
-                    color: #111827,
-                    font_size: 18,
-                    bold: true,
+                    style: [foreground(#111827), font_size(18), weight(700)],
                 )
                 Label(
                     text: "Current title: ${app.applied_title}",
@@ -33,8 +30,7 @@ Screen(
                     y: 48,
                     width: card.width - 36,
                     height: 20,
-                    color: #64748B,
-                    font_size: 12,
+                    style: [foreground(#64748B), font_size(12)],
                 )
                 TextInput(
                     id: "title",
@@ -45,9 +41,7 @@ Screen(
                     y: 82,
                     width: card.width - 154,
                     height: 38,
-                    background: app.valid ? #F8FAFC : #FEE2E2,
-                    corner_radius: 7,
-                    font_size: 13,
+                    style: [background(app.valid ? #F8FAFC : #FEE2E2), radius(7), font_size(13)],
                 )
                 Button(
                     id: "apply_title",
@@ -64,11 +58,10 @@ Screen(
                     y: 138,
                     width: card.width - 36,
                     height: 48,
-                    background: app.valid ? #DCFCE7 : #FEE2E2,
-                    corner_radius: 8,
+                    style: [background(app.valid ? #DCFCE7 : #FEE2E2), radius(8)],
                 ) {
                     Absolute(
-                        transparent: true,
+                        style: [transparent(true)],
                     ) {
                         Label(
                             id: "title_status",
@@ -77,9 +70,7 @@ Screen(
                             y: 0,
                             width: card.width - 60,
                             height: 48,
-                            align: center,
-                            color: app.valid ? #166534 : #991B1B,
-                            font_size: 12,
+                            style: [text_align(center), foreground(app.valid ? #166534 : #991B1B), font_size(12)],
                         )
                     }
                 }

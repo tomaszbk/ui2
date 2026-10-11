@@ -1,9 +1,9 @@
 Screen(
     id: "root",
-    background: #F1F5F9,
+    style: [background(#F1F5F9)],
 ) {
     Absolute(
-        transparent: true,
+        style: [transparent(true)],
     ) {
         View(
             id: "card",
@@ -11,13 +11,12 @@ Screen(
             y: 16,
             width: root.width - 32,
             height: root.height - 32,
-            background: #FFFFFF,
-            corner_radius: 10,
+            style: [background(#FFFFFF), radius(10)],
         ) {
             Absolute(
-                transparent: true,
+                style: [transparent(true)],
             ) {
-                Label(text: "Gradient texture", x: 18, y: 14, width: 220, height: 28, color: #111827, font_size: 18, bold: true)
+                Label(text: "Gradient texture", x: 18, y: 14, width: 220, height: 28, style: [foreground(#111827), font_size(18), weight(700)])
                 Button(
                     id: "previous_hue",
                     text: "Previous",
@@ -44,11 +43,10 @@ Screen(
                     y: 64,
                     width: card.width - 36,
                     height: card.height - 132,
-                    background: #111827,
-                    corner_radius: 0,
+                    style: [background(#111827), radius(0)],
                 ) {
                     Absolute(
-                        transparent: true,
+                        style: [transparent(true)],
                     ) {
                         Repeater(
                             model: app.cells,
@@ -59,20 +57,19 @@ Screen(
                                 y: item.row * gradient.height / 14,
                                 width: gradient.width / 20 + 1,
                                 height: gradient.height / 14 + 1,
-                                background: item.color,
+                                style: [background(item.color)],
                             )
                         }
                     }
                 }
-                View(x: 18, y: card.height - 50, width: 18, height: 18, background: app.hue_color, corner_radius: 9)
+                View(x: 18, y: card.height - 50, width: 18, height: 18, style: [background(app.hue_color), radius(9)])
                 Label(
                     text: app.status,
                     x: 46,
                     y: card.height - 52,
                     width: card.width - 64,
                     height: 22,
-                    color: #475569,
-                    font_size: 11,
+                    style: [foreground(#475569), font_size(11)],
                 )
             }
         }

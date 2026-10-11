@@ -1,9 +1,9 @@
 Screen(
     id: "root",
-    background: #F1F5F9,
+    style: [background(#F1F5F9)],
 ) {
     Absolute(
-        transparent: true,
+        style: [transparent(true)],
     ) {
         Label(
             text: "Fixed and proportional sizing",
@@ -11,9 +11,7 @@ Screen(
             y: 18,
             width: root.width - 40,
             height: 30,
-            color: #0F172A,
-            font_size: 20,
-            bold: true,
+            style: [foreground(#0F172A), font_size(20), weight(700)],
         )
         Flex(
             id: "actions",
@@ -21,14 +19,12 @@ Screen(
             y: 68,
             width: root.width - 40,
             height: 96,
-            padding: 10,
             gap: 8,
-            background: #FFFFFF,
-            corner_radius: 10,
+            style: [padding(10), background(#FFFFFF), radius(10)],
         ) {
-            Button(text: "Fixed", width: 88, flex_shrink: 0, background: #E2E8F0, corner_radius: 6)
-            Button(text: "2 shares", flex_basis: 0, flex_grow: 2, background: #BFDBFE, corner_radius: 6)
-            Button(text: "1 share", flex_basis: 0, flex_grow: 1, background: #DBEAFE, corner_radius: 6)
+            Button(text: "Fixed", width: 88, flex_shrink: 0, style: [background(#E2E8F0), radius(6)])
+            Button(text: "2 shares", flex_basis: 0, flex_grow: 2, style: [background(#BFDBFE), radius(6)])
+            Button(text: "1 share", flex_basis: 0, flex_grow: 1, style: [background(#DBEAFE), radius(6)])
         }
     }
 }

@@ -1,9 +1,9 @@
 Screen(
     id: "root",
-    background: #F1F5F9,
+    style: [background(#F1F5F9)],
 ) {
     Absolute(
-        transparent: true,
+        style: [transparent(true)],
     ) {
         View(
             id: "first_group",
@@ -11,11 +11,10 @@ Screen(
             y: 16,
             width: ((root.width - 64) / 2),
             height: root.height - 86,
-            background: #FFFFFF,
-            corner_radius: 10,
+            style: [background(#FFFFFF), radius(10)],
         ) {
             Absolute(
-                transparent: true,
+                style: [transparent(true)],
             ) {
                 Label(
                     text: "First group",
@@ -23,9 +22,7 @@ Screen(
                     y: 14,
                     width: first_group.width - 32,
                     height: 28,
-                    color: #111827,
-                    font_size: 18,
-                    bold: true,
+                    style: [foreground(#111827), font_size(18), weight(700)],
                 )
                 TextInput(
                     id: "first_ipsum",
@@ -35,9 +32,7 @@ Screen(
                     y: 58,
                     width: first_group.width - 32,
                     height: 34,
-                    background: #F8FAFC,
-                    corner_radius: 7,
-                    font_size: 13,
+                    style: [background(#F8FAFC), radius(7), font_size(13)],
                 )
                 TextInput(
                     id: "second_ipsum",
@@ -47,9 +42,7 @@ Screen(
                     y: 104,
                     width: first_group.width - 32,
                     height: 34,
-                    background: #F8FAFC,
-                    corner_radius: 7,
-                    font_size: 13,
+                    style: [background(#F8FAFC), radius(7), font_size(13)],
                 )
                 Button(
                     id: "more_ipsum",
@@ -69,11 +62,10 @@ Screen(
             y: 16,
             width: ((root.width - 64) / 2),
             height: root.height - 86,
-            background: #FFFFFF,
-            corner_radius: 10,
+            style: [background(#FFFFFF), radius(10)],
         ) {
             Absolute(
-                transparent: true,
+                style: [transparent(true)],
             ) {
                 Label(
                     text: "Second group",
@@ -81,9 +73,7 @@ Screen(
                     y: 14,
                     width: second_group.width - 32,
                     height: 28,
-                    color: #111827,
-                    font_size: 18,
-                    bold: true,
+                    style: [foreground(#111827), font_size(18), weight(700)],
                 )
                 TextInput(
                     id: "full_name",
@@ -93,9 +83,7 @@ Screen(
                     y: 58,
                     width: second_group.width - 32,
                     height: 34,
-                    background: #F8FAFC,
-                    corner_radius: 7,
-                    font_size: 13,
+                    style: [background(#F8FAFC), radius(7), font_size(13)],
                 )
                 Checkbox(
                     id: "likes_v",
@@ -105,7 +93,7 @@ Screen(
                     y: 108,
                     width: second_group.width - 32,
                     height: 26,
-                    font_size: 12,
+                    style: [font_size(12)],
                 )
                 Button(
                     id: "submit",
@@ -126,9 +114,7 @@ Screen(
             y: root.height - 52,
             width: root.width - 48,
             height: 24,
-            color: #166534,
-            font_size: 12,
-            align: center,
+            style: [foreground(#166534), font_size(12), text_align(center)],
         )
     }
 }

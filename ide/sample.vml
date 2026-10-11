@@ -2,10 +2,10 @@ Screen(
     id: "WelcomeForm",
     width: 760,
     height: 520,
-    background: #F8FAFC,
+    style: [background(#F8FAFC)],
 ) {
     Absolute {
-        Label(id: "heading", x: 48, y: 48, width: 420, height: 38, text: "Welcome to UI2", color: #172033, font_size: 26)
+        Label(id: "heading", x: 48, y: 48, width: 420, height: 38, text: "Welcome to UI2", style: [foreground(#172033), font_size(26)])
         Label(
             id: "subtitle",
             x: 48,
@@ -13,8 +13,7 @@ Screen(
             width: 520,
             height: 28,
             text: "This form was laid out visually.",
-            color: #64748B,
-            font_size: 14,
+            style: [foreground(#64748B), font_size(14)],
         )
         TextInput(
             id: "name_field",
@@ -23,11 +22,8 @@ Screen(
             width: 280,
             height: 40,
             placeholder: "Your name",
-            background: #FFFFFF,
-            color: #172033,
-            font_size: 14,
-            corner_radius: 5,
             on_change: callback_name_changed,
+            style: [background(#FFFFFF), foreground(#172033), font_size(14), radius(5)],
         )
         Checkbox(
             id: "remember",
@@ -37,8 +33,7 @@ Screen(
             height: 30,
             text: "Remember this setting",
             checked: true,
-            color: #172033,
-            font_size: 14,
+            style: [foreground(#172033), font_size(14)],
         )
         Button(
             id: "continue_button",
@@ -47,12 +42,9 @@ Screen(
             width: 150,
             height: 42,
             text: "Continue",
-            background: #2563EB,
-            color: #FFFFFF,
-            font_size: 14,
-            corner_radius: 6,
             on_click: callback_continue_clicked,
+            style: [background(#2563EB), foreground(#FFFFFF), font_size(14), radius(6)],
         )
-        View(id: "accent_panel", x: 390, y: 150, width: 280, height: 210, background: #DBEAFE, corner_radius: 4)
+        View(id: "accent_panel", x: 390, y: 150, width: 280, height: 210, style: [background(#DBEAFE), radius(4)])
     }
 }

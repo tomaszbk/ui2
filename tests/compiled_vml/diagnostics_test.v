@@ -28,7 +28,7 @@ fn compiled_diagnostic(source string, index int) !string {
 }
 
 fn test_compiled_vml_diagnoses_removed_syntax_and_invalid_types_at_source() {
-	compiled_diagnostic('Screen { Label(text: app.count, align: right) TextInput(bind.text: app.name) TextArea { Run(text: "rich") } Button(text: "Add", on_click: app.action()) }', -1)!
+	compiled_diagnostic('Screen { Label(text: app.count, style: [text_align(right)]) TextInput(bind.text: app.name) TextArea { Run(text: "rich") } Button(text: "Add", on_click: app.action()) }', -1)!
 	for index, source in [
 		'Label { text: "former syntax" }',
 		'Label(text: "bad", units: "logical")',
@@ -53,9 +53,9 @@ fn test_compiled_vml_diagnoses_removed_syntax_and_invalid_types_at_source() {
 		'View(x: 0, y: 0)',
 		'Column { View(width: app.count, x: 0) }',
 		'Column { Repeater(model: [1, 2]) { View(x: 2) } }',
-		'Label(align: .right)',
-		'Label(align: "right")',
-		'Label(align: app.name)',
+		'Label(style: [text_align(.right)])',
+		'Label(style: [text_align("right")])',
+		'Label(style: [text_align(app.name)])',
 		'Label(id: unquoted)',
 		'View(adaptive: true)',
 		'View(size_hint_x: 1)',
@@ -82,7 +82,7 @@ fn test_compiled_vml_diagnoses_removed_syntax_and_invalid_types_at_source() {
 		'Button(on_click: "save")',
 		'Button(on_click: true)',
 		'Label(text: app.unknown)',
-		'Label(font_size: true)',
+		'Label(style: [font_size(true)])',
 		'View(scale_x: 0)',
 		'View(translate_x: "12")',
 		'View(translate_y: true)',
@@ -103,7 +103,7 @@ fn test_compiled_vml_diagnoses_removed_syntax_and_invalid_types_at_source() {
 		'Screen(id: "root") { View(width: root.width - 32) }',
 		'Column(id: "panel") { View(height: panel.height / 2) }',
 		'Column(id: "root", gap: root.width / 10) { View() }',
-		'Grid(id: "root", columns: 2, padding: root.height / 20) { View() }',
+		'Grid(id: "root", columns: 2, style: [padding(root.height / 20)]) { View() }',
 		'Row(id: "root") { View(min_width: root.width / 2) }',
 	] {
 		compiled_diagnostic(source, index)!
@@ -136,5 +136,30 @@ fn test_component_contract_rejects_unknown_inputs_readonly_writes_and_bad_events
 		'component Item() { state label := "12" View(width: label) } Screen { Item {} }',
 	] {
 		compiled_diagnostic(source, 100 + index)!
+	}
+}
+
+fn test_style_contract_rejects_aliases_cycles_collisions_and_wrong_value_types() {
+	compiled_diagnostic('style card = [background(color.surface), padding(12), radius(8)] View(style: [card, background(color.accent)]) { Label(text: "Content") }', -1)!
+	for index, source in [
+		'View(background: #ffffff)',
+		'View(bg: #ffffff)',
+		'Label(color: #000000)',
+		'TextInput(pad_left: 0)',
+		'View(style: [bg(#ffffff)])',
+		'View(style: [padding("12")])',
+		'View(style: [radius(true)])',
+		'Label(style: [weight("bold")])',
+		'Label(style: [foreground(app.name)])',
+		'View(style: [app.name])',
+		'View(style: [hover([padding(12)])])',
+		'View(style: [focus([font_size(16)])])',
+		'View(style: [pressed([hover([background(#ffffff)])])])',
+		'style first = [second] style second = [first] View(style: [first])',
+		'style card = [radius(8)] style card = [radius(4)] View(style: [card])',
+		'style card = [radius(8)] View(id: "card", style: [card])',
+		'component Item(title string) { style title = [radius(8)] View(style: [title]) } Screen { Item(title: "x") }',
+	] {
+		compiled_diagnostic(source, 200 + index)!
 	}
 }

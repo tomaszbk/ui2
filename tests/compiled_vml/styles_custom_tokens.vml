@@ -1,0 +1,3 @@
+View(style: [background(color.brand), padding(spacing.gutter), radius(radius.card)]) {
+    Label(text: "Theme", style: [font_size(typography.brand)])
+}

@@ -1,22 +1,21 @@
 Screen(
     id: "root",
-    background: #F1F5F9,
+    style: [background(#F1F5F9)],
 ) {
     Absolute(
-        transparent: true,
+        style: [transparent(true)],
     ) {
         View(
             x: (root.width - 308) / 2,
             y: 16,
             width: 308,
             height: 164,
-            background: #FFFFFF,
-            corner_radius: 10,
+            style: [background(#FFFFFF), radius(10)],
         ) {
             Absolute(
-                transparent: true,
+                style: [transparent(true)],
             ) {
-                Label(text: "Formatting", x: 16, y: 14, width: 276, height: 28, color: #111827, font_size: 18, bold: true)
+                Label(text: "Formatting", x: 16, y: 14, width: 276, height: 28, style: [foreground(#111827), font_size(18), weight(700)])
                 ToggleButton(
                     id: "bold",
                     text: "Bold",
@@ -27,11 +26,9 @@ Screen(
                     y: 54,
                     width: 80,
                     height: 40,
-                    background: #E2E8F0,
-                    color: #1E293B,
                     down_background: #1D4ED8,
                     down_color: #FFFFFF,
-                    corner_radius: 7,
+                    style: [background(#E2E8F0), foreground(#1E293B), radius(7)],
                 )
                 ToggleButton(
                     id: "italic",
@@ -43,11 +40,9 @@ Screen(
                     y: 54,
                     width: 80,
                     height: 40,
-                    background: #E2E8F0,
-                    color: #1E293B,
                     down_background: #1D4ED8,
                     down_color: #FFFFFF,
-                    corner_radius: 7,
+                    style: [background(#E2E8F0), foreground(#1E293B), radius(7)],
                 )
                 Label(
                     id: "state",
@@ -56,8 +51,7 @@ Screen(
                     y: 54,
                     width: 92,
                     height: 40,
-                    color: #1D4ED8,
-                    align: center,
+                    style: [foreground(#1D4ED8), text_align(center)],
                 )
             }
         }

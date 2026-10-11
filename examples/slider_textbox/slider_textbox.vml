@@ -1,9 +1,9 @@
 Screen(
     id: "root",
-    background: #F1F5F9,
+    style: [background(#F1F5F9)],
 ) {
     Absolute(
-        transparent: true,
+        style: [transparent(true)],
     ) {
         View(
             id: "card",
@@ -11,13 +11,12 @@ Screen(
             y: 16,
             width: root.width - 32,
             height: root.height - 32,
-            background: #FFFFFF,
-            corner_radius: 10,
+            style: [background(#FFFFFF), radius(10)],
         ) {
             Absolute(
-                transparent: true,
+                style: [transparent(true)],
             ) {
-                Label(text: "Slider & textbox", x: 18, y: 14, width: 220, height: 28, color: #111827, font_size: 18, bold: true)
+                Label(text: "Slider & textbox", x: 18, y: 14, width: 220, height: 28, style: [foreground(#111827), font_size(18), weight(700)])
                 Button(
                     id: "reset",
                     text: "Reset",
@@ -34,11 +33,10 @@ Screen(
                     y: 60,
                     width: card.width - 36,
                     height: 132,
-                    background: #F8FAFC,
-                    corner_radius: 9,
+                    style: [background(#F8FAFC), radius(9)],
                 ) {
                     Absolute(
-                        transparent: true,
+                        style: [transparent(true)],
                     ) {
                         Label(
                             text: "Horizontal · −20 to 100",
@@ -46,9 +44,7 @@ Screen(
                             y: 14,
                             width: horizontal_panel.width - 130,
                             height: 22,
-                            color: #475569,
-                            font_size: 12,
-                            bold: true,
+                            style: [foreground(#475569), font_size(12), weight(700)],
                         )
                         TextInput(
                             id: "horizontal_input",
@@ -59,12 +55,11 @@ Screen(
                             y: 10,
                             width: 76,
                             height: 34,
-                            background: app.horizontal_valid ? #FFFFFF : #FEE2E2,
-                            corner_radius: 7,
-                            align: center,
                             keyboard: decimal,
+                            style: [background(app.horizontal_valid ? #FFFFFF : #FEE2E2), radius(7), text_align(center)],
                         )
                         Slider(
+                            track_inset: 11,
                             id: "horizontal_slider",
                             on_change: callback_horizontal_slider,
                             x: 20,
@@ -75,23 +70,20 @@ Screen(
                             max: 100,
                             value: app.horizontal_value,
                             step: 1,
-                            padding: 11,
                             value_track: true,
-                            background: #CBD5E1,
                             value_track_color: #93C5FD,
                             thumb_color: #2563EB,
                             thumb_size: 22,
+                            style: [background(#CBD5E1)],
                         )
-                        Label(text: "−20", x: 20, y: 96, width: 44, height: 18, color: #64748B, font_size: 10)
+                        Label(text: "−20", x: 20, y: 96, width: 44, height: 18, style: [foreground(#64748B), font_size(10)])
                         Label(
                             text: "100",
                             x: horizontal_panel.width - 64,
                             y: 96,
                             width: 44,
                             height: 18,
-                            align: right,
-                            color: #64748B,
-                            font_size: 10,
+                            style: [text_align(right), foreground(#64748B), font_size(10)],
                         )
                     }
                 }
@@ -101,11 +93,10 @@ Screen(
                     y: 210,
                     width: card.width - 36,
                     height: 260,
-                    background: #F8FAFC,
-                    corner_radius: 9,
+                    style: [background(#F8FAFC), radius(9)],
                 ) {
                     Absolute(
-                        transparent: true,
+                        style: [transparent(true)],
                     ) {
                         Label(
                             text: "Vertical · −100 to −20",
@@ -113,9 +104,7 @@ Screen(
                             y: 14,
                             width: vertical_panel.width - 130,
                             height: 22,
-                            color: #475569,
-                            font_size: 12,
-                            bold: true,
+                            style: [foreground(#475569), font_size(12), weight(700)],
                         )
                         TextInput(
                             id: "vertical_input",
@@ -126,12 +115,11 @@ Screen(
                             y: 10,
                             width: 76,
                             height: 34,
-                            background: app.vertical_valid ? #FFFFFF : #FEE2E2,
-                            corner_radius: 7,
-                            align: center,
                             keyboard: decimal,
+                            style: [background(app.vertical_valid ? #FFFFFF : #FEE2E2), radius(7), text_align(center)],
                         )
                         Slider(
+                            track_inset: 11,
                             id: "vertical_slider",
                             on_change: callback_vertical_slider,
                             x: 64,
@@ -143,24 +131,21 @@ Screen(
                             value: app.vertical_value,
                             step: 1,
                             orientation: vertical,
-                            padding: 11,
                             value_track: true,
-                            background: #CBD5E1,
                             value_track_color: #86EFAC,
                             thumb_color: #16A34A,
                             thumb_size: 22,
+                            style: [background(#CBD5E1)],
                         )
-                        Label(text: "−20", x: 100, y: 48, width: 54, height: 18, color: #64748B, font_size: 10)
-                        Label(text: "−100", x: 100, y: 210, width: 54, height: 18, color: #64748B, font_size: 10)
+                        Label(text: "−20", x: 100, y: 48, width: 54, height: 18, style: [foreground(#64748B), font_size(10)])
+                        Label(text: "−100", x: 100, y: 210, width: 54, height: 18, style: [foreground(#64748B), font_size(10)])
                         Label(
                             text: "Text fields and slider thumbs",
                             x: 184,
                             y: 82,
                             width: vertical_panel.width - 214,
                             height: 22,
-                            color: #64748B,
-                            font_size: 12,
-                            bold: true,
+                            style: [foreground(#64748B), font_size(12), weight(700)],
                         )
                         Label(
                             text: "stay synchronized.",
@@ -168,8 +153,7 @@ Screen(
                             y: 108,
                             width: vertical_panel.width - 214,
                             height: 22,
-                            color: #64748B,
-                            font_size: 12,
+                            style: [foreground(#64748B), font_size(12)],
                         )
                         Label(
                             text: "Invalid input does not move the thumb.",
@@ -177,8 +161,7 @@ Screen(
                             y: 148,
                             width: vertical_panel.width - 214,
                             height: 22,
-                            color: #64748B,
-                            font_size: 11,
+                            style: [foreground(#64748B), font_size(11)],
                         )
                     }
                 }
@@ -189,9 +172,7 @@ Screen(
                     y: card.height - 40,
                     width: card.width - 36,
                     height: 18,
-                    align: center,
-                    color: app.horizontal_valid && app.vertical_valid ? #166534 : #991B1B,
-                    font_size: 11,
+                    style: [text_align(center), foreground(app.horizontal_valid && app.vertical_valid ? #166534 : #991B1B), font_size(11)],
                 )
             }
         }

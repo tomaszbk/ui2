@@ -1,9 +1,9 @@
 Screen(
     id: "root",
-    background: #F1F5F9,
+    style: [background(#F1F5F9)],
 ) {
     Absolute(
-        transparent: true,
+        style: [transparent(true)],
     ) {
         View(
             id: "card",
@@ -11,13 +11,12 @@ Screen(
             y: 16,
             width: root.width - 32,
             height: root.height - 32,
-            background: #FFFFFF,
-            corner_radius: 10,
+            style: [background(#FFFFFF), radius(10)],
         ) {
             Absolute(
-                transparent: true,
+                style: [transparent(true)],
             ) {
-                Label(text: "Child window", x: 18, y: 14, width: 240, height: 28, color: #111827, font_size: 18, bold: true)
+                Label(text: "Child window", x: 18, y: 14, width: 240, height: 28, style: [foreground(#111827), font_size(18), weight(700)])
                 Button(
                     id: "create",
                     text: "Create a window",
@@ -37,8 +36,7 @@ Screen(
                     y: 52,
                     width: card.width - 218,
                     height: 34,
-                    background: #F8FAFC,
-                    corner_radius: 7,
+                    style: [background(#F8FAFC), radius(7)],
                 )
                 Label(
                     text: "The panel below is the child window: it carries its own field, its own checkbox, and its own greeting.",
@@ -46,8 +44,7 @@ Screen(
                     y: 96,
                     width: card.width - 36,
                     height: 18,
-                    color: #64748B,
-                    font_size: 11,
+                    style: [foreground(#64748B), font_size(11)],
                 )
                 View(
                     id: "child_panel",
@@ -56,11 +53,10 @@ Screen(
                     y: app.panel_y,
                     width: 320,
                     height: 232,
-                    background: #E2E8F0,
-                    corner_radius: 10,
+                    style: [background(#E2E8F0), radius(10)],
                 ) {
                     Absolute(
-                        transparent: true,
+                        style: [transparent(true)],
                     ) {
                         View(
                             id: "child_titlebar",
@@ -74,11 +70,10 @@ Screen(
                             y: 0,
                             width: 320,
                             height: 38,
-                            background: #334155,
-                            corner_radius: 10,
+                            style: [background(#334155), radius(10)],
                         ) {
                             Absolute(
-                                transparent: true,
+                                style: [transparent(true)],
                             ) {
                                 Label(
                                     text: app.title,
@@ -86,9 +81,7 @@ Screen(
                                     y: 10,
                                     width: 220,
                                     height: 18,
-                                    color: #F8FAFC,
-                                    font_size: 13,
-                                    bold: true,
+                                    style: [foreground(#F8FAFC), font_size(13), weight(700)],
                                 )
                             }
                         }
@@ -111,8 +104,7 @@ Screen(
                             y: 56,
                             width: 288,
                             height: 34,
-                            background: #FFFFFF,
-                            corner_radius: 7,
+                            style: [background(#FFFFFF), radius(7)],
                         )
                         Checkbox(
                             id: "genre",
@@ -123,8 +115,7 @@ Screen(
                             y: 104,
                             width: 288,
                             height: 28,
-                            color: #334155,
-                            font_size: 12,
+                            style: [foreground(#334155), font_size(12)],
                         )
                         Button(
                             id: "greet",
@@ -142,8 +133,7 @@ Screen(
                             y: 190,
                             width: 288,
                             height: 18,
-                            color: #64748B,
-                            font_size: 11,
+                            style: [foreground(#64748B), font_size(11)],
                         )
                     }
                 }
@@ -154,9 +144,7 @@ Screen(
                     y: card.height - 40,
                     width: card.width - 36,
                     height: 18,
-                    align: center,
-                    color: #166534,
-                    font_size: 12,
+                    style: [text_align(center), foreground(#166534), font_size(12)],
                 )
             }
         }

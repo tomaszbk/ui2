@@ -2,8 +2,8 @@
 
 The desktop custom renderer supports `weight` (100–900), `letter_spacing`,
 `line_height`, `line_height_factor`, `baseline_offset` and `tabular_figures` on
-`TextStyle` and VML text controls. `weight: 0` retains the existing `bold` mapping
-(400 or 700); explicit weight overrides it. Fontconfig selects the nearest
+`TextStyle` and VML text controls. VML uses `style: [weight(700)]` for bold text
+and `weight(400)` for regular text. Fontconfig selects the nearest
 available real face. Bundled Inter provides upright 400–900 faces; application
 font directories and file paths still work.
 
@@ -15,14 +15,16 @@ one; zero uses the font's default line spacing. Font sizes always use logical un
 
 ```vml
 Label(
-    font_family: "Inter",
-    font_size: 24,
-    weight: 800,
-    line_height_factor: 1.4,
-    lines: 4,
+    style: [
+        font_family("Inter"),
+        font_size(24),
+        weight(800),
+        line_height_factor(1.4),
+        lines(4)
+    ],
 ) {
     Run(text: "Revenue ")
-    Run(text: "$123", font_size: 16, weight: 400, color: #44AA88, baseline_offset: 2)
+    Run(text: "$123", style: [font_size(16), weight(400), foreground(#44AA88), baseline_offset(2)])
 }
 ```
 

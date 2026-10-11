@@ -199,6 +199,9 @@ pub fn measure_layout_element(element Element, constraints LayoutConstraints, me
 // These content insets affect only opted-in intrinsic sizes. Existing explicit
 // frames and backend drawing stay unchanged.
 fn layout_measure_control_insets(element Element) LayoutPadding {
+	if padding := element.content_padding {
+		return padding
+	}
 	$if macos && !ui2_custom_rendering ?&& !ui2_headless ? {
 		if element.kind == .label {
 			// Borderless NSTextField still reserves two points at each horizontal

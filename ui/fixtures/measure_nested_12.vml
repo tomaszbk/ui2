@@ -58,7 +58,7 @@ Flex(
                                                 gap: 4,
                                             ) {
                                                 Label(text: "level 0")
-                                                Label(text: "content that wraps at a narrow width", lines: 3)
+                                                Label(text: "content that wraps at a narrow width", style: [lines(3)])
                                             }
                                         }
                                     }

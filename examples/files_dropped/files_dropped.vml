@@ -1,9 +1,9 @@
 Screen(
     id: "root",
-    background: #F1F5F9,
+    style: [background(#F1F5F9)],
 ) {
     Absolute(
-        transparent: true,
+        style: [transparent(true)],
     ) {
         View(
             id: "card",
@@ -11,11 +11,10 @@ Screen(
             y: 16,
             width: root.width - 32,
             height: root.height - 32,
-            background: #FFFFFF,
-            corner_radius: 10,
+            style: [background(#FFFFFF), radius(10)],
         ) {
             Absolute(
-                transparent: true,
+                style: [transparent(true)],
             ) {
                 Label(
                     text: "Dropped files",
@@ -23,9 +22,7 @@ Screen(
                     y: 14,
                     width: card.width - 36,
                     height: 28,
-                    color: #111827,
-                    font_size: 18,
-                    bold: true,
+                    style: [foreground(#111827), font_size(18), weight(700)],
                 )
                 Label(
                     id: "drop_status",
@@ -34,8 +31,7 @@ Screen(
                     y: 43,
                     width: card.width - 36,
                     height: 20,
-                    color: #64748B,
-                    font_size: 12,
+                    style: [foreground(#64748B), font_size(12)],
                 )
                 Scroll(
                     id: "file_list",
@@ -43,10 +39,10 @@ Screen(
                     y: 76,
                     width: card.width - 36,
                     height: card.height - 94,
-                    background: #F8FAFC,
+                    style: [background(#F8FAFC)],
                 ) {
                     Absolute(
-                        transparent: true,
+                        style: [transparent(true)],
                     ) {
                         Repeater(
                             model: app.files,
@@ -57,11 +53,10 @@ Screen(
                                 y: 8 + index * 58,
                                 width: file_list.width - 32,
                                 height: 50,
-                                background: index % 2 == 0 ? #FFFFFF : #F1F5F9,
-                                corner_radius: 7,
+                                style: [background(index % 2 == 0 ? #FFFFFF : #F1F5F9), radius(7)],
                             ) {
                                 Absolute(
-                                    transparent: true,
+                                    style: [transparent(true)],
                                 ) {
                                     Label(
                                         text: item.name,
@@ -69,9 +64,7 @@ Screen(
                                         y: 7,
                                         width: file_list.width - 64,
                                         height: 20,
-                                        color: #1E293B,
-                                        font_size: 13,
-                                        bold: true,
+                                        style: [foreground(#1E293B), font_size(13), weight(700)],
                                     )
                                     Label(
                                         text: item.path,
@@ -79,8 +72,7 @@ Screen(
                                         y: 27,
                                         width: file_list.width - 64,
                                         height: 17,
-                                        color: #64748B,
-                                        font_size: 10,
+                                        style: [foreground(#64748B), font_size(10)],
                                     )
                                 }
                             }
@@ -93,9 +85,7 @@ Screen(
                             y: (file_list.height - 24) / 2,
                             width: file_list.width - 40,
                             height: 24,
-                            align: center,
-                            color: #94A3B8,
-                            font_size: 15,
+                            style: [text_align(center), foreground(#94A3B8), font_size(15)],
                         )
                     }
                 }

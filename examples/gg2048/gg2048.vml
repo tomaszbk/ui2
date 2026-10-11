@@ -1,9 +1,9 @@
 Screen(
     id: "root",
-    background: #FAF8EF,
+    style: [background(#FAF8EF)],
 ) {
     Absolute(
-        transparent: true,
+        style: [transparent(true)],
     ) {
         Label(
             text: "2048",
@@ -11,20 +11,17 @@ Screen(
             y: 18,
             width: 150,
             height: 50,
-            color: #776E65,
-            font_size: 36,
-            bold: true,
+            style: [foreground(#776E65), font_size(36), weight(700)],
         )
         View(
             x: ((root.width -(root.width - 48 < 440 ? root.width - 48 : 440)) / 2) +(root.width - 48 < 440 ? root.width - 48 : 440) - 150,
             y: 20,
             width: 150,
             height: 48,
-            background: #BBADA0,
-            corner_radius: 7,
+            style: [background(#BBADA0), radius(7)],
         ) {
             Absolute(
-                transparent: true,
+                style: [transparent(true)],
             ) {
                 Label(
                     text: "SCORE",
@@ -32,10 +29,7 @@ Screen(
                     y: 4,
                     width: 134,
                     height: 16,
-                    align: center,
-                    color: #EEE4DA,
-                    font_size: 10,
-                    bold: true,
+                    style: [text_align(center), foreground(#EEE4DA), font_size(10), weight(700)],
                 )
                 Label(
                     id: "score",
@@ -44,10 +38,7 @@ Screen(
                     y: 19,
                     width: 134,
                     height: 24,
-                    align: center,
-                    color: #FFFFFF,
-                    font_size: 17,
-                    bold: true,
+                    style: [text_align(center), foreground(#FFFFFF), font_size(17), weight(700)],
                 )
             }
         }
@@ -57,11 +48,10 @@ Screen(
             y: 82,
             width: (root.width - 48 < 440 ? root.width - 48 : 440),
             height: (root.width - 48 < 440 ? root.width - 48 : 440),
-            background: #BBADA0,
-            corner_radius: 10,
+            style: [background(#BBADA0), radius(10)],
         ) {
             Absolute(
-                transparent: true,
+                style: [transparent(true)],
             ) {
                 Repeater(
                     model: app.cells,
@@ -72,8 +62,7 @@ Screen(
                         y: 10 + item.row *((((root.width - 48 < 440 ? root.width - 48 : 440) - 50) / 4) + 10),
                         width: (((root.width - 48 < 440 ? root.width - 48 : 440) - 50) / 4),
                         height: (((root.width - 48 < 440 ? root.width - 48 : 440) - 50) / 4),
-                        background: #CDC1B4,
-                        corner_radius: 7,
+                        style: [background(#CDC1B4), radius(7)],
                     )
                 }
                 Repeater(
@@ -85,11 +74,10 @@ Screen(
                         y: 10 + item.row *((((root.width - 48 < 440 ? root.width - 48 : 440) - 50) / 4) + 10),
                         width: (((root.width - 48 < 440 ? root.width - 48 : 440) - 50) / 4),
                         height: (((root.width - 48 < 440 ? root.width - 48 : 440) - 50) / 4),
-                        background: item.color,
-                        corner_radius: 7,
+                        style: [background(item.color), radius(7)],
                     ) {
                         Absolute(
-                            transparent: true,
+                            style: [transparent(true)],
                         ) {
                             Label(
                                 text: "${item.value}",
@@ -97,10 +85,7 @@ Screen(
                                 y: 0,
                                 width: (((root.width - 48 < 440 ? root.width - 48 : 440) - 50) / 4) - 8,
                                 height: (((root.width - 48 < 440 ? root.width - 48 : 440) - 50) / 4),
-                                align: center,
-                                color: item.text_color,
-                                font_size: item.value > 512 ? 18 : item.value > 64 ? 22 : 28,
-                                bold: true,
+                                style: [text_align(center), foreground(item.text_color), font_size(item.value > 512 ? 18 : item.value > 64 ? 22 : 28), weight(700)],
                             )
                         }
                     }
@@ -164,8 +149,7 @@ Screen(
             y: 626,
             width: (root.width - 48 < 440 ? root.width - 48 : 440) - 126,
             height: 22,
-            color: #776E65,
-            font_size: 11,
+            style: [foreground(#776E65), font_size(11)],
         )
     }
 }

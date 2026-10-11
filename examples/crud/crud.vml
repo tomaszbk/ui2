@@ -1,9 +1,9 @@
 Screen(
     id: "root",
-    background: #F1F5F9,
+    style: [background(#F1F5F9)],
 ) {
     Absolute(
-        transparent: true,
+        style: [transparent(true)],
     ) {
         View(
             id: "card",
@@ -11,14 +11,13 @@ Screen(
             y: 16,
             width: root.width - 32,
             height: root.height - 32,
-            background: #FFFFFF,
-            corner_radius: 10,
+            style: [background(#FFFFFF), radius(10)],
         ) {
             Absolute(
-                transparent: true,
+                style: [transparent(true)],
             ) {
-                Label(text: "People", x: 16, y: 14, width: 210, height: 28, color: #111827, font_size: 17, bold: true)
-                Label(text: "Filter prefix", x: 16, y: 48, width: 210, height: 20, color: #475569, font_size: 12)
+                Label(text: "People", x: 16, y: 14, width: 210, height: 28, style: [foreground(#111827), font_size(17), weight(700)])
+                Label(text: "Filter prefix", x: 16, y: 48, width: 210, height: 20, style: [foreground(#475569), font_size(12)])
                 TextInput(
                     id: "filter",
                     bind.text: app.filter,
@@ -28,9 +27,7 @@ Screen(
                     y: 70,
                     width: 210,
                     height: 32,
-                    background: #F8FAFC,
-                    corner_radius: 7,
-                    font_size: 13,
+                    style: [background(#F8FAFC), radius(7), font_size(13)],
                 )
                 Scroll(
                     id: "people_list",
@@ -38,10 +35,10 @@ Screen(
                     y: 112,
                     width: 210,
                     height: card.height - 176,
-                    background: #F8FAFC,
+                    style: [background(#F8FAFC)],
                 ) {
                     Absolute(
-                        transparent: true,
+                        style: [transparent(true)],
                     ) {
                         Repeater(
                             model: app.visible_people,
@@ -55,10 +52,7 @@ Screen(
                                 y: index * 34,
                                 width: 178,
                                 height: 30,
-                                background: item.id == app.selected_id ? #DBEAFE : #FFFFFF,
-                                color: #111827,
-                                corner_radius: 6,
-                                font_size: 13,
+                                style: [background(item.id == app.selected_id ? #DBEAFE : #FFFFFF), foreground(#111827), radius(6), font_size(13)],
                             )
                         }
                     }
@@ -69,11 +63,9 @@ Screen(
                     y: 14,
                     width: card.width - 262,
                     height: 28,
-                    color: #111827,
-                    font_size: 17,
-                    bold: true,
+                    style: [foreground(#111827), font_size(17), weight(700)],
                 )
-                Label(text: "Name", x: 246, y: 48, width: card.width - 262, height: 20, color: #475569, font_size: 12)
+                Label(text: "Name", x: 246, y: 48, width: card.width - 262, height: 20, style: [foreground(#475569), font_size(12)])
                 TextInput(
                     id: "name",
                     bind.text: app.name,
@@ -82,11 +74,9 @@ Screen(
                     y: 70,
                     width: card.width - 262,
                     height: 32,
-                    background: #F8FAFC,
-                    corner_radius: 7,
-                    font_size: 13,
+                    style: [background(#F8FAFC), radius(7), font_size(13)],
                 )
-                Label(text: "Surname", x: 246, y: 114, width: card.width - 262, height: 20, color: #475569, font_size: 12)
+                Label(text: "Surname", x: 246, y: 114, width: card.width - 262, height: 20, style: [foreground(#475569), font_size(12)])
                 TextInput(
                     id: "surname",
                     bind.text: app.surname,
@@ -95,9 +85,7 @@ Screen(
                     y: 136,
                     width: card.width - 262,
                     height: 32,
-                    background: #F8FAFC,
-                    corner_radius: 7,
-                    font_size: 13,
+                    style: [background(#F8FAFC), radius(7), font_size(13)],
                 )
                 Button(
                     id: "create",
@@ -108,9 +96,7 @@ Screen(
                     y: 184,
                     width: (card.width - 278) / 3,
                     height: 34,
-                    background: #3478D4,
-                    color: #FFFFFF,
-                    corner_radius: 7,
+                    style: [background(#3478D4), foreground(#FFFFFF), radius(7)],
                 )
                 Button(
                     id: "update",
@@ -122,8 +108,7 @@ Screen(
                     y: 184,
                     width: (card.width - 278) / 3,
                     height: 34,
-                    background: #E2E8F0,
-                    corner_radius: 7,
+                    style: [background(#E2E8F0), radius(7)],
                 )
                 Button(
                     id: "delete",
@@ -135,9 +120,7 @@ Screen(
                     y: 184,
                     width: (card.width - 278) / 3,
                     height: 34,
-                    background: #FEE2E2,
-                    color: #991B1B,
-                    corner_radius: 7,
+                    style: [background(#FEE2E2), foreground(#991B1B), radius(7)],
                 )
                 Label(
                     id: "message",
@@ -146,9 +129,7 @@ Screen(
                     y: 234,
                     width: card.width - 262,
                     height: 40,
-                    color: #166534,
-                    font_size: 13,
-                    lines: 2,
+                    style: [foreground(#166534), font_size(13), lines(2)],
                 )
                 Label(
                     text: "${app.visible_people.len}/${app.people.len} people",
@@ -156,9 +137,7 @@ Screen(
                     y: card.height - 42,
                     width: 210,
                     height: 18,
-                    color: #64748B,
-                    font_size: 13,
-                    align: center,
+                    style: [foreground(#64748B), font_size(13), text_align(center)],
                 )
             }
         }

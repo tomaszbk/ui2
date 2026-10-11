@@ -1,9 +1,9 @@
 Screen(
     id: "root",
-    background: #F1F5F9,
+    style: [background(#F1F5F9)],
 ) {
     Absolute(
-        transparent: true,
+        style: [transparent(true)],
     ) {
         View(
             id: "card",
@@ -11,11 +11,10 @@ Screen(
             y: 16,
             width: (root.width - 32),
             height: root.height - 32,
-            background: #FFFFFF,
-            corner_radius: 10,
+            style: [background(#FFFFFF), radius(10)],
         ) {
             Absolute(
-                transparent: true,
+                style: [transparent(true)],
             ) {
                 Label(
                     text: "Textbox Demo",
@@ -23,9 +22,7 @@ Screen(
                     y: 14,
                     width: card.width - 32,
                     height: 24,
-                    color: #111827,
-                    font_size: 18,
-                    bold: true,
+                    style: [foreground(#111827), font_size(18), weight(700)],
                 )
                 TextInput(
                     id: "title",
@@ -35,17 +32,16 @@ Screen(
                     y: 50,
                     width: card.width - 32,
                     height: 28,
-                    background: #F8FAFC,
-                    corner_radius: 7,
+                    style: [background(#F8FAFC), radius(7)],
                 )
-                Label(text: "Editable", x: 16, y: 94, width: (((root.width - 32) - 48) / 2), height: 18, color: #475569)
+                Label(text: "Editable", x: 16, y: 94, width: (((root.width - 32) - 48) / 2), height: 18, style: [foreground(#475569)])
                 Label(
                     text: "Read-only preview",
                     x: 32 +(((root.width - 32) - 48) / 2),
                     y: 94,
                     width: (((root.width - 32) - 48) / 2),
                     height: 18,
-                    color: #475569,
+                    style: [foreground(#475569)],
                 )
                 TextArea(
                     id: "notes",
@@ -55,10 +51,7 @@ Screen(
                     y: 116,
                     width: (((root.width - 32) - 48) / 2),
                     height: card.height - 176,
-                    background: #FCF4E4,
-                    color: #111827,
-                    font_size: 15,
-                    corner_radius: 7,
+                    style: [background(#FCF4E4), foreground(#111827), font_size(15), radius(7)],
                 )
                 TextArea(
                     id: "preview",
@@ -69,10 +62,7 @@ Screen(
                     y: 116,
                     width: (((root.width - 32) - 48) / 2),
                     height: card.height - 176,
-                    background: #F8FAFC,
-                    color: #334155,
-                    font_size: 15,
-                    corner_radius: 7,
+                    style: [background(#F8FAFC), foreground(#334155), font_size(15), radius(7)],
                 )
                 Checkbox(
                     id: "show_preview",
@@ -90,9 +80,7 @@ Screen(
                     y: card.height - 45,
                     width: card.width - 296,
                     height: 18,
-                    color: #64748B,
-                    font_size: 13,
-                    align: center,
+                    style: [foreground(#64748B), font_size(13), text_align(center)],
                 )
                 Button(
                     id: "clear",
@@ -103,8 +91,7 @@ Screen(
                     y: card.height - 52,
                     width: 90,
                     height: 32,
-                    background: #E2E8F0,
-                    corner_radius: 7,
+                    style: [background(#E2E8F0), radius(7)],
                 )
             }
         }

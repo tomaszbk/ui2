@@ -1,22 +1,21 @@
 Screen(
     id: "root",
-    background: #F2F5FA,
+    style: [background(#F2F5FA)],
 ) {
     Scroll(
         id: "viewport",
-        background: #F2F5FA,
+        style: [background(#F2F5FA)],
     ) {
         Absolute(
-            transparent: true,
+            style: [transparent(true)],
         ) {
             Flex(
                 id: "page",
                 width: root.width,
                 height: root.height < 740 ? 740 : root.height,
                 orientation: vertical,
-                padding: 24,
                 gap: 20,
-                background: #F2F5FA,
+                style: [padding(24), background(#F2F5FA)],
             ) {
                 Flex(
                     id: "toolbar",
@@ -24,25 +23,23 @@ Screen(
                     line_gap: 12,
                     wrap: true,
                     align_items: center,
-                    transparent: true,
+                    style: [transparent(true)],
                 ) {
-                    Label(text: "UI2 Studio", font_size: 26, bold: true, color: #17243D, flex_grow: 1, min_width: 170)
+                    Label(text: "UI2 Studio", flex_grow: 1, min_width: 170, style: [font_size(26), weight(700), foreground(#17243D)])
                     Button(
                         id: "create",
                         text: "New project",
                         on_click: app.create_project(),
-                        background: #315EEB,
-                        color: #FFFFFF,
-                        corner_radius: 8,
+                        style: [background(#315EEB), foreground(#FFFFFF), radius(8)],
                     )
-                    Button(id: "settings", text: "Settings", background: #FFFFFF, color: #17243D, corner_radius: 8)
+                    Button(id: "settings", text: "Settings", style: [background(#FFFFFF), foreground(#17243D), radius(8)])
                 }
                 Flex(
                     id: "searchbar",
                     gap: 12,
                     wrap: true,
                     align_items: center,
-                    transparent: true,
+                    style: [transparent(true)],
                 ) {
                     TextInput(
                         id: "search",
@@ -51,10 +48,9 @@ Screen(
                         height: 38,
                         flex_grow: 1,
                         min_width: 150,
-                        background: #FFFFFF,
-                        corner_radius: 8,
+                        style: [background(#FFFFFF), radius(8)],
                     )
-                    Label(id: "count", text: "Created: ${app.created}", color: #52627D)
+                    Label(id: "count", text: "Created: ${app.created}", style: [foreground(#52627D)])
                 }
                 Grid(
                     id: "projects",
@@ -62,30 +58,26 @@ Screen(
                     auto_columns_min_width: 240,
                     max_columns: 3,
                     spacing: 16,
-                    transparent: true,
+                    style: [transparent(true)],
                 ) {
                     Flex(
                         id: "featured",
                         column_span: 2,
                         orientation: vertical,
-                        padding: 20,
                         gap: 10,
-                        background: #17243D,
-                        corner_radius: 14,
+                        style: [padding(20), background(#17243D), radius(14)],
                     ) {
-                        Label(text: "A layout that adapts", font_size: 23, bold: true, color: #FFFFFF, height: 30)
-                        Label(text: "Flex, grid and content sizing.", color: #C8D7F3, height: 24)
-                        View(flex_grow: 1, transparent: true)
+                        Label(text: "A layout that adapts", height: 30, style: [font_size(23), weight(700), foreground(#FFFFFF)])
+                        Label(text: "Flex, grid and content sizing.", height: 24, style: [foreground(#C8D7F3)])
+                        View(flex_grow: 1, style: [transparent(true)])
                         Flex(
                             justify: end,
-                            transparent: true,
+                            style: [transparent(true)],
                         ) {
                             Button(
                                 text: "Create project",
                                 on_click: app.create_project(),
-                                background: #FFFFFF,
-                                color: #17243D,
-                                corner_radius: 8,
+                                style: [background(#FFFFFF), foreground(#17243D), radius(8)],
                             )
                         }
                     }
@@ -95,24 +87,22 @@ Screen(
                     ) {
                         Flex(
                             orientation: vertical,
-                            padding: 20,
                             gap: 10,
-                            background: #FFFFFF,
-                            corner_radius: 14,
+                            style: [padding(20), background(#FFFFFF), radius(14)],
                         ) {
-                            Label(text: item.title, font_size: 20, bold: true, color: #17243D, height: 26)
-                            Label(text: item.description, color: #52627D, height: 24)
-                            View(flex_grow: 1, transparent: true)
+                            Label(text: item.title, height: 26, style: [font_size(20), weight(700), foreground(#17243D)])
+                            Label(text: item.description, height: 24, style: [foreground(#52627D)])
+                            View(flex_grow: 1, style: [transparent(true)])
                             Flex(
                                 justify: end,
-                                transparent: true,
+                                style: [transparent(true)],
                             ) {
-                                Button(text: "Open project", background: #E9EFFD, color: #244ECA, corner_radius: 8)
+                                Button(text: "Open project", style: [background(#E9EFFD), foreground(#244ECA), radius(8)])
                             }
                         }
                     }
                 }
-                Label(text: "Resize the window. Your search stays in place.", color: #52627D, font_size: 12, height: 20)
+                Label(text: "Resize the window. Your search stays in place.", height: 20, style: [foreground(#52627D), font_size(12)])
             }
         }
     }

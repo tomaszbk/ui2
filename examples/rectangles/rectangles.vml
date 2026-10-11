@@ -1,9 +1,9 @@
 Screen(
     id: "root",
-    background: #F1F5F9,
+    style: [background(#F1F5F9)],
 ) {
     Absolute(
-        transparent: true,
+        style: [transparent(true)],
     ) {
         View(
             id: "card",
@@ -11,11 +11,10 @@ Screen(
             y: 16,
             width: (root.width - 32 < 328 ? root.width - 32 : 328),
             height: 140,
-            background: #FFFFFF,
-            corner_radius: 10,
+            style: [background(#FFFFFF), radius(10)],
         ) {
             Absolute(
-                transparent: true,
+                style: [transparent(true)],
             ) {
                 Label(
                     text: "Four rectangles",
@@ -23,10 +22,7 @@ Screen(
                     y: 14,
                     width: card.width - 32,
                     height: 24,
-                    color: #111827,
-                    font_size: 18,
-                    bold: true,
-                    align: center,
+                    style: [foreground(#111827), font_size(18), weight(700), text_align(center)],
                 )
                 View(
                     id: "red",
@@ -34,7 +30,7 @@ Screen(
                     y: 54,
                     width: 64,
                     height: 64,
-                    background: #FF6464,
+                    style: [background(#FF6464)],
                 )
                 View(
                     id: "green",
@@ -42,7 +38,7 @@ Screen(
                     y: 54,
                     width: 64,
                     height: 64,
-                    background: #64FF64,
+                    style: [background(#64FF64)],
                 )
                 View(
                     id: "blue",
@@ -50,7 +46,7 @@ Screen(
                     y: 54,
                     width: 64,
                     height: 64,
-                    background: #6464FF,
+                    style: [background(#6464FF)],
                 )
                 View(
                     id: "magenta",
@@ -58,7 +54,7 @@ Screen(
                     y: 54,
                     width: 64,
                     height: 64,
-                    background: #FF64FF,
+                    style: [background(#FF64FF)],
                 )
             }
         }

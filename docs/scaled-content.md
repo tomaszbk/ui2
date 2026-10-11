@@ -10,7 +10,7 @@ scaled content instead of silently changing its meaning.
 ```vml
 Screen {
     Absolute(
-        transparent: true,
+        style: [transparent(true)],
     ) {
         ScaledContent(
             id: "slide",
@@ -18,7 +18,7 @@ Screen {
             content_height: 720,
         ) {
             Column {
-                Label(text: "A fixed composition", font_size: 36, height: 60)
+                Label(text: "A fixed composition", height: 60, style: [font_size(36)])
             }
         }
         Button(id: "next", text: "Next", x: 12, y: 12, width: 44, height: 64)

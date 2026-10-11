@@ -1,9 +1,9 @@
 Screen(
     id: "root",
-    background: #1F2937,
+    style: [background(#1F2937)],
 ) {
     Absolute(
-        transparent: true,
+        style: [transparent(true)],
     ) {
         View(
             id: "display_panel",
@@ -11,11 +11,10 @@ Screen(
             y: (root.width * 0.04),
             width: root.width -(root.width * 0.04) * 2,
             height: (root.height * 0.16),
-            background: #F8FAFC,
-            corner_radius: (((root.height -((root.width * 0.04) +(root.height * 0.16) +(root.height * 0.02)) -(root.width * 0.04) -(root.height * 0.02) * 4) / 5) * 0.25),
+            style: [background(#F8FAFC), radius((((root.height -((root.width * 0.04) +(root.height * 0.16) +(root.height * 0.02)) -(root.width * 0.04) -(root.height * 0.02) * 4) / 5) * 0.25))],
         ) {
             Absolute(
-                transparent: true,
+                style: [transparent(true)],
             ) {
                 Label(
                     id: "display",
@@ -24,9 +23,7 @@ Screen(
                     y: 0,
                     width: root.width -(root.width * 0.04) * 4,
                     height: (root.height * 0.16),
-                    color: #111827,
-                    font_size: (root.height / 10),
-                    align: right,
+                    style: [foreground(#111827), font_size((root.height / 10)), text_align(right)],
                 )
             }
         }
@@ -41,12 +38,7 @@ Screen(
                 y: ((root.width * 0.04) +(root.height * 0.16) +(root.height * 0.02)) + item.row *(((root.height -((root.width * 0.04) +(root.height * 0.16) +(root.height * 0.02)) -(root.width * 0.04) -(root.height * 0.02) * 4) / 5) +(root.height * 0.02)),
                 width: ((root.width -(root.width * 0.04) * 2 -(root.height * 0.02) * 3) / 4),
                 height: ((root.height -((root.width * 0.04) +(root.height * 0.16) +(root.height * 0.02)) -(root.width * 0.04) -(root.height * 0.02) * 4) / 5),
-                background: item.role == "clear" ? #EF4444 : item.role == "operator" ? #3478D4 : item.role == "utility" ? #64748B : #E2E8F0,
-                color: item.role == "digit" ? #111827 : #FFFFFF,
-                font_size: (root.height / 20),
-                bold: item.text == "=",
-                align: center,
-                corner_radius: (((root.height -((root.width * 0.04) +(root.height * 0.16) +(root.height * 0.02)) -(root.width * 0.04) -(root.height * 0.02) * 4) / 5) * 0.25),
+                style: [background(item.role == "clear" ? #EF4444 : item.role == "operator" ? #3478D4 : item.role == "utility" ? #64748B : #E2E8F0), foreground(item.role == "digit" ? #111827 : #FFFFFF), font_size((root.height / 20)), weight(item.text == "=" ? 700 : 400), text_align(center), radius((((root.height -((root.width * 0.04) +(root.height * 0.16) +(root.height * 0.02)) -(root.width * 0.04) -(root.height * 0.02) * 4) / 5) * 0.25))],
             )
         }
     }

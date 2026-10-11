@@ -1,9 +1,9 @@
 Screen(
     id: "root",
-    background: #F1F5F9,
+    style: [background(#F1F5F9)],
 ) {
     Absolute(
-        transparent: true,
+        style: [transparent(true)],
     ) {
         View(
             id: "card",
@@ -11,21 +11,19 @@ Screen(
             y: 16,
             width: root.width - 32,
             height: root.height - 32,
-            background: #FFFFFF,
-            corner_radius: 10,
+            style: [background(#FFFFFF), radius(10)],
         ) {
             Absolute(
-                transparent: true,
+                style: [transparent(true)],
             ) {
-                Label(text: "Cells", x: 18, y: 14, width: 100, height: 28, color: #111827, font_size: 18, bold: true)
+                Label(text: "Cells", x: 18, y: 14, width: 100, height: 28, style: [foreground(#111827), font_size(18), weight(700)])
                 Label(
                     text: app.selected_address.len > 0 ? "Edit ${app.selected_address}" : "Select a cell",
                     x: 126,
                     y: 18,
                     width: 92,
                     height: 20,
-                    color: #64748B,
-                    font_size: 11,
+                    style: [foreground(#64748B), font_size(11)],
                 )
                 TextInput(
                     id: "cell_input",
@@ -36,10 +34,7 @@ Screen(
                     y: 12,
                     width: card.width - 340,
                     height: 38,
-                    background: #F8FAFC,
-                    corner_radius: 7,
-                    font_family: "Courier New",
-                    font_size: 12,
+                    style: [background(#F8FAFC), radius(7), font_family("Courier New"), font_size(12)],
                 )
                 Button(
                     id: "apply_cell",
@@ -57,13 +52,12 @@ Screen(
                     y: 64,
                     width: card.width - 36,
                     height: 280,
-                    background: #CBD5E1,
-                    corner_radius: 7,
+                    style: [background(#CBD5E1), radius(7)],
                 ) {
                     Absolute(
-                        transparent: true,
+                        style: [transparent(true)],
                     ) {
-                        View(x: 1, y: 1, width: 34, height: 32, background: #334155)
+                        View(x: 1, y: 1, width: 34, height: 32, style: [background(#334155)])
                         Repeater(
                             model: app.columns,
                             key: item.label,
@@ -73,10 +67,10 @@ Screen(
                                 y: 1,
                                 width: (((root.width - 68) - 38) / 5) - 2,
                                 height: 32,
-                                background: #334155,
+                                style: [background(#334155)],
                             ) {
                                 Absolute(
-                                    transparent: true,
+                                    style: [transparent(true)],
                                 ) {
                                     Label(
                                         text: item.label,
@@ -84,10 +78,7 @@ Screen(
                                         y: 0,
                                         width: (((root.width - 68) - 38) / 5) - 2,
                                         height: 32,
-                                        align: center,
-                                        color: #FFFFFF,
-                                        font_size: 11,
-                                        bold: true,
+                                        style: [text_align(center), foreground(#FFFFFF), font_size(11), weight(700)],
                                     )
                                 }
                             }
@@ -101,10 +92,10 @@ Screen(
                                 y: 35 + item.row * 40,
                                 width: 34,
                                 height: 38,
-                                background: #E2E8F0,
+                                style: [background(#E2E8F0)],
                             ) {
                                 Absolute(
-                                    transparent: true,
+                                    style: [transparent(true)],
                                 ) {
                                     Label(
                                         text: item.label,
@@ -112,10 +103,7 @@ Screen(
                                         y: 0,
                                         width: 34,
                                         height: 38,
-                                        align: center,
-                                        color: #475569,
-                                        font_size: 10,
-                                        bold: true,
+                                        style: [text_align(center), foreground(#475569), font_size(10), weight(700)],
                                     )
                                 }
                             }
@@ -132,9 +120,7 @@ Screen(
                                 y: 35 + item.row * 40,
                                 width: (((root.width - 68) - 38) / 5) - 2,
                                 height: 38,
-                                background: item.id == app.selected_id ? #DBEAFE : #FFFFFF,
-                                font_family: "Courier New",
-                                font_size: 10,
+                                style: [background(item.id == app.selected_id ? #DBEAFE : #FFFFFF), font_family("Courier New"), font_size(10)],
                             )
                         }
                     }
@@ -144,11 +130,10 @@ Screen(
                     y: 360,
                     width: card.width - 36,
                     height: 82,
-                    background: #F8FAFC,
-                    corner_radius: 7,
+                    style: [background(#F8FAFC), radius(7)],
                 ) {
                     Absolute(
-                        transparent: true,
+                        style: [transparent(true)],
                     ) {
                         Label(
                             text: "Formula examples",
@@ -156,9 +141,7 @@ Screen(
                             y: 10,
                             width: 130,
                             height: 18,
-                            color: #475569,
-                            font_size: 11,
-                            bold: true,
+                            style: [foreground(#475569), font_size(11), weight(700)],
                         )
                         Label(
                             text: "B1 = sum(B2:C5, D2)",
@@ -166,9 +149,7 @@ Screen(
                             y: 34,
                             width: (card.width - 70) / 3,
                             height: 20,
-                            color: #64748B,
-                            font_family: "Courier New",
-                            font_size: 10,
+                            style: [foreground(#64748B), font_family("Courier New"), font_size(10)],
                         )
                         Label(
                             text: "C5 = sum(D2:D5)",
@@ -176,9 +157,7 @@ Screen(
                             y: 34,
                             width: (card.width - 70) / 3,
                             height: 20,
-                            color: #64748B,
-                            font_family: "Courier New",
-                            font_size: 10,
+                            style: [foreground(#64748B), font_family("Courier New"), font_size(10)],
                         )
                         Label(
                             text: "A4 = sum(B4:D4)",
@@ -186,9 +165,7 @@ Screen(
                             y: 34,
                             width: (card.width - 70) / 3,
                             height: 20,
-                            color: #64748B,
-                            font_family: "Courier New",
-                            font_size: 10,
+                            style: [foreground(#64748B), font_family("Courier New"), font_size(10)],
                         )
                     }
                 }
@@ -199,9 +176,7 @@ Screen(
                     y: card.height - 40,
                     width: card.width - 36,
                     height: 18,
-                    align: center,
-                    color: #166534,
-                    font_size: 11,
+                    style: [text_align(center), foreground(#166534), font_size(11)],
                 )
             }
         }

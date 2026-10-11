@@ -1,9 +1,9 @@
 Screen(
     id: "root",
-    background: #F1F5F9,
+    style: [background(#F1F5F9)],
 ) {
     Absolute(
-        transparent: true,
+        style: [transparent(true)],
     ) {
         View(
             id: "card",
@@ -11,13 +11,12 @@ Screen(
             y: 16,
             width: root.width - 32,
             height: root.height - 32,
-            background: #FFFFFF,
-            corner_radius: 10,
+            style: [background(#FFFFFF), radius(10)],
         ) {
             Absolute(
-                transparent: true,
+                style: [transparent(true)],
             ) {
-                Label(text: "Nested clipping", x: 18, y: 14, width: 260, height: 28, color: #111827, font_size: 18, bold: true)
+                Label(text: "Nested clipping", x: 18, y: 14, width: 260, height: 28, style: [foreground(#111827), font_size(18), weight(700)])
                 Button(
                     id: "clip_all",
                     text: "Clip all",
@@ -44,8 +43,7 @@ Screen(
                     y: 44,
                     width: card.width - 36,
                     height: 20,
-                    color: #64748B,
-                    font_size: 12,
+                    style: [foreground(#64748B), font_size(12)],
                 )
                 Button(
                     id: "quadrant1",
@@ -93,11 +91,10 @@ Screen(
                     y: 114,
                     width: card.width - 36,
                     height: card.height - 174,
-                    background: #0F172A,
-                    corner_radius: 8,
+                    style: [background(#0F172A), radius(8)],
                 ) {
                     Absolute(
-                        transparent: true,
+                        style: [transparent(true)],
                     ) {
                         Repeater(
                             model: app.boxes,
@@ -108,11 +105,10 @@ Screen(
                                 y: 10 + item.row *((root.height - 226) / 4),
                                 width: ((root.width - 88) / 4) - 10,
                                 height: ((root.height - 226) / 4) - 10,
-                                background: #FFFFFF,
-                                corner_radius: 6,
+                                style: [background(#FFFFFF), radius(6)],
                             ) {
                                 Absolute(
-                                    transparent: true,
+                                    style: [transparent(true)],
                                 ) {
                                     Scroll(
                                         hidden: ! item.clipping,
@@ -120,24 +116,24 @@ Screen(
                                         y: 0,
                                         width: ((root.width - 88) / 4) - 10,
                                         height: ((root.height - 226) / 4) - 10,
-                                        background: #FFFFFF,
+                                        style: [background(#FFFFFF)],
                                     ) {
                                         Absolute(
-                                            transparent: true,
+                                            style: [transparent(true)],
                                         ) {
                                             View(
                                                 x: - 70,
                                                 y: 40,
                                                 width: ((root.width - 88) / 4) + 130,
                                                 height: 16,
-                                                background: item.color,
+                                                style: [background(item.color)],
                                             )
                                             View(
                                                 x: ((root.width - 88) / 4) - 48,
                                                 y: - 36,
                                                 width: 16,
                                                 height: ((root.height - 226) / 4) - 48,
-                                                background: item.color,
+                                                style: [background(item.color)],
                                             )
                                         }
                                     }
@@ -147,7 +143,7 @@ Screen(
                                         y: 40,
                                         width: ((root.width - 88) / 4) + 130,
                                         height: 16,
-                                        background: item.color,
+                                        style: [background(item.color)],
                                     )
                                     View(
                                         hidden: item.clipping,
@@ -155,7 +151,7 @@ Screen(
                                         y: - 36,
                                         width: 16,
                                         height: ((root.height - 226) / 4) - 48,
-                                        background: item.color,
+                                        style: [background(item.color)],
                                     )
                                     Label(
                                         text: "drawn ${item.order}",
@@ -163,8 +159,7 @@ Screen(
                                         y: 4,
                                         width: ((root.width - 88) / 4) - 26,
                                         height: 16,
-                                        color: #0F172A,
-                                        font_size: 10,
+                                        style: [foreground(#0F172A), font_size(10)],
                                     )
                                     Label(
                                         text: item.clipping ? "clip: yes" : "clip: no",
@@ -172,8 +167,7 @@ Screen(
                                         y: 20,
                                         width: ((root.width - 88) / 4) - 26,
                                         height: 16,
-                                        color: #475569,
-                                        font_size: 10,
+                                        style: [foreground(#475569), font_size(10)],
                                     )
                                     Button(
                                         text: item.clipping ? "Unclip" : "Clip",
@@ -196,9 +190,7 @@ Screen(
                     y: card.height - 42,
                     width: card.width - 36,
                     height: 20,
-                    align: center,
-                    color: #166534,
-                    font_size: 12,
+                    style: [text_align(center), foreground(#166534), font_size(12)],
                 )
             }
         }

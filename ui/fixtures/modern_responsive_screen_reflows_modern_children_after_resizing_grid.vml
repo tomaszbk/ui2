@@ -1,7 +1,7 @@
 Screen {
     Flex(
-        padding: 24,
         orientation: vertical,
+        style: [padding(24)],
     ) {
         Grid(
             id: "body",

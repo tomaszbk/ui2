@@ -566,7 +566,7 @@ fn designer_component(component DesignerComponent, selected bool, scale f64) ui2
 	return ui2.with_event(ui2.draggable_view_with_cursor('cmp_${component.id}', ui2.rect(component.x * scale, component.y * scale, width, height), ui2.BoxStyle{
 		bg:          component.background
 		radius:      if component.kind in ['button', 'text_field', 'text_area', 'dropdown', 'view'] {
-			5.0 * scale
+			(component.radius or { 5.0 }) * scale
 		} else {
 			0
 		}

@@ -8,7 +8,7 @@ Flex(
         orientation: vertical,
     ) {
         Absolute(
-            transparent: true,
+            style: [transparent(true)],
         ) {
             Label(id: "probe", text: "width=${content.width}", width: content.width, height: 20)
         }

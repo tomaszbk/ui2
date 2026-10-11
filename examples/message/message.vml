@@ -1,20 +1,19 @@
 Screen(
     id: "root",
-    background: #F1F5F9,
+    style: [background(#F1F5F9)],
 ) {
     Absolute(
-        transparent: true,
+        style: [transparent(true)],
     ) {
         View(
             x: 16,
             y: 16,
             width: root.width - 32,
             height: root.height - 32,
-            background: #FFFFFF,
-            corner_radius: 10,
+            style: [background(#FFFFFF), radius(10)],
         ) {
             Absolute(
-                transparent: true,
+                style: [transparent(true)],
             ) {
                 Label(
                     text: "Message",
@@ -22,9 +21,7 @@ Screen(
                     y: 14,
                     width: root.width - 64,
                     height: 28,
-                    color: #111827,
-                    font_size: 18,
-                    bold: true,
+                    style: [foreground(#111827), font_size(18), weight(700)],
                 )
                 Label(
                     text: "Native alerts block; the drawn one does not.",
@@ -32,8 +29,7 @@ Screen(
                     y: 50,
                     width: root.width - 64,
                     height: 22,
-                    color: #64748B,
-                    font_size: 13,
+                    style: [foreground(#64748B), font_size(13)],
                 )
                 Button(
                     id: "show_native_message",
@@ -72,8 +68,7 @@ Screen(
                     y: 228,
                     width: root.width - 64,
                     height: 22,
-                    color: #475569,
-                    font_size: 13,
+                    style: [foreground(#475569), font_size(13)],
                 )
             }
         }

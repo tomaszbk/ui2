@@ -1,21 +1,21 @@
 Screen(
     id: "root",
-    background: #F1F5F9,
+    style: [background(#F1F5F9)],
 ) {
     Absolute(
-        transparent: true,
+        style: [transparent(true)],
     ) {
-        Label(text: "Project", x: 20, y: 14, width: root.width - 40, height: 30, color: #0F172A, font_size: 20, bold: true)
+        Label(text: "Project", x: 20, y: 14, width: root.width - 40, height: 30, style: [foreground(#0F172A), font_size(20), weight(700)])
         Scroll(
             id: "navigation_scroll",
             x: 20,
             y: 56,
             width: root.width - 40,
             height: 240,
-            background: #FFFFFF,
+            style: [background(#FFFFFF)],
         ) {
             Absolute(
-                transparent: true,
+                style: [transparent(true)],
             ) {
                 TreeView(
                     id: "navigation",
@@ -27,8 +27,8 @@ Screen(
                     disclosure_width: 30,
                     row_background: #FFFFFF,
                     selected_background: #DBEAFE,
-                    color: #334155,
                     selected_color: #1D4ED8,
+                    style: [foreground(#334155)],
                 ) {
                     TreeNode(
                         id: "docs",
@@ -59,8 +59,7 @@ Screen(
             y: 310,
             width: root.width - 40,
             height: 24,
-            align: center,
-            color: #166534,
+            style: [text_align(center), foreground(#166534)],
         )
     }
 }

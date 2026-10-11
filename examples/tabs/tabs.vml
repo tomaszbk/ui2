@@ -1,9 +1,9 @@
 Screen(
     id: "root",
-    background: #F1F5F9,
+    style: [background(#F1F5F9)],
 ) {
     Absolute(
-        transparent: true,
+        style: [transparent(true)],
     ) {
         View(
             id: "card",
@@ -11,21 +11,19 @@ Screen(
             y: 16,
             width: root.width - 32,
             height: root.height - 32,
-            background: #FFFFFF,
-            corner_radius: 10,
+            style: [background(#FFFFFF), radius(10)],
         ) {
             Absolute(
-                transparent: true,
+                style: [transparent(true)],
             ) {
-                Label(text: "Tabs", x: 18, y: 14, width: card.width - 36, height: 28, color: #111827, font_size: 18, bold: true)
+                Label(text: "Tabs", x: 18, y: 14, width: card.width - 36, height: 28, style: [foreground(#111827), font_size(18), weight(700)])
                 Label(
                     text: "Switch between three component pages.",
                     x: 18,
                     y: 42,
                     width: card.width - 36,
                     height: 20,
-                    color: #64748B,
-                    font_size: 12,
+                    style: [foreground(#64748B), font_size(12)],
                 )
                 View(
                     id: "tab_bar",
@@ -33,11 +31,10 @@ Screen(
                     y: 74,
                     width: card.width - 36,
                     height: 44,
-                    background: #F8FAFC,
-                    corner_radius: 8,
+                    style: [background(#F8FAFC), radius(8)],
                 ) {
                     Absolute(
-                        transparent: true,
+                        style: [transparent(true)],
                     ) {
                         Repeater(
                             model: app.pages,
@@ -61,11 +58,10 @@ Screen(
                     y: 130,
                     width: card.width - 36,
                     height: card.height - 184,
-                    background: #F8FAFC,
-                    corner_radius: 9,
+                    style: [background(#F8FAFC), radius(9)],
                 ) {
                     Absolute(
-                        transparent: true,
+                        style: [transparent(true)],
                     ) {
                         Repeater(
                             model: app.pages,
@@ -77,11 +73,10 @@ Screen(
                                 y: 8,
                                 width: tab_stage.width - 16,
                                 height: tab_stage.height - 16,
-                                background: item.background,
-                                corner_radius: 8,
+                                style: [background(item.background), radius(8)],
                             ) {
                                 Absolute(
-                                    transparent: true,
+                                    style: [transparent(true)],
                                 ) {
                                     Label(
                                         text: item.heading,
@@ -89,9 +84,7 @@ Screen(
                                         y: 24,
                                         width: tab_stage.width - 56,
                                         height: 30,
-                                        color: #111827,
-                                        font_size: 20,
-                                        bold: true,
+                                        style: [foreground(#111827), font_size(20), weight(700)],
                                     )
                                     Label(
                                         text: item.body,
@@ -99,9 +92,7 @@ Screen(
                                         y: 66,
                                         width: tab_stage.width - 56,
                                         height: 46,
-                                        color: #334155,
-                                        font_size: 13,
-                                        lines: 2,
+                                        style: [foreground(#334155), font_size(13), lines(2)],
                                     )
                                     Label(
                                         text: "Page ${item.id} of ${app.pages.len}",
@@ -109,9 +100,7 @@ Screen(
                                         y: tab_stage.height - 54,
                                         width: tab_stage.width - 56,
                                         height: 20,
-                                        align: right,
-                                        color: #64748B,
-                                        font_size: 11,
+                                        style: [text_align(right), foreground(#64748B), font_size(11)],
                                     )
                                 }
                             }
@@ -125,9 +114,7 @@ Screen(
                     y: card.height - 40,
                     width: card.width - 36,
                     height: 18,
-                    align: center,
-                    color: #166534,
-                    font_size: 12,
+                    style: [text_align(center), foreground(#166534), font_size(12)],
                 )
             }
         }

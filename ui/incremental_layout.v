@@ -306,7 +306,7 @@ fn layout_metric_flags(element Element) u8 {
 // that can change a measured size or child placement. Paint-only fields differ freely.
 fn layout_metrics_equal(a Element, b Element) bool {
 	if a.kind != b.kind || a.hidden != b.hidden || a.presence_exiting != b.presence_exiting || a.text != b.text || a.placeholder != b.placeholder
-		|| a.content_size != b.content_size || a.padding_left != b.padding_left
+		|| a.content_size != b.content_size || a.padding_left != b.padding_left || a.content_padding != b.content_padding
 		|| a.disable_scroll != b.disable_scroll || a.secure != b.secure || a.image_path != b.image_path
 		|| a.image_asset.logical_size != b.image_asset.logical_size || a.text_runs.len != b.text_runs.len
 		|| layout_metric_style(a.text_style) != layout_metric_style(b.text_style) {

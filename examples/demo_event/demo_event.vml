@@ -1,9 +1,9 @@
 Screen(
     id: "root",
-    background: #F1F5F9,
+    style: [background(#F1F5F9)],
 ) {
     Absolute(
-        transparent: true,
+        style: [transparent(true)],
     ) {
         View(
             id: "card",
@@ -11,13 +11,12 @@ Screen(
             y: 16,
             width: root.width - 32,
             height: root.height - 32,
-            background: #FFFFFF,
-            corner_radius: 10,
+            style: [background(#FFFFFF), radius(10)],
         ) {
             Absolute(
-                transparent: true,
+                style: [transparent(true)],
             ) {
-                Label(text: "Event inspector", x: 18, y: 14, width: 180, height: 28, color: #111827, font_size: 18, bold: true)
+                Label(text: "Event inspector", x: 18, y: 14, width: 180, height: 28, style: [foreground(#111827), font_size(18), weight(700)])
                 Button(
                     id: "sample_button",
                     text: "Native event",
@@ -50,11 +49,10 @@ Screen(
                     y: 62,
                     width: card.width - 36,
                     height: 120,
-                    background: #DBEAFE,
-                    corner_radius: 9,
+                    style: [background(#DBEAFE), radius(9)],
                 ) {
                     Absolute(
-                        transparent: true,
+                        style: [transparent(true)],
                     ) {
                         Label(
                             text: "Click or drag here",
@@ -62,10 +60,7 @@ Screen(
                             y: 28,
                             width: event_surface.width - 32,
                             height: 28,
-                            align: center,
-                            color: #1D4ED8,
-                            font_size: 17,
-                            bold: true,
+                            style: [text_align(center), foreground(#1D4ED8), font_size(17), weight(700)],
                         )
                         Label(
                             text: "Keyboard events are captured when an editor is not focused.",
@@ -73,9 +68,7 @@ Screen(
                             y: 62,
                             width: event_surface.width - 32,
                             height: 20,
-                            align: center,
-                            color: #3B82F6,
-                            font_size: 11,
+                            style: [text_align(center), foreground(#3B82F6), font_size(11)],
                         )
                     }
                 }
@@ -84,11 +77,10 @@ Screen(
                     y: 194,
                     width: (card.width - 44) / 2,
                     height: 52,
-                    background: #F8FAFC,
-                    corner_radius: 7,
+                    style: [background(#F8FAFC), radius(7)],
                 ) {
                     Absolute(
-                        transparent: true,
+                        style: [transparent(true)],
                     ) {
                         Label(
                             text: "Pointer events",
@@ -96,9 +88,7 @@ Screen(
                             y: 7,
                             width: (card.width - 84) / 2,
                             height: 16,
-                            align: center,
-                            color: #64748B,
-                            font_size: 10,
+                            style: [text_align(center), foreground(#64748B), font_size(10)],
                         )
                         Label(
                             text: "${app.pointer_events}",
@@ -106,10 +96,7 @@ Screen(
                             y: 23,
                             width: (card.width - 84) / 2,
                             height: 22,
-                            align: center,
-                            color: #111827,
-                            font_size: 16,
-                            bold: true,
+                            style: [text_align(center), foreground(#111827), font_size(16), weight(700)],
                         )
                     }
                 }
@@ -118,11 +105,10 @@ Screen(
                     y: 194,
                     width: (card.width - 44) / 2,
                     height: 52,
-                    background: #F8FAFC,
-                    corner_radius: 7,
+                    style: [background(#F8FAFC), radius(7)],
                 ) {
                     Absolute(
-                        transparent: true,
+                        style: [transparent(true)],
                     ) {
                         Label(
                             text: "Key events",
@@ -130,9 +116,7 @@ Screen(
                             y: 7,
                             width: (card.width - 84) / 2,
                             height: 16,
-                            align: center,
-                            color: #64748B,
-                            font_size: 10,
+                            style: [text_align(center), foreground(#64748B), font_size(10)],
                         )
                         Label(
                             text: "${app.key_events}",
@@ -140,10 +124,7 @@ Screen(
                             y: 23,
                             width: (card.width - 84) / 2,
                             height: 22,
-                            align: center,
-                            color: #111827,
-                            font_size: 16,
-                            bold: true,
+                            style: [text_align(center), foreground(#111827), font_size(16), weight(700)],
                         )
                     }
                 }
@@ -154,9 +135,7 @@ Screen(
                     y: 258,
                     width: card.width - 36,
                     height: 24,
-                    align: center,
-                    color: #166534,
-                    font_size: 12,
+                    style: [text_align(center), foreground(#166534), font_size(12)],
                 )
                 TextArea(
                     id: "event_history",
@@ -166,11 +145,7 @@ Screen(
                     y: 290,
                     width: card.width - 36,
                     height: card.height - 308,
-                    background: #FFFBEB,
-                    color: #78350F,
-                    font_family: "Courier New",
-                    font_size: 11,
-                    corner_radius: 7,
+                    style: [background(#FFFBEB), foreground(#78350F), font_family("Courier New"), font_size(11), radius(7)],
                 )
             }
         }

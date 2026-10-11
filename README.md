@@ -54,7 +54,7 @@ updates and dispatchers. See [the embedder contract and acceptance tests](docs/c
 ## Requirements
 
 `ui2` uses the published `tomaszbk/v` compiler revision
-[`c85069c`](https://github.com/tomaszbk/v/commit/c85069cc207aba23f86cc7353ea7f12c761f43b2),
+[`e045d20`](https://github.com/tomaszbk/v/commit/e045d20ca73d77ff73ecad43bdff84ddf00e8b66),
 which incorporates upstream master `f1c3ee4`, component and motion lowering,
 and the verified retained-rendering and compiler fixes.
 CI bootstraps the verified source revision with pinned `vc` and Boehm GC assets using
@@ -235,6 +235,21 @@ A repeater's key identifies siblings independently of position. `item` and `inde
 are scoped to each item, and callbacks retain the rendered item's identity.
 Application services and business logic can remain in `.v` files.
 
+Presentation uses typed style values:
+
+```vml
+style card = [background(color.surface), padding(12), radius(8)]
+
+View(style: [card, background(color.accent)]) {
+    Label(text: "Content")
+}
+```
+
+Lists compose from left to right; a local override replaces only the supplied
+properties. Inline lists and component-local declarations use the same rules.
+See [VML styles and themes](docs/vml-styles.md) for tokens, variants, interaction
+states and theme updates.
+
 ## Custom buttons
 
 A `Button` can be styled directly in VML. Leave `native` unset when the
@@ -243,7 +258,7 @@ standard native-style appearance instead.
 
 ```vml
 Absolute(
-    transparent: true,
+    style: [transparent(true)],
 ) {
     Button(
         id: "save",
@@ -253,12 +268,7 @@ Absolute(
         y: 20,
         width: 120,
         height: 40,
-        background: #2563EB,
-        border_color: #1D4ED8,
-        border_width: 1,
-        corner_radius: 8,
-        color: #FFFFFF,
-        bold: true,
+        style: [background(#2563EB), border_color(#1D4ED8), border_width(1), radius(8), foreground(#FFFFFF), weight(700)],
     )
 }
 ```
@@ -270,7 +280,7 @@ noninteractive children such as its `Label` do not block the tap:
 
 ```vml
 Absolute(
-    transparent: true,
+    style: [transparent(true)],
 ) {
     View(
         id: "save_card",
@@ -280,14 +290,13 @@ Absolute(
         y: 20,
         width: 180,
         height: 56,
-        background: #2563EB,
-        corner_radius: 8,
         cursor: "pointing_hand",
+        style: [background(#2563EB), radius(8)],
     ) {
         Absolute(
-            transparent: true,
+            style: [transparent(true)],
         ) {
-            Label(text: "Save changes", x: 16, y: 16, width: 148, height: 24, align: center, color: #FFFFFF, bold: true)
+            Label(text: "Save changes", x: 16, y: 16, width: 148, height: 24, style: [text_align(center), foreground(#FFFFFF), weight(700)])
         }
     }
 }
@@ -435,15 +444,16 @@ the same logical units as frames and corner radii, so native and custom
 renderers scale them with the rest of the element:
 
 ```vml
-View(background: #10131F, border_color: #28314A, border_left: 1, border_top: 1, border_right: 1, border_bottom: 0)
+View(style: [background(#10131F), border_color(#28314A), border_left(1), border_top(1), border_right(1), border_bottom(0)])
 ```
 
-Set `transparent: true` to omit a box's fill. It also works on the root
+Use `style: [transparent(true)]` to omit a box's fill. It also works on the root
 `Screen`; a transparent screen reveals the desktop when its native host window
 is configured for transparency, as demonstrated by `examples/custom_window`.
 
-`border_width` is shorthand for all four edges; an explicitly declared edge
-overrides it. The equivalent V API fields live directly on `BoxStyle`.
+`border_width(1)` supplies all four edges; a later helper such as
+`border_bottom(0)` overrides that edge. The equivalent V API fields live
+directly on `BoxStyle`.
 
 Images load from `image_path` on every backend. The custom renderer caches
 decoded images. Scroll viewports clip both drawing and hit testing.

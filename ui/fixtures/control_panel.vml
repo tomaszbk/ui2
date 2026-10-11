@@ -1,5 +1,5 @@
 component ControlPanel(content slot) {
-    Column(padding: 8, gap: 8) {
+    Column(gap: 8, style: [padding(8)]) {
         Slot(name: "content")
     }
 }
