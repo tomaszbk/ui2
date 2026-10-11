@@ -1,9 +1,9 @@
 Screen(
     id: "root",
-    background: #F1F5F9,
+    style: [background(#F1F5F9)],
 ) {
     Absolute(
-        transparent: true,
+        style: [transparent(true)],
     ) {
         View(
             id: "card",
@@ -11,11 +11,10 @@ Screen(
             y: 16,
             width: (root.width - 32 < 348 ? root.width - 32 : 348),
             height: 290,
-            background: #FFFFFF,
-            corner_radius: 10,
+            style: [background(#FFFFFF), radius(10)],
         ) {
             Absolute(
-                transparent: true,
+                style: [transparent(true)],
             ) {
                 Label(
                     text: "RGB color",
@@ -23,9 +22,7 @@ Screen(
                     y: 14,
                     width: card.width - 32,
                     height: 24,
-                    color: #111827,
-                    font_size: 18,
-                    bold: true,
+                    style: [foreground(#111827), font_size(18), weight(700)],
                 )
                 View(
                     id: "preview",
@@ -33,11 +30,10 @@ Screen(
                     y: 50,
                     width: card.width - 32,
                     height: 100,
-                    background: app.preview_color,
-                    corner_radius: 8,
+                    style: [background(app.preview_color), radius(8)],
                 ) {
                     Absolute(
-                        transparent: true,
+                        style: [transparent(true)],
                     ) {
                         Label(
                             text: app.valid ? "" : "Invalid RGB value",
@@ -45,10 +41,7 @@ Screen(
                             y: 41,
                             width: card.width - 48,
                             height: 18,
-                            color: #991B1B,
-                            font_size: 13,
-                            bold: true,
-                            align: center,
+                            style: [foreground(#991B1B), font_size(13), weight(700), text_align(center)],
                         )
                     }
                 }
@@ -58,8 +51,7 @@ Screen(
                     y: 164,
                     width: (((root.width - 32 < 348 ? root.width - 32 : 348) - 64) / 3),
                     height: 18,
-                    align: center,
-                    color: #991B1B,
+                    style: [text_align(center), foreground(#991B1B)],
                 )
                 Label(
                     text: "G",
@@ -67,8 +59,7 @@ Screen(
                     y: 164,
                     width: (((root.width - 32 < 348 ? root.width - 32 : 348) - 64) / 3),
                     height: 18,
-                    align: center,
-                    color: #166534,
+                    style: [text_align(center), foreground(#166534)],
                 )
                 Label(
                     text: "B",
@@ -76,8 +67,7 @@ Screen(
                     y: 164,
                     width: (((root.width - 32 < 348 ? root.width - 32 : 348) - 64) / 3),
                     height: 18,
-                    align: center,
-                    color: #1E40AF,
+                    style: [text_align(center), foreground(#1E40AF)],
                 )
                 TextInput(
                     id: "red",
@@ -87,8 +77,7 @@ Screen(
                     y: 184,
                     width: (((root.width - 32 < 348 ? root.width - 32 : 348) - 64) / 3),
                     height: 28,
-                    background: app.valid ? #F8FAFC : #FEE2E2,
-                    corner_radius: 7,
+                    style: [background(app.valid ? #F8FAFC : #FEE2E2), radius(7)],
                 )
                 TextInput(
                     id: "green",
@@ -98,8 +87,7 @@ Screen(
                     y: 184,
                     width: (((root.width - 32 < 348 ? root.width - 32 : 348) - 64) / 3),
                     height: 28,
-                    background: app.valid ? #F8FAFC : #FEE2E2,
-                    corner_radius: 7,
+                    style: [background(app.valid ? #F8FAFC : #FEE2E2), radius(7)],
                 )
                 TextInput(
                     id: "blue",
@@ -109,8 +97,7 @@ Screen(
                     y: 184,
                     width: (((root.width - 32 < 348 ? root.width - 32 : 348) - 64) / 3),
                     height: 28,
-                    background: app.valid ? #F8FAFC : #FEE2E2,
-                    corner_radius: 7,
+                    style: [background(app.valid ? #F8FAFC : #FEE2E2), radius(7)],
                 )
                 Button(
                     id: "show_color",
@@ -121,9 +108,7 @@ Screen(
                     y: 224,
                     width: card.width - 32,
                     height: 34,
-                    background: #3478D4,
-                    color: #FFFFFF,
-                    corner_radius: 7,
+                    style: [background(#3478D4), foreground(#FFFFFF), radius(7)],
                 )
                 Label(
                     id: "value",
@@ -132,9 +117,7 @@ Screen(
                     y: 266,
                     width: card.width - 32,
                     height: 18,
-                    color: app.valid ? #166534 : #991B1B,
-                    font_size: 13,
-                    align: center,
+                    style: [foreground(app.valid ? #166534 : #991B1B), font_size(13), text_align(center)],
                 )
             }
         }

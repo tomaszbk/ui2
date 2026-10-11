@@ -1,9 +1,9 @@
 Screen(
     id: "root",
-    background: #F1F5F9,
+    style: [background(#F1F5F9)],
 ) {
     Absolute(
-        transparent: true,
+        style: [transparent(true)],
     ) {
         View(
             id: "card",
@@ -11,11 +11,10 @@ Screen(
             y: 16,
             width: root.width - 32,
             height: root.height - 32,
-            background: #FFFFFF,
-            corner_radius: 10,
+            style: [background(#FFFFFF), radius(10)],
         ) {
             Absolute(
-                transparent: true,
+                style: [transparent(true)],
             ) {
                 Label(
                     text: "Log view",
@@ -23,9 +22,7 @@ Screen(
                     y: 14,
                     width: card.width - 32,
                     height: 28,
-                    color: #111827,
-                    font_size: 18,
-                    bold: true,
+                    style: [foreground(#111827), font_size(18), weight(700)],
                 )
                 Label(
                     id: "status",
@@ -34,8 +31,7 @@ Screen(
                     y: 42,
                     width: card.width - 32,
                     height: 20,
-                    color: #64748B,
-                    font_size: 12,
+                    style: [foreground(#64748B), font_size(12)],
                 )
                 TextArea(
                     id: "log",
@@ -45,10 +41,7 @@ Screen(
                     y: 72,
                     width: card.width - 32,
                     height: card.height - 134,
-                    background: #FCF4E4,
-                    color: #334155,
-                    font_size: 13,
-                    corner_radius: 7,
+                    style: [background(#FCF4E4), foreground(#334155), font_size(13), radius(7)],
                 )
                 Button(
                     id: "start_scan",

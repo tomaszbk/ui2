@@ -1,22 +1,21 @@
 Screen(
     id: "root",
-    background: #F1F5F9,
+    style: [background(#F1F5F9)],
 ) {
     Absolute(
-        transparent: true,
+        style: [transparent(true)],
     ) {
         View(
             x: (root.width - 328) / 2,
             y: 16,
             width: 328,
             height: 158,
-            background: #FFFFFF,
-            corner_radius: 10,
+            style: [background(#FFFFFF), radius(10)],
         ) {
             Absolute(
-                transparent: true,
+                style: [transparent(true)],
             ) {
-                Label(text: "Location", x: 16, y: 14, width: 296, height: 26, color: #111827, font_size: 18, bold: true)
+                Label(text: "Location", x: 16, y: 14, width: 296, height: 26, style: [foreground(#111827), font_size(18), weight(700)])
                 Spinner(
                     id: "location",
                     bind.text: app.selection,
@@ -25,9 +24,7 @@ Screen(
                     y: 50,
                     width: 296,
                     height: 42,
-                    background: #DBEAFE,
-                    color: #1D4ED8,
-                    corner_radius: 7,
+                    style: [background(#DBEAFE), foreground(#1D4ED8), radius(7)],
                 ) {
                     Option(text: "Home")
                     Option(text: "Work")
@@ -40,8 +37,7 @@ Screen(
                     y: 108,
                     width: 296,
                     height: 24,
-                    color: #166534,
-                    align: center,
+                    style: [foreground(#166534), text_align(center)],
                 )
             }
         }

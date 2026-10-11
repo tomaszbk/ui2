@@ -17,7 +17,7 @@ Flex(
                 flex_basis: 0,
                 flex_grow: 1,
             ) {
-                Label(text: item.text, lines: 8)
+                Label(text: item.text, style: [lines(8)])
             }
         }
     }

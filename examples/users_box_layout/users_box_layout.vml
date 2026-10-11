@@ -1,39 +1,33 @@
 Screen(
     id: "root",
-    background: #F1F5F9,
+    style: [background(#F1F5F9)],
 ) {
     Column(
-        padding: 16,
-        transparent: true,
+        style: [padding(16), transparent(true)],
     ) {
         Column(
             id: "card",
             flex_grow: 1,
-            padding: 18,
             gap: 12,
-            background: #FFFFFF,
-            corner_radius: 10,
+            style: [padding(18), background(#FFFFFF), radius(10)],
         ) {
-            Label(text: "Users", height: 28, color: #111827, font_size: 18, bold: true)
+            Label(text: "Users", height: 28, style: [foreground(#111827), font_size(18), weight(700)])
             Label(
                 text: "A fixed form column beside a table pane that grows with the window.",
                 height: 18,
-                color: #64748B,
-                font_size: 11,
+                style: [foreground(#64748B), font_size(11)],
             )
             Row(
                 flex_grow: 1,
                 gap: 32,
-                transparent: true,
+                style: [transparent(true)],
             ) {
                 Column(
                     id: "form",
                     width: 232,
                     flex_shrink: 0,
-                    padding: 16,
                     gap: 4,
-                    background: #F8FAFC,
-                    corner_radius: 9,
+                    style: [padding(16), background(#F8FAFC), radius(9)],
                 ) {
                     TextInput(
                         id: "first_name",
@@ -41,8 +35,7 @@ Screen(
                         bind.text: app.first_name,
                         on_change: app.first_name_changed(),
                         height: 34,
-                        background: app.is_error ? #FEE2E2 : #FFFFFF,
-                        corner_radius: 7,
+                        style: [background(app.is_error ? #FEE2E2 : #FFFFFF), radius(7)],
                     )
                     TextInput(
                         id: "last_name",
@@ -50,8 +43,7 @@ Screen(
                         bind.text: app.last_name,
                         on_change: app.last_name_changed(),
                         height: 34,
-                        background: app.is_error ? #FEE2E2 : #FFFFFF,
-                        corner_radius: 7,
+                        style: [background(app.is_error ? #FEE2E2 : #FFFFFF), radius(7)],
                     )
                     TextInput(
                         id: "age",
@@ -60,8 +52,7 @@ Screen(
                         on_change: app.age_changed(),
                         keyboard: decimal,
                         height: 34,
-                        background: app.is_error ? #FEE2E2 : #FFFFFF,
-                        corner_radius: 7,
+                        style: [background(app.is_error ? #FEE2E2 : #FFFFFF), radius(7)],
                     )
                     TextInput(
                         id: "password",
@@ -69,8 +60,7 @@ Screen(
                         bind.text: app.password,
                         secure: true,
                         height: 34,
-                        background: #FFFFFF,
-                        corner_radius: 7,
+                        style: [background(#FFFFFF), radius(7)],
                     )
                     Checkbox(
                         id: "online",
@@ -78,8 +68,7 @@ Screen(
                         checked: app.online,
                         on_click: app.toggle_online(),
                         height: 26,
-                        color: #1E293B,
-                        font_size: 12,
+                        style: [foreground(#1E293B), font_size(12)],
                     )
                     Checkbox(
                         id: "subscribed",
@@ -87,10 +76,9 @@ Screen(
                         checked: app.subscribed,
                         on_click: app.toggle_subscribed(),
                         height: 26,
-                        color: #1E293B,
-                        font_size: 12,
+                        style: [foreground(#1E293B), font_size(12)],
                     )
-                    Label(text: "Country", height: 18, color: #334155, font_size: 12, bold: true)
+                    Label(text: "Country", height: 18, style: [foreground(#334155), font_size(12), weight(700)])
                     Repeater(
                         model: app.countries,
                         key: item.key,
@@ -100,14 +88,13 @@ Screen(
                             checked: item.name == app.country,
                             on_click: app.select_country(item.name),
                             height: 26,
-                            color: #1E293B,
-                            font_size: 12,
+                            style: [foreground(#1E293B), font_size(12)],
                         )
                     }
                     Row(
                         height: 34,
                         gap: 6,
-                        transparent: true,
+                        style: [transparent(true)],
                     ) {
                         Button(
                             id: "add_user",
@@ -120,45 +107,39 @@ Screen(
                         Button(id: "about", text: "?", on_click: app.about(), native: true, tooltip: "about", width: 44)
                         Button(id: "reset", text: "Clear", on_click: app.reset(), native: true, width: 44)
                     }
-                    View(flex_grow: 1, transparent: true)
-                    ProgressBar(height: 14, value: app.progress, max: 1, background: #E2E8F0, color: #2563EB, corner_radius: 7)
+                    View(flex_grow: 1, style: [transparent(true)])
+                    ProgressBar(height: 14, value: app.progress, max: 1, style: [background(#E2E8F0), foreground(#2563EB), radius(7)])
                     Label(
                         id: "progress_label",
                         text: app.progress_label,
                         height: 18,
-                        align: center,
-                        color: #334155,
-                        font_size: 11,
+                        style: [text_align(center), foreground(#334155), font_size(11)],
                     )
                 }
                 Column(
                     id: "table",
                     flex_grow: 1,
-                    padding: 14,
                     gap: 4,
-                    background: #FFF0F0,
-                    corner_radius: 9,
+                    style: [padding(14), background(#FFF0F0), radius(9)],
                 ) {
                     Row(
                         height: 28,
-                        padding: 6,
-                        background: #334155,
-                        corner_radius: 6,
+                        style: [padding(6), background(#334155), radius(6)],
                     ) {
-                        Label(text: "First name", flex_basis: 0, flex_grow: 1, color: #F8FAFC, font_size: 11, bold: true)
-                        Label(text: "Last name", flex_basis: 0, flex_grow: 1, color: #F8FAFC, font_size: 11, bold: true)
-                        Label(text: "Age", flex_basis: 0, flex_grow: 1, color: #F8FAFC, font_size: 11, bold: true)
-                        Label(text: "Country", flex_basis: 0, flex_grow: 1, color: #F8FAFC, font_size: 11, bold: true)
+                        Label(text: "First name", flex_basis: 0, flex_grow: 1, style: [foreground(#F8FAFC), font_size(11), weight(700)])
+                        Label(text: "Last name", flex_basis: 0, flex_grow: 1, style: [foreground(#F8FAFC), font_size(11), weight(700)])
+                        Label(text: "Age", flex_basis: 0, flex_grow: 1, style: [foreground(#F8FAFC), font_size(11), weight(700)])
+                        Label(text: "Country", flex_basis: 0, flex_grow: 1, style: [foreground(#F8FAFC), font_size(11), weight(700)])
                     }
                     Scroll(
                         id: "user_rows",
                         flex_grow: 1,
-                        background: #FFFFFF,
+                        style: [background(#FFFFFF)],
                     ) {
                         Column(
                             height: app.users.len * 30,
                             gap: 1,
-                            transparent: true,
+                            style: [transparent(true)],
                         ) {
                             Repeater(
                                 model: app.users,
@@ -167,35 +148,30 @@ Screen(
                                 Row(
                                     height: 29,
                                     flex_shrink: 0,
-                                    padding_left: 10,
-                                    padding_right: 10,
                                     align_items: center,
-                                    background: item.stripe,
+                                    style: [padding_left(10), padding_right(10), background(item.stripe)],
                                 ) {
                                     Label(
                                         text: item.first_name,
                                         flex_basis: 0,
                                         flex_grow: 1,
                                         height: 18,
-                                        color: #0F172A,
-                                        font_size: 12,
+                                        style: [foreground(#0F172A), font_size(12)],
                                     )
                                     Label(
                                         text: item.last_name,
                                         flex_basis: 0,
                                         flex_grow: 1,
                                         height: 18,
-                                        color: #0F172A,
-                                        font_size: 12,
+                                        style: [foreground(#0F172A), font_size(12)],
                                     )
-                                    Label(text: item.age, flex_basis: 0, flex_grow: 1, height: 18, color: #0F172A, font_size: 12)
+                                    Label(text: item.age, flex_basis: 0, flex_grow: 1, height: 18, style: [foreground(#0F172A), font_size(12)])
                                     Label(
                                         text: item.country,
                                         flex_basis: 0,
                                         flex_grow: 1,
                                         height: 18,
-                                        color: #475569,
-                                        font_size: 12,
+                                        style: [foreground(#475569), font_size(12)],
                                     )
                                 }
                             }
@@ -205,15 +181,14 @@ Screen(
                         height: 56,
                         gap: 12,
                         align_items: center,
-                        transparent: true,
+                        style: [transparent(true)],
                     ) {
                         Label(
                             id: "users_status",
                             text: app.status,
                             flex_grow: 1,
                             height: 20,
-                            color: app.is_error ? #991B1B : #166534,
-                            font_size: 12,
+                            style: [foreground(app.is_error ? #991B1B : #166534), font_size(12)],
                         )
                         Image(id: "users_logo", source: app.logo_path, width: 56, height: 56)
                     }

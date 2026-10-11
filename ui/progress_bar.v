@@ -4,6 +4,7 @@ module ui2
 // Its value follows Kivy's ProgressBar semantics: it is clamped between zero
 // and max, and max defaults to 100.
 pub struct ProgressBarConfig {
+	style_default_box ?BoxStyle
 pub:
 	id         string
 	frame      Rect
@@ -49,6 +50,7 @@ pub fn progress_bar(config ProgressBarConfig) Element {
 			bg: config.background
 			radius: config.radius
 		}, [fill])
+		style_default_box: config.style_default_box
 		accessibility_role: 'progressbar'
 		accessibility_label: 'Progress'
 		accessibility_value: '${progress_bar_number(clamped_value)} of ${progress_bar_number(maximum)}'

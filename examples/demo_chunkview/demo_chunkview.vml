@@ -1,9 +1,9 @@
 Screen(
     id: "root",
-    background: #F1F5F9,
+    style: [background(#F1F5F9)],
 ) {
     Absolute(
-        transparent: true,
+        style: [transparent(true)],
     ) {
         View(
             id: "card",
@@ -11,13 +11,12 @@ Screen(
             y: 16,
             width: root.width - 32,
             height: root.height - 32,
-            background: #FFFFFF,
-            corner_radius: 10,
+            style: [background(#FFFFFF), radius(10)],
         ) {
             Absolute(
-                transparent: true,
+                style: [transparent(true)],
             ) {
-                Label(text: "Chunk view", x: 18, y: 14, width: 160, height: 28, color: #111827, font_size: 18, bold: true)
+                Label(text: "Chunk view", x: 18, y: 14, width: 160, height: 28, style: [foreground(#111827), font_size(18), weight(700)])
                 Checkbox(
                     id: "first_open",
                     text: "First chunk",
@@ -27,8 +26,7 @@ Screen(
                     y: 14,
                     width: 120,
                     height: 30,
-                    color: #334155,
-                    font_size: 11,
+                    style: [foreground(#334155), font_size(11)],
                 )
                 Checkbox(
                     id: "second_open",
@@ -39,8 +37,7 @@ Screen(
                     y: 14,
                     width: 130,
                     height: 30,
-                    color: #334155,
-                    font_size: 11,
+                    style: [foreground(#334155), font_size(11)],
                 )
                 Dropdown(
                     id: "alignment",
@@ -50,8 +47,7 @@ Screen(
                     y: 12,
                     width: 112,
                     height: 36,
-                    background: #F1F5F9,
-                    corner_radius: 7,
+                    style: [background(#F1F5F9), radius(7)],
                 ) {
                     Option(text: "Left")
                     Option(text: "Center")
@@ -73,11 +69,10 @@ Screen(
                     y: 62,
                     width: card.width - 36,
                     height: card.height - 118,
-                    background: #F8FAFC,
-                    corner_radius: 9,
+                    style: [background(#F8FAFC), radius(9)],
                 ) {
                     Absolute(
-                        transparent: true,
+                        style: [transparent(true)],
                     ) {
                         View(
                             id: "first_chunk",
@@ -86,11 +81,10 @@ Screen(
                             y: 16,
                             width: chunk_stage.width - 32,
                             height: (chunk_stage.height - 48) / 2,
-                            background: #FEF3C7,
-                            corner_radius: 9,
+                            style: [background(#FEF3C7), radius(9)],
                         ) {
                             Absolute(
-                                transparent: true,
+                                style: [transparent(true)],
                             ) {
                                 Label(
                                     text: "RowChunk with ParaChunk",
@@ -98,11 +92,7 @@ Screen(
                                     y: 14,
                                     width: first_chunk.width - 32,
                                     height: 28,
-                                    align: app.text_align,
-                                    color: #92400E,
-                                    font_size: 18,
-                                    bold: true,
-                                    italic: true,
+                                    style: [text_align(app.text_align), foreground(#92400E), font_size(18), weight(700), italic(true)],
                                 )
                                 Label(
                                     text: "Red text",
@@ -110,10 +100,7 @@ Screen(
                                     y: 54,
                                     width: (first_chunk.width - 48) / 3,
                                     height: 24,
-                                    align: app.text_align,
-                                    color: #DC2626,
-                                    font_size: 15,
-                                    bold: true,
+                                    style: [text_align(app.text_align), foreground(#DC2626), font_size(15), weight(700)],
                                 )
                                 Label(
                                     text: "Blue text",
@@ -121,10 +108,7 @@ Screen(
                                     y: 54,
                                     width: (first_chunk.width - 48) / 3,
                                     height: 24,
-                                    align: app.text_align,
-                                    color: #2563EB,
-                                    font_size: 17,
-                                    italic: true,
+                                    style: [text_align(app.text_align), foreground(#2563EB), font_size(17), italic(true)],
                                 )
                                 Label(
                                     text: "😻 🥰 😬 🪬 😴  ✔️ 💾",
@@ -132,9 +116,7 @@ Screen(
                                     y: 50,
                                     width: (first_chunk.width - 48) / 3,
                                     height: 32,
-                                    align: center,
-                                    color: #111827,
-                                    font_size: 18,
+                                    style: [text_align(center), foreground(#111827), font_size(18)],
                                 )
                                 Label(
                                     text: "Nested labels preserve independent font, color, emphasis, and alignment.",
@@ -142,9 +124,7 @@ Screen(
                                     y: first_chunk.height - 40,
                                     width: first_chunk.width - 32,
                                     height: 22,
-                                    align: app.text_align,
-                                    color: #78350F,
-                                    font_size: 11,
+                                    style: [text_align(app.text_align), foreground(#78350F), font_size(11)],
                                 )
                             }
                         }
@@ -155,11 +135,10 @@ Screen(
                             y: 32 +(chunk_stage.height - 48) / 2,
                             width: chunk_stage.width - 32,
                             height: (chunk_stage.height - 48) / 2,
-                            background: #334155,
-                            corner_radius: 9,
+                            style: [background(#334155), radius(9)],
                         ) {
                             Absolute(
-                                transparent: true,
+                                style: [transparent(true)],
                             ) {
                                 Label(
                                     text: "A second nested paragraph",
@@ -167,10 +146,7 @@ Screen(
                                     y: 16,
                                     width: second_chunk.width - 36,
                                     height: 28,
-                                    align: app.text_align,
-                                    color: #F8FAFC,
-                                    font_size: 18,
-                                    bold: true,
+                                    style: [text_align(app.text_align), foreground(#F8FAFC), font_size(18), weight(700)],
                                 )
                                 Label(
                                     text: "toto titi tata · tutu tete",
@@ -178,10 +154,7 @@ Screen(
                                     y: 54,
                                     width: second_chunk.width - 36,
                                     height: 24,
-                                    align: app.text_align,
-                                    color: #FCA5A5,
-                                    font_family: "Courier New",
-                                    font_size: 14,
+                                    style: [text_align(app.text_align), foreground(#FCA5A5), font_family("Courier New"), font_size(14)],
                                 )
                                 Label(
                                     text: "Chunk composition remains responsive when the window is resized.",
@@ -189,10 +162,7 @@ Screen(
                                     y: second_chunk.height - 42,
                                     width: second_chunk.width - 36,
                                     height: 22,
-                                    align: app.text_align,
-                                    color: #BFDBFE,
-                                    font_size: 11,
-                                    underline: true,
+                                    style: [text_align(app.text_align), foreground(#BFDBFE), font_size(11), underline(true)],
                                 )
                             }
                         }
@@ -205,9 +175,7 @@ Screen(
                     y: card.height - 40,
                     width: card.width - 36,
                     height: 18,
-                    align: center,
-                    color: #166534,
-                    font_size: 11,
+                    style: [text_align(center), foreground(#166534), font_size(11)],
                 )
             }
         }

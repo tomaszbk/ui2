@@ -1,9 +1,9 @@
 Screen(
     id: "root",
-    background: #F1F5F9,
+    style: [background(#F1F5F9)],
 ) {
     Absolute(
-        transparent: true,
+        style: [transparent(true)],
     ) {
         View(
             id: "card",
@@ -11,13 +11,12 @@ Screen(
             y: 16,
             width: root.width - 32,
             height: root.height - 32,
-            background: #FFFFFF,
-            corner_radius: 10,
+            style: [background(#FFFFFF), radius(10)],
         ) {
             Absolute(
-                transparent: true,
+                style: [transparent(true)],
             ) {
-                Label(text: "Color box", x: 18, y: 14, width: 220, height: 28, color: #111827, font_size: 18, bold: true)
+                Label(text: "Color box", x: 18, y: 14, width: 220, height: 28, style: [foreground(#111827), font_size(18), weight(700)])
                 Button(
                     id: "store",
                     text: "Store in slot",
@@ -40,18 +39,18 @@ Screen(
                     y: 60,
                     width: 32,
                     height: 256,
-                    background: #FFFFFF,
+                    style: [background(#FFFFFF)],
                 ) {
                     Absolute(
-                        transparent: true,
+                        style: [transparent(true)],
                     ) {
                         Repeater(
                             model: app.hue_cells,
                             key: item.key,
                         ) {
-                            View(x: 0, y: item.index * 8, width: 32, height: 8, background: item.color)
+                            View(x: 0, y: item.index * 8, width: 32, height: 8, style: [background(item.color)])
                         }
-                        View(x: 0, y: app.hue_marker - 2, width: 32, height: 4, background: #FFFFFF)
+                        View(x: 0, y: app.hue_marker - 2, width: 32, height: 4, style: [background(#FFFFFF)])
                     }
                 }
                 View(
@@ -66,29 +65,28 @@ Screen(
                     y: 60,
                     width: 256,
                     height: 256,
-                    background: app.hue_color,
+                    style: [background(app.hue_color)],
                 ) {
                     Absolute(
-                        transparent: true,
+                        style: [transparent(true)],
                     ) {
                         Repeater(
                             model: app.sv_cells,
                             key: item.key,
                         ) {
-                            View(x: item.column * 16, y: item.row * 16, width: 16, height: 16, background: item.color)
+                            View(x: item.column * 16, y: item.row * 16, width: 16, height: 16, style: [background(item.color)])
                         }
                         View(
                             x: app.sv_marker_x - 7,
                             y: app.sv_marker_y - 7,
                             width: 14,
                             height: 14,
-                            background: #FFFFFF,
-                            corner_radius: 7,
+                            style: [background(#FFFFFF), radius(7)],
                         ) {
                             Absolute(
-                                transparent: true,
+                                style: [transparent(true)],
                             ) {
-                                View(x: 3, y: 3, width: 8, height: 8, background: app.color, corner_radius: 4)
+                                View(x: 3, y: 3, width: 8, height: 8, style: [background(app.color), radius(4)])
                             }
                         }
                     }
@@ -102,10 +100,10 @@ Screen(
                     y: 60,
                     width: 154,
                     height: 123,
-                    background: #FFFFFF,
+                    style: [background(#FFFFFF)],
                 ) {
                     Absolute(
-                        transparent: true,
+                        style: [transparent(true)],
                     ) {
                         Repeater(
                             model: app.swatches,
@@ -116,20 +114,19 @@ Screen(
                                 y: item.row * 43,
                                 width: 74,
                                 height: 37,
-                                background: item.selected ? #0F172A : #E2E8F0,
-                                corner_radius: 7,
+                                style: [background(item.selected ? #0F172A : #E2E8F0), radius(7)],
                             ) {
                                 Absolute(
-                                    transparent: true,
+                                    style: [transparent(true)],
                                 ) {
-                                    View(x: 3, y: 3, width: 68, height: 31, background: item.color, corner_radius: 5)
+                                    View(x: 3, y: 3, width: 68, height: 31, style: [background(item.color), radius(5)])
                                 }
                             }
                         }
                     }
                 }
-                Label(text: "Click a slot to recall it.", x: 332, y: 192, width: 200, height: 18, color: #64748B, font_size: 11)
-                Label(text: "R", x: 500, y: 64, width: 20, height: 20, color: #334155, font_size: 13, bold: true)
+                Label(text: "Click a slot to recall it.", x: 332, y: 192, width: 200, height: 18, style: [foreground(#64748B), font_size(11)])
+                Label(text: "R", x: 500, y: 64, width: 20, height: 20, style: [foreground(#334155), font_size(13), weight(700)])
                 TextInput(
                     id: "red_input",
                     text: app.red_text,
@@ -139,12 +136,10 @@ Screen(
                     y: 58,
                     width: 84,
                     height: 32,
-                    background: app.valid ? #FFFFFF : #FEE2E2,
-                    corner_radius: 7,
-                    align: center,
                     keyboard: decimal,
+                    style: [background(app.valid ? #FFFFFF : #FEE2E2), radius(7), text_align(center)],
                 )
-                Label(text: "G", x: 500, y: 104, width: 20, height: 20, color: #334155, font_size: 13, bold: true)
+                Label(text: "G", x: 500, y: 104, width: 20, height: 20, style: [foreground(#334155), font_size(13), weight(700)])
                 TextInput(
                     id: "green_input",
                     text: app.green_text,
@@ -154,12 +149,10 @@ Screen(
                     y: 98,
                     width: 84,
                     height: 32,
-                    background: app.valid ? #FFFFFF : #FEE2E2,
-                    corner_radius: 7,
-                    align: center,
                     keyboard: decimal,
+                    style: [background(app.valid ? #FFFFFF : #FEE2E2), radius(7), text_align(center)],
                 )
-                Label(text: "B", x: 500, y: 144, width: 20, height: 20, color: #334155, font_size: 13, bold: true)
+                Label(text: "B", x: 500, y: 144, width: 20, height: 20, style: [foreground(#334155), font_size(13), weight(700)])
                 TextInput(
                     id: "blue_input",
                     text: app.blue_text,
@@ -169,10 +162,8 @@ Screen(
                     y: 138,
                     width: 84,
                     height: 32,
-                    background: app.valid ? #FFFFFF : #FEE2E2,
-                    corner_radius: 7,
-                    align: center,
                     keyboard: decimal,
+                    style: [background(app.valid ? #FFFFFF : #FEE2E2), radius(7), text_align(center)],
                 )
                 View(
                     id: "current_color",
@@ -180,11 +171,10 @@ Screen(
                     y: 186,
                     width: card.width - 518,
                     height: 130,
-                    background: app.color,
-                    corner_radius: 8,
+                    style: [background(app.color), radius(8)],
                 ) {
                     Absolute(
-                        transparent: true,
+                        style: [transparent(true)],
                     ) {
                         Label(
                             text: app.display_color(),
@@ -192,9 +182,7 @@ Screen(
                             y: 104,
                             width: card.width - 518,
                             height: 18,
-                            align: center,
-                            color: #FFFFFF,
-                            font_size: 11,
+                            style: [text_align(center), foreground(#FFFFFF), font_size(11)],
                         )
                     }
                 }
@@ -204,11 +192,10 @@ Screen(
                     y: 332,
                     width: card.width - 36,
                     height: 96,
-                    background: #F8FAFC,
-                    corner_radius: 9,
+                    style: [background(#F8FAFC), radius(9)],
                 ) {
                     Absolute(
-                        transparent: true,
+                        style: [transparent(true)],
                     ) {
                         Label(
                             text: "Here a simple ui rectangle",
@@ -216,8 +203,7 @@ Screen(
                             y: 28,
                             width: card.width - 76,
                             height: 44,
-                            color: app.color,
-                            font_size: 30,
+                            style: [foreground(app.color), font_size(30)],
                         )
                     }
                 }
@@ -227,8 +213,7 @@ Screen(
                     y: 440,
                     width: card.width - 36,
                     height: 18,
-                    color: #64748B,
-                    font_size: 11,
+                    style: [foreground(#64748B), font_size(11)],
                 )
                 Label(
                     id: "colorbox_status",
@@ -237,9 +222,7 @@ Screen(
                     y: card.height - 40,
                     width: card.width - 36,
                     height: 18,
-                    align: center,
-                    color: app.valid ? #166534 : #991B1B,
-                    font_size: 12,
+                    style: [text_align(center), foreground(app.valid ? #166534 : #991B1B), font_size(12)],
                 )
             }
         }

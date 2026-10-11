@@ -1,9 +1,9 @@
 Screen(
     id: "root",
-    background: #F1F5F9,
+    style: [background(#F1F5F9)],
 ) {
     Absolute(
-        transparent: true,
+        style: [transparent(true)],
     ) {
         Label(
             text: "Anchored controls",
@@ -11,9 +11,7 @@ Screen(
             y: 16,
             width: root.width - 40,
             height: 32,
-            color: #0F172A,
-            font_size: 22,
-            bold: true,
+            style: [foreground(#0F172A), font_size(22), weight(700)],
         )
         Stack(
             id: "top_left",
@@ -23,11 +21,9 @@ Screen(
             height: 100,
             align_x: start,
             align_y: start,
-            padding: 10,
-            background: #FFFFFF,
-            corner_radius: 8,
+            style: [padding(10), background(#FFFFFF), radius(8)],
         ) {
-            Button(text: "Top left", width: 88, height: 34, background: #DBEAFE)
+            Button(text: "Top left", width: 88, height: 34, style: [background(#DBEAFE)])
         }
         Stack(
             align_x: center,
@@ -37,10 +33,9 @@ Screen(
             y: 60,
             width: 160,
             height: 100,
-            background: #FFFFFF,
-            corner_radius: 8,
+            style: [background(#FFFFFF), radius(8)],
         ) {
-            Button(text: "Centered", width: 88, height: 34, background: #DCFCE7)
+            Button(text: "Centered", width: 88, height: 34, style: [background(#DCFCE7)])
         }
         Stack(
             id: "bottom_right",
@@ -50,11 +45,9 @@ Screen(
             height: 100,
             align_x: end,
             align_y: end,
-            padding: 10,
-            background: #FFFFFF,
-            corner_radius: 8,
+            style: [padding(10), background(#FFFFFF), radius(8)],
         ) {
-            Button(text: "Bottom right", width: 112, height: 34, background: #FCE7F3)
+            Button(text: "Bottom right", width: 112, height: 34, style: [background(#FCE7F3)])
         }
     }
 }

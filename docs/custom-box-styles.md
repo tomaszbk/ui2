@@ -2,7 +2,7 @@
 
 The custom renderer draws borders inside the declared frame, independently of
 background transparency. Each side can override `border_color`, including black.
-Rounded corners join the sides as a single ring. `border_pattern: dashed` uses
+Rounded corners join the sides as a single ring. `border_pattern(dashed)` uses
 logical `dash_length` and `dash_gap` (defaults 6 and 4), continuing around corners.
 Widths that exhaust the frame are proportionally clamped so the ring stays inside.
 
@@ -13,27 +13,30 @@ View(
     on_click: app.open(),
     width: 200,
     height: 80,
-    background: #ffffff,
-    radius: 12,
-    border_width: 2,
-    border_color: #64748b,
-    border_top_color: #2563eb,
-    hover_background: #eff6ff,
-    hover_color: #1a1a2e,
-    focus_border_color: #2563eb,
-    focus_outline_color: #2563eb,
-    focus_outline_width: 3,
-    focus_outline_offset: 3,
-    pressed_background: #dbeafe,
-    disabled_background: #f1f5f9,
+    style: [
+        background(#ffffff),
+        radius(12),
+        border_width(2),
+        border_color(#64748b),
+        border_top_color(#2563eb),
+        hover([background(#eff6ff), foreground(#1a1a2e)]),
+        focus([
+            border_color(#2563eb),
+            outline_color(#2563eb),
+            outline_width(3),
+            outline_offset(3)
+        ]),
+        pressed([background(#dbeafe)]),
+        disabled([background(#f1f5f9)])
+    ],
 )
 ```
 
-Visual state properties use the `hover_`, `focus_`, `pressed_` and `disabled_`
-prefixes with `background`, `radius`, `transparent`, `border_color`, `border_width`,
-individual border widths/colors, `border_pattern`, `dash_length`, `dash_gap`,
-`outline_color`, `outline_width` or `outline_offset`. `hover_color` and corresponding
-state prefixes change the caption color using `TextStylePatch`. Rich Run colors
+Visual states compose nested `hover([...])`, `focus([...])`, `pressed([...])` and
+`disabled([...])` patches inside the element's style list. These accept box
+helpers and `foreground(...)`; layout and metric text properties are rejected
+inside an interaction state. `foreground(...)` changes the caption color.
+Rich Run colors
 retain their explicit styles. Outlines paint outside the frame and preserve hit
 bounds; a nonnegative offset separates them from the border. Parent clipping
 applies to outlines.

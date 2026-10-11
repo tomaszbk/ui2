@@ -416,6 +416,8 @@ pub struct Element {
 	mounted_parent_path string
 	mounted_scroll_id string
 	mounted_tooltip_key string
+	// Composite constructor refinements retain their unstyled root defaults.
+	style_default_box ?BoxStyle
 	// Constructor projections compare against the snapshot they received, even
 	// when effects have subsequently updated the retained declaration.
 	compiled_source &VmlSourceSnapshot = unsafe { nil }
@@ -446,6 +448,7 @@ pub:
 	layout            LayoutSpec
 	box               BoxStyle
 	interaction_style InteractionStyle // custom renderer: sparse visual state overrides
+	content_padding   ?LayoutPadding // custom button text/image content inset
 	content_size      LayoutSize       // custom: fixed logical composition, fit within frame
 	is_vector_canvas  bool            // preserves vector semantics with an empty shapes array
 	vector_shapes     []VectorShape    // custom: retained local geometry, clipped to the view frame
@@ -587,6 +590,7 @@ pub fn validate_element_tree(root Element) ! {
 
 fn validate_element_node(el Element, path string, mut ids map[string]bool) ! {
 	validate_drag_element(el)!
+	validate_content_padding(el)!
 	if !finite_number(el.opacity) || el.opacity < 0 || el.opacity > 1 {
 		return error('opacity must be finite and between zero and one at ${path}')
 	}

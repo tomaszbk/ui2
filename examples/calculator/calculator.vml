@@ -1,38 +1,32 @@
 Screen(
     id: "root",
-    background: #F1F5F9,
+    style: [background(#F1F5F9)],
 ) {
     Flex(
-        padding: 12,
         justify: center,
         align_items: center,
-        transparent: true,
+        style: [padding(12), transparent(true)],
     ) {
         Column(
             id: "calculator",
             width: 260,
             max_width: 260,
             height: 340,
-            padding: 12,
             gap: 8,
-            background: #1F2937,
-            corner_radius: 12,
+            style: [padding(12), background(#1F2937), radius(12)],
         ) {
             Row(
                 height: 56,
-                padding_left: 10,
-                padding_right: 10,
-                background: #FFFFFF,
-                corner_radius: 8,
+                style: [padding_left(10), padding_right(10), background(#FFFFFF), radius(8)],
             ) {
-                Label(id: "display", text: app.display, flex_grow: 1, color: #111827, font_size: 28, align: right)
+                Label(id: "display", text: app.display, flex_grow: 1, style: [foreground(#111827), font_size(28), text_align(right)])
             }
             Grid(
                 columns: 4,
                 rows: 5,
                 flex_grow: 1,
                 spacing: 8,
-                transparent: true,
+                style: [transparent(true)],
             ) {
                 Repeater(
                     model: app.keys,
@@ -42,12 +36,7 @@ Screen(
                         text: item.text,
                         on_click: app.press(item.text),
                         native: true,
-                        background: item.role == "clear" ? #EF4444 : item.role == "operator" ? #3478D4 : item.role == "utility" ? #CBD5E1 : #F8FAFC,
-                        color: item.role == "clear" || item.role == "operator" ? #FFFFFF : #111827,
-                        font_size: 18,
-                        bold: item.text == "=",
-                        align: center,
-                        corner_radius: 8,
+                        style: [background(item.role == "clear" ? #EF4444 : item.role == "operator" ? #3478D4 : item.role == "utility" ? #CBD5E1 : #F8FAFC), foreground(item.role == "clear" || item.role == "operator" ? #FFFFFF : #111827), font_size(18), weight(item.text == "=" ? 700 : 400), text_align(center), radius(8)],
                     )
                 }
             }

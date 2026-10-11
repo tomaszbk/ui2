@@ -1,9 +1,9 @@
 Screen(
     id: "root",
-    background: #F1F5F9,
+    style: [background(#F1F5F9)],
 ) {
     Absolute(
-        transparent: true,
+        style: [transparent(true)],
     ) {
         Label(
             text: "Responsive tags",
@@ -11,9 +11,7 @@ Screen(
             y: 16,
             width: root.width - 40,
             height: 32,
-            color: #0F172A,
-            font_size: 22,
-            bold: true,
+            style: [foreground(#0F172A), font_size(22), weight(700)],
         )
         Flex(
             id: "tags",
@@ -21,20 +19,18 @@ Screen(
             y: 60,
             width: root.width - 40,
             height: 140,
-            padding: 10,
             gap: 8,
             line_gap: 8,
             wrap: true,
             align_items: start,
-            background: #FFFFFF,
-            corner_radius: 10,
+            style: [padding(10), background(#FFFFFF), radius(10)],
         ) {
-            Button(text: "Design", width: 96, height: 34, background: #DBEAFE, corner_radius: 17)
-            Button(text: "Development", width: 120, height: 34, background: #DCFCE7, corner_radius: 17)
-            Button(text: "Review", width: 80, height: 34, background: #FEF3C7, corner_radius: 17)
-            Button(text: "Research", width: 110, height: 34, background: #EDE9FE, corner_radius: 17)
-            Button(text: "Documentation", width: 140, height: 34, background: #FCE7F3, corner_radius: 17)
-            Button(text: "QA", width: 70, height: 34, background: #E2E8F0, corner_radius: 17)
+            Button(text: "Design", width: 96, height: 34, style: [background(#DBEAFE), radius(17)])
+            Button(text: "Development", width: 120, height: 34, style: [background(#DCFCE7), radius(17)])
+            Button(text: "Review", width: 80, height: 34, style: [background(#FEF3C7), radius(17)])
+            Button(text: "Research", width: 110, height: 34, style: [background(#EDE9FE), radius(17)])
+            Button(text: "Documentation", width: 140, height: 34, style: [background(#FCE7F3), radius(17)])
+            Button(text: "QA", width: 70, height: 34, style: [background(#E2E8F0), radius(17)])
         }
     }
 }

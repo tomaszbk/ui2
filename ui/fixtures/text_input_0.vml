@@ -2,9 +2,8 @@ TextArea(
     id: "rich",
     readonly: true,
     disable_scroll: true,
-    font_size: 18,
-    color: #123456,
+    style: [font_size(18), foreground(#123456)],
 ) {
-    Run(text: "Hola ", weight: 700)
-    Run(text: "ñ", italic: true)
+    Run(text: "Hola ", style: [weight(700)])
+    Run(text: "ñ", style: [italic(true)])
 }

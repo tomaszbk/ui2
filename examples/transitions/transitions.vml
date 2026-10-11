@@ -1,9 +1,9 @@
 Screen(
     id: "root",
-    background: #F1F5F9,
+    style: [background(#F1F5F9)],
 ) {
     Absolute(
-        transparent: true,
+        style: [transparent(true)],
     ) {
         View(
             id: "card",
@@ -11,22 +11,19 @@ Screen(
             y: 16,
             width: root.width - 32,
             height: root.height - 32,
-            background: #FFFFFF,
-            corner_radius: 10,
+            style: [background(#FFFFFF), radius(10)],
         ) {
             Absolute(
-                transparent: true,
+                style: [transparent(true)],
             ) {
-                Label(text: "Transitions", x: 18, y: 14, width: 180, height: 28, color: #111827, font_size: 18, bold: true)
+                Label(text: "Transitions", x: 18, y: 14, width: 180, height: 28, style: [foreground(#111827), font_size(18), weight(700)])
                 Label(
                     text: app.target_label,
                     x: card.width - 286,
                     y: 18,
                     width: 150,
                     height: 20,
-                    align: right,
-                    color: #64748B,
-                    font_size: 11,
+                    style: [text_align(right), foreground(#64748B), font_size(11)],
                 )
                 Button(
                     id: "slide",
@@ -44,19 +41,17 @@ Screen(
                     y: 62,
                     width: card.width - 36,
                     height: card.height - 146,
-                    background: #F8FAFC,
-                    corner_radius: 9,
+                    style: [background(#F8FAFC), radius(9)],
                 ) {
                     Absolute(
-                        transparent: true,
+                        style: [transparent(true)],
                     ) {
                         View(
                             x: 24,
                             y: 24,
                             width: stage.width - 48,
                             height: stage.height - 48,
-                            background: #FFFFFF,
-                            corner_radius: 8,
+                            style: [background(#FFFFFF), radius(8)],
                         )
                         View(
                             id: "moving_tile",
@@ -64,11 +59,10 @@ Screen(
                             y: 24,
                             width: 82,
                             height: 82,
-                            background: #4F6FA8,
-                            corner_radius: 14,
+                            style: [background(#4F6FA8), radius(14)],
                         ) {
                             Absolute(
-                                transparent: true,
+                                style: [transparent(true)],
                             ) {
                                 Label(
                                     text: "V",
@@ -76,10 +70,7 @@ Screen(
                                     y: 0,
                                     width: 82,
                                     height: 82,
-                                    align: center,
-                                    color: #FFFFFF,
-                                    font_size: 34,
-                                    bold: true,
+                                    style: [text_align(center), foreground(#FFFFFF), font_size(34), weight(700)],
                                 )
                             }
                         }
@@ -90,13 +81,12 @@ Screen(
                     y: card.height - 66,
                     width: card.width - 36,
                     height: 6,
-                    background: #E2E8F0,
-                    corner_radius: 3,
+                    style: [background(#E2E8F0), radius(3)],
                 ) {
                     Absolute(
-                        transparent: true,
+                        style: [transparent(true)],
                     ) {
-                        View(x: 0, y: 0, width: app.progress *(card.width - 36), height: 6, background: #60A5FA, corner_radius: 3)
+                        View(x: 0, y: 0, width: app.progress *(card.width - 36), height: 6, style: [background(#60A5FA), radius(3)])
                     }
                 }
                 Label(
@@ -106,9 +96,7 @@ Screen(
                     y: card.height - 48,
                     width: card.width - 36,
                     height: 20,
-                    align: center,
-                    color: #166534,
-                    font_size: 11,
+                    style: [text_align(center), foreground(#166534), font_size(11)],
                 )
             }
         }

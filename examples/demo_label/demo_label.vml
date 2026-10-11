@@ -1,9 +1,9 @@
 Screen(
     id: "root",
-    background: #F1F5F9,
+    style: [background(#F1F5F9)],
 ) {
     Absolute(
-        transparent: true,
+        style: [transparent(true)],
     ) {
         View(
             id: "card",
@@ -11,11 +11,10 @@ Screen(
             y: 16,
             width: root.width - 32,
             height: root.height - 32,
-            background: #FFFFFF,
-            corner_radius: 10,
+            style: [background(#FFFFFF), radius(10)],
         ) {
             Absolute(
-                transparent: true,
+                style: [transparent(true)],
             ) {
                 Label(
                     id: "centered_label",
@@ -24,10 +23,7 @@ Screen(
                     y: 24,
                     width: card.width - 48,
                     height: card.height - 48,
-                    color: #1E293B,
-                    font_size: 20,
-                    bold: true,
-                    align: center,
+                    style: [foreground(#1E293B), font_size(20), weight(700), text_align(center)],
                 )
             }
         }

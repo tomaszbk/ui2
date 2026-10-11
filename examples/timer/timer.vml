@@ -1,62 +1,52 @@
 Screen(
     id: "root",
-    background: #F1F5F9,
+    style: [background(#F1F5F9)],
 ) {
     Column(
-        padding: 16,
-        transparent: true,
+        style: [padding(16), transparent(true)],
     ) {
         Column(
             id: "card",
             flex_grow: 1,
-            padding: 20,
             gap: 10,
-            background: #FFFFFF,
-            corner_radius: 10,
+            style: [padding(20), background(#FFFFFF), radius(10)],
         ) {
             Row(
                 height: 34,
                 align_items: center,
-                transparent: true,
+                style: [transparent(true)],
             ) {
-                Label(text: "Timer", flex_grow: 1, height: 28, color: #111827, font_size: 18, bold: true)
+                Label(text: "Timer", flex_grow: 1, height: 28, style: [foreground(#111827), font_size(18), weight(700)])
                 Label(
                     text: app.elapsed_label,
                     width: 152,
                     height: 34,
-                    align: right,
-                    color: #2563EB,
-                    font_size: 21,
-                    bold: true,
-                    font_family: "Courier New",
+                    style: [text_align(right), foreground(#2563EB), font_size(21), weight(700), font_family("Courier New")],
                 )
             }
-            Label(text: "Elapsed time", height: 20, color: #475569, font_size: 12)
+            Label(text: "Elapsed time", height: 20, style: [foreground(#475569), font_size(12)])
             ProgressBar(
                 id: "elapsed_progress",
                 height: 28,
                 value: app.elapsed,
                 max: app.duration,
-                background: #E2E8F0,
-                color: app.running ? #22C55E : #60A5FA,
-                corner_radius: 14,
                 accessibility_label: "Elapsed time",
+                style: [background(#E2E8F0), foreground(app.running ? #22C55E : #60A5FA), radius(14)],
             )
-            View(height: 12, transparent: true)
+            View(height: 12, style: [transparent(true)])
             Row(
                 height: 20,
-                transparent: true,
+                style: [transparent(true)],
             ) {
-                Label(text: "Duration", flex_grow: 1, color: #475569, font_size: 12, bold: true)
-                Label(text: app.duration_label, width: 140, align: right, color: #334155, font_size: 12)
+                Label(text: "Duration", flex_grow: 1, style: [foreground(#475569), font_size(12), weight(700)])
+                Label(text: app.duration_label, width: 140, style: [text_align(right), foreground(#334155), font_size(12)])
             }
             Column(
-                padding_left: 16,
-                padding_right: 16,
                 gap: 6,
-                transparent: true,
+                style: [padding_left(16), padding_right(16), transparent(true)],
             ) {
                 Slider(
+                    track_inset: 11,
                     id: "duration_slider",
                     on_change: callback_duration_slider,
                     height: 24,
@@ -64,27 +54,26 @@ Screen(
                     max: 30,
                     value: app.duration,
                     step: 1,
-                    padding: 11,
                     value_track: true,
-                    background: #CBD5E1,
                     value_track_color: #BFDBFE,
                     thumb_color: #2563EB,
                     thumb_size: 22,
                     accessibility_label: "Timer duration",
+                    style: [background(#CBD5E1)],
                 )
                 Row(
                     height: 18,
-                    transparent: true,
+                    style: [transparent(true)],
                 ) {
-                    Label(text: "1 s", flex_grow: 1, color: #64748B, font_size: 10)
-                    Label(text: "30 s", width: 50, align: right, color: #64748B, font_size: 10)
+                    Label(text: "1 s", flex_grow: 1, style: [foreground(#64748B), font_size(10)])
+                    Label(text: "30 s", width: 50, style: [text_align(right), foreground(#64748B), font_size(10)])
                 }
             }
             Row(
                 justify: center,
                 gap: 16,
                 height: 34,
-                transparent: true,
+                style: [transparent(true)],
             ) {
                 Button(id: "start", text: app.start_label, on_click: callback_start, native: true, width: 110, height: 34)
                 Button(
@@ -97,8 +86,8 @@ Screen(
                     height: 34,
                 )
             }
-            View(flex_grow: 1, transparent: true)
-            Label(id: "timer_status", text: app.status, height: 18, align: center, color: #166534, font_size: 11)
+            View(flex_grow: 1, style: [transparent(true)])
+            Label(id: "timer_status", text: app.status, height: 18, style: [text_align(center), foreground(#166534), font_size(11)])
         }
     }
 }

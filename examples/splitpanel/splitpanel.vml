@@ -1,9 +1,9 @@
 Screen(
     id: "root",
-    background: #F1F5F9,
+    style: [background(#F1F5F9)],
 ) {
     Absolute(
-        transparent: true,
+        style: [transparent(true)],
     ) {
         View(
             id: "card",
@@ -11,13 +11,12 @@ Screen(
             y: 16,
             width: root.width - 32,
             height: root.height - 32,
-            background: #FFFFFF,
-            corner_radius: 10,
+            style: [background(#FFFFFF), radius(10)],
         ) {
             Absolute(
-                transparent: true,
+                style: [transparent(true)],
             ) {
-                Label(text: "Split panel", x: 18, y: 14, width: 150, height: 28, color: #111827, font_size: 18, bold: true)
+                Label(text: "Split panel", x: 18, y: 14, width: 150, height: 28, style: [foreground(#111827), font_size(18), weight(700)])
                 Label(
                     id: "split_status",
                     text: app.status,
@@ -25,9 +24,7 @@ Screen(
                     y: 18,
                     width: card.width - 470,
                     height: 20,
-                    align: center,
-                    color: #64748B,
-                    font_size: 11,
+                    style: [text_align(center), foreground(#64748B), font_size(11)],
                 )
                 Button(text: "Top −", on_click: app.top_less(), native: true, x: card.width - 282, y: 12, width: 60, height: 32)
                 Button(text: "Top +", on_click: app.top_more(), native: true, x: card.width - 216, y: 12, width: 60, height: 32)
@@ -49,11 +46,10 @@ Screen(
                     y: 94,
                     width: card.width - 36,
                     height: card.height - 112,
-                    background: #CBD5E1,
-                    corner_radius: 8,
+                    style: [background(#CBD5E1), radius(8)],
                 ) {
                     Absolute(
-                        transparent: true,
+                        style: [transparent(true)],
                     ) {
                         View(
                             id: "top_panel",
@@ -61,11 +57,10 @@ Screen(
                             y: 1,
                             width: stage.width - 2,
                             height: (stage.height - 10) * app.top_weight,
-                            background: #DCFCE7,
-                            corner_radius: 7,
+                            style: [background(#DCFCE7), radius(7)],
                         ) {
                             Absolute(
-                                transparent: true,
+                                style: [transparent(true)],
                             ) {
                                 Label(
                                     text: "Top pane",
@@ -73,9 +68,7 @@ Screen(
                                     y: 12,
                                     width: top_panel.width - 28,
                                     height: 22,
-                                    color: #166534,
-                                    font_size: 15,
-                                    bold: true,
+                                    style: [foreground(#166534), font_size(15), weight(700)],
                                 )
                                 Label(
                                     text: "A responsive panel spanning the full width.",
@@ -83,8 +76,7 @@ Screen(
                                     y: 38,
                                     width: top_panel.width - 28,
                                     height: 20,
-                                    color: #15803D,
-                                    font_size: 11,
+                                    style: [foreground(#15803D), font_size(11)],
                                 )
                             }
                         }
@@ -94,10 +86,10 @@ Screen(
                             y: (stage.height - 10) * app.top_weight + 9,
                             width: stage.width - 2,
                             height: stage.height -(stage.height - 10) * app.top_weight - 10,
-                            background: #CBD5E1,
+                            style: [background(#CBD5E1)],
                         ) {
                             Absolute(
-                                transparent: true,
+                                style: [transparent(true)],
                             ) {
                                 TextArea(
                                     id: "split_notes",
@@ -106,10 +98,7 @@ Screen(
                                     y: 0,
                                     width: (lower_panel.width - 8) * app.left_weight,
                                     height: lower_panel.height,
-                                    background: #FEF3C7,
-                                    color: #713F12,
-                                    font_size: 12,
-                                    corner_radius: 7,
+                                    style: [background(#FEF3C7), foreground(#713F12), font_size(12), radius(7)],
                                 )
                                 Scroll(
                                     id: "split_grid",
@@ -117,20 +106,20 @@ Screen(
                                     y: 0,
                                     width: lower_panel.width -(lower_panel.width - 8) * app.left_weight - 8,
                                     height: lower_panel.height,
-                                    background: #F8FAFC,
+                                    style: [background(#F8FAFC)],
                                 ) {
                                     Absolute(
-                                        transparent: true,
+                                        style: [transparent(true)],
                                     ) {
                                         View(
                                             x: 0,
                                             y: 0,
                                             width: split_grid.width - 16,
                                             height: 32,
-                                            background: #334155,
+                                            style: [background(#334155)],
                                         ) {
                                             Absolute(
-                                                transparent: true,
+                                                style: [transparent(true)],
                                             ) {
                                                 Label(
                                                     text: "Name",
@@ -138,9 +127,7 @@ Screen(
                                                     y: 6,
                                                     width: (split_grid.width - 36) * 0.34,
                                                     height: 20,
-                                                    color: #FFFFFF,
-                                                    font_size: 11,
-                                                    bold: true,
+                                                    style: [foreground(#FFFFFF), font_size(11), weight(700)],
                                                 )
                                                 Label(
                                                     text: "Role",
@@ -148,9 +135,7 @@ Screen(
                                                     y: 6,
                                                     width: (split_grid.width - 36) * 0.38,
                                                     height: 20,
-                                                    color: #FFFFFF,
-                                                    font_size: 11,
-                                                    bold: true,
+                                                    style: [foreground(#FFFFFF), font_size(11), weight(700)],
                                                 )
                                                 Label(
                                                     text: "Team",
@@ -158,9 +143,7 @@ Screen(
                                                     y: 6,
                                                     width: (split_grid.width - 36) * 0.28,
                                                     height: 20,
-                                                    color: #FFFFFF,
-                                                    font_size: 11,
-                                                    bold: true,
+                                                    style: [foreground(#FFFFFF), font_size(11), weight(700)],
                                                 )
                                             }
                                         }
@@ -173,10 +156,10 @@ Screen(
                                                 y: 34 + index * 34,
                                                 width: split_grid.width - 16,
                                                 height: 32,
-                                                background: index == 1 || index == 3 ? #F1F5F9 : #FFFFFF,
+                                                style: [background(index == 1 || index == 3 ? #F1F5F9 : #FFFFFF)],
                                             ) {
                                                 Absolute(
-                                                    transparent: true,
+                                                    style: [transparent(true)],
                                                 ) {
                                                     Label(
                                                         text: item.name,
@@ -184,8 +167,7 @@ Screen(
                                                         y: 6,
                                                         width: (split_grid.width - 36) * 0.34,
                                                         height: 20,
-                                                        color: #1E293B,
-                                                        font_size: 11,
+                                                        style: [foreground(#1E293B), font_size(11)],
                                                     )
                                                     Label(
                                                         text: item.role,
@@ -193,8 +175,7 @@ Screen(
                                                         y: 6,
                                                         width: (split_grid.width - 36) * 0.38,
                                                         height: 20,
-                                                        color: #1E293B,
-                                                        font_size: 11,
+                                                        style: [foreground(#1E293B), font_size(11)],
                                                     )
                                                     Label(
                                                         text: item.team,
@@ -202,8 +183,7 @@ Screen(
                                                         y: 6,
                                                         width: (split_grid.width - 36) * 0.28,
                                                         height: 20,
-                                                        color: #1E293B,
-                                                        font_size: 11,
+                                                        style: [foreground(#1E293B), font_size(11)],
                                                     )
                                                 }
                                             }

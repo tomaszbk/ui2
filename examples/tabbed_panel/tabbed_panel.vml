@@ -1,11 +1,11 @@
 Screen(
     id: "root",
-    background: #F1F5F9,
+    style: [background(#F1F5F9)],
 ) {
     Absolute(
-        transparent: true,
+        style: [transparent(true)],
     ) {
-        Label(text: "Settings", x: 20, y: 14, width: root.width - 40, height: 30, color: #0F172A, font_size: 20, bold: true)
+        Label(text: "Settings", x: 20, y: 14, width: root.width - 40, height: 30, style: [foreground(#0F172A), font_size(20), weight(700)])
         TabbedPanel(
             id: "settings",
             x: 20,
@@ -19,8 +19,7 @@ Screen(
             active_tab_background: #FFFFFF,
             tab_color: #475569,
             active_tab_color: #1D4ED8,
-            background: #FFFFFF,
-            corner_radius: 10,
+            style: [background(#FFFFFF), radius(10)],
         ) {
             Tab(
                 id: "overview",
@@ -28,7 +27,7 @@ Screen(
                 on_select: app.show_overview(),
             ) {
                 Absolute(
-                    transparent: true,
+                    style: [transparent(true)],
                 ) {
                     Label(
                         text: "Account overview",
@@ -36,11 +35,9 @@ Screen(
                         y: 30,
                         width: 300,
                         height: 32,
-                        color: #0F172A,
-                        font_size: 22,
-                        bold: true,
+                        style: [foreground(#0F172A), font_size(22), weight(700)],
                     )
-                    Label(text: "Reusable content for the active tab.", x: 24, y: 70, width: 330, height: 24, color: #64748B)
+                    Label(text: "Reusable content for the active tab.", x: 24, y: 70, width: 330, height: 24, style: [foreground(#64748B)])
                 }
             }
             Tab(
@@ -49,7 +46,7 @@ Screen(
                 on_select: app.show_activity(),
             ) {
                 Absolute(
-                    transparent: true,
+                    style: [transparent(true)],
                 ) {
                     Label(
                         text: "Recent activity",
@@ -57,9 +54,7 @@ Screen(
                         y: 30,
                         width: 300,
                         height: 32,
-                        color: #14532D,
-                        font_size: 22,
-                        bold: true,
+                        style: [foreground(#14532D), font_size(22), weight(700)],
                     )
                 }
             }
@@ -69,7 +64,7 @@ Screen(
                 on_select: app.show_security(),
             ) {
                 Absolute(
-                    transparent: true,
+                    style: [transparent(true)],
                 ) {
                     Label(
                         text: "Security options",
@@ -77,9 +72,7 @@ Screen(
                         y: 30,
                         width: 300,
                         height: 32,
-                        color: #7C2D12,
-                        font_size: 22,
-                        bold: true,
+                        style: [foreground(#7C2D12), font_size(22), weight(700)],
                     )
                 }
             }

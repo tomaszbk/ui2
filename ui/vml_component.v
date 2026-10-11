@@ -25,6 +25,12 @@ mut:
 	publish      fn (string, Element) = compiled_vml_publish
 	command_handler fn (VmlHostCommand) ! = compiled_vml_host_command
 	app_revision &Signal[u64]
+	theme Theme
+	theme_colors map[string]&Signal[u32]
+	theme_numbers map[string]&Signal[f64]
+	theme_spacing map[string]&Signal[f64]
+	theme_radii map[string]&Signal[f64]
+	theme_font_sizes map[string]&Signal[f64]
 }
 
 @[heap]
@@ -64,27 +70,36 @@ mut:
 }
 
 pub fn new_vml_component(name string) !&CompiledVmlComponent {
-	return new_vml_owner(name, 'vml:' + name.bytes().hex())
+	return new_vml_owner(name, 'vml:' + name.bytes().hex(), Theme{})
 }
 
 // A document preserves application-facing ids. Reusable components below it
 // have their own namespace, so two instances cannot collide.
-pub fn new_vml_document(name string) !&CompiledVmlComponent {
-	return new_vml_owner(name, '')
+@[params]
+pub struct VmlDocumentConfig {
+pub:
+	theme ?Theme
 }
 
-fn new_vml_owner(name string, namespace string) !&CompiledVmlComponent {
+pub fn new_vml_document(name string, config VmlDocumentConfig) !&CompiledVmlComponent {
+	return new_vml_owner(name, '', config.theme or { vml_initial_theme() })
+}
+
+fn new_vml_owner(name string, namespace string, theme Theme) !&CompiledVmlComponent {
+	theme.validate()!
 	mut runtime := new_signal_runtime()
 	mut scope := runtime.scope()!
 	revision := new_signal(mut scope, u64(0), name: '@app')!
-	return &CompiledVmlComponent{
+	mut owner := &CompiledVmlComponent{
 		runtime:            runtime
 		scope:              scope
 		name:               name
 		namespace:          namespace
 		identity_namespace: next_vml_owner_id()
 		app_revision:       revision
+		theme: Theme{ colors: theme.colors.clone(), spacing: theme.spacing.clone(), radii: theme.radii.clone(), font_sizes: theme.font_sizes.clone() }
 	}
+	return owner
 }
 
 pub fn (component &CompiledVmlComponent) is_disposed() bool {
@@ -117,7 +132,7 @@ pub fn (mut component CompiledVmlComponent) child(name string) !&CompiledVmlComp
 		if !existing.is_disposed() { return existing }
 	}
 	scope := component.scope.child()!
-	child := &CompiledVmlComponent{
+	mut child := &CompiledVmlComponent{
 		runtime:            component.runtime
 		scope:              scope
 		namespace:          if component.namespace.len == 0 {

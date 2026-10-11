@@ -60,10 +60,14 @@ its value; passing `bind.name: writable_source` connects writes to the source.
 Writing requires an explicit binding. A local editable copy uses `state`.
 `text: value` displays strings or numbers; `bind.text` requires a writable
 string. Numeric editing therefore needs an explicit conversion in application
-logic. VML enum properties use bare values, for example `align: right`.
+logic. VML enum values are bare, for example `style: [text_align(right)]`.
 `TextInput` edits one line and supports password entry and submit events;
 `TextArea` edits multiple lines and accepts rich `Run` content. They are separate
 controls, with `text_input` and `text_area` constructors in the V API.
+
+Presentation uses a single `style: [...]` argument. Styles can be declared at
+document scope or inside a component and composed with local overrides. See
+[VML styles and themes](vml-styles.md) for declarations, tokens and variants.
 
 ## Handlers and lifetime
 

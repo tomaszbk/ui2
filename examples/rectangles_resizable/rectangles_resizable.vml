@@ -1,9 +1,9 @@
 Screen(
     id: "root",
-    background: #F1F5F9,
+    style: [background(#F1F5F9)],
 ) {
     Absolute(
-        transparent: true,
+        style: [transparent(true)],
     ) {
         View(
             id: "card",
@@ -11,11 +11,10 @@ Screen(
             y: 16,
             width: root.width - 32,
             height: root.height - 32,
-            background: #FFFFFF,
-            corner_radius: 10,
+            style: [background(#FFFFFF), radius(10)],
         ) {
             Absolute(
-                transparent: true,
+                style: [transparent(true)],
             ) {
                 Label(
                     text: "Resizable rectangles",
@@ -23,10 +22,7 @@ Screen(
                     y: 14,
                     width: card.width - 36,
                     height: 28,
-                    align: center,
-                    color: #111827,
-                    font_size: 18,
-                    bold: true,
+                    style: [text_align(center), foreground(#111827), font_size(18), weight(700)],
                 )
                 Label(
                     text: "Each rounded box takes an equal share of the available row.",
@@ -34,9 +30,7 @@ Screen(
                     y: 42,
                     width: card.width - 36,
                     height: 18,
-                    align: center,
-                    color: #64748B,
-                    font_size: 11,
+                    style: [text_align(center), foreground(#64748B), font_size(11)],
                 )
                 Repeater(
                     model: app.colors,
@@ -47,11 +41,10 @@ Screen(
                         y: 72,
                         width: (card.width - 62) / 4,
                         height: card.height - 90,
-                        background: item.color,
-                        corner_radius: 10,
+                        style: [background(item.color), radius(10)],
                     ) {
                         Absolute(
-                            transparent: true,
+                            style: [transparent(true)],
                         ) {
                             Label(
                                 text: item.name,
@@ -59,10 +52,7 @@ Screen(
                                 y: (card.height - 110) / 2,
                                 width: (card.width - 62) / 4,
                                 height: 20,
-                                align: center,
-                                color: item.text_color,
-                                font_size: 13,
-                                bold: true,
+                                style: [text_align(center), foreground(item.text_color), font_size(13), weight(700)],
                             )
                         }
                     }

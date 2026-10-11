@@ -31,7 +31,7 @@ Text typed into the search field survives unrelated actions and resizes.
 
 ```vml
 Flex(orientation: horizontal, gap: 12, wrap: true, align_items: center) {
-    Label(text: "Projects", font_size: 22, flex_grow: 1)
+    Label(text: "Projects", flex_grow: 1, style: [font_size(22)])
     Button(text: "New project")
     Button(text: "Settings")
 }

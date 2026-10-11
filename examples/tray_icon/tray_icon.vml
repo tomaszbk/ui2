@@ -1,9 +1,9 @@
 Screen(
     id: "root",
-    background: #F1F5F9,
+    style: [background(#F1F5F9)],
 ) {
     Absolute(
-        transparent: true,
+        style: [transparent(true)],
     ) {
         View(
             id: "card",
@@ -11,11 +11,10 @@ Screen(
             y: 16,
             width: root.width - 32,
             height: root.height - 32,
-            background: #FFFFFF,
-            corner_radius: 10,
+            style: [background(#FFFFFF), radius(10)],
         ) {
             Absolute(
-                transparent: true,
+                style: [transparent(true)],
             ) {
                 Label(
                     text: "Tray icon",
@@ -23,9 +22,7 @@ Screen(
                     y: 14,
                     width: card.width - 36,
                     height: 28,
-                    color: #111827,
-                    font_size: 18,
-                    bold: true,
+                    style: [foreground(#111827), font_size(18), weight(700)],
                 )
                 Label(
                     id: "backend_note",
@@ -34,21 +31,19 @@ Screen(
                     y: 44,
                     width: card.width - 36,
                     height: 20,
-                    color: #64748B,
-                    font_size: 12,
+                    style: [foreground(#64748B), font_size(12)],
                 )
                 View(
                     x: 18,
                     y: 74,
                     width: 150,
                     height: 54,
-                    background: #EFF6FF,
-                    corner_radius: 8,
+                    style: [background(#EFF6FF), radius(8)],
                 ) {
                     Absolute(
-                        transparent: true,
+                        style: [transparent(true)],
                     ) {
-                        Label(text: "Docked", x: 12, y: 8, width: 126, height: 16, color: #1D4ED8, font_size: 11)
+                        Label(text: "Docked", x: 12, y: 8, width: 126, height: 16, style: [foreground(#1D4ED8), font_size(11)])
                         Label(
                             id: "docked_state",
                             text: app.docked ? "yes" : "no",
@@ -56,9 +51,7 @@ Screen(
                             y: 26,
                             width: 126,
                             height: 20,
-                            color: #1E3A8A,
-                            font_size: 15,
-                            bold: true,
+                            style: [foreground(#1E3A8A), font_size(15), weight(700)],
                         )
                     }
                 }
@@ -67,13 +60,12 @@ Screen(
                     y: 74,
                     width: 150,
                     height: 54,
-                    background: #EFF6FF,
-                    corner_radius: 8,
+                    style: [background(#EFF6FF), radius(8)],
                 ) {
                     Absolute(
-                        transparent: true,
+                        style: [transparent(true)],
                     ) {
-                        Label(text: "Status", x: 12, y: 8, width: 126, height: 16, color: #1D4ED8, font_size: 11)
+                        Label(text: "Status", x: 12, y: 8, width: 126, height: 16, style: [foreground(#1D4ED8), font_size(11)])
                         Label(
                             id: "status_state",
                             text: app.status,
@@ -81,9 +73,7 @@ Screen(
                             y: 26,
                             width: 126,
                             height: 20,
-                            color: #1E3A8A,
-                            font_size: 15,
-                            bold: true,
+                            style: [foreground(#1E3A8A), font_size(15), weight(700)],
                         )
                     }
                 }
@@ -92,13 +82,12 @@ Screen(
                     y: 74,
                     width: 150,
                     height: 54,
-                    background: #EFF6FF,
-                    corner_radius: 8,
+                    style: [background(#EFF6FF), radius(8)],
                 ) {
                     Absolute(
-                        transparent: true,
+                        style: [transparent(true)],
                     ) {
-                        Label(text: "Notifications", x: 12, y: 8, width: 126, height: 16, color: #1D4ED8, font_size: 11)
+                        Label(text: "Notifications", x: 12, y: 8, width: 126, height: 16, style: [foreground(#1D4ED8), font_size(11)])
                         Label(
                             id: "notifications_state",
                             text: app.notifications ? "on" : "off",
@@ -106,9 +95,7 @@ Screen(
                             y: 26,
                             width: 126,
                             height: 20,
-                            color: #1E3A8A,
-                            font_size: 15,
-                            bold: true,
+                            style: [foreground(#1E3A8A), font_size(15), weight(700)],
                         )
                     }
                 }
@@ -117,11 +104,10 @@ Screen(
                     y: 142,
                     width: card.width - 36,
                     height: 44,
-                    background: #DCFCE7,
-                    corner_radius: 8,
+                    style: [background(#DCFCE7), radius(8)],
                 ) {
                     Absolute(
-                        transparent: true,
+                        style: [transparent(true)],
                     ) {
                         Label(
                             id: "last_action",
@@ -130,8 +116,7 @@ Screen(
                             y: 0,
                             width: card.width - 64,
                             height: 44,
-                            color: #166534,
-                            font_size: 13,
+                            style: [foreground(#166534), font_size(13)],
                         )
                     }
                 }
@@ -165,8 +150,7 @@ Screen(
                     y: 244,
                     width: card.width - 36,
                     height: 18,
-                    color: #64748B,
-                    font_size: 12,
+                    style: [foreground(#64748B), font_size(12)],
                 )
                 Button(
                     id: "fallback_status",
@@ -231,10 +215,7 @@ Screen(
                     y: app.supported ? 244 : 308,
                     width: card.width - 36,
                     height: card.height -(app.supported ? 262 : 326),
-                    background: #F8FAFC,
-                    color: #334155,
-                    font_size: 13,
-                    corner_radius: 7,
+                    style: [background(#F8FAFC), foreground(#334155), font_size(13), radius(7)],
                 )
             }
         }

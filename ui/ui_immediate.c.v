@@ -2718,14 +2718,14 @@ fn page_focused_text_area(direction int) {
 		geometry := element_hit_geometry(declared, area, transform, region)
 		hovered := g_tooltip.pointer_in && hit_target_contains(geometry,g_tooltip.pointer_x,g_tooltip.pointer_y)
 		focused := declared.focused || custom_focus_ring_visible(declared)
-		style_pressed := g_touch.down && declared.id.len > 0
+		pressed_style_active := g_touch.down && declared.id.len > 0
 			&& (declared.id == g_touch.pressed_id || declared.id == g_touch.pointer_target.id)
 			&& (!g_touch.pointer_captured || declared.kind == g_touch.pointer_target.kind)
 			&& !g_touch.moved && !g_touch.scrollbar_drag
 			&& hit_target_contains(geometry,g_touch.current_x,g_touch.current_y)
 		return Element{...declared,
-			box: interaction_box(declared, hovered, focused, style_pressed)
-			text_style: interaction_text_style(declared, hovered, focused, style_pressed)}
+			box: interaction_box(declared, hovered, focused, pressed_style_active)
+			text_style: interaction_text_style(declared, hovered, focused, pressed_style_active)}
 	}
 
 	fn render_scaled_content(ctx &DrawContext, el Element, off_x f64, off_y f64, clip Rect, scroll_parent_id string, path string) {
@@ -2925,6 +2925,9 @@ fn page_focused_text_area(direction int) {
 			.label {
 				x := el.frame.x + off_x
 				y := el.frame.y + off_y
+				if box_draws_fill(el.box) {
+					draw_rect(ctx, x, y, el.frame.width, el.frame.height, el.box.bg, el.box.radius)
+				}
 				draw_box_borders(ctx, x, y, el.frame.width, el.frame.height, el.box)
 				shortened := draw_rich_label_text(ctx, el, x, y, clip)
 				add_full_text_tooltip(el, area, clip, el.text, shortened)
@@ -2960,16 +2963,17 @@ fn page_focused_text_area(direction int) {
 					draw_rect(ctx, x, y, el.frame.width, el.frame.height, el.box.bg, el.box.radius)
 				}
 				draw_box_borders(ctx, x, y, el.frame.width, el.frame.height, el.box)
-				image_layout := button_image_layout(el.frame.width, el.frame.height, el.text,
+				content := button_content_rect(el)
+				image_layout := button_image_layout(content.width, content.height, el.text,
 					el.image_path)
 				if image_layout.visible {
-					draw_button_image(ctx, el, x + image_layout.image.x,
-						y + image_layout.image.y, image_layout.image.width, image_layout.image.height,
+					draw_button_image(ctx, el, x + content.x + image_layout.image.x,
+						y + content.y + image_layout.image.y, image_layout.image.width, image_layout.image.height,
 						el.text_style)
 				}
 				if el.text.len > 0 && image_layout.has_title_area() {
-					shortened := draw_text_centered(ctx, el.text, x + image_layout.text.x,
-						y + image_layout.text.y, image_layout.text.width, image_layout.text.height,
+					shortened := draw_text_centered(ctx, el.text, x + content.x + image_layout.text.x,
+						y + content.y + image_layout.text.y, image_layout.text.width, image_layout.text.height,
 						el.text_style)
 					add_full_text_tooltip(el, area, clip, el.text, shortened)
 				}
@@ -3000,7 +3004,8 @@ fn page_focused_text_area(direction int) {
 					draw_rect(ctx, x, y, el.frame.width, el.frame.height, box.bg, box.radius)
 				}
 				draw_box_borders(ctx, x, y, el.frame.width, el.frame.height, box)
-				shortened := draw_text_centered(ctx, el.text, x, y, el.frame.width, el.frame.height,
+				content := button_content_rect(el)
+				shortened := draw_text_centered(ctx, el.text, x + content.x, y + content.y, content.width, content.height,
 					style)
 				add_full_text_tooltip(el, area, clip, el.text, shortened)
 				if el.enabled {

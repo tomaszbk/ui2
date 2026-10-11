@@ -1,9 +1,9 @@
 Screen(
     id: "root",
-    background: #F1F5F9,
+    style: [background(#F1F5F9)],
 ) {
     Absolute(
-        transparent: true,
+        style: [transparent(true)],
     ) {
         Label(
             text: "Modal view",
@@ -11,12 +11,9 @@ Screen(
             y: 20,
             width: root.width - 40,
             height: 34,
-            align: center,
-            color: #0F172A,
-            font_size: 24,
-            bold: true,
+            style: [text_align(center), foreground(#0F172A), font_size(24), weight(700)],
         )
-        Label(text: app.status, x: 20, y: 76, width: root.width - 40, height: 26, align: center, color: #475569)
+        Label(text: app.status, x: 20, y: 76, width: root.width - 40, height: 26, style: [text_align(center), foreground(#475569)])
         Button(
             text: "Open confirmation",
             on_click: app.open_confirmation(),
@@ -24,9 +21,7 @@ Screen(
             y: 132,
             width: 170,
             height: 40,
-            background: #2563EB,
-            color: #FFFFFF,
-            corner_radius: 8,
+            style: [background(#2563EB), foreground(#FFFFFF), radius(8)],
         )
         ModalView(
             id: "confirmation",
@@ -37,11 +32,10 @@ Screen(
             content_width: 340,
             content_height: 190,
             overlay_background: #475569,
-            background: #FFFFFF,
-            corner_radius: 12,
+            style: [background(#FFFFFF), radius(12)],
         ) {
             Absolute(
-                transparent: true,
+                style: [transparent(true)],
             ) {
                 Label(
                     text: "Confirm action",
@@ -49,10 +43,7 @@ Screen(
                     y: 24,
                     width: 292,
                     height: 30,
-                    align: center,
-                    color: #0F172A,
-                    font_size: 20,
-                    bold: true,
+                    style: [text_align(center), foreground(#0F172A), font_size(20), weight(700)],
                 )
                 Label(
                     text: "The backdrop can dismiss this modal.",
@@ -60,8 +51,7 @@ Screen(
                     y: 66,
                     width: 292,
                     height: 24,
-                    align: center,
-                    color: #64748B,
+                    style: [text_align(center), foreground(#64748B)],
                 )
                 Button(
                     text: "Cancel",
@@ -70,9 +60,7 @@ Screen(
                     y: 126,
                     width: 110,
                     height: 38,
-                    background: #E2E8F0,
-                    color: #334155,
-                    corner_radius: 8,
+                    style: [background(#E2E8F0), foreground(#334155), radius(8)],
                 )
                 Button(
                     text: "Confirm",
@@ -81,9 +69,7 @@ Screen(
                     y: 126,
                     width: 110,
                     height: 38,
-                    background: #2563EB,
-                    color: #FFFFFF,
-                    corner_radius: 8,
+                    style: [background(#2563EB), foreground(#FFFFFF), radius(8)],
                 )
             }
         }
