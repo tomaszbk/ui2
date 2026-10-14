@@ -54,6 +54,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 			field_text_buffer   FrameTextBuffer
 			prefix_text_buffer  FrameTextBuffer
 			interaction_enabled bool               = true
+			overlay_inert bool
 			opacity             f64 = 1
 			submitted_polygon   fn ([]PaintVertex) = unsafe { nil }
 			ft                  &gg.FT             = unsafe { nil }
@@ -89,6 +90,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 			selection_rects      []Rect
 			glyph_selection_rects []gg.Rect
 			interaction_enabled  bool               = true
+			overlay_inert bool
 			opacity              f64 = 1
 			submitted_polygon    fn ([]PaintVertex) = unsafe { nil }
 			text                 &TextEngine        = unsafe { nil }

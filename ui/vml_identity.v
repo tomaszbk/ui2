@@ -1,5 +1,15 @@
 module ui2
 
+// control_id gives an authored local id its canonical component namespace.
+// Empty ids stay empty, and the document owner keeps its literal ids.
+pub fn (component &CompiledVmlComponent) control_id(authored_id string) string {
+	return if authored_id.len == 0 || component.namespace.len == 0 {
+		authored_id
+	} else {
+		component.namespace + ':' + authored_id.bytes().hex()
+	}
+}
+
 @[params]
 pub struct VmlNodeConfig {
 pub:

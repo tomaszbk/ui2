@@ -64,6 +64,11 @@ component unmount and cleanup hooks run after the last descendant exit
 finishes. Reinserting the same key during exit reverses from its current
 presentation and retains its state, nodes, editor text and selection.
 
+[Overlays](overlays.md) use the same retained motion state. A dialog's backdrop
+fades with the surface, and its focus scope ends as soon as closing starts.
+An overlay's hidden state keeps its component mounted; structural removal
+uses the ordinary delayed unmount and cleanup contract.
+
 Exiting content becomes unavailable to keyboard focus, pointer capture and
 editing immediately. Hidden changes animate the same retained node; completing
 a hide does not dispose its component. Making it visible again starts entry.

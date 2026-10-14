@@ -5,13 +5,14 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 	fn focus_manager() &FocusManager { return g_focus_navigation }
 
 	fn custom_focus_offsets(el Element, path string, mut offsets map[string]f64, mut offsets_x map[string]f64) {
+		current_path := if el.overlay_host { overlay_host_path } else { path }
 		if el.kind == .scroll {
 			x, y := scroll_mode_offset(el.scroll_mode, scroll_state_offset_x(scroll_view_state_id(el, path)), scroll_state_offset(scroll_view_state_id(el, path)))
 			offsets[path] = y
 			offsets_x[path] = x
 		}
 		for i, child in el.children {
-			custom_focus_offsets(child, reconciliation_child_key(path, i, child), mut offsets, mut offsets_x)
+			custom_focus_offsets(child, reconciliation_child_key(current_path, i, child), mut offsets, mut offsets_x)
 		}
 	}
 
@@ -35,9 +36,11 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 
 	fn update_custom_focus_tree(root Element) {
 		previous := g_focused_field
+		previous_scopes := if g_gg_app.overlay_focus.stack.len == 0 && g_gg_app.overlay_tree.focus_layer() != none { g_focus_navigation.scopes.clone() } else { []FocusScopeEntry{} }
 		g_focus_navigation.set_root(root)
 		g_focus_navigation.current = g_focused_field
 		sync_focus_navigation()
+		g_gg_app.overlay_focus.sync(mut g_focus_navigation, g_gg_app.overlay_tree, previous, previous_scopes)
 		g_focused_field = g_focus_navigation.current
 		if g_touch.down && g_touch.pointer_captured {
 			captured := g_touch.pointer_target
@@ -202,11 +205,11 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 	}
 
 	fn sync_mounted_focus_controls(el Element, path string) {
-		sync_mounted_focus_control_subtree(el, path, true)
+		sync_mounted_focus_control_subtree(el, if el.overlay_host { overlay_host_path } else { path }, true)
 	}
 
 	fn sync_mounted_focus_control_subtree(el Element, path string, ancestor_enabled bool) {
-		enabled := ancestor_enabled && el.presented_enabled() && !el.presented_hidden()
+		enabled := ancestor_enabled && el.presented_enabled() && !el.presented_hidden() && !el.overlay_inert
 		sync_mounted_control(Element{ ...el, enabled: enabled })
 		if el.kind == .scroll {
 			g_active_scrolls[scroll_view_state_id(el, path)] = true

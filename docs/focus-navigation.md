@@ -60,8 +60,9 @@ or the first eligible target in the enclosing scope/window if it was removed
 or became unavailable. Removing, hiding or disabling an active scope unwinds
 it and restores the enclosing destination. Empty scopes cannot be entered.
 `active_focus_scope()` returns the active id, or an empty string. Scopes provide
-focus containment; they are not a Dialog/overlay API. Bind Escape to
-`leave_focus_scope()` if your screen needs that behavior.
+focus containment. [Overlays](overlays.md) manage these scopes automatically
+for Dialog, MenuOverlay and ContextMenu, including initial focus and restoration.
+A Popover with explicit initial focus also enters its own scope.
 
 Enter and Space activate semantic buttons and composed `button_behavior` Views
 once per physical press; autorepeated activation events are consumed. Checkboxes,

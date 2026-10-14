@@ -280,6 +280,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		// Children and later-painted panes get the event before their parents.
 		for index := g_scroll_order.len - 1; index >= 0; index-- {
 			id := g_scroll_order[index]
+			if node := mounted_scroll_node(id) { if node.hidden || !node.enabled { continue } }
 			area := g_scroll_areas[id] or { continue }
 			// A fitted child has nowhere to scroll. Let its scrollable parent
 			// receive the wheel or drag instead of trapping the gesture here.

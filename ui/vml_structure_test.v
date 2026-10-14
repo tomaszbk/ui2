@@ -61,31 +61,33 @@ fn test_composite_structure_updates_helpers_and_preserves_authored_instances() !
 	owner.dispose()!
 }
 
-fn test_nested_composite_sources_keep_actual_parent_and_refresh_snapshots() ! {
-	mut owner := new_vml_document('popup')!
-	mut fixture := &VmlStructureFixture{}
-	owner.publish = fn [mut fixture] (id string, _ Element) { fixture.patches << id }
-	mut label := owner.element(Element{ kind: .label, id: 'caption', text: 'before' })!
-	mut node := owner.element(Element{ kind: .view, id: 'popup' })!
-	node.set_sources([label.element()])!
-	mut open := owner.state('open', true)!
-	node.structure('config', fn [mut node, mut open] () !Element {
-		content := view('popup__body', Rect{}, BoxStyle{}, node.child_elements()!)
-		return popup(PopupConfig{ id: 'popup', frame: rect(0, 0, 500, 500), open: open.get()!, content: content })!
-	})!
-	node.mount()!
-	actual_parent := label.parent
-	assert actual_parent != node
-	label.patch(fn (element Element) Element { return Element{ ...element, text: 'after' } })!
-	assert label.parent == actual_parent
-	assert node.child_elements()![0].text == 'after'
-	assert vml_find_caption(node.element()) == 'after'
-	open.set(false)!
-	assert node.element().hidden
-	open.set(true)!
-	assert !node.element().hidden && label.mounted
-	assert label.parent == actual_parent
-	owner.dispose()!
+$if linux || ((macos || windows) && ui2_custom_rendering ?) || ui2_headless ?|| ui2_document_library ? {
+	fn test_nested_composite_sources_keep_actual_parent_and_refresh_snapshots() ! {
+		mut owner := new_vml_document('dialog')!
+		mut fixture := &VmlStructureFixture{}
+		owner.publish = fn [mut fixture] (id string, _ Element) { fixture.patches << id }
+		mut label := owner.element(Element{ kind: .label, id: 'caption', text: 'before' })!
+		mut node := owner.element(Element{ kind: .view, id: 'dialog' })!
+		node.set_sources([label.element()])!
+		mut open := owner.state('open', true)!
+		node.structure('config', fn [mut node, mut open] () !Element {
+			content := view('dialog_body', Rect{}, BoxStyle{}, node.child_elements()!)
+			return with_overlay(view('dialog', rect(0, 0, 340, 180), BoxStyle{}, [content]), OverlayConfig{ kind: .dialog, open: open.get()! })!
+		})!
+		node.mount()!
+		actual_parent := label.parent
+		assert actual_parent != node
+		label.patch(fn (element Element) Element { return Element{ ...element, text: 'after' } })!
+		assert label.parent == actual_parent
+		assert node.child_elements()![0].text == 'after'
+		assert vml_find_caption(node.element()) == 'after'
+		open.set(false)!
+		assert node.element().hidden
+		open.set(true)!
+		assert !node.element().hidden && label.mounted
+		assert label.parent == actual_parent
+		owner.dispose()!
+	}
 }
 
 fn vml_find_caption(element Element) string {
@@ -121,12 +123,12 @@ fn test_widget_structural_geometry_preserves_authored_flex_basis_across_resizes(
 	})!
 	fill := progress.element().children[0].compiled_node
 	mut root := owner.element(flex(FlexConfig{
-		id: 'root'
-		frame: rect(0, 0, 100, 40)
+		id:          'root'
+		frame:       rect(0, 0, 100, 40)
 		orientation: .vertical
-		children: [
-			FlexChild{element: view('fixed', rect(0, 0, 100, 40), BoxStyle{}, [])},
-			FlexChild{element: progress.element()},
+		children:    [
+			FlexChild{ element: view('fixed', rect(0, 0, 100, 40), BoxStyle{}, []) },
+			FlexChild{ element: progress.element() },
 		]
 	})!)!
 	root.mount()!

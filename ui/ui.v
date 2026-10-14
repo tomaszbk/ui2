@@ -28,12 +28,15 @@ pub enum ElementEventKind {
 	drop
 	drag_end
 	drag_cancel
+	dismiss
+	open
 }
 
 pub struct ElementEvent {
 pub:
 	kind ElementEventKind
 	drag ?DragEvent
+	dismiss_reason OverlayDismissReason
 	id   string
 	x    f64
 	y    f64
@@ -446,6 +449,10 @@ pub struct Element {
 	// Presentation state is retained separately from authored binding values.
 	motion_state     &ElementMotionState = unsafe { nil }
 	presence_exiting bool
+	// Portals preserve logical focus ancestry while presenting in the window layer.
+	overlay_scopes []string
+	overlay_inert bool
+	overlay_host bool
 pub:
 	// Compiled components retain their declaration owner independently of layout.
 	// It is not an authored property or a model/binding value.
@@ -496,6 +503,7 @@ pub:
 	draggable                 bool // view/image: emit pointer drag events
 	opacity               f64 = 1 // custom: inherited per-primitive opacity
 	motion                ?MotionConfig
+	overlay               ?OverlayConfig
 	rotation                  f64  // custom: clockwise visual rotation, for every element
 	translate_x               f64
 	translate_y               f64
@@ -612,6 +620,13 @@ pub fn validate_element_tree(root Element) ! {
 }
 
 fn validate_element_node(el Element, path string, mut ids map[string]bool) ! {
+	if config := el.overlay {
+		config.validate()!
+		if el.kind != .view || el.id.len == 0 { return error('an overlay requires a View with a stable id at ${path}') }
+		$if !(linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? && !ui2_document_library ? {
+			return error('overlays require the desktop custom renderer at ${path}')
+		}
+	}
 	validate_drag_element(el)!
 	validate_content_padding(el)!
 	if !finite_number(el.opacity) || el.opacity < 0 || el.opacity > 1 {
