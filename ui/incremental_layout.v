@@ -307,7 +307,7 @@ fn layout_metric_flags(element Element) u8 {
 fn layout_metrics_equal(a Element, b Element) bool {
 	if a.kind != b.kind || a.hidden != b.hidden || a.presence_exiting != b.presence_exiting || a.text != b.text || a.placeholder != b.placeholder
 		|| a.content_size != b.content_size || a.padding_left != b.padding_left || a.content_padding != b.content_padding
-		|| a.disable_scroll != b.disable_scroll || a.secure != b.secure || a.image_path != b.image_path
+		|| a.disable_scroll != b.disable_scroll || a.scroll_mode != b.scroll_mode || a.secure != b.secure || a.image_path != b.image_path
 		|| a.image_asset.logical_size != b.image_asset.logical_size || a.text_runs.len != b.text_runs.len
 		|| layout_metric_style(a.text_style) != layout_metric_style(b.text_style) {
 		return false
@@ -556,8 +556,10 @@ fn (mut tree LayoutTree) child_sizes(node &RetainedLayoutNode, available Rect, f
 		}
 		inherit_width := node.declaration.layout.kind == .none && layout_inherits_width(child_node.declaration)
 			&& fixed_width && available.width > 0
+			&& (node.declaration.kind != .scroll || node.declaration.scroll_mode == .vertical_only)
 		inherit_height := node.declaration.layout.kind == .none && layout_inherits_height(child_node.declaration)
 			&& fixed_height && available.height > 0
+			&& (node.declaration.kind != .scroll || node.declaration.scroll_mode == .horizontal_only)
 		size := tree.measure_node(child, LayoutConstraints{
 			min_width: if inherit_width { available.width } else { 0 }
 			max_width: if inherit_width { available.width } else { maximum }
@@ -673,16 +675,20 @@ fn (mut tree LayoutTree) container_geometry_active(node &RetainedLayoutNode, ava
 				frames << Rect{}
 				continue
 			}
-			// Automatic content fills the viewport horizontally and keeps its
-			// natural height. Authored widths can intentionally overflow it.
-			content_width := if layout_authored_width(child_node.declaration) { sizes[i].width } else {
-				math.max(0.0, available.width - sizes[i].x)
-			}
+			// Scroll content fills only axes that do not scroll. Authored axes
+			// keep their own extent, including explicit zero and clipped overflow.
+			fill_width := node.declaration.scroll_mode == .vertical_only && !layout_authored_width(child_node.declaration)
+			fill_height := node.declaration.scroll_mode == .horizontal_only && !layout_authored_height(child_node.declaration)
+			content_width := if fill_width { math.max(0.0, available.width - sizes[i].x) } else { sizes[i].width }
+			allocated_height := if fill_height { math.max(0.0, available.height - sizes[i].y) } else { sizes[i].height }
 			measured := tree.measure_node(child, LayoutConstraints{
-				min_width: content_width
-				max_width: content_width
+				min_width: if fill_width { content_width } else { 0 }
+				max_width: if fill_width { content_width } else { -1 }
+				min_height: if fill_height { allocated_height } else { 0 }
+				max_height: if fill_height { allocated_height } else { -1 }
 			})!
-			frame := rect(sizes[i].x, sizes[i].y, content_width, measured.height)
+			frame := rect(sizes[i].x, sizes[i].y, if fill_width { content_width } else { measured.width },
+				if fill_height { allocated_height } else { measured.height })
 			frames << frame
 			width = math.max(width, frame.x + frame.width)
 			height = math.max(height, frame.y + frame.height)

@@ -3,26 +3,30 @@ module ui2
 $if !ui2_custom_rendering ? && !ui2_document_library ? {
 	fn focus_manager() &FocusManager { return windows_state().navigation }
 
-	fn windows_focus_offsets(el Element, path string, native_path string, mut offsets map[string]f64) {
+	fn windows_focus_offsets(el Element, path string, native_path string, mut offsets map[string]f64, mut offsets_x map[string]f64) {
 		mut st := windows_state()
 		st.navigation_paths[path] = native_path
-		if el.kind == .scroll { offsets[path] = f64(st.scroll_positions[native_path] or { 0 }) }
+		if el.kind == .scroll {
+			offsets[path] = f64(st.scroll_positions[native_path] or { 0 })
+			offsets_x[path] = f64(st.scroll_positions_x[native_path] or { 0 })
+		}
 		for i, child in el.children {
-			windows_focus_offsets(child, reconciliation_child_key(path, i, child), reconciliation_child_key(native_path, i, child), mut offsets)
+			windows_focus_offsets(child, reconciliation_child_key(path, i, child), reconciliation_child_key(native_path, i, child), mut offsets, mut offsets_x)
 		}
 	}
 
 	fn sync_focus_navigation() {
 		mut st := windows_state()
 		mut offsets := map[string]f64{}
+		mut offsets_x := map[string]f64{}
 		st.navigation_paths.clear()
 		native_path := if st.navigation.root.kind == .screen {
 			''
 		} else {
 			reconciliation_child_key('', 0, st.navigation.root)
 		}
-		windows_focus_offsets(st.navigation.root, 'root', native_path, mut offsets)
-		st.navigation.update_mounted(st.navigation.root, offsets, bounds(), ContentTransform{})
+		windows_focus_offsets(st.navigation.root, 'root', native_path, mut offsets, mut offsets_x)
+		st.navigation.update_mounted_axes(st.navigation.root, offsets, offsets_x, bounds(), ContentTransform{})
 	}
 
 	fn reconcile_windows_focus(root Element, previous string) {
@@ -42,9 +46,12 @@ $if !ui2_custom_rendering ? && !ui2_document_library ? {
 		for request in st.navigation.reveals(id) {
 			key := st.navigation_paths[request.path] or { continue }
 			hwnd := st.nodes[key] or { continue }
-			position := C.ui2_win_scroll_to_rect(hwnd, int(request.rect.y), int(request.rect.y + request.rect.height))
+			position := C.ui2_win_scroll_to_rect(hwnd, int(request.rect.y), int(request.rect.y + request.rect.height), 0)
 			st.scroll_positions[key] = position
-			windows_reposition_scroll_children(key, position)
+			if key in st.scroll_positions_x {
+				st.scroll_positions_x[key] = C.ui2_win_scroll_to_rect(hwnd, int(request.rect.x), int(request.rect.x + request.rect.width), 1)
+			}
+			windows_reposition_scroll_children(key)
 		}
 		sync_focus_navigation()
 	}

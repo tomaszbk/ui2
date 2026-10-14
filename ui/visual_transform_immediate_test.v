@@ -98,7 +98,7 @@ $if ( linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headl
 		assert scroll_state_offset(id) == 200
 		set_scroll_offset(id, 0, 200)
 		register_scroll_view_in_parent(id, '', rect(0, 0, 100, 100), rect(0, 0, 100, 100), 300, true, true, false, HitTarget{})
-		g_touch = TouchState{ scroll_id: id }
+		g_touch = TouchState{ scroll_id: id, scroll_chain: [id] }
 		// Track local x=93, thumb y=4..34.67. Grab local y=10.
 		assert begin_scrollbar_drag(280, 196)
 		drag_scrollbar_at(240, 196) // local y=30, +20 thumb travel

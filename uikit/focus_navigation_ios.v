@@ -10,23 +10,28 @@ __global g_ios_navigation_paths = map[string]string{}
 
 fn focus_manager() &FocusManager { return g_ios_navigation }
 
-fn ios_focus_offsets(el Element, path string, native_path string, mut offsets map[string]f64) {
+fn ios_focus_offsets(el Element, path string, native_path string, mut offsets map[string]f64, mut offsets_x map[string]f64) {
 	// Shared focus starts at root; UIKit mounts root.children at the empty
 	// parent key. Use the renderer's reconciliation keys for every Scroll.
 	g_ios_navigation_paths[path] = native_path
 	if el.kind == .scroll {
-		if native := g_nodes[native_path] { offsets[path] = scroll_content_offset_y(native) }
+		if native := g_nodes[native_path] {
+			offset := scroll_content_offset(native)
+			offsets[path] = offset.y
+			offsets_x[path] = offset.x
+		}
 	}
 	for i, child in el.children {
-		ios_focus_offsets(child, reconciliation_child_key(path, i, child), reconciliation_child_key(native_path, i, child), mut offsets)
+		ios_focus_offsets(child, reconciliation_child_key(path, i, child), reconciliation_child_key(native_path, i, child), mut offsets, mut offsets_x)
 	}
 }
 
 fn sync_focus_navigation() {
 	mut offsets := map[string]f64{}
+	mut offsets_x := map[string]f64{}
 	g_ios_navigation_paths.clear()
-	ios_focus_offsets(g_ios_navigation.root, 'root', '', mut offsets)
-	g_ios_navigation.update_mounted(g_ios_navigation.root, offsets, bounds(), ContentTransform{})
+	ios_focus_offsets(g_ios_navigation.root, 'root', '', mut offsets, mut offsets_x)
+	g_ios_navigation.update_mounted_axes(g_ios_navigation.root, offsets, offsets_x, bounds(), ContentTransform{})
 }
 
 fn live_semantic_nodes(nodes []SemanticNode) []SemanticNode {

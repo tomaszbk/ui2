@@ -4,27 +4,32 @@ module ui2
 $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headless ? && !ui2_document_library ? {
 	fn focus_manager() &FocusManager { return g_focus_navigation }
 
-	fn custom_focus_offsets(el Element, path string, mut offsets map[string]f64) {
+	fn custom_focus_offsets(el Element, path string, mut offsets map[string]f64, mut offsets_x map[string]f64) {
 		if el.kind == .scroll {
-			offsets[path] = scroll_state_offset(scroll_view_state_id(el, path))
+			x, y := scroll_mode_offset(el.scroll_mode, scroll_state_offset_x(scroll_view_state_id(el, path)), scroll_state_offset(scroll_view_state_id(el, path)))
+			offsets[path] = y
+			offsets_x[path] = x
 		}
 		for i, child in el.children {
-			custom_focus_offsets(child, reconciliation_child_key(path, i, child), mut offsets)
+			custom_focus_offsets(child, reconciliation_child_key(path, i, child), mut offsets, mut offsets_x)
 		}
 	}
 
 	fn sync_focus_navigation() {
 		if g_focus_navigation.geometry_revision != g_focus_navigation.root_revision || g_focus_navigation.geometry_serial == 0 {
 			g_gg_app.focus_offsets.clear()
-			custom_focus_offsets(g_focus_navigation.root, 'root', mut g_gg_app.focus_offsets)
+			g_gg_app.focus_offsets_x.clear()
+			custom_focus_offsets(g_focus_navigation.root, 'root', mut g_gg_app.focus_offsets, mut g_gg_app.focus_offsets_x)
 		} else {
 			for node in g_focus_navigation.nodes {
 				if node.el.kind == .scroll {
-					g_gg_app.focus_offsets[node.path] = scroll_state_offset(scroll_view_state_id(node.el, node.path))
+					x, y := scroll_mode_offset(node.el.scroll_mode, scroll_state_offset_x(scroll_view_state_id(node.el, node.path)), scroll_state_offset(scroll_view_state_id(node.el, node.path)))
+					g_gg_app.focus_offsets[node.path] = y
+					g_gg_app.focus_offsets_x[node.path] = x
 				}
 			}
 		}
-		g_focus_navigation.update_mounted(g_focus_navigation.root, g_gg_app.focus_offsets, bounds(), ContentTransform{ y: menu_bar_height() })
+		g_focus_navigation.update_mounted_axes(g_focus_navigation.root, g_gg_app.focus_offsets, g_gg_app.focus_offsets_x, bounds(), ContentTransform{ y: menu_bar_height() })
 		sync_mounted_scroll_views()
 	}
 
@@ -57,9 +62,14 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 			pane := g_focus_navigation.path_node(request.path) or { continue }
 			state_id := scroll_view_state_id(pane.el, pane.path)
 			g_pending_scroll.delete(state_id)
+			g_pending_scroll_x.delete(state_id)
 			before := scroll_state_offset(state_id)
 			next := focus_reveal_offset(before, pane.el.frame.height, request.rect)
 			set_scroll_offset(state_id, next, scroll_maximum(state_id))
+			if !custom_scroll_dispatch_current(dispatch, ctx, root) || g_focused_field != id { return }
+			before_x := scroll_state_offset_x(state_id)
+			next_x := focus_reveal_offset(before_x, pane.el.frame.width, rect(request.rect.y, request.rect.x, request.rect.height, request.rect.width))
+			set_scroll_offset_x(state_id, next_x, scroll_maximum_x(state_id))
 			if !custom_scroll_dispatch_current(dispatch, ctx, root) || g_focused_field != id { return }
 		}
 		sync_focus_navigation()

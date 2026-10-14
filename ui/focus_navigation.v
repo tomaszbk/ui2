@@ -76,6 +76,7 @@ mut:
 	current        string
 	scopes         []FocusScopeEntry
 	scroll_offsets map[string]f64
+	scroll_offsets_x map[string]f64
 }
 
 fn element_focusable(el Element) bool {
@@ -111,6 +112,10 @@ fn (mut manager FocusManager) update_mounted(root Element, offsets map[string]f6
 	manager.update_geometry(root, offsets, transform, mounted_root_frame(root, viewport), paint_transformed_clip(viewport, transform))
 }
 
+fn (mut manager FocusManager) update_mounted_axes(root Element, offsets map[string]f64, offsets_x map[string]f64, viewport Rect, transform ContentTransform) {
+	manager.update_geometry_axes(root, offsets, offsets_x, transform, mounted_root_frame(root, viewport), paint_transformed_clip(viewport, transform))
+}
+
 // set_root publishes a mounted tree. Republishing an equal tree keeps the
 // revision, so nested refreshes do not cancel a frame painting that same tree.
 fn (mut manager FocusManager) set_root(root Element) {
@@ -119,11 +124,15 @@ fn (mut manager FocusManager) set_root(root Element) {
 }
 
 fn (mut manager FocusManager) update_geometry(root Element, offsets map[string]f64, transform ContentTransform, root_frame Rect, clip ClipRegion) {
+	manager.update_geometry_axes(root, offsets, manager.scroll_offsets_x, transform, root_frame, clip)
+}
+
+fn (mut manager FocusManager) update_geometry_axes(root Element, offsets map[string]f64, offsets_x map[string]f64, transform ContentTransform, root_frame Rect, clip ClipRegion) {
 	manager.set_root(root)
 	if manager.geometry_serial > 0 && manager.geometry_revision == manager.root_revision
 		&& manager.geometry_motion_serial == manager.motion_serial
 		&& manager.geometry_frame == root_frame && manager.geometry_transform == transform
-		&& manager.geometry_clip == clip && manager.scroll_offsets == offsets { return }
+		&& manager.geometry_clip == clip && manager.scroll_offsets == offsets && manager.scroll_offsets_x == offsets_x { return }
 	manager.refresh_presentation_changed = manager.geometry_serial == 0
 	manager.refresh_motion_changed = manager.geometry_motion_serial != manager.motion_serial
 	manager.geometry_motion_serial = manager.motion_serial
@@ -132,8 +141,9 @@ fn (mut manager FocusManager) update_geometry(root Element, offsets map[string]f
 	manager.geometry_frame = root_frame
 	manager.geometry_transform = transform
 	manager.geometry_clip = clip
-	manager.refresh_offsets_changed = manager.scroll_offsets != offsets
-	if manager.refresh_offsets_changed { manager.scroll_offsets = offsets.clone() }
+	manager.refresh_offsets_changed = manager.scroll_offsets != offsets || manager.scroll_offsets_x != offsets_x
+	if manager.scroll_offsets != offsets { manager.scroll_offsets = offsets.clone() }
+	if manager.scroll_offsets_x != offsets_x { manager.scroll_offsets_x = offsets_x.clone() }
 	// Keep the flat registry and its indexes when identity/order are stable.
 	// A retained subtree with unchanged inherited geometry can be skipped whole.
 	refreshed := manager.refresh_geometry(root, root_frame, 'root', '', 0, 0,
@@ -259,6 +269,7 @@ fn (mut manager FocusManager) refresh_geometry(el Element, frame Rect, path stri
 	if el.kind == .scroll {
 		child_clip = child_clip.intersect(paint_transformed_clip(local, transform))
 		child_y -= manager.scroll_offsets[path] or { 0.0 }
+		child_x -= manager.scroll_offsets_x[path] or { 0.0 }
 		if previous.el.kind == .scroll && previous.scrolls == scrolls && previous.subtree_len > 1 {
 			child_scrolls = manager.nodes[index + 1].scrolls
 		} else {
@@ -429,10 +440,12 @@ fn (manager &FocusManager) reveals(id string) []FocusReveal {
 		if local_points.len == 0 { break }
 		local := point_bounds(local_points)
 		offset := manager.scroll_offsets[path] or { 0.0 }
-		request := rect(local.x - pane.local_frame.x, local.y - pane.local_frame.y + offset, local.width, local.height)
+		offset_x := manager.scroll_offsets_x[path] or { 0.0 }
+		request := rect(local.x - pane.local_frame.x + offset_x, local.y - pane.local_frame.y + offset, local.width, local.height)
 		result << FocusReveal{ id: pane.el.id, path: path, rect: request }
 		next := math.min(focus_scroll_maximum(pane.el), focus_reveal_offset(offset, pane.el.frame.height, request))
-		shifted := local_points.map(pane.transform.point(it.x, it.y + offset - next))
+		next_x := math.min(math.max(0, if pane.el.scroll_mode != .vertical_only { scroll_content_width(pane.el.children) - pane.el.frame.width } else { 0.0 }), focus_reveal_offset(offset_x, pane.el.frame.width, rect(request.y, request.x, request.height, request.width)))
+		shifted := local_points.map(pane.transform.point(it.x + offset_x - next_x, it.y + offset - next))
 		target = ClipRegion{ bounded: true, points: shifted }.intersect(transformed_clip(pane.local_frame, pane.transform))
 	}
 	return result
@@ -451,6 +464,7 @@ fn focus_reveal_offset(offset f64, viewport_height f64, target Rect) f64 {
 }
 
 fn scroll_content_height(el Element) f64 {
+	if el.scroll_mode == .horizontal_only { return 0.0 }
 	mut bottom := 0.0
 	for child in el.children {
 		if !child.layout_excluded() { bottom = math.max(bottom, child.frame.y + child.frame.height) }
