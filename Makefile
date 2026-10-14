@@ -1,6 +1,19 @@
 V ?= v
 
-.PHONY: test ide check-ide examples examples-custom screenshot check-macos check-ios check-android check-linux check-windows check-custom-macos check-custom-windows check-custom check-backends
+.PHONY: test ide check-ide examples examples-custom screenshot check-macos check-ios check-android check-linux check-windows check-custom-macos check-custom-windows check-custom check-backends c-api c-example c-test c-smoke
+
+# Optional: C_API_FLAGS='-d ui2_custom_rendering'
+c-api:
+	$(V) run c/build.vsh library $(C_API_FLAGS)
+
+c-example:
+	$(V) run c/build.vsh example $(C_API_FLAGS)
+
+c-test:
+	$(V) run c/build.vsh test $(C_API_FLAGS)
+
+c-smoke:
+	$(V) run c/build.vsh smoke $(C_API_FLAGS)
 
 test:
 	$(V) test .
