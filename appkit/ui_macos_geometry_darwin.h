@@ -49,3 +49,14 @@ static inline void ui2_macos_window_lifecycle(void *window, void *selector) {
     struct objc_super parent = { (id)window, class_getSuperclass(objc_getClass("UI2Window")) };
     ((void (*)(struct objc_super *, SEL))objc_msgSendSuper)(&parent, (SEL)selector);
 }
+
+// A class built at runtime has no `super` to send to, so reaching the method it
+// overrides means naming the class the lookup should start from. objc_super is a
+// receiver followed by that class; plain pointers keep this free of ownership casts.
+static inline void ui2_macos_msg_super_void_id(void* obj, void* superclass, void* sel, void* arg) {
+	struct {
+		void* receiver;
+		void* super_class;
+	} target = { obj, superclass };
+	((void (*)(void*, void*, void*))objc_msgSendSuper)(&target, sel, arg);
+}

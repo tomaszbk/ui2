@@ -8,26 +8,29 @@ $if !ui2_custom_rendering ? && !ui2_document_library ? {
 
 	fn focus_manager() &FocusManager { return state().navigation }
 
-	fn appkit_focus_offsets(el Element, path string, native_path string, mut offsets map[string]f64) {
+	fn appkit_focus_offsets(el Element, path string, native_path string, mut offsets map[string]f64, mut offsets_x map[string]f64) {
 		mut st := state()
 		st.navigation_paths[path] = native_path
 		if el.kind == .scroll {
 			if view := st.nodes[native_path] {
-				offsets[path] = macos.msg_rect(view, 'documentVisibleRect').y
+				visible := macos.msg_rect(view, 'documentVisibleRect')
+				offsets[path] = visible.y
+				offsets_x[path] = visible.x
 			}
 		}
 		child_parent := if el.kind == .scroll { native_path + '/document' } else { native_path }
 		for i, child in el.children {
-			appkit_focus_offsets(child, reconciliation_child_key(path, i, child), reconciliation_child_key(child_parent, i, child), mut offsets)
+			appkit_focus_offsets(child, reconciliation_child_key(path, i, child), reconciliation_child_key(child_parent, i, child), mut offsets, mut offsets_x)
 		}
 	}
 
 	fn sync_focus_navigation() {
 		mut st := state()
 		mut offsets := map[string]f64{}
+		mut offsets_x := map[string]f64{}
 		st.navigation_paths.clear()
-		appkit_focus_offsets(st.navigation.root, 'root', '', mut offsets)
-		st.navigation.update_mounted(st.navigation.root, offsets, bounds(), ContentTransform{})
+		appkit_focus_offsets(st.navigation.root, 'root', '', mut offsets, mut offsets_x)
+		st.navigation.update_mounted_axes(st.navigation.root, offsets, offsets_x, bounds(), ContentTransform{})
 	}
 
 	fn reconcile_appkit_focus(root Element, previous string) {

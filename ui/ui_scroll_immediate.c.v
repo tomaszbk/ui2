@@ -17,6 +17,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		g_scroll_order = []string{}
 		g_scroll_parents = map[string]string{}
 		g_scrollbar_geometries = map[string]ScrollbarGeometry{}
+		g_scrollbar_geometries_x = map[string]ScrollbarGeometry{}
 	}
 
 	fn mounted_scroll_node(id string) ?FocusNode {
@@ -58,10 +59,13 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 				g_scroll_targets.delete(id)
 				g_scroll_viewports.delete(id)
 				g_scroll_content_h.delete(id)
+				g_scroll_content_w.delete(id)
+				g_scroll_offsets_x.delete(id)
 				g_scroll_transforms.delete(id)
 				g_scroll_areas.delete(id)
 				g_scroll_parents.delete(id)
 				g_scrollbar_geometries.delete(id)
+				g_scrollbar_geometries_x.delete(id)
 			}
 		}
 		mut mounted_hits := unsafe { g_hit_targets }
@@ -92,6 +96,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 				on_event: if !node.hidden && node.enabled { node.el.on_event } else { ElementCallback(unsafe { nil }) } }
 			g_scroll_viewports[id] = node.local_frame
 			g_scroll_content_h[id] = scroll_content_height(node.el)
+			g_scroll_content_w[id] = if node.el.scroll_mode != .vertical_only { scroll_content_width(node.el.children) } else { 0.0 }
 			g_scroll_transforms[id] = node.transform
 			if node.scrolls.len > 0 {
 				parent := g_focus_navigation.path_node(node.scrolls.last()) or { continue }
@@ -102,6 +107,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 			if node.hidden || !node.enabled {
 				g_scroll_areas.delete(id)
 				g_scrollbar_geometries.delete(id)
+				g_scrollbar_geometries_x.delete(id)
 			}
 		}
 		if mounted_owners.len > owner_count {
@@ -150,6 +156,15 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		return if content_height > frame.height { content_height - frame.height } else { 0.0 }
 	}
 
+	fn scroll_maximum_x(id string) f64 {
+		frame := g_scroll_viewports[id] or { return 0.0 }
+		if frame.width <= 0 || frame.height <= 0 {
+			return 0.0
+		}
+		content_width := g_scroll_content_w[id] or { 0.0 }
+		return if content_width > frame.width { content_width - frame.width } else { 0.0 }
+	}
+
 	fn register_scroll_view_in_parent(id string, parent_id string, frame Rect, clip Rect, content_height f64, enabled bool, show_scrollbar bool, persistent bool, target HitTarget) f64 {
 		dispatch := custom_input_dispatch(g_gg_app)
 		ctx := dispatch.app.ctx
@@ -188,6 +203,36 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 				bar := scrollbar_geometry(frame, content_height, offset, persistent)
 				g_scrollbar_geometries[id] = bar
 			}
+		}
+		return offset
+	}
+
+	// register_scroll_view_width gives a registered pane its sideways range. It
+	// follows register_scroll_view_in_parent, which is what makes the viewport known,
+	// and a pane that does not scroll sideways passes no width, so a mode changed
+	// between rebuilds leaves no offset behind.
+	fn register_scroll_view_width(id string, content_width f64, show_scrollbar bool, persistent bool, beside_vertical bool) f64 {
+		if id.len == 0 {
+			return 0.0
+		}
+		frame := g_scroll_viewports[id] or { return 0.0 }
+		dispatch := custom_input_dispatch(g_gg_app)
+		ctx := dispatch.app.ctx
+		root := g_focus_navigation.root_revision
+		focused := g_focused_field
+		build_pending := dispatch.scheduler.build_pending()
+		g_scroll_content_w[id] = content_width
+		mut requested := scroll_state_offset_x(id)
+		if pending := g_pending_scroll_x[id] {
+			requested = pending
+			g_pending_scroll_x.delete(id)
+		}
+		set_scroll_offset_x(id, requested, scroll_maximum_x(id))
+		if !custom_scroll_dispatch_current(dispatch, ctx, root) || (!build_pending && dispatch.scheduler.build_pending()) || g_focused_field != focused { return 0 }
+		offset := scroll_state_offset_x(id)
+		if show_scrollbar && id in g_scroll_areas {
+			g_scrollbar_geometries_x[id] = scrollbar_geometry_x(frame, content_width, offset,
+				persistent, beside_vertical)
 		}
 		return offset
 	}
@@ -238,7 +283,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 			area := g_scroll_areas[id] or { continue }
 			// A fitted child has nowhere to scroll. Let its scrollable parent
 			// receive the wheel or drag instead of trapping the gesture here.
-			if scroll_maximum(id) > 0 && presentation_bounds_contains(area, x, y)
+			if (scroll_maximum(id) > 0 || scroll_maximum_x(id) > 0) && presentation_bounds_contains(area, x, y)
 				&& transformed_contains(g_scroll_viewports[id], g_scroll_transforms[id], g_scroll_targets[id].clip_region, x, y) {
 				return id
 			}
@@ -275,12 +320,40 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 			} else if id !in g_scroll_areas { continue }
 			transform := g_scroll_transforms[id] or { ContentTransform{} }
 			local := transform.inverse_vector(remaining.x, remaining.y)
+			before_x := scroll_state_offset_x(id)
+			set_scroll_offset_x(id, before_x + local.x, scroll_maximum_x(id))
+			if !custom_scroll_dispatch_current(dispatch, ctx, root) { return }
 			before := scroll_state_offset(id)
 			set_scroll_offset(id, before + local.y, scroll_maximum(id))
 			if !custom_scroll_dispatch_current(dispatch, ctx, root) { return }
-			consumed := transform.vector(0, scroll_state_offset(id) - before)
+			consumed := transform.vector(scroll_state_offset_x(id) - before_x, scroll_state_offset(id) - before)
 			remaining = Point{remaining.x - consumed.x, remaining.y - consumed.y}
 			if math.abs(remaining.x) + math.abs(remaining.y) < 1e-6 { return }
+		}
+	}
+
+	// scrollbar_geometry_x is the scroller along the bottom edge. Beside a vertical
+	// scroller it stops short of the corner the two would otherwise share.
+	fn scrollbar_geometry_x(frame Rect, content_width f64, offset f64, persistent bool, beside_vertical bool) ScrollbarGeometry {
+		if frame.width < 16 || frame.height < 12 {
+			return ScrollbarGeometry{}
+		}
+		maximum := if content_width > frame.width { content_width - frame.width } else { 0.0 }
+		if !persistent && maximum <= 0 {
+			return ScrollbarGeometry{}
+		}
+		corner := if beside_vertical { 9.0 } else { 0.0 }
+		track := rect(frame.x + 4, frame.y + frame.height - 9, frame.width - 8 - corner, 5)
+		if track.width <= 0 {
+			return ScrollbarGeometry{}
+		}
+		content := if content_width > frame.width { content_width } else { frame.width }
+		thumb_width := math.min(track.width, math.max(28.0, track.width * frame.width / content))
+		progress := if maximum > 0 { math.max(0.0, math.min(offset, maximum)) / maximum } else { 0.0 }
+		return ScrollbarGeometry{
+			track: track
+			thumb: rect(track.x + (track.width - thumb_width) * progress, track.y, thumb_width,
+				track.height)
 		}
 	}
 
@@ -304,7 +377,19 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 	}
 
 	fn begin_scrollbar_drag(x f64, y f64) bool {
-		id := g_touch.scroll_id
+		// A pane's scrollers are drawn over its children, so where a column reaches
+		// under the scroller of the strip it sits in, the strip's is the one the
+		// pointer is on. Try the panes from the outside in.
+		for index := g_touch.scroll_chain.len - 1; index >= 0; index-- {
+			id := g_touch.scroll_chain[index]
+			if begin_horizontal_scrollbar_drag(id, x, y) || begin_vertical_scrollbar_drag(id, x, y) {
+				return true
+			}
+		}
+		return false
+	}
+
+	fn begin_vertical_scrollbar_drag(id string, x f64, y f64) bool {
 		bar := g_scrollbar_geometries[id] or { return false }
 		transform := g_scroll_transforms[id] or { ContentTransform{} }
 		if !(g_scroll_targets[id] or { HitTarget{} }).clip_region.contains(x, y) { return false }
@@ -315,7 +400,9 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 			|| bar.track.height <= bar.thumb.height {
 			return false
 		}
+		g_touch.scroll_id = id
 		g_touch.scrollbar_drag = true
+		g_touch.scrollbar_horizontal = false
 		if ly >= bar.thumb.y && ly < bar.thumb.y + bar.thumb.height {
 			g_touch.scrollbar_grab_y = ly - bar.thumb.y
 		} else {
@@ -325,13 +412,47 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		return true
 	}
 
+	fn begin_horizontal_scrollbar_drag(id string, x f64, y f64) bool {
+		bar := g_scrollbar_geometries_x[id] or { return false }
+		transform := g_scroll_transforms[id] or { ContentTransform{} }
+		if !(g_scroll_targets[id] or { HitTarget{} }).clip_region.contains(x, y) { return false }
+		lx, ly := transform.inverse(x, y)
+		target := rect(bar.track.x, bar.track.y - 3, bar.track.width, 12)
+		if !scroll_rect_contains(target, lx, ly) || scroll_maximum_x(id) <= 0
+			|| bar.track.width <= bar.thumb.width {
+			return false
+		}
+		g_touch.scroll_id = id
+		g_touch.scrollbar_drag = true
+		g_touch.scrollbar_horizontal = true
+		if lx >= bar.thumb.x && lx < bar.thumb.x + bar.thumb.width {
+			g_touch.scrollbar_grab_x = lx - bar.thumb.x
+		} else {
+			g_touch.scrollbar_grab_x = bar.thumb.width / 2
+			drag_scrollbar_at(x, y)
+		}
+		return true
+	}
+
 	fn drag_scrollbar_at(x f64, y f64) {
 		transform := g_scroll_transforms[g_touch.scroll_id] or { ContentTransform{} }
-		_, ly := transform.inverse(x, y)
-		drag_scrollbar_local(ly)
+		lx, ly := transform.inverse(x, y)
+		drag_scrollbar_local(lx, ly)
 	}
-	fn drag_scrollbar_local(y f64) {
+
+	fn drag_scrollbar_local(x f64, y f64) {
 		id := g_touch.scroll_id
+		if g_touch.scrollbar_horizontal {
+			bar := g_scrollbar_geometries_x[id] or { return }
+			travel := bar.track.width - bar.thumb.width
+			if travel <= 0 {
+				return
+			}
+			maximum := scroll_maximum_x(id)
+			set_scroll_offset_x(id, (x - bar.track.x - g_touch.scrollbar_grab_x) / travel * maximum,
+				maximum)
+			return
+		}
 		bar := g_scrollbar_geometries[id] or { return }
 		travel := bar.track.height - bar.thumb.height
 		if travel <= 0 {
@@ -356,6 +477,10 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 	// namespaces. Every authored id remains valid, including these prefixes.
 	fn named_scroll_state_id(id string) string {
 		return named_scroll_prefix + id
+	}
+
+	fn scroll_state_offset_x(state_id string) f64 {
+		return g_scroll_offsets_x[state_id] or { 0.0 }
 	}
 
 	fn scroll_state_offset(state_id string) f64 {

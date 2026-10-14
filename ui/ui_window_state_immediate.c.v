@@ -56,14 +56,18 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		focus_visible bool = true
 		navigation &FocusManager = &FocusManager{}
 		scroll_targets map[string]HitTarget
+		scroll_offsets_x map[string]f64
 		scroll_offsets map[string]f64
+		scroll_content_w map[string]f64
 		scroll_content_h map[string]f64
 		scroll_areas map[string]Rect
 		scroll_transforms map[string]ContentTransform
 		scroll_viewports map[string]Rect
+		pending_scroll_x map[string]f64
 		pending_scroll map[string]f64
 		scroll_order []string
 		scroll_parents map[string]string
+		scrollbar_geometries_x map[string]ScrollbarGeometry
 		scrollbar_geometries map[string]ScrollbarGeometry
 		hit_targets []HitTarget
 		drag_registry DragRegistry
@@ -189,14 +193,18 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		state.focus_visible = g_focus_visible
 		state.navigation = g_focus_navigation
 		state.scroll_targets = g_scroll_targets
+		state.scroll_offsets_x = g_scroll_offsets_x
 		state.scroll_offsets = g_scroll_offsets
+		state.scroll_content_w = g_scroll_content_w
 		state.scroll_content_h = g_scroll_content_h
 		state.scroll_areas = g_scroll_areas
 		state.scroll_transforms = g_scroll_transforms
 		state.scroll_viewports = g_scroll_viewports
+		state.pending_scroll_x = g_pending_scroll_x
 		state.pending_scroll = g_pending_scroll
 		state.scroll_order = g_scroll_order
 		state.scroll_parents = g_scroll_parents
+		state.scrollbar_geometries_x = g_scrollbar_geometries_x
 		state.scrollbar_geometries = g_scrollbar_geometries
 		state.hit_targets = g_hit_targets
 		state.drag_registry = g_drag_registry
@@ -261,14 +269,18 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		g_focus_visible = state.focus_visible
 		g_focus_navigation = state.navigation
 		g_scroll_targets = state.scroll_targets
+		g_scroll_offsets_x = state.scroll_offsets_x
 		g_scroll_offsets = state.scroll_offsets
+		g_scroll_content_w = state.scroll_content_w
 		g_scroll_content_h = state.scroll_content_h
 		g_scroll_areas = state.scroll_areas
 		g_scroll_transforms = state.scroll_transforms
 		g_scroll_viewports = state.scroll_viewports
+		g_pending_scroll_x = state.pending_scroll_x
 		g_pending_scroll = state.pending_scroll
 		g_scroll_order = state.scroll_order
 		g_scroll_parents = state.scroll_parents
+		g_scrollbar_geometries_x = state.scrollbar_geometries_x
 		g_scrollbar_geometries = state.scrollbar_geometries
 		g_hit_targets = state.hit_targets
 		g_drag_registry = state.drag_registry

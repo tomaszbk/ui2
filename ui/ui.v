@@ -38,7 +38,7 @@ pub:
 	x    f64
 	y    f64
 	text string
-	// Scroll events carry the logical vertical offset in value.
+	// Scroll events carry both logical offsets in x/y and the vertical offset in value.
 	value   f64
 	checked bool
 	target  string
@@ -262,6 +262,28 @@ pub enum VAlign {
 	top
 	middle
 	bottom
+}
+
+// ScrollMode names the axes a Scroll element scrolls along, after vlang/gui's
+// setting of the same name. Content past the edge of an axis the mode leaves
+// out is clipped, which is why vertical_only, the behaviour Scroll always had,
+// stays the default.
+pub enum ScrollMode {
+	vertical_only
+	horizontal_only
+	both
+}
+
+// scroll_mode reads a ScrollMode from its VML spelling.
+pub fn scroll_mode(value string) !ScrollMode {
+	return match value {
+		'', 'vertical_only', 'vertical' { .vertical_only }
+		'horizontal_only', 'horizontal' { .horizontal_only }
+		'both' { .both }
+		else {
+			return error('unknown scroll mode `${value}`')
+		}
+	}
 }
 
 pub enum Kind {
@@ -509,6 +531,7 @@ pub:
 	toggle_down_box           BoxStyle
 	toggle_down_text_style    TextStyle
 	toggle_group              string
+	scroll_mode               ScrollMode // scroll: the axes the content scrolls along
 	toggle_allow_no_selection bool = true
 }
 
@@ -864,6 +887,46 @@ pub fn scroll_persistent(id string, frame Rect, bg u32, children []Element) Elem
 		children:              children
 		persistent_scrollbars: true
 	}
+}
+
+// scroll_with_mode is scroll along the axes mode names: sideways for a strip of
+// columns wider than its pane, or both ways for a canvas larger than its viewport.
+// The content is as wide as its rightmost child reaches.
+pub fn scroll_with_mode(id string, frame Rect, bg u32, mode ScrollMode, children []Element) Element {
+	return Element{
+		kind: .scroll
+		id: id
+		frame: frame
+		box: BoxStyle{
+			bg: bg
+		}
+		children: children
+		scroll_mode: mode
+	}
+}
+
+// scroll_mode_offset holds a scroll position to the axes a mode scrolls. Along an axis
+// the mode leaves out the position is the start: anything else would keep the content
+// shifted with no way to scroll it back.
+fn scroll_mode_offset(mode ScrollMode, x f64, y f64) (f64, f64) {
+	return if mode == .vertical_only { 0.0 } else { x }, if mode == .horizontal_only {
+		0.0
+	} else {
+		y
+	}
+}
+
+// scroll_content_width is how far the children of a Scroll element reach to the
+// right, which is the width a sideways scroll has to cover. Hidden children take
+// no room.
+fn scroll_content_width(children []Element) f64 {
+	mut width := 0.0
+	for child in children {
+		if !child.layout_excluded() && child.frame.x + child.frame.width > width {
+			width = child.frame.x + child.frame.width
+		}
+	}
+	return width
 }
 
 pub fn label(id string, text string, frame Rect, style TextStyle) Element {

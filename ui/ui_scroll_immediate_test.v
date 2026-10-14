@@ -12,6 +12,9 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		g_scroll_offsets = map[string]f64{}
 		g_pending_scroll = map[string]f64{}
 		g_scroll_content_h = map[string]f64{}
+		g_scroll_offsets_x = map[string]f64{}
+		g_pending_scroll_x = map[string]f64{}
+		g_scroll_content_w = map[string]f64{}
 		g_active_scrolls = map[string]bool{}
 		g_active_fields = map[string]bool{}
 		g_text_values = map[string]string{}
@@ -474,6 +477,218 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		register_scroll_view_in_parent(named_scroll_state_id('notes'), '', frame, frame, 400, true, true, false, scroll_test_target('notes'))
 		// Registering learns the real range, so the stored request is brought inside it.
 		assert scroll_offset('notes') == 300
+	}
+
+	// A pane a hundred wide over four hundred of columns, with no vertical axis.
+	fn register_horizontal_test_scroll(id string, frame Rect, clip Rect, height f64, enabled bool, scrollbar bool, persistent bool) f64 {
+		return register_horizontal_test_scroll_in_parent(id, '', frame, clip, height, enabled, scrollbar, persistent)
+	}
+
+	fn register_horizontal_test_scroll_in_parent(id string, parent string, frame Rect, clip Rect, height f64, enabled bool, scrollbar bool, persistent bool) f64 {
+		return register_scroll_view_in_parent(named_scroll_state_id(id), if parent.len > 0 { named_scroll_state_id(parent) } else { '' }, frame, clip, height, enabled, scrollbar, persistent, scroll_test_target(id))
+	}
+
+	fn horizontal_scroll_test_pane() {
+		frame := rect(0, 0, 100, 100)
+		register_horizontal_test_scroll('columns', frame, frame, 0, true, false, false)
+		register_scroll_view_width(named_scroll_state_id('columns'), 400, true, false, false)
+	}
+
+	fn test_horizontal_wheel_scrolls_a_sideways_pane_and_clamps_at_both_ends() {
+		reset_scroll_test_state()
+		horizontal_scroll_test_pane()
+		assert scroll_maximum(named_scroll_state_id('columns')) == 0
+		assert scroll_maximum_x(named_scroll_state_id('columns')) == 300
+		assert scroll_hit_test(50, 50) == named_scroll_state_id('columns')
+		handle_mouse_scroll_vector(50, 50, -1, 0)
+		assert scroll_horizontal_offset('columns') == 48
+		// A plain wheel finds no vertical range here to move.
+		handle_mouse_scroll_vector(50, 50, 0, -1)
+		assert scroll_offset('columns') == 0
+		assert scroll_horizontal_offset('columns') == 48
+		handle_mouse_scroll_vector(50, 50, -1000, 0)
+		assert scroll_horizontal_offset('columns') == 300
+		handle_mouse_scroll_vector(50, 50, -1000, 0)
+		handle_mouse_scroll_vector(50, 50, 1000, 0)
+		assert scroll_horizontal_offset('columns') == 0
+		assert scroll_test_events == ['columns', 'columns', 'columns']
+	}
+
+	fn test_sideways_strip_leaves_vertical_distance_to_its_parent() {
+		reset_scroll_test_state()
+		clip := rect(0, 0, 300, 300)
+		register_horizontal_test_scroll('list', clip, clip, 1200, true, true, false)
+		register_horizontal_test_scroll_in_parent('strip', 'list', rect(20, 20, 100, 100), clip,
+			0, true, false, false)
+		register_scroll_view_width(named_scroll_state_id('strip'), 500, true, false, false)
+		handle_mouse_scroll_vector(50, 50, 0, -1)
+		assert scroll_offset('list') == 48
+		assert scroll_offset('strip') == 0
+		handle_mouse_scroll_vector(50, 50, -1, 0)
+		assert scroll_horizontal_offset('strip') == 48
+		assert scroll_horizontal_offset('list') == 0
+		// A drag moves each axis in the pane that has room for it.
+		handle_touch_down(50, 80)
+		handle_touch_move(20, 50)
+		handle_touch_up(20, 50)
+		assert scroll_horizontal_offset('strip') == 78
+		assert scroll_offset('list') == 78
+		assert scroll_offset('strip') == 0
+	}
+
+	fn test_horizontal_offset_requests_only_paint_and_publish_both_axes() {
+		previous := g_gg_app
+		previous_state := activate_custom_window_state(new_custom_window_state())
+		g_gg_app = &GgApp{ scheduler: new_frame_coordinator() }
+		defer { activate_custom_window_state(previous_state); g_gg_app = previous }
+		frame := rect(0, 0, 100, 100)
+		id := named_scroll_state_id('pane')
+		register_scroll_view_in_parent(id, '', frame, frame, 400, true, true, false, HitTarget{})
+		register_scroll_view_width(id, 500, true, false, true)
+		initial := g_gg_app.scheduler.begin_frame(0) or { panic('initial work') }
+		g_gg_app.scheduler.finish_frame(initial)
+		scroll_to_horizontal_offset('pane', 120)
+		paint := g_gg_app.scheduler.begin_frame(1) or { panic('missing paint') }
+		assert paint.draw && !paint.build
+		g_gg_app.scheduler.finish_frame(paint)
+		scroll_to_horizontal_offset('pane', 120)
+		assert !g_gg_app.scheduler.stats().pending
+		g_scroll_targets[id] = scroll_test_target('pane')
+		scroll_test_payloads.clear()
+		scroll_to_offset('pane', 40)
+		scroll_to_horizontal_offset('pane', 150)
+		assert scroll_test_payloads.len == 2
+		assert scroll_test_payloads[0].x == 120 && scroll_test_payloads[0].y == 40
+		assert scroll_test_payloads[1].x == 150 && scroll_test_payloads[1].y == 40
+		assert scroll_test_payloads[1].value == 40
+	}
+
+	fn test_horizontal_scrollbar_geometry_runs_along_the_bottom_edge() {
+		frame := rect(0, 0, 100, 100)
+		left := scrollbar_geometry_x(frame, 1000, 0, false, false)
+		assert left.track == rect(4, 91, 92, 5)
+		assert left.thumb == rect(4, 91, 28, 5)
+		right := scrollbar_geometry_x(frame, 1000, 900, false, false)
+		assert right.thumb.x + right.thumb.width == right.track.x + right.track.width
+		// Beside a vertical scroller the track leaves the corner they would share.
+		assert scrollbar_geometry_x(frame, 1000, 0, false, true).track == rect(4, 91, 83, 5)
+		assert scrollbar_geometry_x(frame, 50, 0, false, false) == ScrollbarGeometry{}
+		persistent := scrollbar_geometry_x(frame, 50, 0, true, false)
+		assert persistent.track == persistent.thumb
+		assert scrollbar_geometry_x(rect(0, 0, 5, 5), 1000, 0, true, false) == ScrollbarGeometry{}
+	}
+
+	fn test_horizontal_scrollbar_thumb_drag_and_track_click_reach_the_end() {
+		reset_scroll_test_state()
+		horizontal_scroll_test_pane()
+		handle_touch_down(10, 94)
+		assert g_touch.scrollbar_drag
+		assert g_touch.scrollbar_horizontal
+		handle_touch_move(74, 94)
+		handle_touch_up(74, 94)
+		assert scroll_horizontal_offset('columns') == 300
+		assert scroll_offset('columns') == 0
+		set_scroll_offset_x(named_scroll_state_id('columns'), 0, 300)
+		reset_scroll_frame()
+		horizontal_scroll_test_pane()
+		handle_touch_down(90, 94)
+		handle_touch_up(90, 94)
+		assert scroll_horizontal_offset('columns') == 300
+	}
+
+	fn test_strip_scrollbar_is_reachable_over_a_column_that_scrolls_beneath_it() {
+		reset_scroll_test_state()
+		clip := rect(0, 0, 300, 100)
+		register_horizontal_test_scroll('columns', clip, clip, 0, true, false, false)
+		register_scroll_view_width(named_scroll_state_id('columns'), 900, true, false, false)
+		register_horizontal_test_scroll_in_parent('column', 'columns', rect(0, 0, 150, 100), clip,
+			400, true, true, false)
+		// The press lands on the column, whose strip draws its scroller over it.
+		handle_touch_down(20, 94)
+		assert g_touch.scroll_chain == [named_scroll_state_id('column'), named_scroll_state_id('columns')]
+		assert g_touch.scrollbar_drag
+		assert g_touch.scrollbar_horizontal
+		assert g_touch.scroll_id == named_scroll_state_id('columns')
+		handle_touch_move(120, 94)
+		handle_touch_up(120, 94)
+		assert scroll_horizontal_offset('columns') > 300
+		assert scroll_offset('column') == 0
+		// The column's own scroller still answers further up.
+		handle_touch_down(144, 20)
+		assert g_touch.scrollbar_drag
+		assert !g_touch.scrollbar_horizontal
+		assert g_touch.scroll_id == named_scroll_state_id('column')
+		handle_touch_up(144, 20)
+	}
+
+	fn test_scroll_to_rect_brings_a_column_into_view_sideways() {
+		reset_scroll_test_state()
+		horizontal_scroll_test_pane()
+		scroll_to_rect('columns', 350, 0, 50, 10)
+		assert scroll_horizontal_offset('columns') == 300
+		scroll_to_rect('columns', 120, 0, 50, 10)
+		assert scroll_horizontal_offset('columns') == 120
+		assert scroll_offset('columns') == 0
+	}
+
+	fn test_scroll_to_horizontal_offset_survives_until_the_view_exists() {
+		reset_scroll_test_state()
+		// Opening a folder asks for the far end before its column has been laid out.
+		scroll_to_horizontal_offset('columns', 10_000)
+		reset_scroll_frame()
+		prune_unmounted_state()
+		horizontal_scroll_test_pane()
+		assert scroll_horizontal_offset('columns') == 300
+		scroll_to_horizontal_offset('columns', 120)
+		assert scroll_horizontal_offset('columns') == 120
+		scroll_to_horizontal_offset('columns', -50)
+		assert scroll_horizontal_offset('columns') == 0
+	}
+
+	fn test_scroll_to_horizontal_offset_uses_the_latest_mounted_range() {
+		reset_scroll_test_state()
+		horizontal_scroll_test_pane()
+		// An existing view clamps against its mounted range. Refresh a changed
+		// tree before asking to scroll to newly added content.
+		scroll_to_horizontal_offset('columns', 10_000)
+		assert scroll_horizontal_offset('columns') == 300
+		reset_scroll_frame()
+		frame := rect(0, 0, 100, 100)
+		register_horizontal_test_scroll('columns', frame, frame, 0, true, false, false)
+		assert register_scroll_view_width(named_scroll_state_id('columns'), 600, true, false, false) == 300
+		scroll_to_horizontal_offset('columns', 10_000)
+		assert scroll_horizontal_offset('columns') == 500
+		// The request is spent, so a later frame leaves a position the user moved to alone.
+		set_scroll_offset_x(named_scroll_state_id('columns'), 40, scroll_maximum_x(named_scroll_state_id('columns')))
+		reset_scroll_frame()
+		register_horizontal_test_scroll('columns', frame, frame, 0, true, false, false)
+		assert register_scroll_view_width(named_scroll_state_id('columns'), 600, true, false, false) == 40
+		// One inside the range is taken at once and replaces what was still waiting.
+		scroll_to_horizontal_offset('columns', 10_000)
+		scroll_to_horizontal_offset('columns', 120)
+		assert scroll_horizontal_offset('columns') == 120
+		assert named_scroll_state_id('columns') !in g_pending_scroll_x
+	}
+
+	fn test_sideways_state_goes_with_the_axis_and_with_the_pane() {
+		reset_scroll_test_state()
+		horizontal_scroll_test_pane()
+		scroll_to_horizontal_offset('columns', 120)
+		// Rebuilt without a sideways axis, the pane has nothing left to be scrolled to.
+		reset_scroll_frame()
+		frame := rect(0, 0, 100, 100)
+		register_horizontal_test_scroll('columns', frame, frame, 0, true, false, false)
+		assert register_scroll_view_width(named_scroll_state_id('columns'), 0, false, false, false) == 0
+		assert named_scroll_state_id('columns') !in g_scrollbar_geometries_x
+		assert scroll_hit_test(50, 50) == ''
+		reset_scroll_frame()
+		horizontal_scroll_test_pane()
+		scroll_to_horizontal_offset('columns', 120)
+		g_active_scrolls = map[string]bool{}
+		reset_scroll_frame()
+		prune_unmounted_state()
+		assert named_scroll_state_id('columns') !in g_scroll_offsets_x
+		assert named_scroll_state_id('columns') !in g_scroll_content_w
 	}
 }
 
