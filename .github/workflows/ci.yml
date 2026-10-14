@@ -81,5 +81,12 @@ jobs:
           v ${{ matrix.custom && '-d ui2_custom_rendering' || '' }} test ui2/ui/ui_scroll_immediate_test.v
           v ${{ matrix.custom && '-d ui2_custom_rendering' || '' }} test ui2/examples/scrollview
 
+      - name: Test C ABI and build C example
+        if: runner.os != 'Windows'
+        run: |
+          v ${{ matrix.custom && '-d ui2_custom_rendering' || '' }} test ui2/c/api_test.v
+          v run ui2/c/build.vsh test ${{ matrix.custom && '-d ui2_custom_rendering' || '' }}
+          v run ui2/c/build.vsh example ${{ matrix.custom && '-d ui2_custom_rendering' || '' }}
+
       - name: Build all examples
         run: v run ui2/examples/build_examples.vsh ${{ matrix.custom && '-d ui2_custom_rendering' || '' }}
