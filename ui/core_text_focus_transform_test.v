@@ -41,8 +41,7 @@ $if macos && ui2_custom_rendering ? && !ui2_headless ? {
 		g_gg_app = &GgApp{ctx: &DrawContext{inner: &gg.Context{width: 1600, height: 500}, width: 1600, height: 500}, has_root: true}
 		grid_el := grid(GridConfig{id: 'grid', frame: rect(400, 0, 64, 0), columns: 2,
 			children: [label('caption', 'aa', Rect{}, TextStyle{}), label('cell', 'bb', Rect{}, TextStyle{})]})!
-		composite := modal_view(id: 'composite', frame: rect(400, 0, 64, 60), open: true, size_hint_x: 1, content: grid_el)!
-		composite_el := Element{...composite, children: composite.children.map(if it.kind == .button { Element{...it, focus_policy: .unfocusable} } else { it })}
+		composite_el := view('composite', rect(400, 0, 64, 60), BoxStyle{}, [grid_el.with_layout_frame(rect(0, 0, 64, 60))])
 		target := Element{kind: .button, id: 'target', text: 'Target', frame: rect(5, 100, 20, 10), on_event: core20_pointer}
 		g_gg_app.declared_root = screen(0xffffff, [
 			button('anchor', 'Anchor', rect(0, 0, 20, 20), BoxStyle{}, TextStyle{}),

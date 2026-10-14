@@ -1,0 +1,7 @@
+import OverlayPanel
+
+Column(id: "repeated", width: 500, height: 480) {
+    Repeater(model: app.items, key: item.id) {
+        OverlayPanel(open: app.open)
+    }
+}

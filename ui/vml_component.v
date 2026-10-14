@@ -267,11 +267,7 @@ fn (mut component CompiledVmlComponent) owned_element(declaration Element, confi
 		declaration:       Element{
 			...declaration
 			compiled_source: unsafe { nil }
-			id:       if declaration.id.len == 0 || component.namespace.len == 0 {
-				declaration.id
-			} else {
-				component.namespace + ':' + declaration.id.bytes().hex()
-			}
+			id:       component.control_id(declaration.id)
 			children: []
 		}
 		frame_value:       component.geometry(local_id, declaration.frame)!

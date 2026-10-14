@@ -27,7 +27,7 @@ fn (element Element) presence_leaving() bool {
 }
 
 fn (element Element) layout_excluded() bool {
-	return element.hidden || element.presence_exiting
+	return element.hidden || element.presence_exiting || element.overlay != none
 }
 
 $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ?&& !ui2_document_library ? {

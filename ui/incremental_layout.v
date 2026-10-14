@@ -142,6 +142,9 @@ mut:
 	measurer    LayoutTextMeasureFn = unsafe { nil }
 	counters    LayoutStats
 	geometry_snapshot &Element = unsafe { nil }
+	// Portal reflow publishes only its final window-layer geometry, never the
+	// intermediate local origin used while measuring its surface.
+	geometry_readonly bool
 }
 
 pub fn (tree &LayoutTree) stats() LayoutStats { return tree.counters }
@@ -306,6 +309,7 @@ fn layout_metric_flags(element Element) u8 {
 // that can change a measured size or child placement. Paint-only fields differ freely.
 fn layout_metrics_equal(a Element, b Element) bool {
 	if a.kind != b.kind || a.hidden != b.hidden || a.presence_exiting != b.presence_exiting || a.text != b.text || a.placeholder != b.placeholder
+		|| (a.overlay == none) != (b.overlay == none)
 		|| a.content_size != b.content_size || a.padding_left != b.padding_left || a.content_padding != b.content_padding
 		|| a.disable_scroll != b.disable_scroll || a.scroll_mode != b.scroll_mode || a.secure != b.secure || a.image_path != b.image_path
 		|| a.image_asset.logical_size != b.image_asset.logical_size || a.text_runs.len != b.text_runs.len
@@ -441,6 +445,7 @@ pub fn (mut tree LayoutTree) resolve(constraints LayoutConstraints, measure Layo
 		// cold pass. Stabilize once all fonts used by the tree are registered.
 		if layout_effective_environment(environment, measure) == effective {
 			output := tree.output(tree.root, true, 'root', '')
+			if tree.geometry_readonly { return output }
 			output_root := tree.nodes[tree.root] or { return error('missing root') }
 			if voidptr(tree.geometry_snapshot) == voidptr(output_root.output_snapshot) { return output }
 			updates := compiled_vml_sync_geometry(output)!
@@ -487,7 +492,7 @@ fn (mut tree LayoutTree) measure_node(identity string, constraints LayoutConstra
 	tree.counters.measure_visits++
 	input := node.input
 	mut preferred := LayoutSize{}
-	if node.declaration.layout_excluded() {
+	if node.declaration.hidden || node.declaration.presence_exiting {
 		preferred = constraints.constrain(LayoutSize{})!
 	} else if layout_authored_width(node.declaration) && layout_authored_height(node.declaration) {
 		preferred = constraints.constrain(LayoutSize{ width: input.width, height: input.height })!
@@ -611,7 +616,7 @@ fn (mut tree LayoutTree) container_geometry(node &RetainedLayoutNode, available 
 	mut has_exits := false
 	for child in node.children {
 		if retained := tree.nodes[child] {
-			if retained.declaration.presence_exiting {
+			if retained.declaration.presence_exiting || retained.declaration.overlay != none {
 				has_exits = true
 				break
 			}
@@ -629,7 +634,7 @@ fn (mut tree LayoutTree) container_geometry(node &RetainedLayoutNode, available 
 	mut stack_rules := []StackChild{}
 	for index, child in node.children {
 		retained := tree.nodes[child] or { return error('missing leaving layout child') }
-		if retained.declaration.presence_exiting { continue }
+		if retained.declaration.presence_exiting || retained.declaration.overlay != none { continue }
 		children << child
 		active_sizes << sizes[index]
 		indices << index
@@ -661,6 +666,10 @@ fn (mut tree LayoutTree) container_geometry(node &RetainedLayoutNode, available 
 	active_frames, natural := tree.container_geometry_active(&active, available, active_sizes, measuring, constraints)!
 	mut frames := []Rect{len: node.children.len}
 	for index, original in indices { frames[original] = active_frames[index] }
+	for index, child in node.children {
+		retained := tree.nodes[child] or { continue }
+		if retained.declaration.overlay != none { frames[index] = retained.input }
+	}
 	return frames, natural
 }
 

@@ -102,7 +102,8 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 				dispatch_key_event(event, dispatch)
 				if !dispatch.valid() { return true }
 			} else {
-				consumed = menu_bar_handle_key(event)
+				consumed = overlay_key(immediate_key_event(event), event.key_repeat)
+				if !consumed { consumed = menu_bar_handle_key(event) }
 				if !dispatch.valid() { return true }
 				if !consumed && g_open_dropdown.len > 0 {
 					consumed = handle_dropdown_key(event.key_code)

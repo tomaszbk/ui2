@@ -103,6 +103,13 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		scheduler &FrameCoordinator = new_frame_coordinator()
 		layout_tree &LayoutTree = &LayoutTree{}
 		motion_tree &MotionTree = &MotionTree{}
+		overlay_tree &OverlayTree = &OverlayTree{}
+		overlay_focus OverlayFocusState
+		overlay_offsets map[string]f64
+		overlay_offsets_x map[string]f64
+		overlay_unavailable map[string]OverlayTriggerOwner
+		overlay_triggers map[string]OverlayTrigger
+		overlay_trigger_revision u64
 		layout_environment LayoutEnvironment
 		layout_patches []LayoutPatch
 		// Every queued patch gets a serial. A compiled declaration contains the
@@ -884,6 +891,12 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		}
 		state.layout_patches.clear()
 		state.has_root = false
+		state.overlay_tree = &OverlayTree{}
+		state.overlay_focus = OverlayFocusState{}
+		state.overlay_offsets.clear()
+		state.overlay_offsets_x.clear()
+		state.overlay_unavailable.clear()
+		state.overlay_triggers.clear()
 		state.editable_fields.clear()
 		state.motion_tree.dispose()
 		configure_animation_driver(unsafe { nil }, false)
@@ -906,6 +919,8 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 			&& !g_tooltip.visible && !g_touch.down && !menu_bar_open() && g_open_dropdown.len == 0 {
 			deadline = g_tooltip.rest_since + tooltip_delay_ms
 		}
+		overlay_at := overlay_deadline()
+		if overlay_at >= 0 && (deadline < 0 || overlay_at < deadline) { deadline = overlay_at }
 		if g_touch.down && !g_touch.moved && !g_touch.long_press_fired && !g_touch.scrollbar_drag {
 			target := hit_test(g_touch.start_x, g_touch.start_y)
 			if target.long_press && voidptr(target.on_event) != unsafe { nil } {
@@ -995,7 +1010,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		if !dispatch.valid() || (ctx != unsafe { nil } && !custom_layout_owner_current(dispatch, ctx, input)) { return error('motion frame canceled') }
 		resolved := app.layout_tree.resolve(LayoutConstraints{}, measure, app.layout_environment)!
 		app.motion_tree.previous = resolved
-		return resolved
+		return resolve_custom_overlays(mut app, resolved, measure)!
 	}
 
 	fn custom_layout_owner_current(dispatch CustomInputDispatch, ctx &DrawContext, input bool) bool {
@@ -1175,6 +1190,8 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		reconcile_mounted_focus_controls(root)
 		update_custom_focus_tree(root)
 		if !custom_frame_current(dispatch, ctx) || g_focus_navigation.root != root { return }
+		update_overlay_triggers(now)
+		if !custom_frame_current(dispatch, ctx) || g_focus_navigation.root != root { return }
 		mounted := g_focus_navigation.root_revision
 		// Mounted targets survive paint-only frames. Drop only the previous paint
 		// tail (popup/fallback targets), before adding this frame's overlays.
@@ -1244,7 +1261,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		}
 		if app.has_root {
 			top := menu_bar_height()
-			render_element(ctx, root, 0, top, rect(0, top, f64(ctx.width), f64(ctx.height) - top), '', 'root')
+			render_element(ctx, root, 0, top, rect(0, top, f64(ctx.width), f64(ctx.height) - top), '', presentation_root_path(root))
 			if !custom_frame_current(dispatch, ctx) || g_focus_navigation.root_revision != mounted { return }
 			if g_open_dropdown.len > 0 {
 				if g_dropdown_popup.mounted {
@@ -1291,6 +1308,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		state.scheduler.invalidate(if e.typ in [.key_down, .key_up, .char, .files_dropped] { RenderReason.build } else { RenderReason.paint })
 		match e.typ {
 			.mouse_down {
+				if e.mouse_button == .right { overlay_context_press(app, f64(e.mouse_x), f64(e.mouse_y)); return }
 				custom_mouse_down(app, f64(e.mouse_x), f64(e.mouse_y))
 			}
 			.mouse_move {
@@ -1332,6 +1350,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 				g_tooltip.pointer_left()
 			}
 			.mouse_up {
+				if e.mouse_button == .right { return }
 				if g_touch.down && g_touch.pointer_captured {
 					handle_touch_up(f64(e.mouse_x), f64(e.mouse_y))
 					return
@@ -1432,6 +1451,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		// build through fire_target_event; explicit refresh remains blocking.
 		app.scheduler.invalidate(.paint)
 		g_tooltip.dismiss()
+		if !sync_custom_input_geometry(dispatch) || overlay_pointer_down(x, y) || !dispatch.valid() { return dispatch }
 		if menu_bar_handle_down(x, y) || !dispatch.valid() { return dispatch }
 		return handle_touch_down(x, y)
 	}
@@ -1451,6 +1471,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		if !previous.valid() { return previous }
 		dispatch := begin_custom_input_dispatch(g_gg_app)
 		if !sync_custom_input_geometry(dispatch) { return dispatch }
+		if overlay_pointer_down(x, y) || !dispatch.valid() { return dispatch }
 		g_touch = TouchState{
 			input_generation: dispatch.generation
 			down: true
@@ -1821,7 +1842,11 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		if voidptr(target.on_event) != unsafe { nil } {
 			dispatch := custom_input_dispatch(g_gg_app)
 			revision := g_gg_app.presentation_revision
+			menu_owner := if event.kind == .click { overlay_selection_owner(target.id) } else { none }
 			target.on_event(event)
+			if dispatch.valid() {
+				if owner := menu_owner { request_overlay_dismiss(owner, .selection) }
+			}
 			// A presentation setter already requested a paint; pure visual callbacks
 			// do not rebuild their retained layout. Mixed model changes call refresh().
 			if dispatch.valid() && revision == g_gg_app.presentation_revision { refresh() }
@@ -2778,9 +2803,10 @@ fn page_focused_text_area(direction int) {
 	fn resolve_custom_visual_style(declared Element, area Rect, clip Rect, transform ContentTransform) Element {
 		region := current_clip_region(clip)
 		geometry := element_hit_geometry(declared, area, transform, region)
-		hovered := g_tooltip.pointer_in && hit_target_contains(geometry,g_tooltip.pointer_x,g_tooltip.pointer_y)
-		focused := declared.focused || custom_focus_ring_visible(declared)
-		pressed_style_active := g_touch.down && declared.id.len > 0
+		inert := g_gg_app.ctx != unsafe { nil } && g_gg_app.ctx.overlay_inert
+		hovered := !inert && g_tooltip.pointer_in && hit_target_contains(geometry,g_tooltip.pointer_x,g_tooltip.pointer_y)
+		focused := !inert && (declared.focused || custom_focus_ring_visible(declared))
+		pressed_style_active := !inert && g_touch.down && declared.id.len > 0
 			&& (declared.id == g_touch.pressed_id || declared.id == g_touch.pointer_target.id)
 			&& (!g_touch.pointer_captured || declared.kind == g_touch.pointer_target.kind)
 			&& !g_touch.moved && !g_touch.scrollbar_drag
@@ -2831,6 +2857,7 @@ fn page_focused_text_area(direction int) {
 		region := ctx.clip_region
 		enabled := ctx.interaction_enabled
 		opacity := ctx.opacity
+		inert := ctx.overlay_inert
 		parent_clip := ctx.retained_clip(base, clip, outer)
 		area := element_area(ctx, declared_el, off_x, off_y)
 		visual := declared_el.visual_transform().matrix(area) or { return }
@@ -2842,6 +2869,7 @@ fn page_focused_text_area(direction int) {
 			ctx.clip_region = parent_clip
 			ctx.interaction_enabled = enabled && declared_el.presented_enabled()
 			ctx.opacity = opacity * declared_el.presented_opacity()
+			ctx.overlay_inert = inert || declared_el.overlay_inert
 		}
 		defer { unsafe {
 			ctx.content_transform = outer
@@ -2849,6 +2877,7 @@ fn page_focused_text_area(direction int) {
 			ctx.clip_region = region
 			ctx.interaction_enabled = enabled
 			ctx.opacity = opacity
+			ctx.overlay_inert = inert
 		}
 		ctx.sync_scissor()
 		 }
@@ -2870,7 +2899,7 @@ fn page_focused_text_area(direction int) {
 		if declared_el.presented_hidden() {
 			return
 		}
-		sync_mounted_control(declared_el)
+		sync_mounted_control(Element{ ...declared_el, enabled: declared_el.enabled && !ctx.overlay_inert })
 		apply_clip(ctx, clip)
 		area := element_area(ctx, declared_el, off_x, off_y)
 		el := resolve_custom_visual_style(declared_el, area, clip, ctx.content_transform)
@@ -2896,7 +2925,7 @@ fn page_focused_text_area(direction int) {
 			}
 		}
 		// A declared focus outline replaces the default ring instead of doubling it.
-		if custom_focus_ring_visible(el) && el.kind !in [.text_field, .text_area]
+		if !ctx.overlay_inert && custom_focus_ring_visible(el) && el.kind !in [.text_field, .text_area]
 			&& el.interaction_style.focus.outline_width == none {
 			draw_outline(ctx, area.x - 2, area.y - 2, area.width + 4, area.height + 4, 0x2563eb, el.box.radius)
 		}
@@ -2950,8 +2979,14 @@ fn page_focused_text_area(direction int) {
 						vector_origin: area
 					}, clip)
 				}
+				child_clip := if el.overlay != none { intersect_rect(area, clip) } else { clip }
+				child_base := ctx.clip_base
+				if el.overlay != none {
+					unsafe { ctx.clip_base = ctx.retained_clip(child_base, area, ctx.content_transform) }
+				}
+				defer { unsafe { ctx.clip_base = child_base } }
 				for index, child in el.children {
-					render_element(ctx, child, x, y, clip, scroll_parent_id, reconciliation_child_key(path,index,child))
+					render_element(ctx, child, x, y, child_clip, scroll_parent_id, reconciliation_child_key(path,index,child))
 					if !custom_frame_current(dispatch, ctx) || g_focus_navigation.root_revision != root { return }
 				}
 			}

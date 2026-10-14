@@ -1,0 +1,6 @@
+Scroll(id: "scroll", width: 100, height: 80, scroll_mode: app.scroll_mode) {
+    Column(id: "content", gap: 2) {
+        Button(id: "first", text: "First", width: 160, height: 30)
+        Button(id: "second", text: "Second", width: 160, height: 30)
+    }
+}

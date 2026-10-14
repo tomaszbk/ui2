@@ -1,0 +1,20 @@
+View(id: "document", width: 500, height: 400) {
+    Button(id: "anchor", width: 80, height: 30, text: "Open")
+    Dialog(id: "dialog", width: 320, height: 180, open: app.open, hidden: app.hidden,
+        on_dismiss: app.dismiss(event.dismiss_reason)) {
+        Column {
+            TextInput(id: "draft", text: "Local draft", width: 240, height: 30)
+            Button(id: "counter", text: "Count", width: 100, height: 30, on_click: app.increment())
+            Label(id: "count", text: app.count, width: 100, height: 30)
+        }
+    }
+    ContextMenu(id: "context", width: 160, height: 100, anchor: "anchor", point: app.point,
+        open: app.context_open, on_open: app.open_context(event.x, event.y),
+        on_dismiss: app.dismiss_context()) {
+        Button(id: "context_action", text: "Action", width: 140, height: 30)
+    }
+    Tooltip(id: "help", width: 120, height: 40, anchor: "anchor", open: app.tip_open,
+        on_open: app.show_tip(), on_dismiss: app.hide_tip(), tooltip_delay: 0.25) {
+        Label(text: "Help")
+    }
+}

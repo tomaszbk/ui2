@@ -60,6 +60,7 @@ pub fn (mut node CompiledVmlNode) update_viewport(viewport Rect) ! {
 }
 
 fn compiled_vml_record_geometry(element Element) ! {
+	if element.overlay != none { return }
 	// Hidden allocation is excluded from layout, rather than a logical resize.
 	// Keep the retained frame of the entire subtree for its effects and refs.
 	if element.hidden { return }
@@ -72,6 +73,7 @@ fn compiled_vml_record_geometry(element Element) ! {
 
 fn compiled_vml_sync_geometry(element Element) ![]Element {
 	mut updates := []Element{}
+	if element.overlay != none { return updates }
 	if element.compiled_node != unsafe { nil } {
 		if element.compiled_node.component.is_disposed() { return updates }
 		before := element.compiled_node.element()

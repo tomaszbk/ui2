@@ -10,10 +10,8 @@ $if macos && !ui2_custom_rendering ?&& !ui2_headless ? {
 enum SlotComposite {
 	screen_manager
 	tabbed_panel
-	modal_view
 	carousel
 	accordion
-	popup
 }
 
 __global slot_events = []ElementEvent{}
@@ -99,7 +97,6 @@ fn slot_composite(kind SlotComposite, frame Rect, content Element) !Element {
 				tabs:  [TabbedPanelTab{ id: 'tab', title: 'Tab', content: content }]
 			)!
 		}
-		.modal_view { modal_view(id: 'composite', frame: frame, open: true, content: content)! }
 		.carousel { carousel(id: 'composite', frame: frame, slides: [content])! }
 		.accordion {
 			accordion(
@@ -107,9 +104,6 @@ fn slot_composite(kind SlotComposite, frame Rect, content Element) !Element {
 				frame: frame
 				items: [AccordionItem{ id: 'header', title: 'Header', content: content }]
 			)!
-		}
-		.popup {
-			popup(id: 'composite', frame: frame, open: true, title: 'Popup', content: content)!
 		}
 	}
 }
@@ -154,14 +148,11 @@ fn slot_resolve(mut tree LayoutTree) !Element {
 
 fn slot_expected(kind SlotComposite, width f64, height f64) Rect {
 	// Public contracts, without calling any composite geometry helper:
-	// tabs reserve 40 at top; modal takes centered 80%; horizontal accordion
-	// reserves its one 44-wide header; popup removes 48+1 from the surface.
+	// Tabs reserve 40 at top; horizontal accordion reserves its 44-wide header.
 	return match kind {
 		.screen_manager, .carousel { rect(0, 0, width, height) }
 		.tabbed_panel { rect(0, 40, width, height - 40) }
-		.modal_view { rect(width / 10, height / 10, width * 0.8, height * 0.8) }
 		.accordion { rect(44, 0, width - 44, height) }
-		.popup { rect(0, 49, width * 0.8, height * 0.8 - 49) }
 	}
 }
 
@@ -256,12 +247,6 @@ fn test_tabbed_panel_grid_slot_resize() { slot_resize_fixture(.tabbed_panel, .gr
 
 fn test_tabbed_panel_stack_slot_resize() { slot_resize_fixture(.tabbed_panel, .stack)! }
 
-fn test_modal_view_flex_slot_resize() { slot_resize_fixture(.modal_view, .flex)! }
-
-fn test_modal_view_grid_slot_resize() { slot_resize_fixture(.modal_view, .grid)! }
-
-fn test_modal_view_stack_slot_resize() { slot_resize_fixture(.modal_view, .stack)! }
-
 fn test_carousel_flex_slot_resize() { slot_resize_fixture(.carousel, .flex)! }
 
 fn test_carousel_grid_slot_resize() { slot_resize_fixture(.carousel, .grid)! }
@@ -273,12 +258,6 @@ fn test_accordion_flex_slot_resize() { slot_resize_fixture(.accordion, .flex)! }
 fn test_accordion_grid_slot_resize() { slot_resize_fixture(.accordion, .grid)! }
 
 fn test_accordion_stack_slot_resize() { slot_resize_fixture(.accordion, .stack)! }
-
-fn test_popup_flex_slot_resize() { slot_resize_fixture(.popup, .flex)! }
-
-fn test_popup_grid_slot_resize() { slot_resize_fixture(.popup, .grid)! }
-
-fn test_popup_stack_slot_resize() { slot_resize_fixture(.popup, .stack)! }
 
 fn test_selected_content_slots_follow_headers_and_carousel_keeps_slide_generation() {
 	content := slot_content(.flex)!
@@ -343,40 +322,68 @@ fn test_selected_content_slots_follow_headers_and_carousel_keeps_slide_generatio
 	}
 }
 
-fn test_modal_and_popup_reopen_same_content_without_promoting_descendant_frames() {
-	for composite in [SlotComposite.modal_view, .popup] {
-		content := slot_content(.grid)!
-		mut tree := LayoutTree{}
-		mut generation := u64(0)
-		for index, open in [true, false, true] {
-			declaration := if composite == .modal_view {
-				modal_view(
-					id:      'composite'
-					frame:   rect(0, 0, 320, 200)
-					open:    open
-					content: content
-				)!
-			} else {
-				popup(
-					id:      'composite'
-					frame:   rect(0, 0, 320, 200)
-					open:    open
-					title:   'Popup'
-					content: content
-				)!
+$if linux || ((macos || windows) && ui2_custom_rendering ?) || ui2_headless ?|| ui2_document_library ? {
+	fn test_overlay_content_reflows_and_reopens_without_promoting_authored_descendant_frames() ! {
+		for kind in [OverlayKind.dialog, .popover] {
+			for layout in [LayoutKind.flex, .grid, .stack] {
+				authored := slot_content(layout)!
+				mut raw := LayoutTree{}
+				mut portals := OverlayTree{ measure: slot_measure }
+				mut generations := []u64{}
+				// Resize in both directions, then close and reopen the same surface.
+				for index, surface in [rect(33, 41, 240, 120), rect(33, 41, 300, 180),
+					rect(33, 41, 240, 120), rect(33, 41, 240, 120), rect(33, 41, 240, 120)] {
+					open := index != 3
+					content_slot := stack(StackConfig{
+						id:       'surface'
+						frame:    surface
+						children: [StackChild{ element: authored, align_x: .stretch, align_y: .stretch }]
+					})!
+					overlay := with_overlay(content_slot, OverlayConfig{
+						kind:   kind
+						open:   open
+						anchor: if kind == .popover { 'anchor' } else { '' }
+					})!
+					root := screen(0xffffff, [
+						button('anchor', 'Open', rect(20, 20, 80, 30), BoxStyle{}, TextStyle{}),
+						overlay,
+					])
+					raw.replace(root)!
+					projected := portals.resolve(slot_resolve(mut raw)!, map[string]f64{}, rect(0, 0, 400, 300), 0)!
+					presented := slot_find(projected, 'surface') or { panic('missing surface') }
+					assert presented.hidden == !open
+					content := slot_find(presented, 'content') or { panic('missing retained content') }
+					expected := rect(0, 0, surface.width, surface.height)
+					if open {
+						slot_rect(content.frame, expected)
+						slot_assert_descendants(content, layout, expected)
+					}
+					assert content.key == 'content-key' && content.on_event == authored.on_event
+					assert content.focused && content.text_selection == authored.text_selection
+					current := [
+						(raw.identity('content') or { panic('missing content identity') }).generation,
+						(raw.identity('nested') or { panic('missing nested identity') }).generation,
+						(portals.layers[0].layout.identity('content') or { panic('missing portal identity') }).generation,
+					]
+					if index == 0 {
+						generations = current.clone()
+					} else {
+						assert current == generations
+					}
+					assert portals.resolve(slot_resolve(mut raw)!, map[string]f64{}, rect(0, 0, 400, 300), 0)! == projected
+				}
+				slot_rect(authored.frame, rect(7, 9, 40, 30))
+				slot_rect(authored.children[0].layout_input or { panic('missing authored input') }, rect(3, 5, 24, 18))
 			}
-			tree.replace(declaration)!
-			resolved := slot_resolve(mut tree)!
-			assert resolved.hidden == !open
-			if index == 0 {
-				generation = (tree.identity('content') or { panic('missing identity') }).generation
-			}
-			assert (tree.identity('content') or { panic('missing identity') }).generation == generation
-			if open {
-				allocated := (slot_find(resolved, 'content') or { panic('missing content') })
-				slot_rect(allocated.frame, slot_expected(composite, 320, 200))
-				slot_assert_descendants(allocated, .grid, slot_expected(composite, 320, 200))
-			}
+		}
+	}
+} $else {
+	fn test_native_profile_rejects_overlay_surfaces() ! {
+		surface := with_overlay(view('dialog', rect(0, 0, 240, 120), BoxStyle{}, []Element{}), OverlayConfig{ kind: .dialog, open: true })!
+		if _ := validate_element_tree(surface) {
+			assert false, 'native controls must reject unsupported overlay presentation'
+		} else {
+			assert err.msg().contains('overlays require the desktop custom renderer')
 		}
 	}
 }
@@ -445,8 +452,7 @@ $if macos && !ui2_custom_rendering ?&& !ui2_headless ? {
 		pool := macos.autorelease_pool_new()
 		defer { macos.release(pool) }
 		ensure_runtime_classes()
-		for composite in [SlotComposite.screen_manager, .tabbed_panel, .modal_view, .carousel,
-			.accordion, .popup] {
+		for composite in [SlotComposite.screen_manager, .tabbed_panel, .carousel, .accordion] {
 			for layout in [LayoutKind.flex, .grid, .stack] {
 				slot_native_runtime_fixture(composite, layout)!
 			}
@@ -462,8 +468,7 @@ $if macos && ui2_custom_rendering ?&& !ui2_headless ? {
 			g_gg_app = previous_app
 			previous_window.restore()
 		}
-		for composite in [SlotComposite.screen_manager, .tabbed_panel, .modal_view, .carousel,
-			.accordion, .popup] {
+		for composite in [SlotComposite.screen_manager, .tabbed_panel, .carousel, .accordion] {
 			for layout in [LayoutKind.flex, .grid, .stack] {
 				mut app := &GgApp{ scheduler: new_frame_coordinator() }
 				g_gg_app = app

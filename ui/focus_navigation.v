@@ -77,6 +77,8 @@ mut:
 	scopes         []FocusScopeEntry
 	scroll_offsets map[string]f64
 	scroll_offsets_x map[string]f64
+	scroll_offset_keys []string
+	scroll_offset_keys_x []string
 }
 
 fn element_focusable(el Element) bool {
@@ -127,6 +129,22 @@ fn (mut manager FocusManager) update_geometry(root Element, offsets map[string]f
 	manager.update_geometry_axes(root, offsets, manager.scroll_offsets_x, transform, root_frame, clip)
 }
 
+// A geometry update needs an independent value snapshot, but stable Scroll keys
+// can keep their map storage while offsets change on every wheel/animation tick.
+fn retain_focus_offsets(mut destination map[string]f64, mut keys []string, source map[string]f64) {
+	mut same_keys := keys.len == source.len && destination.len == source.len
+	if same_keys {
+		for key in keys {
+			if key !in source { same_keys = false; break }
+		}
+	}
+	if !same_keys {
+		keys = source.keys()
+		destination.clear()
+	}
+	for key in keys { destination[key] = source[key] or { 0.0 } }
+}
+
 fn (mut manager FocusManager) update_geometry_axes(root Element, offsets map[string]f64, offsets_x map[string]f64, transform ContentTransform, root_frame Rect, clip ClipRegion) {
 	manager.set_root(root)
 	if manager.geometry_serial > 0 && manager.geometry_revision == manager.root_revision
@@ -142,18 +160,18 @@ fn (mut manager FocusManager) update_geometry_axes(root Element, offsets map[str
 	manager.geometry_transform = transform
 	manager.geometry_clip = clip
 	manager.refresh_offsets_changed = manager.scroll_offsets != offsets || manager.scroll_offsets_x != offsets_x
-	if manager.scroll_offsets != offsets { manager.scroll_offsets = offsets.clone() }
-	if manager.scroll_offsets_x != offsets_x { manager.scroll_offsets_x = offsets_x.clone() }
+	if manager.scroll_offsets != offsets { retain_focus_offsets(mut manager.scroll_offsets, mut manager.scroll_offset_keys, offsets) }
+	if manager.scroll_offsets_x != offsets_x { retain_focus_offsets(mut manager.scroll_offsets_x, mut manager.scroll_offset_keys_x, offsets_x) }
 	// Keep the flat registry and its indexes when identity/order are stable.
 	// A retained subtree with unchanged inherited geometry can be skipped whole.
-	refreshed := manager.refresh_geometry(root, root_frame, 'root', '', 0, 0,
+	refreshed := manager.refresh_geometry(root, root_frame, presentation_root_path(root), '', 0, 0,
 		transform, clip, false, true, []string{}, []string{}, 0, false)
 	if refreshed != manager.nodes.len || refreshed < 0 {
 		manager.refresh_presentation_changed = true
 		manager.nodes.clear()
 		manager.node_indices.clear()
 		manager.path_indices.clear()
-		manager.refresh_geometry(root, root_frame, 'root', '', 0, 0, transform, clip, false, true, []string{}, []string{}, 0, true)
+		manager.refresh_geometry(root, root_frame, presentation_root_path(root), '', 0, 0, transform, clip, false, true, []string{}, []string{}, 0, true)
 	}
 	if manager.refresh_presentation_changed { manager.presentation_serial++ }
 	// Validate the complete active chain: a surviving inner scope may have
@@ -192,11 +210,12 @@ fn (mut manager FocusManager) refresh_geometry(el Element, frame Rect, path stri
 		return -1
 	}
 	hidden := ancestor_hidden || el.presented_hidden()
-	enabled := ancestor_enabled && el.presented_enabled()
+	enabled := ancestor_enabled && el.presented_enabled() && !el.overlay_inert
 	local := rect(off_x + frame.x, off_y + frame.y, frame.width, frame.height)
+	inherited_scopes := if el.overlay_scopes.len > 0 { el.overlay_scopes } else { scopes }
 	if !rebuild && !manager.refresh_offsets_changed && !manager.refresh_motion_changed && previous.el == el && previous.local_frame == local && previous.parent_transform == outer
 		&& previous.clip == clip && previous.hidden == hidden && previous.enabled == enabled
-		&& previous.scrolls == scrolls && !el.focus_scope && previous.scopes == scopes {
+		&& previous.scrolls == scrolls && !el.focus_scope && previous.scopes == inherited_scopes {
 		return index + previous.subtree_len
 	}
 	visual := el.visual_transform().matrix(local) or { return if rebuild { index } else { -1 } }
@@ -204,13 +223,13 @@ fn (mut manager FocusManager) refresh_geometry(el Element, frame Rect, path stri
 	if previous.local_frame != local || previous.transform != transform || previous.parent_transform != outer
 		|| previous.clip != clip || previous.hidden != hidden { manager.refresh_presentation_changed = true }
 	// Ancestor chains are immutable; clone only when this node extends one.
-	mut child_scopes := unsafe { scopes }
+	mut child_scopes := unsafe { inherited_scopes }
 	if el.focus_scope {
-		if previous.el.focus_scope && previous.scopes.len == scopes.len + 1
-			&& previous.scopes[..scopes.len] == scopes && previous.scopes.last() == el.id {
+		if previous.el.focus_scope && previous.scopes.len == inherited_scopes.len + 1
+			&& previous.scopes[..inherited_scopes.len] == inherited_scopes && previous.scopes.last() == el.id {
 			child_scopes = previous.scopes
 		} else {
-			child_scopes = scopes.clone()
+			child_scopes = inherited_scopes.clone()
 			child_scopes << el.id
 		}
 	}
@@ -247,6 +266,7 @@ fn (mut manager FocusManager) refresh_geometry(el Element, frame Rect, path stri
 	mut child_y := local.y
 	mut child_transform := transform
 	mut child_clip := clip
+	if el.overlay != none { child_clip = clip.intersect(paint_transformed_clip(local, transform)) }
 	mut child_scrolls := unsafe { scrolls }
 	if el.kind == .screen {
 		child_clip = clip.intersect(paint_transformed_clip(local, transform))

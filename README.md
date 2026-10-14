@@ -51,6 +51,11 @@ Custom rendering supports retained [motion and presence](docs/motion-presence.md
 entry and exit, fading, animated transforms, reduced motion and controlled clocks.
 Run `v -b c -d ui2_custom_rendering run examples/motion_presence` to try it.
 
+Custom windows support retained [overlays](docs/overlays.md): Dialog, Popover,
+MenuOverlay, ContextMenu and Tooltip, with controlled open state, focus
+containment and anchored placement. Run
+`v -b c -d ui2_custom_rendering run examples/overlays` to try all five.
+
 On macOS, the experimental owned embedder adds native windows, Metal surfaces,
 IME composition and a blocking event loop. Enable it with both
 `-d ui2_custom_rendering -d ui2_embedder` for idle sleep.
@@ -60,9 +65,9 @@ updates and dispatchers. See [the embedder contract and acceptance tests](docs/c
 ## Requirements
 
 `ui2` uses the published `tomaszbk/v` compiler revision
-[`fdbded6`](https://github.com/tomaszbk/v/commit/fdbded6ef455f56f34319f2d6fb500fb0520bfe1),
-which incorporates upstream master `f1c3ee4`, component and motion lowering,
-and the verified retained-rendering and compiler fixes.
+[`5d151d1`](https://github.com/tomaszbk/v/commit/5d151d1bfacea89e4a94eb8a81b15333d0a1526a),
+which incorporates upstream master `7d454b5`, compiled components, motion and
+overlay lowering, and the verified retained-rendering and compiler fixes.
 CI bootstraps the verified source revision with pinned `vc` and Boehm GC assets using
 [the shared setup action](.github/actions/setup-v/action.yml).
 The module is split across `ui/`, `appkit/`,
