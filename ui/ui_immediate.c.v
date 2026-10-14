@@ -1390,7 +1390,12 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 				} else { cancel_touch() }
 			}
 			.char {
-				custom_character_input(app, e.char_code)
+				// Sokol can emit the shortcut letter as CHAR after Cmd/Ctrl+A.
+				// Primary-modifier input is a command; AltGr/Option remain text.
+				if !text_navigation_primary_modifier(e.modifiers & u32(gg.Modifier.ctrl) != 0,
+					e.modifiers & u32(gg.Modifier.alt) != 0, e.modifiers & u32(gg.Modifier.super) != 0) {
+					custom_character_input(app, e.char_code)
+				}
 			}
 			.key_down {
 				if !g_focus_visible {
