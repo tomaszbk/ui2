@@ -46,6 +46,12 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	// The caller owns the retained tree. Only changed declarations allocate;
 	// sampled motion updates cached presentation on the retained state itself.
 	fn (mut tree MotionTree) prepare(element Element) !Element {
+		if tree.states.len == 0 && !motion_subtree_managed(element)
+			&& (!tree.initialized || !motion_subtree_managed(tree.previous)) {
+			tree.previous = element
+			tree.initialized = true
+			return element
+		}
 		tree.seen.clear()
 		result := tree.prepare_node(element, if tree.initialized {
 			tree.previous
@@ -59,6 +65,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	}
 
 	fn (mut tree MotionTree) mark_states(element Element, path string) {
+		if !motion_subtree_managed(element) { return }
 		if element.motion_state != unsafe { nil } {
 			tree.seen[motion_identity(element, path)] = true
 		}
@@ -88,7 +95,18 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		}
 	}
 
+	// Static subtrees cannot create, reverse or retain a motion exit. In
+	// particular a text patch must not reconcile every unchanged static sibling.
+	fn motion_subtree_managed(element Element) bool {
+		if element.motion != none || element.motion_state != unsafe { nil } { return true }
+		for child in element.children {
+			if motion_subtree_managed(child) { return true }
+		}
+		return false
+	}
+
 	fn (mut tree MotionTree) prepare_node(element Element, previous Element, path string) !Element {
+		if !motion_subtree_managed(element) && !motion_subtree_managed(previous) { return element }
 		mut result := element
 		identity := motion_identity(element, path)
 		mut state := element.motion_state
@@ -112,33 +130,32 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			tree.states[identity] = state
 			result = Element{ ...result, motion_state: state }
 		}
+		// Resolve sibling identities once. Nested scans used to allocate identity
+		// strings quadratically even when one small counter was the only patch.
+		mut old_indices := map[string]int{}
+		mut old_identities := []string{cap: previous.children.len}
+		for old_index, old_child in previous.children {
+			old_identity := motion_identity(old_child, reconciliation_child_key(path, old_index, old_child))
+			old_indices[old_identity] = old_index
+			old_identities << old_identity
+		}
+		mut present := map[string]bool{}
 		mut children := []Element{cap: element.children.len}
 		mut changed := false
 		for index, child in element.children {
 			child_path := reconciliation_child_key(path, index, child)
-			mut old := Element{}
-			for old_index, old_child in previous.children {
-				if motion_identity(old_child, reconciliation_child_key(path, old_index, old_child)) == motion_identity(child, child_path) {
-					old = old_child
-					break
-				}
-			}
+			child_identity := motion_identity(child, child_path)
+			present[child_identity] = true
+			old := if old_index := old_indices[child_identity] { previous.children[old_index] } else { Element{} }
 			prepared := tree.prepare_node(child, old, child_path)!
-			children << prepared
+			// Retained descendant snapshots are immutable; share their owned arrays.
+			children << unsafe { prepared }
 			if prepared != child { changed = true }
 		}
 		// Compiled repeaters own their exit scopes. Ordinary keyed Element trees
 		// also retain a removed root until its own configured exit finishes.
 		for old_index, old in previous.children {
-			old_path := reconciliation_child_key(path, old_index, old)
-			mut found := false
-			for index, child in element.children {
-				if motion_identity(child, reconciliation_child_key(path, index, child)) == motion_identity(old, old_path) {
-					found = true
-					break
-				}
-			}
-			if found || old.compiled_node != unsafe { nil } {
+			if present[old_identities[old_index]] or { false } || old.compiled_node != unsafe { nil } {
 				continue
 			}
 			if begin_motion_subtree_exit(old)! {
