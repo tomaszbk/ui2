@@ -196,6 +196,7 @@ jobs:
             ui2/ui/gc_allocation_test.v ui2/ui/vml_allocation_test.v \
             ui2/ui/vml_geometry_runtime_test.v \
             ui2/ui/paint_allocation_test.v ui2/ui/retained_motion_clip_test.v \
+            ui2/ui/motion_preparation_test.v \
             ui2/ui/retained_layout_snapshot_test.v \
             ui2/ui/retained_focus_geometry_test.v ui2/ui/retained_patch_validation_test.v \
             ui2/ui/retained_transform_snapshot_test.v ui2/ui/retained_scroll_identity_test.v \
