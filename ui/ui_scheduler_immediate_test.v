@@ -23,6 +23,55 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		return work
 	}
 
+	fn test_custom_scheduler_horizontal_scroll_paints_and_handlers_request_build() {
+		previous_app := g_gg_app
+		previous_offsets := g_scroll_offsets_x.clone()
+		previous_viewports := g_scroll_viewports.clone()
+		previous_widths := g_scroll_content_w.clone()
+		previous_pending := g_pending_scroll_x.clone()
+		previous_handler := g_scroll_handler
+		previous_events := g_scheduler_immediate_events.clone()
+		defer {
+			g_gg_app = previous_app
+			g_scroll_offsets_x = previous_offsets.clone()
+			g_scroll_viewports = previous_viewports.clone()
+			g_scroll_content_w = previous_widths.clone()
+			g_pending_scroll_x = previous_pending.clone()
+			g_scroll_handler = previous_handler
+			g_scheduler_immediate_events = previous_events.clone()
+		}
+		mut app := &GgApp{ scheduler: new_frame_coordinator() }
+		g_gg_app = app
+		g_scroll_offsets_x = map[string]f64{}
+		g_scroll_viewports = { 'pane': rect(0, 0, 100, 80) }
+		g_scroll_content_w = { 'pane': 400.0 }
+		g_pending_scroll_x = map[string]f64{}
+		g_scroll_handler = unsafe { nil }
+		g_scheduler_immediate_events = []string{}
+		scheduler_immediate_finish(mut app, 0)
+		scroll_to_horizontal_offset('pane', 120)
+		assert scroll_horizontal_offset('pane') == 120
+		paint := scheduler_immediate_finish(mut app, 1)
+		assert paint.draw && !paint.build
+		assert paint.reasons == [.paint]
+		scroll_to_horizontal_offset('pane', 120)
+		if _ := app.scheduler.begin_frame(2) {
+			assert false, 'an unchanged scroll position must remain idle'
+		}
+		g_scroll_handler = scheduler_immediate_event
+		scroll_to_horizontal_offset('pane', 240)
+		assert g_scheduler_immediate_events == ['pane']
+		build := scheduler_immediate_finish(mut app, 3)
+		assert build.draw && build.build
+		assert RenderReason.build in build.reasons
+		g_scroll_handler = unsafe { nil }
+		scroll_to_horizontal_offset('future', 75)
+		assert g_pending_scroll_x['future'] == 75
+		pending := scheduler_immediate_finish(mut app, 4)
+		assert pending.draw && !pending.build
+		assert pending.reasons == [.paint]
+	}
+
 	fn test_custom_scheduler_lifecycle_restores_surface_after_all_suspensions_end() {
 		previous_app := g_gg_app
 		previous_touch := g_touch

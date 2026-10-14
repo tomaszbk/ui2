@@ -155,8 +155,20 @@ fn acceptance(dispatcher ui2.UiDispatcher, seconds int, lifecycle bool) {
 		g_acceptance_verify_reentrant = false
 		start_animation()
 	})
-	time.sleep(1500 * time.millisecond)
-	settled := dispatcher.stats()
+	// Starting is queued on the UI thread. A busy host may deliver that work
+	// after a fixed sleep has already elapsed; wait for completion and its
+	// trailing model update before sampling the return to idle.
+	mut settled := dispatcher.stats()
+	for _ in 0 .. 200 {
+		if ui2.animation_info('moving').status == .completed && !settled.animation_active
+			&& !settled.pending {
+			break
+		}
+		time.sleep(20 * time.millisecond)
+		settled = dispatcher.stats()
+	}
+	assert ui2.animation_info('moving').status == .completed
+	assert !settled.animation_active && !settled.pending
 	report('animation', worker_after, settled)
 	assert settled.draws > worker_after.draws
 	time.sleep(time.second)

@@ -619,6 +619,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			}
 		}
 		g_pending_scroll_x[id] = wanted
+		invalidate_custom_paint()
 	}
 
 	pub fn scroll_to_rect(id string, x f64, y f64, width f64, height f64) {
@@ -1108,8 +1109,12 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		next := clamped_scroll_offset(requested, maximum)
 		previous := g_scroll_offsets_x[id] or { 0.0 }
 		g_scroll_offsets_x[id] = next
-		if next != previous && voidptr(g_scroll_handler) != unsafe { nil } {
-			g_scroll_handler(id)
+		if next != previous {
+			invalidate_custom_paint()
+			if voidptr(g_scroll_handler) != unsafe { nil } {
+				refresh()
+				g_scroll_handler(id)
+			}
 		}
 	}
 
