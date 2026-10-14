@@ -1,7 +1,7 @@
 V ?= v
 VFLAGS ?= -b c
 
-.PHONY: test ide check-ide examples examples-custom screenshot check-macos check-ios check-android check-linux check-windows check-custom-macos check-custom-windows check-custom check-embedder-macos test-embedder check-backends bench-allocations
+.PHONY: test ide check-ide examples examples-custom screenshot check-macos check-ios check-android check-linux check-windows check-custom-macos check-custom-windows check-custom check-embedder-macos test-embedder check-backends bench-allocations c-api c-example c-test c-smoke
 
 test:
 	$(V) $(VFLAGS) test .
@@ -80,3 +80,16 @@ bench-allocations:
 	/tmp/ui2-steady-state-allocations
 
 check-backends: check-macos check-ios check-android check-linux check-windows check-custom check-embedder-macos
+
+# Optional: C_API_FLAGS='-d ui2_custom_rendering'
+c-api:
+	$(V) $(VFLAGS) run c/build.vsh library $(VFLAGS) $(C_API_FLAGS)
+
+c-example:
+	$(V) $(VFLAGS) run c/build.vsh example $(VFLAGS) $(C_API_FLAGS)
+
+c-test:
+	$(V) $(VFLAGS) run c/build.vsh test $(VFLAGS) $(C_API_FLAGS)
+
+c-smoke:
+	$(V) $(VFLAGS) run c/build.vsh smoke $(VFLAGS) $(C_API_FLAGS)
