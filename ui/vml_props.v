@@ -164,6 +164,9 @@ pub:
 	parts []VmlPart
 	// owner resolves local id references (overlay anchors).
 	owner &CompiledVmlComponent = unsafe { nil }
+	// dispatch is the node's event entry point when the widget has its own
+	// state (apply_event) or write-backs; parts reach it through emitter().
+	dispatch ElementCallback = unsafe { nil }
 }
 
 pub fn (ctx VmlBuildContext) child_layout(index int) VmlLayoutItem {
@@ -177,6 +180,53 @@ pub fn (ctx VmlBuildContext) child_layout(index int) VmlLayoutItem {
 pub fn (ctx VmlBuildContext) resolve_id(id string) string {
 	if id.len == 0 || ctx.owner == unsafe { nil } || vml_is_control_id(id) { return id }
 	return ctx.owner.control_id(id)
+}
+
+// part_id is the id of the internal part `name` of this element,
+// `<id>__<name>` (kit_part_id), and empty when the element has no id. It is
+// a local id like ctx.id: the owner namespaces the part element's id when it
+// is retained, so a reference to the part from a property (an overlay anchor,
+// an initial focus) goes through resolve_id.
+pub fn (ctx VmlBuildContext) part_id(name string) string {
+	return kit_part_id(ctx.id, name)
+}
+
+// emitter is how the parts of a widget send the widget's own events, such as
+// a tab trigger's click becoming the Tabs change. Part callbacks capture the
+// emitter, never ctx, which holds the children. fallback receives the events
+// of a widget without a dispatcher; pass the root element's own callback
+// (normally p.element_callback()).
+pub fn (ctx VmlBuildContext) emitter(fallback ElementCallback) VmlEmitter {
+	return VmlEmitter{
+		id:       ctx.resolve_id(ctx.id)
+		dispatch: ctx.dispatch
+		fallback: fallback
+	}
+}
+
+// VmlEmitter sends events as its widget's own (VmlBuildContext.emitter).
+pub struct VmlEmitter {
+pub:
+	id       string // the widget's public id
+	dispatch ElementCallback = unsafe { nil }
+	fallback ElementCallback = unsafe { nil }
+}
+
+// emit delivers event as the widget's: id is the widget's public id and
+// target the part it came from, the event's own id unless target is set. The
+// widget's dispatcher runs apply_event, the bind.* write-backs and then the
+// root element's callback; without a dispatcher the fallback gets the event.
+pub fn (e VmlEmitter) emit(event ElementEvent) {
+	delivered := ElementEvent{
+		...event
+		id:     e.id
+		target: if event.target.len > 0 { event.target } else { event.id }
+	}
+	if e.dispatch != unsafe { nil } {
+		e.dispatch(delivered)
+	} else if e.fallback != unsafe { nil } {
+		e.fallback(delivered)
+	}
 }
 
 // vml_is_control_id reports whether id has the form control_id gives a

@@ -519,18 +519,32 @@ fn (n &VmlWidgetNode[P]) vml_styled(el Element, mode VmlStyleMode) !Element {
 // styled, with the stable event entry point.
 fn (mut n VmlWidgetNode[P]) vml_element(ctx VmlBuildContext, style VmlStyleMode) !Element {
 	$if P is VmlElementProps {
-		mut element := n.vml_styled(vml_build_element(n.props, ctx)!, style)!
-		if n.binds.len > 0 || (element.on_event != unsafe { nil } && vml_defines[P]('apply_event')) {
-			n.handler = element.on_event
-			if n.dispatcher == unsafe { nil } {
-				mut node := &n
-				n.dispatcher = fn [mut node] [P](event ElementEvent) {
-					node.dispatch(event)
-				}
+		// A node with its own state or write-backs routes events through
+		// dispatch. The build gets the dispatcher as ctx.dispatch, so the
+		// widget's parts can send it the widget's events (VmlEmitter).
+		dispatches := n.binds.len > 0 || vml_defines[P]('apply_event')
+		if dispatches && n.dispatcher == unsafe { nil } {
+			mut node := &n
+			n.dispatcher = fn [mut node] [P](event ElementEvent) {
+				node.dispatch(event)
 			}
-			element = Element{
-				...element
-				on_event: n.dispatcher
+		}
+		build_ctx := if dispatches {
+			VmlBuildContext{
+				...ctx
+				dispatch: n.dispatcher
+			}
+		} else {
+			ctx
+		}
+		mut element := n.vml_styled(vml_build_element(n.props, build_ctx)!, style)!
+		if dispatches {
+			n.handler = element.on_event
+			if n.binds.len > 0 || element.on_event != unsafe { nil } {
+				element = Element{
+					...element
+					on_event: n.dispatcher
+				}
 			}
 		}
 		if n.reactive_geometry {
