@@ -23,16 +23,10 @@ grapheme, and complete bidirectional editing, remain separate work.
 
 ## Build dependencies
 
-Use the published `tomaszbk/v` compiler revision
-[`fdbded6`](https://github.com/tomaszbk/v/commit/fdbded6ef455f56f34319f2d6fb500fb0520bfe1).
-It includes the component grammar, retained VML lowering, fixed-array
-callback/ownership fixes, a retained gg frame pass, precise Boehm allocation
-sampling in V3 and map equality without key allocations.
-The V 0.5.2 release binary lacks required
-Sokol sampler APIs and does not compile the current UI2 source. CI uses
-[the shared setup action](../.github/actions/setup-v/action.yml) to bootstrap
-that revision with `vc` snapshot
-`08ee621c4d106318467bb1b316a0e592fca4bc83` and the system C compiler.
+Build with the compiler pinned in [`scripts/v-pin.env`](../scripts/v-pin.env)
+(`scripts/setup-v.sh` builds it). The V 0.5.2 release binary lacks required
+Sokol sampler APIs and does not compile the current UI2 source.
+
 The workflows also pin each platform's official `tccbin` bundle to supply
 V's default Boehm GC library; compilation uses GCC or Clang.
 Only the compiler bootstrap uses `-gc none`; UI2 builds retain the default GC.

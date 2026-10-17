@@ -6,29 +6,51 @@ inputs:
     description: System C compiler used for the bootstrap
     required: true
   v-repository:
-    description: Repository containing the pinned compiler (including fork-only VML revisions)
-    default: tomaszbk/v
+    description: Repository containing the compiler; empty reads scripts/v-pin.env
+    default: ''
   v-revision:
-    description: Verified V source revision
-    default: 119e1f2acdb2318df1010ce30d9b6c62520cae0d
+    description: V source revision; empty reads scripts/v-pin.env
+    default: ''
   vc-revision:
-    description: Compatible generated C bootstrap snapshot
-    # Use the snapshot preceding the verified V source pin. The October 1
-    # snapshot misgenerates Windows CreatePipe output pointers and fails with
-    # SetHandleInformation before UI2 can be checked.
-    default: 08ee621c4d106318467bb1b316a0e592fca4bc83
+    description: Generated C bootstrap snapshot; empty reads scripts/v-pin.env
+    default: ''
   tcc-revision:
-    description: Platform bundle supplying V's default Boehm GC library
-    required: true
+    description: Platform bundle supplying V's default Boehm GC library; empty reads scripts/v-pin.env
+    default: ''
 
 runs:
   using: composite
   steps:
+    # scripts/v-pin.env is the single source of the compiler pin; the action's
+    # inputs only override it.
+    - name: Resolve compiler pin
+      id: pin
+      shell: bash
+      env:
+        IN_V_REPOSITORY: ${{ inputs.v-repository }}
+        IN_V_REVISION: ${{ inputs.v-revision }}
+        IN_VC_REVISION: ${{ inputs.vc-revision }}
+        IN_TCC_REVISION: ${{ inputs.tcc-revision }}
+      run: |
+        set -eu
+        . "${{ github.action_path }}/../../../scripts/v-pin.env"
+        case "${{ runner.os }}" in
+          Linux) tcc=$TCC_REVISION_LINUX ;;
+          macOS) tcc=$TCC_REVISION_MACOS ;;
+          Windows) tcc=$TCC_REVISION_WINDOWS ;;
+        esac
+        {
+          echo "v-repository=${IN_V_REPOSITORY:-$V_REPOSITORY}"
+          echo "v-revision=${IN_V_REVISION:-$V_REVISION}"
+          echo "vc-revision=${IN_VC_REVISION:-$VC_REVISION}"
+          echo "tcc-revision=${IN_TCC_REVISION:-$tcc}"
+        } >> "$GITHUB_OUTPUT"
+
     - name: Check out pinned V sources
       uses: actions/checkout@v4
       with:
-        repository: ${{ inputs.v-repository }}
-        ref: ${{ inputs.v-revision }}
+        repository: ${{ steps.pin.outputs.v-repository }}
+        ref: ${{ steps.pin.outputs.v-revision }}
         path: v-toolchain
         persist-credentials: false
 
@@ -36,7 +58,7 @@ runs:
       uses: actions/checkout@v4
       with:
         repository: vlang/vc
-        ref: ${{ inputs.vc-revision }}
+        ref: ${{ steps.pin.outputs.vc-revision }}
         path: v-toolchain/vc
         persist-credentials: false
 
@@ -44,7 +66,7 @@ runs:
       uses: actions/checkout@v4
       with:
         repository: vlang/tccbin
-        ref: ${{ inputs.tcc-revision }}
+        ref: ${{ steps.pin.outputs.tcc-revision }}
         path: v-toolchain/thirdparty/tcc
         persist-credentials: false
 

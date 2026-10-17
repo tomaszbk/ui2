@@ -64,15 +64,18 @@ updates and dispatchers. See [the embedder contract and acceptance tests](docs/c
 
 ## Requirements
 
-`ui2` uses the published `tomaszbk/v` compiler revision
-[`5d151d1`](https://github.com/tomaszbk/v/commit/5d151d1bfacea89e4a94eb8a81b15333d0a1526a),
-which incorporates upstream master `7d454b5`, compiled components, motion and
-overlay lowering, and the verified retained-rendering and compiler fixes.
-CI bootstraps the verified source revision with pinned `vc` and Boehm GC assets using
-[the shared setup action](.github/actions/setup-v/action.yml).
-The module is split across `ui/`, `appkit/`,
-`uikit/`, `windows/`, and `linux/` through the `subdirs` field of `v.mod`, and
-builds need the pinned compiler and its matching `vlib`.
+`ui2` needs the `tomaszbk/v` compiler revision pinned in
+[`scripts/v-pin.env`](scripts/v-pin.env); the V release binaries do not compile
+it yet. Build that compiler with:
+
+```sh
+scripts/setup-v.sh            # installs into ~/.local/share/ui2-v
+export PATH="$HOME/.local/share/ui2-v:$PATH"
+```
+
+CI builds the same pin through [the shared setup action](.github/actions/setup-v/action.yml).
+The module is split across `ui/`, `appkit/`, `uikit/` and `windows/` through
+the `subdirs` field of `v.mod`.
 
 Build and run ui2 with V's C backend (`v -b c ...`), including the designer
 and its shared preview libraries.
