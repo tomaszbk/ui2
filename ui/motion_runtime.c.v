@@ -119,14 +119,16 @@ fn (mut tree MotionTree) prepare_node(element Element, previous Element, path st
 	if element.motion == none && state != unsafe { nil } && !element.presence_exiting() {
 		state.force_cancel()
 		state = unsafe { nil }
-		result = Element{ ...result, runtime: result.runtime.with_motion_state(unsafe { nil }) }
+		runtime := result.runtime
+		result = Element{ ...result, runtime: runtime.with_motion_state(unsafe { nil }) }
 	}
 	if state != unsafe { nil } {
 		if !element.presence_exiting() && state.structural_exit { state.resume_enter()! }
 		state.update(element)!
 		state.mount()!
 		tree.states[identity] = state
-		result = Element{ ...result, runtime: result.runtime.with_motion_state(state) }
+		runtime := result.runtime
+		result = Element{ ...result, runtime: runtime.with_motion_state(state) }
 	}
 	// Resolve sibling identities once. Nested scans used to allocate identity
 	// strings quadratically even when one small counter was the only patch.
@@ -157,7 +159,8 @@ fn (mut tree MotionTree) prepare_node(element Element, previous Element, path st
 			continue
 		}
 		if begin_motion_subtree_exit(old)! {
-			children << Element{ ...old, runtime: old.runtime.with_exiting(true) }
+			runtime := old.runtime
+			children << Element{ ...old, runtime: runtime.with_exiting(true) }
 			changed = true
 		}
 	}

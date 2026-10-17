@@ -89,6 +89,8 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		el := node.el
 		options := node.menu_options_snapshot()
 		geometry := element_hit_geometry(el,node.local_frame,node.transform,node.clip)
+		// The Element accessors take its address, which would move `el` to the heap.
+		toggle_group, toggle_allow_no_selection := toggle_selection(el.toggle)
 		return HitTarget{
 			...geometry
 			identity:                  node.path
@@ -113,8 +115,8 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			switch_control:            el.kind == .switch_control
 			switch_state:              el.checked
 			toggle_button:             el.kind == .toggle_button
-			toggle_group:              el.toggle_group()
-			toggle_allow_no_selection: el.toggle_allow_no_selection()
+			toggle_group:              toggle_group
+			toggle_allow_no_selection: toggle_allow_no_selection
 			dropdown:                  el.kind == .dropdown
 			options:                   options
 			button_behavior:           el.kind == .view && el.button_behavior

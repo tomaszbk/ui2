@@ -182,7 +182,7 @@ fn (mut tree OverlayTree) collect(element Element, path string, parent string, o
 			dependencies: dependencies
 			frame:        element.frame
 			layout:       old[element.id] or { &LayoutTree{} }
-			backdrop:     Element{ ...backdrop, mount: backdrop.mount.with_path(overlay_host_path + '/backdrop:' + element.id.bytes().hex(), overlay_host_path), clickable: true, focus_policy: .unfocusable, accessibility_role: 'presentation' }
+			backdrop:     Element{ ...backdrop, mount: &ElementMount{ path: overlay_host_path + '/backdrop:' + element.id.bytes().hex(), parent_path: overlay_host_path }, clickable: true, focus_policy: .unfocusable, accessibility_role: 'presentation' }
 		}
 	}
 	for i, child in element.children {
@@ -274,7 +274,8 @@ fn (mut tree OverlayTree) resolve(root Element, offsets map[string]f64, viewport
 	} else {
 		view('', viewport, BoxStyle{ transparent: true }, [])
 	}
-	children << Element{ ...base, frame: mounted_root_frame(root, viewport), mount: base.mount.with_path('root', overlay_host_path) }
+	base_mount := base.mount
+	children << Element{ ...base, frame: mounted_root_frame(root, viewport), mount: base_mount.with_path('root', overlay_host_path) }
 	for index in 0 .. tree.layers.len {
 		mut layer := &tree.layers[index]
 		layer.scopes = tree.logical_scopes(layer.parent)

@@ -35,6 +35,12 @@ pub fn (el &Element) toggle_allow_no_selection() bool {
 	return if spec := el.toggle { spec.allow_no_selection } else { true }
 }
 
+// toggle_selection reads the selection rule of a possibly absent spec.
+fn toggle_selection(toggle ?&ToggleSpec) (string, bool) {
+	spec := toggle or { return '', true }
+	return spec.group, spec.allow_no_selection
+}
+
 pub fn (el &Element) toggle_down_box() BoxStyle {
 	return if spec := el.toggle { spec.down_box } else { BoxStyle{} }
 }
