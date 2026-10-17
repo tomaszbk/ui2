@@ -57,6 +57,12 @@ fn merge_style_fields[T](base T, patch T) T {
 	return result
 }
 
+// style_compose is the compose function of the `style` helper namespace: VML
+// lowers `style: [a, b]` to `ui2.style_compose(a, b)`, so V checks each entry.
+pub fn style_compose(patches ...StylePatch) StylePatch {
+	return compose_styles(patches)
+}
+
 // Composition is left to right. Nested named styles have already been composed
 // into the same value type, so they require no tree traversal or special rule.
 pub fn compose_styles(patches []StylePatch) StylePatch {

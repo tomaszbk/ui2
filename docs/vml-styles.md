@@ -5,6 +5,12 @@ sparse style patch. Compose patches from left to right: the last supplied value
 of a property wins, and omitted properties keep their preceding values. Zero,
 black and `false` are explicit values.
 
+The compiler knows no helper names. A `style` value uses the `style` helper
+namespace: `font_size(18)` is `ui2.style_font_size(18)` and a list is
+`ui2.style_compose(...)`, so a helper added here needs no compiler change. Any
+other props field holding a helper-built type works the same way through its
+own namespace (`motion` would be `ui2.motion_*` and `ui2.motion_compose`).
+
 ## Inline and reusable styles
 
 ```vml
