@@ -675,6 +675,32 @@ fn test_runner_shutdown_disposes_the_document_of_an_imported_component_root() ! 
 	assert model.updates == 1
 }
 
+fn test_runner_updates_the_model_once_before_the_first_frame() ! {
+	mut runtime := compiled_vml_runtime()
+	previous := runtime.controller
+	previous_root := runtime.root
+	defer {
+		runtime.controller = previous
+		runtime.root = previous_root
+	}
+	mut model := &VmlRunnerFixture{}
+	start_compiled_vml(CompiledVmlRunConfig[VmlRunnerFixture]{
+		model:  model
+		build:  imported_component_runner_build
+		update: fn (mut state VmlRunnerFixture) {
+			state.reads++
+			state.text = 'update ${state.reads}'
+		}
+	})!
+	assert model.reads == 1 && model.builds == 1
+	assert compiled_vml_controller_build[VmlRunnerFixture]().text == 'update 1'
+	assert model.reads == 1 && model.builds == 1
+	assert compiled_vml_controller_build[VmlRunnerFixture]().text == 'update 2'
+	assert model.reads == 2 && model.builds == 1
+	dispose_compiled_vml()
+	assert model.owner.runtime.stats() == SignalStats{}
+}
+
 fn test_validation_failure_disposes_an_imported_root_document_before_returning() ! {
 	mut model := &VmlRunnerFixture{ text: 'invalid root' }
 	run_compiled_vml(CompiledVmlRunConfig[VmlRunnerFixture]{
