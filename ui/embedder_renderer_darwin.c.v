@@ -80,7 +80,7 @@ $if macos && ui2_custom_rendering ? && ui2_embedder ? && !ui2_headless ? && !ui2
 			g_gg_app = previous_app
 		}
 		g_build_screen = build
-		configure_animation_driver(refresh_animation_frame, false)
+		set_window_wake(backend_invalidate)
 		publish_menu_context(title, unsafe { nil })
 		font_regular, font_bold := font_paths()
 		device := C.ui2_embedder_metal_device()

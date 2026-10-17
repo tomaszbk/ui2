@@ -103,7 +103,7 @@ $if (linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ?
 		shaped ShapedText
 	mut:
 		// Reuse warmed interaction palettes while retaining immutable snapshots.
-		// Bound animation-driven color changes independently of shaping capacity.
+		// Bound motion-driven color changes independently of shaping capacity.
 		painted []&ShapePaintCache
 		next_paint int
 	}

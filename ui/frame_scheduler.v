@@ -19,12 +19,11 @@ pub enum RenderReason {
 	layout
 	paint
 	surface
-	animation
 	// Retained presentation motion samples without rerunning the builder.
 	motion
-	// Event callbacks may update the model after animation evaluation. Build
-	// their next snapshot without canceling the current animated presentation.
-	animation_follow_up
+	// Motion event handlers may update the model after a frame sampled motion.
+	// Build their next snapshot without canceling the current presentation.
+	motion_follow_up
 	timer
 	worker
 	presentation
@@ -52,7 +51,6 @@ pub:
 	in_flight             bool
 	pending_reasons       RenderReason
 	next_deadline         i64 = -1
-	animation_active      bool
 	motion_active         bool
 	presentation_required bool
 	suspended             bool
@@ -98,7 +96,6 @@ mut:
 	next_serial           u64
 	active_serial         u64
 	next_deadline         i64 = -1
-	animation_active      bool
 	motion_active         bool
 	presentation_required bool
 	suspended             bool
@@ -148,7 +145,7 @@ fn (mut coordinator FrameCoordinator) next_wake(now i64, last_frame i64, interva
 		return now
 	}
 	mut deadline := coordinator.next_deadline
-	if coordinator.animation_active || coordinator.motion_active {
+	if coordinator.motion_active {
 		frame_at := if last_frame < 0 {
 			now
 		} else {
@@ -211,9 +208,6 @@ fn (mut coordinator FrameCoordinator) begin_frame(now i64) ?FrameWork {
 		coordinator.next_deadline = -1
 		coordinator.invalidate_locked(.timer)
 	}
-	if coordinator.animation_active {
-		coordinator.invalidate_locked(.animation)
-	}
 	if coordinator.motion_active {
 		coordinator.invalidate_locked(.motion)
 	}
@@ -231,7 +225,7 @@ fn (mut coordinator FrameCoordinator) begin_frame(now i64) ?FrameWork {
 	return FrameWork{
 		generation: coordinator.generation
 		serial:     coordinator.active_serial
-		build:      reasons.has(.build | .surface | .animation | .animation_follow_up | .worker)
+		build:      reasons.has(.build | .surface | .motion_follow_up | .worker)
 		draw:       true
 		reasons:    reasons
 	}
@@ -291,16 +285,6 @@ fn (mut coordinator FrameCoordinator) set_deadline(at i64) {
 	coordinator.next_deadline = at
 }
 
-fn (mut coordinator FrameCoordinator) set_animation_active(active bool) {
-	coordinator.mutex.lock()
-	mut changed := false
-	defer { coordinator.unlock_and_wake(changed) }
-	if !coordinator.closed {
-		changed = coordinator.animation_active != active
-		coordinator.animation_active = active
-	}
-}
-
 fn (mut coordinator FrameCoordinator) set_motion_active(active bool) {
 	coordinator.mutex.lock()
 	mut changed := false
@@ -337,7 +321,6 @@ fn (mut coordinator FrameCoordinator) close() {
 	defer { coordinator.mutex.unlock() }
 	coordinator.closed = true
 	coordinator.suspended = false
-	coordinator.animation_active = false
 	coordinator.motion_active = false
 	coordinator.next_deadline = -1
 	coordinator.active_serial = 0
@@ -413,7 +396,6 @@ fn (mut coordinator FrameCoordinator) stats() RenderStats {
 		in_flight:             coordinator.active_serial != 0
 		pending_reasons:       coordinator.pending_reasons
 		next_deadline:         coordinator.next_deadline
-		animation_active:      coordinator.animation_active
 		motion_active:         coordinator.motion_active
 		presentation_required: coordinator.presentation_required
 		suspended:             coordinator.suspended

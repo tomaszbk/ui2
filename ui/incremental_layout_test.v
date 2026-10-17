@@ -186,8 +186,12 @@ fn test_incremental_environment_complete_typography_keys_and_constraints() {
 		assert tree.stats().text_measurements == 1
 	}
 	before := tree.identity('text')?
-	if _ := tree.identity('') { assert false }
-	if _ := tree.patch('', Element{}) { assert false }
+	if _ := tree.identity('') {
+		assert false
+	}
+	if _ := tree.patch('', Element{}) {
+		assert false
+	}
 	if _ := tree.patch('text', Element{ ...leaf, children: [Element{ id: 'text' }] }) {
 		assert false
 	}
@@ -293,10 +297,18 @@ fn test_nested_intrinsic_containers_measure_height_at_assigned_width() {
 		text := incremental_label('text', 'WW WW')
 		containers := [
 			incremental_column('nested', rect(0, 0, authored_width, 0), [text])!,
-			grid(GridConfig{ id: 'nested', frame: rect(0, 0, authored_width, 0), columns: 1,
-				children: [text] })!,
-			stack(StackConfig{ id: 'nested', frame: rect(0, 0, authored_width, 0), align_x: .stretch,
-				children: [StackChild{ element: text }] })!,
+			grid(GridConfig{
+				id:       'nested'
+				frame:    rect(0, 0, authored_width, 0)
+				columns:  1
+				children: [text]
+			})!,
+			stack(StackConfig{
+				id:       'nested'
+				frame:    rect(0, 0, authored_width, 0)
+				align_x:  .stretch
+				children: [StackChild{ element: text }]
+			})!,
 		]
 		for nested in containers {
 			mut tree := LayoutTree{}
@@ -337,11 +349,20 @@ fn test_wrapped_vertical_flex_intrinsic_width_contains_columns_and_moves_sibling
 	]
 	mut tree := LayoutTree{}
 	for height in [80.0, 120.0, 80.0] {
-		column := flex(FlexConfig{ id: 'columns', frame: rect(0, 0, 0, height), orientation: .vertical,
-			wrap: true, children: children.map(FlexChild{ element: it, shrink: 0 }) })!
-		root := flex(FlexConfig{ id: 'parent', frame: rect(0, 0, 200, 160), align: .start,
+		column := flex(FlexConfig{
+			id:          'columns'
+			frame:       rect(0, 0, 0, height)
+			orientation: .vertical
+			wrap:        true
+			children:    children.map(FlexChild{ element: it, shrink: 0 })
+		})!
+		root := flex(FlexConfig{
+			id:       'parent'
+			frame:    rect(0, 0, 200, 160)
+			align:    .start
 			children: [FlexChild{ element: column, shrink: 0 },
-				FlexChild{ element: view('after', rect(0, 0, 10, 20), BoxStyle{}, []), shrink: 0 }] })!
+				FlexChild{ element: view('after', rect(0, 0, 10, 20), BoxStyle{}, []), shrink: 0 }]
+		})!
 		tree.replace(root)!
 		resolved := incremental_resolve(mut tree)!
 		expected_width := if height == 80 { 40.0 } else { 20.0 }
@@ -364,14 +385,20 @@ fn test_wrapped_vertical_flex_intrinsic_width_contains_columns_and_moves_sibling
 
 fn test_wrapped_vertical_flex_intrinsic_width_includes_padding_and_line_gap() {
 	mut tree := LayoutTree{}
-	column := flex(FlexConfig{ id: 'columns', frame: rect(0, 0, 0, 94), orientation: .vertical,
-		wrap: true, gap: 4, line_gap: 5.5,
-		padding: LayoutPadding{ left: 2.5, right: 3.25, top: 4, bottom: 6 },
-		children: [
+	column := flex(FlexConfig{
+		id:          'columns'
+		frame:       rect(0, 0, 0, 94)
+		orientation: .vertical
+		wrap:        true
+		gap:         4
+		line_gap:    5.5
+		padding:     LayoutPadding{ left: 2.5, right: 3.25, top: 4, bottom: 6 }
+		children:    [
 			FlexChild{ element: view('a', rect(0, 0, 20, 40), BoxStyle{}, []), shrink: 0 },
 			FlexChild{ element: view('b', rect(0, 0, 20, 40), BoxStyle{}, []), shrink: 0 },
 			FlexChild{ element: view('c', rect(0, 0, 20, 40), BoxStyle{}, []), shrink: 0 },
-		] })!
+		]
+	})!
 	tree.replace(column)!
 	loose := incremental_resolve(mut tree)!
 	assert loose.frame == rect(0, 0, 51.25, 94)
@@ -387,12 +414,16 @@ fn test_wrapped_vertical_flex_intrinsic_width_includes_padding_and_line_gap() {
 }
 
 fn incremental_intrinsic_wrapped_columns() !Element {
-	return flex(FlexConfig{ id: 'columns', orientation: .vertical, wrap: true,
-		children: [
+	return flex(FlexConfig{
+		id:          'columns'
+		orientation: .vertical
+		wrap:        true
+		children:    [
 			FlexChild{ element: view('a', rect(0, 0, 20, 40), BoxStyle{}, []), shrink: 0 },
 			FlexChild{ element: view('b', rect(0, 0, 20, 40), BoxStyle{}, []), shrink: 0 },
 			FlexChild{ element: view('c', rect(0, 0, 20, 40), BoxStyle{}, []), shrink: 0 },
-		] })!
+		]
+	})!
 }
 
 fn test_intrinsic_wrapped_columns_use_bounded_height_including_tight_zero() {
@@ -405,7 +436,8 @@ fn test_intrinsic_wrapped_columns_use_bounded_height_including_tight_zero() {
 		LayoutConstraints{ max_height: 160 },
 	]
 	expected_sizes := [rect(0, 0, 40, 80), rect(0, 0, 40, 80), rect(0, 0, 60, 0), rect(0, 0, 20, 120)]
-	expected_third := [rect(20, 0, 20, 40), rect(20, 0, 20, 40), rect(40, 0, 20, 40), rect(0, 80, 20, 40)]
+	expected_third := [rect(20, 0, 20, 40), rect(20, 0, 20, 40), rect(40, 0, 20, 40),
+		rect(0, 80, 20, 40)]
 	for i, limits in constraints {
 		resolved := tree.resolve(limits, incremental_text, LayoutEnvironment{})!
 		assert resolved.frame == expected_sizes[i]
@@ -426,15 +458,25 @@ fn test_intrinsic_wrapped_columns_use_bounded_height_including_tight_zero() {
 fn test_horizontal_parent_assigns_height_before_wrapped_columns_width_and_sibling() {
 	mut tree := LayoutTree{}
 	for height in [80.0, 120.0, 80.0, 0.0] {
-		parent := flex(FlexConfig{ id: 'parent', frame: rect(0, 0, 200, height), align: .stretch,
+		parent := flex(FlexConfig{
+			id:       'parent'
+			frame:    rect(0, 0, 200, height)
+			align:    .stretch
 			children: [
 				FlexChild{ element: incremental_intrinsic_wrapped_columns()!, shrink: 0 },
 				FlexChild{ element: view('after', rect(0, 0, 10, 20), BoxStyle{}, []), shrink: 0 },
-			] })!
+			]
+		})!
 		tree.replace(parent)!
 		resolved := tree.resolve(LayoutConstraints{ min_height: height, max_height: height },
 			incremental_text, LayoutEnvironment{})!
-		expected_width := if height == 80 { 40.0 } else if height == 0 { 60.0 } else { 20.0 }
+		expected_width := if height == 80 {
+			40.0
+		} else if height == 0 {
+			60.0
+		} else {
+			20.0
+		}
 		assert resolved.children[0].frame == rect(0, 0, expected_width, height)
 		assert resolved.children[1].frame.x == expected_width
 		assert resolved.children[0].children[2].frame == if height == 80 {
@@ -455,8 +497,12 @@ fn test_horizontal_parent_assigns_height_before_wrapped_columns_width_and_siblin
 
 fn test_vertical_parent_assigns_height_before_wrapped_child_intrinsic_width() {
 	mut tree := LayoutTree{}
-	parent := flex(FlexConfig{ id: 'parent', frame: rect(0, 0, 0, 80), orientation: .vertical,
-		children: [FlexChild{ element: incremental_intrinsic_wrapped_columns()! }] })!
+	parent := flex(FlexConfig{
+		id:          'parent'
+		frame:       rect(0, 0, 0, 80)
+		orientation: .vertical
+		children:    [FlexChild{ element: incremental_intrinsic_wrapped_columns()! }]
+	})!
 	tree.replace(parent)!
 	resolved := incremental_resolve(mut tree)!
 	assert resolved.frame == rect(0, 0, 40, 80)
@@ -466,11 +512,15 @@ fn test_vertical_parent_assigns_height_before_wrapped_child_intrinsic_width() {
 
 fn test_wrapped_columns_keep_preferred_height_basis_during_parent_shrink() {
 	mut tree := LayoutTree{}
-	parent := flex(FlexConfig{ id: 'parent', frame: rect(0, 0, 0, 120), orientation: .vertical,
-		children: [
+	parent := flex(FlexConfig{
+		id:          'parent'
+		frame:       rect(0, 0, 0, 120)
+		orientation: .vertical
+		children:    [
 			FlexChild{ element: incremental_intrinsic_wrapped_columns()! },
 			FlexChild{ element: view('after', rect(0, 0, 20, 60), BoxStyle{}, []) },
-		] })!
+		]
+	})!
 	tree.replace(parent)!
 	resolved := incremental_resolve(mut tree)!
 	// Preferred heights120 and60 shrink proportionally into120:80 and40.
@@ -485,10 +535,19 @@ fn test_wrapped_columns_keep_preferred_height_basis_during_parent_shrink() {
 fn test_grid_and_stack_assign_height_before_wrapped_intrinsic_width() {
 	for authored_height in [0.0, 80.0] {
 		containers := [
-			grid(GridConfig{ id: 'outer', frame: rect(0, 0, 0, authored_height), columns: 1,
-				children: [incremental_intrinsic_wrapped_columns()!] })!,
-			stack(StackConfig{ id: 'outer', frame: rect(0, 0, 0, authored_height), align_x: .stretch,
-				align_y: .stretch, children: [StackChild{ element: incremental_intrinsic_wrapped_columns()! }] })!,
+			grid(GridConfig{
+				id:       'outer'
+				frame:    rect(0, 0, 0, authored_height)
+				columns:  1
+				children: [incremental_intrinsic_wrapped_columns()!]
+			})!,
+			stack(StackConfig{
+				id:       'outer'
+				frame:    rect(0, 0, 0, authored_height)
+				align_x:  .stretch
+				align_y:  .stretch
+				children: [StackChild{ element: incremental_intrinsic_wrapped_columns()! }]
+			})!,
 		]
 		for container in containers {
 			mut tree := LayoutTree{}
@@ -500,9 +559,13 @@ fn test_grid_and_stack_assign_height_before_wrapped_intrinsic_width() {
 			assert standalone.children[0].children[2].frame == rect(20, 0, 20, 40)
 			// The dependency reaches an enclosing Flex through either container.
 			// Its following sibling must start after both wrapped columns.
-			parent := flex(FlexConfig{ id: 'parent', frame: rect(0, 0, 200, 80), align: .stretch,
+			parent := flex(FlexConfig{
+				id:       'parent'
+				frame:    rect(0, 0, 200, 80)
+				align:    .stretch
 				children: [FlexChild{ element: container, shrink: 0 },
-					FlexChild{ element: view('after', rect(0, 0, 10, 20), BoxStyle{}, []), shrink: 0 }] })!
+					FlexChild{ element: view('after', rect(0, 0, 10, 20), BoxStyle{}, []), shrink: 0 }]
+			})!
 			tree.replace(parent)!
 			resolved := incremental_resolve(mut tree)!
 			assert resolved.children[0].frame == rect(0, 0, 40, 80)
@@ -527,20 +590,39 @@ fn incremental_long_text_measure(text string, _style TextStyle, width f64) !Layo
 }
 
 fn test_mixed_wrapped_container_grows_at_assigned_width_before_following_sibling() {
-	wrapper := stack(StackConfig{ id: 'wrapper', align_x: .stretch,
+	wrapper := stack(StackConfig{
+		id:       'wrapper'
+		align_x:  .stretch
 		children: [
 			StackChild{ element: incremental_intrinsic_wrapped_columns()! },
 			StackChild{ element: label('long', 'long', Rect{}, TextStyle{ lines: 100 }) },
-		] })!
+		]
+	})!
 	parents := [
-		flex(FlexConfig{ id: 'parent', frame: rect(0, 0, 50, 0),
-			children: [FlexChild{ element: wrapper }] })!,
-		flex(FlexConfig{ id: 'parent', frame: rect(0, 0, 50, 0), orientation: .vertical,
-			children: [FlexChild{ element: wrapper }] })!,
-		grid(GridConfig{ id: 'parent', frame: rect(0, 0, 50, 0), columns: 1,
-			children: [wrapper] })!,
-		stack(StackConfig{ id: 'parent', frame: rect(0, 0, 50, 0), align_x: .stretch,
-			align_y: .stretch, children: [StackChild{ element: wrapper }] })!,
+		flex(FlexConfig{
+			id:       'parent'
+			frame:    rect(0, 0, 50, 0)
+			children: [FlexChild{ element: wrapper }]
+		})!,
+		flex(FlexConfig{
+			id:          'parent'
+			frame:       rect(0, 0, 50, 0)
+			orientation: .vertical
+			children:    [FlexChild{ element: wrapper }]
+		})!,
+		grid(GridConfig{
+			id:       'parent'
+			frame:    rect(0, 0, 50, 0)
+			columns:  1
+			children: [wrapper]
+		})!,
+		stack(StackConfig{
+			id:       'parent'
+			frame:    rect(0, 0, 50, 0)
+			align_x:  .stretch
+			align_y:  .stretch
+			children: [StackChild{ element: wrapper }]
+		})!,
 	]
 	// Synthetic text is600 units wide and20 high per row. At50 units it needs
 	// twelve rows; native macOS's four-unit label inset leaves46, or14 rows.
@@ -665,28 +747,14 @@ fn test_position_only_move_reuses_typography_and_hidden_subtrees_do_not_measure(
 	assert tree.stats().text_measurements == 0
 }
 
-fn test_geometry_animations_update_layout_input_while_paint_animations_reuse_measurement() {
-	mut tree := LayoutTree{}
-	root := incremental_column('root', rect(0, 0, 60, 100), [incremental_label('text', 'WW WW')])!
-	tree.replace(root)!
-	_ = incremental_resolve(mut tree)!
-	tree.reset_stats()
-	paint := merge_animation_properties(root, Element{ ...root, box: BoxStyle{ bg: 0x234567 } }, ['background'])
-	tree.replace(paint)!
-	_ = incremental_resolve(mut tree)!
-	assert tree.stats().text_measurements == 0
-	geometry := merge_animation_properties(root, Element{ ...root, frame: rect(0, 0, 30, 100) }, ['width'])
-	assert geometry.layout_input?.width == 30
-	tree.replace(geometry)!
-	resized := incremental_resolve(mut tree)!
-	assert resized.children[0].frame.width == 30
-	assert resized.children[0].frame.height == 40
-}
-
 fn test_intrinsic_stack_padding_and_fixed_leaf_content_dependencies() {
 	mut tree := LayoutTree{}
-	root := stack(StackConfig{ id: 'stack', padding: LayoutPadding{ left: 10, right: 10 }, align_x: .stretch,
-		children: [StackChild{ element: incremental_label('text', 'WW WW') }] })!
+	root := stack(StackConfig{
+		id:       'stack'
+		padding:  LayoutPadding{ left: 10, right: 10 }
+		align_x:  .stretch
+		children: [StackChild{ element: incremental_label('text', 'WW WW') }]
+	})!
 	tree.replace(root)!
 	resolved := incremental_resolve(mut tree)!
 	// Custom label metrics are 52; native labels include their 4-unit cell inset.
@@ -706,7 +774,10 @@ fn test_intrinsic_stack_padding_and_fixed_leaf_content_dependencies() {
 
 fn test_measurer_identity_change_rearranges_inside_fixed_boundary() {
 	mut tree := LayoutTree{}
-	tree.replace(incremental_column('parent', rect(0, 0, 60, 100), [incremental_label('text', 'WW'), incremental_label('after', 'i')])!)!
+	tree.replace(incremental_column('parent', rect(0, 0, 60, 100), [
+		incremental_label('text', 'WW'),
+		incremental_label('after', 'i'),
+	])!)!
 	initial := incremental_resolve(mut tree)!
 	changed := tree.resolve(LayoutConstraints{}, incremental_other_measurer, LayoutEnvironment{})!
 	assert initial.children[1].frame.y == 20
@@ -735,7 +806,10 @@ fn test_incremental_scroll_reflows_automatic_content_at_viewport_width() {
 	explicit := view('wide', rect(5, 80, 120, 10), BoxStyle{}, [])
 	tree.replace(scroll('viewport', rect(0, 0, 60.25, 50), 0xffffff, [content, explicit]))!
 	for width in [60.25, 30.5, 60.25] {
-		tree.patch('viewport', scroll('viewport', rect(0, 0, width, 50), 0xffffff, [content, explicit]))!
+		tree.patch('viewport', scroll('viewport', rect(0, 0, width, 50), 0xffffff, [
+			content,
+			explicit,
+		]))!
 		resolved := incremental_resolve(mut tree)!
 		assert resolved.frame == rect(0, 0, width, 50)
 		assert resolved.children[0].frame == rect(0, 0, width, if width > 50 { 40 } else { 60 })
@@ -750,10 +824,11 @@ fn test_incremental_scroll_reflows_automatic_content_at_viewport_width() {
 fn test_incremental_grid_declaration_waits_for_assigned_width_before_spacing() ! {
 	mut tree := LayoutTree{}
 	grid := grid_declaration(GridConfig{
-		id: 'grid'
-		columns: 2
-		spacing: GridSpacing{ horizontal: 10, vertical: 10 }
-		children: [incremental_label('first', 'WW WW WW WW WW'), incremental_label('second', 'WW WW WW WW WW')]
+		id:       'grid'
+		columns:  2
+		spacing:  GridSpacing{ horizontal: 10, vertical: 10 }
+		children: [incremental_label('first', 'WW WW WW WW WW'),
+			incremental_label('second', 'WW WW WW WW WW')]
 	})!
 	assert grid.frame == Rect{}
 	assert grid.children[0].frame == Rect{}

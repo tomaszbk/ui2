@@ -255,7 +255,7 @@ fn run_window_with_min_size(title string, width int, height int, min_width int, 
 	mut st := state()
 	st.layout_tree.clear()
 	st.build_screen = build_fn
-	configure_animation_driver(refresh_animation_frame, true)
+	set_window_wake(backend_invalidate)
 	st.run_config = RunConfig{
 		title: title
 		width: width
@@ -305,7 +305,7 @@ fn rebuild_now() {
 // resulting frames through the existing native identity/edit-preserving path.
 pub fn refresh_element(id string, element Element) {
 	mut st := state()
-	st.layout_tree.patch(id, apply_widget_animations(element)) or { eprintln('ui2 layout: ${err}'); return }
+	st.layout_tree.patch(id, element) or { eprintln('ui2 layout: ${err}'); return }
 	render_mounted_layout()
 	schedule_screenshot_capture()
 }
@@ -1044,7 +1044,7 @@ fn element_rect(r Rect) NativeRect {
 
 fn render_root(declared Element) {
 	mut layout_state := state()
-	layout_state.layout_tree.replace(apply_widget_animations(declared)) or { eprintln('ui2 layout: ${err}'); return }
+	layout_state.layout_tree.replace(declared) or { eprintln('ui2 layout: ${err}'); return }
 	root := layout_state.layout_tree.resolve(LayoutConstraints{}, measure_layout_text, layout_state.layout_environment) or { eprintln('ui2 layout: ${err}'); return }
 	render_resolved_root(root)
 }

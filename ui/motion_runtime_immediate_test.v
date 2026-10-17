@@ -16,7 +16,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	fn runtime_motion_style(clock &RuntimeMotionClock) MotionConfig {
 		return MotionConfig{
 			clock:            fn [clock] () f64 { return clock.now }
-			enter:            MotionStyle{ opacity: 0, transform: VisualTransform{ translate_x: -40 } }
+			enter:            MotionStyle{ opacity: 0, translate_x: -40 }
 			enter_transition: MotionTransition{ duration: 0.2 }
 			exit_transition:  MotionTransition{ duration: 0.4 }
 		}
@@ -29,7 +29,6 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		root := resolve_custom_layout(mut app, work, measure_layout_text, take_custom_layout_patches(mut app))!
 		reconcile_mounted_focus_controls(root)
 		update_custom_focus_tree(root)
-		app.scheduler.set_animation_active(custom_animations_need_frame(app.declared_root))
 		app.scheduler.set_motion_active(motion_tree_needs_frame(app.declared_root))
 		app.scheduler.finish_frame(work)
 		return root, work

@@ -147,7 +147,7 @@ pub fn bounds() Rect {
 
 pub fn run(build_screen BuildFn) {
 	g_build_screen = build_screen
-	configure_animation_driver(refresh_animation_frame, true)
+	set_window_wake(backend_invalidate)
 	ensure_runtime_classes()
 	pool := macos.autorelease_pool_new()
 	defer {
@@ -1151,7 +1151,7 @@ fn remember_scroll_offsets() {
 }
 
 pub fn refresh_element(id string, element Element) {
-	g_layout_tree.patch(id, apply_widget_animations(element)) or { eprintln('ui2 layout: ${err}'); return }
+	g_layout_tree.patch(id, element) or { eprintln('ui2 layout: ${err}'); return }
 	render_mounted_layout()
 }
 
@@ -1163,7 +1163,7 @@ pub fn invalidate_layout_environment(environment LayoutEnvironment) {
 }
 
 fn render_root(declared Element) {
-	g_layout_tree.replace(apply_widget_animations(declared)) or { eprintln('ui2 layout: ${err}'); return }
+	g_layout_tree.replace(declared) or { eprintln('ui2 layout: ${err}'); return }
 	root := g_layout_tree.resolve(LayoutConstraints{}, measure_layout_text, g_layout_environment) or { eprintln('ui2 layout: ${err}'); return }
 	render_resolved_root(root)
 }

@@ -72,7 +72,7 @@ fn test_overlay_motion_and_viewport_projection_reuses_dialog_backdrop_and_focus_
 	for i in 0 .. 1000 {
 		frame := rect(0, 0, if i % 2 == 0 { 400.0 } else { 410.0 }, 300)
 		opacity := if i % 2 == 0 { 0.5 } else { 1.0 }
-		motion.current = MotionSample{ phase: .present, style: MotionStyle{ opacity: opacity } }
+		motion.current = MotionSample{ phase: .present, values: MotionValues{ opacity: opacity } }
 		projected := portals.resolve(source, offsets, frame, u64(i + 5))!
 		focus.update_mounted(projected, offsets, frame, ContentTransform{})
 		assert projected.children[1].id == 'dialog__backdrop'

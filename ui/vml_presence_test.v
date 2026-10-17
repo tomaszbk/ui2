@@ -118,13 +118,13 @@ fn test_presence_list_retains_exit_and_reentry_preserves_state_and_callbacks() !
 	assert original.element().text == '1'
 	clock.now = 0.3
 	sample_presence_nodes(mut parent)!
-	before := original.motion_state.current.style.opacity
+	before := original.motion_state.current.values.opacity
 	assert math.abs(before - 0.75) < 0.00001
 	list.update([VmlPresenceItem{ id: 'b' }, VmlPresenceItem{ id: 'a' }])!
 	assert list.nodes()[1] == original
 	assert list.leaving.len == 0
 	assert fixture.builds == 2 && fixture.mounts == ['a', 'b']
-	assert original.motion_state.current.style.opacity == before
+	assert original.motion_state.current.values.opacity == before
 	assert !parent.element().children[1].presence_exiting()
 	callback(ElementEvent{})
 	assert original.element().text == '2'

@@ -684,7 +684,7 @@ pub fn run_window(title string, width int, height int, build_fn BuildFn) {
 fn run_window_with_min_size(title string, width int, height int, min_width int, min_height int, build_fn BuildFn) {
 	mut st := windows_state()
 	st.build_screen = build_fn
-	configure_animation_driver(refresh_animation_frame, true)
+	set_window_wake(backend_invalidate)
 	st.run_config = WindowsRunConfig{
 		title: title
 		width: width
@@ -733,7 +733,7 @@ fn rebuild_now() {
 
 pub fn refresh_element(id string, element Element) {
 	mut st := windows_state()
-	st.layout_tree.patch(id, apply_widget_animations(element)) or { eprintln('ui2 layout: ${err}'); return }
+	st.layout_tree.patch(id, element) or { eprintln('ui2 layout: ${err}'); return }
 	windows_render_mounted_layout()
 }
 
@@ -747,7 +747,7 @@ pub fn invalidate_layout_environment(environment LayoutEnvironment) {
 
 fn windows_render_declaration(declared Element) {
 	mut st := windows_state()
-	st.layout_tree.replace(apply_widget_animations(declared)) or { eprintln('ui2 layout: ${err}'); return }
+	st.layout_tree.replace(declared) or { eprintln('ui2 layout: ${err}'); return }
 	root := st.layout_tree.resolve(LayoutConstraints{}, measure_layout_text, st.layout_environment) or { eprintln('ui2 layout: ${err}'); return }
 	windows_render_resolved(root)
 }
