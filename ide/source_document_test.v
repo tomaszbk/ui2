@@ -1,3 +1,4 @@
+// vtest vflags: -d vml_interpreter
 module main
 
 fn test_designer_projects_named_arguments_with_strings_comments_and_fractional_geometry() {

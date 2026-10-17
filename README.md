@@ -264,6 +264,33 @@ properties. Inline lists and component-local declarations use the same rules.
 See [VML styles and themes](docs/vml-styles.md) for tokens, variants, interaction
 states and theme updates.
 
+### Interpreted VML
+
+Development builds and dynamic documents can also run VML without compiling
+it. Built with `-d vml_interpreter`, ui2 parses a document with the compiler's
+VML parser, checks it against the model type and the widget registry when it
+loads, and declares the same retained nodes as compiled VML:
+
+```v
+ui2.run_vml[App](source_path: 'app.vml', model: &App{}, watch: true)!
+```
+
+With `watch: true` the window reloads the document when it or an imported
+component changes. Declarations whose path and key did not change keep their
+state, focus and edit buffers, and a document that no longer loads leaves the
+running one in place. `ui2.vml_interpret(source, &app)` builds a document from
+source for embedding. The interpreter reads public model fields, writes public
+mutable ones and calls methods by reflection, and evaluates the expression
+subset of compiled VML with V's semantics: integer arithmetic stays integral,
+mixing an integer with a float gives a float, and strings and numbers do not
+mix outside display text. Anything else is a load error naming the construct.
+
+Compiled VML stays the source of truth. The interpreter may accept a program V
+rejects, such as an integer passed to an `f64` parameter, never the reverse.
+`scripts/vml-conformance.sh` builds every example and `tests/compiled_vml`
+document both ways and requires equal element trees, scripted event results
+and model state.
+
 ## Custom buttons
 
 A `Button` can be styled directly in VML. Leave `native` unset when the
@@ -551,9 +578,11 @@ UI2 Studio in [`ide/`](ide/) is a Delphi/Lazarus-style WYSIWYG form designer
 written in V with UI2 itself. It includes a component palette, draggable and
 resizable controls, object tree and inspector, undo/redo, VML source editing,
 live preview, project save/open, `main.v` generation, and a build messages pane.
+Its live preview runs on the VML interpreter, so it is built with
+`-d vml_interpreter`:
 
 ```sh
-v -b c run ide
+v -b c -d vml_interpreter run ide
 ```
 
 See [`ide/README.md`](ide/README.md) for the supported visual document shape
@@ -1229,6 +1258,8 @@ at once; `make examples-custom` repeats that with the custom `gg` renderer.
 GitHub Actions runs focused desktop tests on Linux, macOS, and Windows,
 including native and custom profiles, for every push and pull request. These
 cover Counter, menus, compiled VML contracts, scrolling, text, and backend checks.
+A Linux job runs the VML conformance suite (`scripts/vml-conformance.sh`) in
+shards: every example document built compiled and interpreted.
 `make check-macos`,
 `make check-ios`, `make check-android`, `make check-linux`, and
 `make check-windows` type-check each renderer; cross-target checks require their

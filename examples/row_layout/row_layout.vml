@@ -65,7 +65,7 @@ Screen(
                     Option(text: "40")
                 }
                 Dropdown(
-                    id: "spacing",
+                    id: "spacing_choice",
                     bind.text: app.spacing_choice,
                     on_change: app.layout_changed(),
                     x: 258,

@@ -1,4 +1,4 @@
-// vtest vflags: -d ui2_custom_rendering -d ui2_embedder
+// vtest vflags: -d vml_interpreter -d ui2_custom_rendering -d ui2_embedder
 // vfmt off
 @[has_globals]
 module main

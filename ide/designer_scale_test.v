@@ -1,3 +1,4 @@
+// vtest vflags: -d vml_interpreter
 module main
 
 import math

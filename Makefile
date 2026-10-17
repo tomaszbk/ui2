@@ -6,11 +6,12 @@ VFLAGS ?= -b c
 test:
 	$(V) $(VFLAGS) test .
 
+# The designer previews documents with the VML interpreter.
 ide:
-	$(V) $(VFLAGS) run ide
+	$(V) $(VFLAGS) -d vml_interpreter run ide
 
 check-ide:
-	$(V) $(VFLAGS) -check ide
+	$(V) $(VFLAGS) -d vml_interpreter -check ide
 
 examples:
 	$(V) $(VFLAGS) run examples/build_examples.vsh $(VFLAGS)

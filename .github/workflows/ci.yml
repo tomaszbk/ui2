@@ -175,6 +175,9 @@ jobs:
       - name: Test backend contract and headless backend
         run: v ${{ matrix.compiler_flags }} test ui2/ui/backend_guard_test.v ui2/ui/backend_headless_test.v
 
+      - name: Test the VML interpreter, hot reload and widget registry
+        run: v ${{ matrix.compiler_flags }} test ui2/ui/vml_interpret_test.v ui2/ui/vml_interpret_reload_test.v ui2/ui/vml_registry_test.v ui2/ui/vml_registry_nodes_test.v
+
       - name: Test compiled overlays and custom input
         if: runner.os == 'Linux' || matrix.custom
         run: |
@@ -247,3 +250,37 @@ jobs:
           v ${{ matrix.compiler_flags }} ${{ matrix.custom && '-d ui2_custom_rendering' || '' }} test ui2/c/api_test.v
           v ${{ matrix.compiler_flags }} run ui2/c/build.vsh test ${{ matrix.compiler_flags }} ${{ matrix.custom && '-d ui2_custom_rendering' || '' }}
           v ${{ matrix.compiler_flags }} run ui2/c/build.vsh example ${{ matrix.compiler_flags }} ${{ matrix.custom && '-d ui2_custom_rendering' || '' }}
+
+  # Every example document and compiled_vml fixture is built compiled and
+  # interpreted, and the two builds must agree (scripts/vml-conformance.sh).
+  vml-conformance:
+    name: VML conformance (shard ${{ matrix.shard }} of 8)
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      VJOBS: '1'
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5, 6, 7]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: ui2
+
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --quiet -y --no-install-recommends \
+            libx11-dev libxcursor-dev libxi-dev libxrandr-dev libgl1-mesa-dev libasound2-dev \
+            pkg-config libpango1.0-dev libfreetype6-dev libharfbuzz-dev \
+            libfribidi-dev libfontconfig1-dev fonts-noto-core
+
+      - name: Set up verified V
+        uses: ./ui2/.github/actions/setup-v
+        with:
+          c-compiler: gcc
+          tcc-revision: d6e7ac1b1bcc98aed734a6ecbfa8509f24606c74
+
+      - name: Compare compiled and interpreted VML
+        run: ui2/scripts/vml-conformance.sh ${{ matrix.shard }} 8
