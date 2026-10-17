@@ -863,6 +863,8 @@ fn vml_field_value[T](value T, name string) ?VmlValue {
 					if v := value.$(field.name) { return vml_reflect_value[OverlayConfig](v) }
 				} $else $if field.typ is ?OverlayPoint {
 					if v := value.$(field.name) { return vml_reflect_value[OverlayPoint](v) }
+				} $else $if field.typ is &Window {
+					// An event's window is a handle, not document data.
 				} $else $if field.is_enum {
 					return VmlValue(VmlEnum{
 						name: vml_enum_name(value.$(field.name))
