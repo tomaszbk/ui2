@@ -52,6 +52,4 @@ Hover uses the pointer's clipped region; a captured press applies while the poin
 remains inside and the gesture has not become a drag. Touch presses work too.
 
 Per-edge colors, rounded border joins, dash patterns and these state patches are
-currently custom-renderer features. Native VML diagnoses unsupported presentation
-properties; native controls keep their platform interaction and supported
-common-color border implementation.
+renderer features on every platform.

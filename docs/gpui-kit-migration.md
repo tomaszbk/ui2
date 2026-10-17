@@ -70,8 +70,8 @@ pages := ui2.pagination(
 
 Disabled state and out-of-range destinations never reach `on_page`. Previous,
 next, and numbered controls all report through it. The current page is an
-enabled button marked `current` (a disabled one is dimmed and announced as
-unavailable by native backends); activating it reports nothing. Ellipses are
+enabled button marked `current` (a disabled one would be dimmed and announced
+as unavailable); activating it reports nothing. Ellipses are
 labels in this version, not clickable page-jump menus.
 
 ## Identity and state
@@ -104,8 +104,6 @@ left, shrinking evenly when the trail does not fit.
 Accessibility roles, labels, and current/expanded state are attached to the
 resulting elements. This is metadata, not a claim of GPUI's AccessKit parity;
 keyboard behavior and native accessibility mapping remain backend-dependent.
-AppKit exposes `group`, `navigation`, `status` and `alert` as `AXGroup`,
-`separator` as `AXSplitter` and `img` as `AXImage`.
 Images use the existing image implementation: initials are chosen only when
 `image_path` is empty, not after a load failure. Image masking also depends on
 the backend. Skeletons do not shimmer; keyboard hints do not register shortcuts;
@@ -228,9 +226,6 @@ Run these from the directory that contains the `ui2` checkout:
 ```sh
 v test ui2/ui/component_catalog_test.v
 v run ui2/examples/component_catalog/main.v
-# macOS/Windows custom renderer:
-v -d ui2_custom_rendering test ui2/ui/component_catalog_test.v
-v -d ui2_custom_rendering run ui2/examples/component_catalog/main.v
 ```
 
 The gallery exercises all 14 additions, themes, dismiss callbacks, disclosure,

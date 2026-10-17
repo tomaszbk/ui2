@@ -1,44 +1,34 @@
 module main
 
+import ui2
+
+// ui2 draws the whole window, so the frame is the host's to give up:
+// hidden_titlebar runs the content under macOS's transparent title bar and
+// removes the Windows caption (see ui2.set_window_chrome). Other hosts keep
+// their frame, and the header is only decoration there.
 fn configure_custom_window() bool {
-	$if macos && !ui2_custom_rendering ? {
-		return macos_configure_custom_window()
-	} $else $if windows && !ui2_custom_rendering ? {
-		return windows_configure_custom_window(custom_window_width, custom_window_height)
-	} $else {
+	if !ui2.window_chrome_supported(.hidden_titlebar) {
 		return true
 	}
+	return ui2.set_window_chrome(.hidden_titlebar)
 }
 
 fn drag_custom_window() {
-	$if macos && !ui2_custom_rendering ? {
-		macos_drag_custom_window()
-	} $else $if windows && !ui2_custom_rendering ? {
-		windows_drag_custom_window()
-	}
+	ui2.start_window_drag()
 }
 
 fn custom_window_uses_transparent_screen() bool {
-	$if macos && !ui2_custom_rendering ? {
-		return true
-	} $else {
-		return false
-	}
+	return false
 }
 
 fn custom_window_screen_background() u32 {
-	$if windows && !ui2_custom_rendering ? {
-		// The Win32 adapter treats this otherwise-unused color as transparent.
-		return u32(0x010203)
-	} $else {
-		return u32(0x0f172a)
-	}
+	return u32(0x0f172a)
 }
 
 fn custom_window_platform_note() string {
-	$if (macos || windows) && !ui2_custom_rendering ? {
-		return 'The empty area around these cards is the desktop.'
-	} $else {
-		return 'Frameless transparency is demonstrated by the native macOS and Windows backends.'
+	return if ui2.window_chrome_supported(.hidden_titlebar) {
+		'The header replaces the title bar; drag it to move the window.'
+	} else {
+		'This platform keeps its own window frame.'
 	}
 }

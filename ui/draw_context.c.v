@@ -4,13 +4,13 @@
 @[has_globals]
 module ui2
 
-$if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? && !ui2_document_library ? {
+$if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_document_library ? {
 	import gg
 	import math
 	import sokol.gfx
 	import sokol.sfons
 	import sokol.sgl
-	$if android {
+	$if android || ios {
 		import fontstash
 		import os
 		import os.font
@@ -33,7 +33,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		result    ClipRegion
 	}
 
-	$if android {
+	$if android || ios {
 		struct DrawContext {
 		mut:
 			inner               &gg.Context = unsafe { nil }
@@ -142,7 +142,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		ctx.width = ctx.inner.width
 		ctx.height = ctx.inner.height
 		ctx.scale = ctx.inner.scale
-		$if android {
+		$if android || ios {
 			ctx.ft = ctx.inner.ft
 			ctx.font_inited = ctx.inner.font_inited
 		} $else {
@@ -236,7 +236,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			owns_surface: true
 			gl_context: gl_context
 		}
-		$if android {
+		$if android || ios {
 			ctx.ft = new_draw_fonts(config) or {
 				ctx.destroy()
 				return err
@@ -265,7 +265,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		return sgl.make_pipeline(&desc)
 	}
 
-	$if android {
+	$if android || ios {
 	fn new_draw_fonts(config gg.Config) !&gg.FT {
 		normal_path := if config.font_path.len > 0 { config.font_path } else { font.default() }
 		normal := if config.font_bytes_normal.len > 0 {
@@ -318,7 +318,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	}
 	}
 
-	$if !android {
+	$if !(android || ios) {
 		fn (mut ctx DrawContext) ensure_text_resources() ! {
 			if ctx.destroyed { return error('drawing context is closed') }
 			if ctx.text != unsafe { nil } && ctx.text.scale == ctx.scale { return }
@@ -430,7 +430,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		ctx.inner.width = width
 		ctx.inner.height = height
 		ctx.inner.scale = ctx.scale
-		$if android {
+		$if android || ios {
 			if ctx.ft != unsafe { nil } { ctx.ft.scale = ctx.scale }
 		} $else {
 			ctx.ensure_text_resources() or { panic('ui2: ${err}') }
@@ -445,7 +445,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			return
 		}
 		ctx.activate()
-		$if android {
+		$if android || ios {
 			if ctx.font_inited { ctx.ft.flush() }
 		}
 		sgl.defaults()
@@ -456,7 +456,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	fn (ctx &DrawContext) end() {
 		unsafe { ctx.painting = false }
 		unsafe { mut images := &ctx.images; images.commit() }
-		$if !android {
+		$if !(android || ios) {
 			if !ctx.destroyed && ctx.text_renderer != unsafe { nil } {
 				mut renderer := ctx.text_renderer
 				// Atlas uploads precede this frame's GPU submission so new worker
@@ -503,7 +503,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		ctx.destroying=true
 		if g_gg_app.ctx==&ctx { cancel_touch() }
 		ctx.activate()
-		$if !android {
+		$if !(android || ios) {
 			if ctx.text_renderer != unsafe { nil } { ctx.text_renderer.free() }
 			if ctx.text != unsafe { nil } { ctx.text.free() }
 			ctx.text_renderer = unsafe { nil }
@@ -515,7 +515,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			ctx.destroyed = true
 			return
 		}
-		$if android {
+		$if android || ios {
 			if ctx.ft != unsafe { nil } { sfons.destroy(ctx.ft.fons) }
 			ctx.ft = unsafe { nil }
 		}
@@ -687,7 +687,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		sgl.scissor_rect(int(left), int(top), int(right - left), int(bottom - top), true)
 	}
 
-	$if android {
+	$if android || ios {
 		fn (ctx &DrawContext) set_text_cfg(config gg.TextCfg) {
 			ctx.activate()
 			ctx.inner.set_text_cfg(config)

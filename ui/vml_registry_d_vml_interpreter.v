@@ -46,6 +46,11 @@ pub type VmlValue = string
 	| VmlObject
 	| VmlCallable
 	| StylePatch
+	| VmlNone
+
+// VmlNone is an absent value: an unset option, or the result of a void call.
+// Assigned to an optional property it unsets the property.
+pub struct VmlNone {}
 
 // VmlEnum is a bare name (`align: right`).
 pub struct VmlEnum {
@@ -67,6 +72,10 @@ mut:
 	type_idx int
 	data     voidptr
 	read     fn (data voidptr, name string) ?VmlValue = unsafe { nil }
+	// The held value's text (its type, `Type{...}`), and (for model values)
+	// value equality with another holder of the same type.
+	text fn (data voidptr) string              = unsafe { nil }
+	same fn (data voidptr, other voidptr) bool = unsafe { nil }
 }
 
 @[heap]
@@ -82,7 +91,31 @@ pub fn vml_reflect[T](value T) VmlReflect {
 			value: value
 		})
 		read:      vml_reflect_read[T]
+		text:      vml_reflect_text[T]
 	}
+}
+
+// vml_reflect_text names the held value's type. V's own formatting of
+// arbitrary structs is not generated here: it is large, and documents print
+// fields rather than whole structs.
+fn vml_reflect_text[T](_ voidptr) string {
+	return typeof[T]().name.all_after_last('.') + '{...}'
+}
+
+// str is the held value's text: its type name, as `Type{...}`.
+pub fn (r VmlReflect) str() string {
+	if r.text == unsafe { nil } || r.data == unsafe { nil } { return r.type_name }
+	return r.text(r.data)
+}
+
+// equals reports whether both hold equal values of the same type.
+pub fn (r VmlReflect) equals(other VmlReflect) bool {
+	if r.type_idx != other.type_idx { return false }
+	if r.data == other.data { return true }
+	if r.same == unsafe { nil } || r.data == unsafe { nil } || other.data == unsafe { nil } {
+		return false
+	}
+	return r.same(r.data, other.data)
 }
 
 fn vml_reflect_read[T](data voidptr, name string) ?VmlValue {
@@ -162,6 +195,7 @@ mut:
 	prop_value(name string, eval fn () !VmlValue) !
 	on(event string, cb ElementCallback) !
 	bind_value(name string, write fn (VmlValue) !) !
+	bind_ref(ref VmlNodeRef) !
 	vml_parent() VmlParent
 }
 
@@ -361,6 +395,17 @@ pub fn (mut n VmlWidgetNode[P]) bind_value(name string, write fn (VmlValue) !) !
 	})!
 }
 
+// bind_ref binds a ref (vml_ref.v) to the node when it is built, or now when
+// it already is.
+pub fn (mut n VmlWidgetNode[P]) bind_ref(ref VmlNodeRef) ! {
+	n.owner.require_alive() or { return n.src.wrap_error(err) }
+	n.refs << ref
+	if retained := n.node() {
+		mut bound := ref
+		bound.bind(retained) or { return n.src.wrap_error(err) }
+	}
+}
+
 fn (n &VmlWidgetNode[P]) setter(name string) VmlSetter {
 	return VmlSetter{
 		element: vml_element_name(P.name)
@@ -537,6 +582,7 @@ fn vml_value_description(value VmlValue) string {
 		VmlObject { 'an object' }
 		VmlCallable { 'a callable' }
 		StylePatch { 'a style' }
+		VmlNone { 'none' }
 	}
 }
 
@@ -677,6 +723,12 @@ fn vml_set_field[T](mut target T, name string, value VmlValue, s VmlSetter) !boo
 		$if field.is_embed {
 		} $else {
 			if field.name == name {
+				$if field.is_option {
+					if value is VmlNone {
+						target.$(field.name) = none
+						return true
+					}
+				}
 				$if field.typ is f64 {
 					target.$(field.name) = s.number(value)!
 				} $else $if field.typ is ?f64 {

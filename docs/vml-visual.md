@@ -73,7 +73,7 @@ ScaledContent(
 and present it in ui2's window overlay layer. Their `width` and `height` describe
 the surface; ui2 resolves its global position, clipping, focus and dismissal.
 `MenuOverlay` is separate from the application's `Menu`/`MenuBar` declarations.
-These surfaces require the custom renderer. `Popup` and `ModalView` are removed.
+`Popup` and `ModalView` are removed.
 
 ```vml
 Dialog(
@@ -116,7 +116,6 @@ defaulting to 0.5. These callbacks update the explicit `open` source.
 `View(overlay: app.config)` accepts a typed `ui2.OverlayConfig`. Overlay arguments
 and authored `hidden` update one retained surface; closing and reopening preserve
 its child identities. Overlay refs declare the `View` marker type.
-The native profile does not support these surfaces.
 
 `Scroll(scroll_mode: horizontal_only)` and `Scroll(scroll_mode: both)` select scrolling
 axes through the typed `ui2.ScrollMode` enum; the default is `vertical_only`.
@@ -263,22 +262,12 @@ View(
 Changes to these arguments patch the same retained node. `hidden` requests enter or exit;
 the runtime retains an exiting element until its transition completes. Ordinary opacity and
 transform arguments are the present target. The runtime owns interpolation and scheduling,
-including immediate completion when reduced motion is enabled. Explicit opacity or motion
-requires the custom profile and produces a diagnostic in the native profile.
+including immediate completion when reduced motion is enabled.
 
-## Profiles and verification
+## Verification
 
-On macOS and Windows, compile visual presentation with `-d ui2_custom_rendering`.
-Linux and Android use the custom renderer. The native profile does not support ScaledContent,
-Run, weights other than 400 or 700, tracking, custom line heights, baseline offsets,
-tabular figures,
-custom font families, text backgrounds and advanced text decoration, paragraph indents,
-per-side border colors, border-pattern declarations, outlines and interaction patches.
-Native platform appearance is not
-promised to match custom rendering. Native validation also checks each control's
-supported fields at runtime when applying typed or dynamic style values.
-On iOS, `ui2_custom_rendering` does not select a custom renderer: UIKit remains native,
-and the same presentation diagnostics apply with or without that flag.
+ui2 draws every control with its own renderer on every platform, so each
+property in this guide is available everywhere.
 
 `ui/vml_props_*_test.v` build each fixture both through `$vml` and through
 hand-written props, and compare the two Element trees. `tests/compiled_vml` covers
@@ -286,8 +275,8 @@ keyed lists, components, styles, motion and compile-time diagnostics.
 `tests/vml_examples/vml_visual` is an executable parity fixture for this guide:
 
 ```sh
-v -b c -d ui2_custom_rendering test ui2/tests/vml_examples/vml_visual
-v -b c -d ui2_custom_rendering run ui2/tests/vml_examples/vml_visual
+v -b c test ui2/tests/vml_examples/vml_visual
+v -b c run ui2/tests/vml_examples/vml_visual
 ```
 
 The fixtures compare styles and geometry with ui2's public API and independent expected values,

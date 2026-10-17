@@ -28,8 +28,8 @@ therefore the overlay layer's. A dialog with `backdrop: .none` becomes a
 `.popover` overlay at the place `dialog_layout` gives it, so the rest of the
 window keeps working. `alert_dialog` is a `modal_dialog` with an alert's
 defaults, the way GPUI Kit's `AlertDialog` is built on its `Dialog`. Because
-`component_finish` validates the tree, building a dialog on a native AppKit,
-Windows, UIKit or Android backend returns an error.
+`component_finish` validates the tree, building a dialog on Android or iOS,
+where the renderer has no overlays, returns an error.
 
 `sheet` is an ordinary element, so it works on every renderer and can slide
 with an animation: a backdrop button over the frame, then a panel against one
@@ -80,18 +80,17 @@ and these when the dialog has to hold arbitrary ui2 content, follow a
 
 ### Which keys reach the application while a text field has focus
 
-The custom renderer gives Escape to the overlay layer first, then delivers
-every key to `on_key_event` before the field. AppKit (which only shows sheets,
-not dialogs) keeps Return and Tab in a focused field.
+The renderer gives Escape to the overlay layer first, then delivers every key
+to `on_key_event` before the field.
 
-| Key | AppKit `text_input` (sheets) | Custom renderer |
-| --- | --- | --- |
-| Escape | `on_key_event` | The top dialog overlay, otherwise `on_key_event` |
-| Return | The field, which reports `.submit` to its `on_event` | `on_key_event`, then the field |
-| Tab, Shift+Tab | `on_key` only, as `'tab'`/`'shift+tab'` | `on_key_event`, then `on_key` |
+| Key | Reaches |
+| --- | --- |
+| Escape | The top dialog overlay, otherwise `on_key_event` |
+| Return | `on_key_event`, then the field, which reports `.submit` to its `on_event` |
+| Tab, Shift+Tab | `on_key_event`, then `on_key` |
 
-So a sheet with fields should register both key handlers for its focus trap,
-and route its fields' `.submit` events to the same answer as Enter.
+So a sheet with fields can run its focus trap from `on_key_event`, and should
+route its fields' `.submit` events to the same answer as Enter.
 
 ## Dialog
 
@@ -333,12 +332,6 @@ ui2.on_key_event(fn (event ui2.KeyEvent) {
 		tab(backwards)
 	}
 })
-// AppKit reports Tab in a focused field only here.
-ui2.on_key(fn (key string) {
-	if backwards := ui2.focus_trap_key_direction(key) {
-		tab(backwards)
-	}
-})
 ```
 
 `focus()` and `focused_id()` belong to the backends, so `ui/` cannot call them;
@@ -362,8 +355,7 @@ the trap is a set of pure helpers the application calls from its key handlers.
   with none holding it the last enabled modal trap pulls focus in.
 - `focus_trap_ids(elements)` lists, in tree order, the ids of the visible and
   enabled text fields and text areas, which are what `focus()` can move to on
-  every backend (the custom renderer focuses only text inputs, and AppKit
-  buttons take focus only with Full Keyboard Access).
+  every backend (the renderer focuses only text inputs).
 
 To focus the first field when an overlay opens, call `ui2.focus(trap.first())`
 once the overlay has been rendered, e.g. from `ui2.after(0.05, ...)`. The
@@ -392,7 +384,7 @@ overlay that has no fields of its own over one that does.
 | Initial focus, built-in focus trap | Focus containment comes from the overlay layer; initial focus is the application's `focus()` call. |
 | Shadow, translucent overlay | Implemented with the surface's box shadow and the `.dim` backdrop. |
 | Window drag area on the overlay | Omitted. |
-| Native backends | Dialogs need an overlay-capable renderer (Linux or the desktop custom renderer); sheets work everywhere. |
+| iOS and Android | Dialogs need overlays, which only the desktop renderer has; sheets work everywhere. |
 
 ### Alert dialog
 
@@ -431,14 +423,12 @@ overlay that has no fields of its own over one that does.
 
 ## Verification
 
-Run from the directory that contains the `ui2` checkout, on Linux or with the
-custom renderer (dialogs are overlays):
+Run from the directory that contains the `ui2` checkout, on Linux, macOS or
+Windows (dialogs are overlays):
 
 ```sh
 v test ui2/ui/component_dialogs_test.v
-v -d ui2_custom_rendering test ui2/ui/component_dialogs_test.v
 v run ui2/examples/gpui_dialogs/main.v
-v -d ui2_custom_rendering run ui2/examples/gpui_dialogs/main.v
 ```
 
 The tests cover layout (centering, presets, window margins, scrolling bodies,

@@ -1,8 +1,7 @@
-// vtest vflags: -d ui2_custom_rendering
 @[has_globals]
 module ui2
 
-$if ( linux || macos || windows ) && !ui2_headless ?&& ( linux || ui2_custom_rendering ?) && !ui2_embedder ? {
+$if (linux || macos || windows) && !ui2_headless ?&& !ui2_embedder ? {
 	import os
 	import time
 
@@ -104,7 +103,7 @@ $if ( linux || macos || windows ) && !ui2_headless ?&& ( linux || ui2_custom_ren
 }
 
 fn test_image_tooltips_registered_by_the_running_renderer() {
-	$if ( linux || macos || windows ) && !ui2_headless ?&& ( linux || ui2_custom_rendering ?) && !ui2_embedder ? {
+	$if (linux || macos || windows) && !ui2_headless ?&& !ui2_embedder ? {
 		image_tooltip_started = false
 		image_tooltip_passed = false
 		run_window('Image tooltip registration fixture', 400, 240, image_tooltip_build)

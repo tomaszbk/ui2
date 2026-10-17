@@ -18,9 +18,9 @@ make c-smoke     # open a window, verify mounted controls, then quit
 The build uses a C compiler and V with Boehm GC. `CC` selects the compiler
 executable. Windows uses Clang and LLVM's `llvm-dlltool` to create an x64
 import library for the example/tests. You can also invoke the portable build
-script directly: `v run c/build.vsh example`. On macOS and Windows, choose the
-custom renderer with `make c-example C_API_FLAGS='-d ui2_custom_rendering'`.
-The initial C library supports desktop macOS, Linux, and Windows.
+script directly: `v run c/build.vsh example`. `C_API_FLAGS` passes extra V
+compiler flags, such as `-prod`. The initial C library supports desktop macOS,
+Linux, and Windows.
 
 To compile your own application on macOS or Linux:
 
@@ -32,8 +32,8 @@ cc -std=c99 app.c -Ic -Lbuild/c -lui2 \
 Ship the library beside your application and set the executable's runtime
 search path for that location (`@loader_path` on macOS, `$ORIGIN` on Linux).
 Windows finds `ui2.dll` beside the executable; link against `build/c/ui2.lib`.
-The library still needs the normal platform dependencies of the selected
-backend, as described in the main README. No GTK is involved on Linux.
+The library still needs the renderer's platform dependencies (the vglyph text
+stack), as described in the main README. No GTK is involved on Linux.
 
 ## A small app
 
@@ -143,9 +143,9 @@ Cycles, duplicate IDs/keys, invalid enums, and recursive run/validate calls are
 reported as errors. Use `ui2_abi_version()` to check ABI compatibility (currently 1).
 
 Call all UI APIs on the main thread and keep your callbacks and `user_data`
-alive until `ui2_run` finishes. One window can run at a time. The native macOS
-backend may terminate the process when its last window closes or `ui2_quit`
-runs, following the existing V application's behavior.
+alive until `ui2_run` finishes. One window can run at a time. On macOS the
+window's event loop (sokol_app on `NSApp run`) ends the process when its window
+closes or `ui2_quit` runs, so `ui2_run` does not return there.
 
 For another language, declare the function and struct signatures from `ui2.h`
 using its C FFI. Convenience constructors are header inlines; bindings use

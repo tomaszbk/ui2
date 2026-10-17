@@ -1,9 +1,8 @@
-// vtest vflags: -d ui2_custom_rendering
 // vfmt off
 @[has_globals]
 module ui2
 
-$if macos && ui2_custom_rendering ? && !ui2_headless ? {
+$if macos && !ui2_headless ? {
 	import gg
 	import math
 

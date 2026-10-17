@@ -5,19 +5,17 @@ import math
 // Text-entry components: input_group here, number_input in
 // component_inputs_number.v and otp_input in component_inputs_otp.v.
 //
-// Each is built around a native text field, and a native field draws its own
-// frame: AppKit gives it a bezel, the custom renderer an outline. No backend
-// lets an element turn that frame off, so the components do not try to hide a
+// Each is built around a text field, and a field draws its own outline. No
+// element can turn that frame off, so the components do not try to hide a
 // field inside a borderless box. The field spans the full height of the
 // component and keeps its frame, which then reads as the divider between the
 // field and the addons or buttons beside it, while the component's own border
 // and corner radius go round the whole row.
 
-// inputs_field_box is the box a component gives its native field: the
-// field's background and a one-pixel border in the theme's border color, or
-// its danger color while the content is invalid. The radius stays zero. On
-// AppKit a corner radius masks the field's layer, which would clip its focus
-// ring as well; the component's outer corners are rounded by its own frame.
+// inputs_field_box is the box a component gives its field: the field's
+// background and a one-pixel border in the theme's border color, or its danger
+// color while the content is invalid. The radius stays zero; the component's
+// outer corners are rounded by its own frame.
 fn inputs_field_box(theme ComponentTheme, invalid bool) BoxStyle {
 	return component_box(theme.background, if invalid { theme.danger } else { theme.border },
 		0)
@@ -46,15 +44,14 @@ struct InputsFieldSpec {
 	role        string
 	label       string
 	key         string
-	// A standalone field keeps the backend's own frame (AppKit's bezel, the
-	// custom renderer's outline and focus ring) with this corner radius until it
-	// is invalid. Fields inside a component frame always get the theme border,
+	// A standalone field keeps the renderer's outline and focus ring with this
+	// corner radius until it is invalid. Fields inside a component frame always get the theme border,
 	// which reads as the divider between the field and its neighbours.
 	standalone_radius f64
 	theme             ComponentTheme
 }
 
-// inputs_field is the native text field the input components share. Its
+// inputs_field is the text field the input components share. Its
 // callback receives the field's change events, with the edited text, and its
 // submit event when Return is pressed.
 fn inputs_field(spec InputsFieldSpec) Element {

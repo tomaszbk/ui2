@@ -1,4 +1,3 @@
-// vtest vflags: -d ui2_custom_rendering
 module main
 
 import os
@@ -355,8 +354,8 @@ fn main() {
 
 fn compile_sibling_fixture(root string) os.Result {
 	module_path := [os.dir(@VMODROOT), '@vlib', '@vmodules'].join(os.path_delimiter)
-	args := [@VEXE, '-b', 'c', '-nocache', '-path', module_path, '-no-retry-compilation', '-d',
-		'ui2_custom_rendering', '-o', os.join_path(root, 'app'), os.join_path(root, 'main.v')]
+	args := [@VEXE, '-b', 'c', '-nocache', '-path', module_path, '-no-retry-compilation', '-o',
+		os.join_path(root, 'app'), os.join_path(root, 'main.v')]
 	os.write_file(os.join_path(root, 'compile-command.txt'), args.join('\n')) or { panic(err) }
 	mut environment := []string{}
 	for key in ['VFLAGS', 'VMODULES', 'V_MACOS_V3_NO_FALLBACK', 'VJOBS', 'PATH', 'VTMP', 'TMPDIR'] {

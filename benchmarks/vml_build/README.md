@@ -12,7 +12,7 @@ short-lived garbage is included even when a collection reclaims it.
 From the UI2 repository root, with the pinned V compiler:
 
 ```sh
-V_MACOS_V3_NO_FALLBACK=1 /path/to/v -b c -gc boehm -d no_gc_thread_local_alloc -nocache -prod -d ui2_custom_rendering \
+V_MACOS_V3_NO_FALLBACK=1 /path/to/v -b c -gc boehm -d no_gc_thread_local_alloc -nocache -prod \
     -path "$(dirname "$PWD")|@vlib|@vmodules" \
     -o /tmp/ui2-vml-build-bench benchmarks/vml_build
 /tmp/ui2-vml-build-bench
@@ -20,7 +20,8 @@ V_MACOS_V3_NO_FALLBACK=1 /path/to/v -b c -gc boehm -d no_gc_thread_local_alloc -
 /tmp/ui2-vml-build-bench 10 5
 # 75 rows reproduce the 300-key first-build workload.
 /tmp/ui2-vml-build-bench 1 75
-# A third argument selects the lowering: compiled (default), generic or both.
+# A third argument selects the lowering: compiled (default), generic, both,
+# interpreted or all. The interpreted modes need `-d vml_interpreter`.
 /tmp/ui2-vml-build-bench 10 5 generic
 ```
 
@@ -42,7 +43,7 @@ calculator fixtures:
 
 Retained projections later settled once per batch instead of re-projecting
 every sibling up to the root after each child change. With the command above on
-a Linux x86-64 host (gcc, `-prod -d ui2_custom_rendering`), revision `90495a5`
+a Linux x86-64 host (gcc, `-prod`), revision `90495a5`
 and that change produced:
 
 | Keys | Scope | Before | After |
@@ -71,7 +72,7 @@ counts and elapsed time depend on collector and host state; the test bounds
 allocation traffic rather than imposing a machine-specific timing threshold.
 
 The generic node runtime builds the same documents with less allocation. With
-the command above on a Linux x86-64 host (gcc, `-prod -d ui2_custom_rendering`),
+the command above on a Linux x86-64 host (gcc, `-prod`),
 revision `f244aff` plus the generic runtime, with each figure from its own
 process:
 
@@ -97,3 +98,26 @@ that merge, each figure from its own process:
 The generic first-build tests enforce a 2.5 MiB budget for 20 keys and a
 34 MiB budget for 300 keys, about twice the Linux measurements, and a test
 checks that both lowerings build the same tree.
+
+The VML interpreter (built with `-d vml_interpreter`) declares the same generic
+nodes from `form.vml` read at run time. Each interpreted build parses and
+checks the source against the model's type, then builds; the load alone is
+reported separately. Same command plus `-d vml_interpreter`, Linux x86-64
+(gcc), merged with the smaller `Element` (`8b2b818`), each figure from its own
+process. Times come from a host shared with other builds and are indicative
+only; byte counts are exact.
+
+| Keys | Scope | Compiled | Generic | Interpreted |
+| ---: | --- | ---: | ---: | ---: |
+| 20 | First build/dispose | 2,038,656 bytes / 1 GC | 1,301,632 bytes / 1 GC | 1,930,000 bytes / 1 GC |
+| 20 | Warm build/dispose, mean of 1,000 | 2,169,956 bytes | 1,365,852 bytes | 2,014,343 bytes |
+| 20 | GC collections over the 1,000 warm builds | 115 | 106 | 115 |
+| 300 | First build/dispose | 27,822,960 bytes / 5 GC | 16,772,000 bytes / 4 GC | 22,792,304 bytes / 4 GC |
+| 300 | One warm build/dispose | 28,182,384 bytes / 3 GC, 61 ms | 16,809,744 bytes / 2 GC, 29 ms | 23,112,880 bytes / 2 GC, 34 ms |
+
+Loading `form.vml` (parsing and checking it against the model) allocates
+239,008 bytes and takes about 0.2 ms, independent of the key count, so an
+interpreted build allocates about 1.7 MB for 20 keys beyond its load: more
+than the generic lowering, which declares the same nodes from typed code,
+and less than the compiled one. The model is reflected once per type; reads
+during a build resolve fields by name, and nothing is reflected per frame.

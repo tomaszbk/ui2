@@ -1,4 +1,3 @@
-// vtest vflags: -d ui2_custom_rendering
 module main
 
 import os
@@ -53,8 +52,7 @@ fn test_compiled_visual_dynamic_types_and_inactive_arms_report_vml_locations() {
 }', '3:9'],
 	] {
 		os.write_file(view, entry[0])!
-		result := os.exec([@VEXE, '-b', 'c', '-path', module_path, '-d', 'ui2_custom_rendering',
-			'-check', source])
+		result := os.exec([@VEXE, '-b', 'c', '-path', module_path, '-check', source])
 		assert result.exit_code != 0, result.output
 		assert result.output.contains('${view}:${entry[1]}:'), result.output
 		assert result.output.contains('called from ${source}'), result.output

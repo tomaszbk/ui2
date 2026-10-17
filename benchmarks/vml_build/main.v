@@ -55,19 +55,23 @@ fn main() {
 	iterations := if os.args.len > 1 { os.args[1].int() } else { default_iterations }
 	rows := if os.args.len > 2 { os.args[2].int() } else { default_rows }
 	mode := if os.args.len > 3 { os.args[3] } else { 'compiled' }
-	if iterations <= 0 || rows <= 0 || mode !in ['compiled', 'generic', 'both'] {
-		eprintln('usage: ${os.args[0]} [positive iteration count] [positive row count] [compiled|generic|both]')
+	if iterations <= 0 || rows <= 0 || mode !in ['compiled', 'generic', 'both', 'interpreted',
+		'all'] {
+		eprintln('usage: ${os.args[0]} [positive iteration count] [positive row count] [compiled|generic|both|interpreted|all]')
 		exit(1)
 	}
 	mut app := benchmark_model(rows)
 	frame := ui2.rect(0, 0, 800, 600)
 	println('iterations: ${iterations}')
 	println('keys:       ${app.keys.len}')
-	if mode in ['compiled', 'both'] {
+	if mode in ['compiled', 'both', 'all'] {
 		measure('compiled', build_compiled, mut app, frame, iterations)
 	}
-	if mode in ['generic', 'both'] {
+	if mode in ['generic', 'both', 'all'] {
 		measure('generic', build_generic, mut app, frame, iterations)
+	}
+	if mode in ['interpreted', 'all'] {
+		measure_interpreted(mut app, frame, iterations)
 	}
 }
 

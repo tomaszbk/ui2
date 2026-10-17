@@ -1,9 +1,8 @@
-// vtest vflags: -d ui2_custom_rendering
 // vfmt off
 @[has_globals]
 module ui2
 
-$if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
+$if (android || ios || linux || macos || windows) && !ui2_headless ? {
 	import gg
 
 	fn reset_tooltip_test() {
@@ -263,7 +262,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		assert tooltip_frame(10, 10, 120, 30, rect(0, 0, 100, 40)) == rect(4, 4, 120, 30)
 	}
 
-	$if android {
+	$if android || ios {
 		fn test_tooltip_text_wraps_to_a_readable_measure() {
 			lines, width := tooltip_lines('Save', tooltip_test_width)
 			assert lines == ['Save']

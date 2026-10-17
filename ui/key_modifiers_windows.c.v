@@ -9,7 +9,7 @@ fn key_held(key int) bool {
 }
 
 // VK_SHIFT, VK_CONTROL, VK_MENU (Alt) and the two Windows keys.
-fn native_key_modifiers() KeyModifiers {
+fn host_key_modifiers() KeyModifiers {
 	return KeyModifiers{
 		shift: key_held(0x10)
 		ctrl:  key_held(0x11)

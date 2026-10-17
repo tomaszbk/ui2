@@ -62,9 +62,7 @@ fn handle_drag(event ui2.ElementEvent) {
 			else {}
 		}
 		if event.kind in [.drag_end, .drag_cancel] && os.getenv('UI2_DRAG_AUDIT') == '1' {
-			$if android || linux || ((macos || windows) && ui2_custom_rendering ?) {
-				spawn audit_idle(ui2.ui_dispatcher())
-			}
+			spawn audit_idle(ui2.ui_dispatcher())
 		}
 	}
 }
@@ -108,9 +106,5 @@ fn build() ui2.Element {
 }
 
 fn main() {
-	$if android || linux || ((macos || windows) && ui2_custom_rendering ?) {
-		ui2.run_window('UI2 Drag Drop', 768, 550, build)
-	} $else {
-		eprintln('Run this example with -d ui2_custom_rendering; native profiles diagnose drag declarations.')
-	}
+	ui2.run_window('UI2 Drag Drop', 768, 550, build)
 }

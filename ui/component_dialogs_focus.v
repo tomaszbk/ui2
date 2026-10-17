@@ -15,9 +15,7 @@ module ui2
 //		}
 //	}
 //
-// AppKit reports Tab pressed in a focused text field only to on_key, as
-// 'tab' or 'shift+tab'. Otherwise, and on the other backends, Tab reaches
-// on_key_event first, where focus_trap_direction reads it.
+// on_key_event sees Tab first; focus_trap_direction reads it there.
 
 // FocusTrap is one area Tab cycles through.
 pub struct FocusTrap {

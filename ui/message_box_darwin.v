@@ -1,7 +1,6 @@
 // vfmt off
-// NSAlert only needs the Objective-C runtime bridge, so unlike the AppKit view
-// backend in macos/ this file stays outside the ui2_custom_rendering switch:
-// custom-rendered macOS windows get the same system alert.
+// The macOS host's message box (platform.v): NSAlert through the Objective-C
+// runtime bridge.
 module ui2
 
 import macos
@@ -13,7 +12,7 @@ const ns_alert_style_informational = u64(1)
 const ns_alert_style_critical = u64(2)
 const ns_alert_first_button_return = i64(1000)
 
-fn native_alert_style(style MessageBoxStyle) u64 {
+fn host_alert_style(style MessageBoxStyle) u64 {
 	return match style {
 		.info, .question { ns_alert_style_informational }
 		.warning { ns_alert_style_warning }
@@ -21,11 +20,11 @@ fn native_alert_style(style MessageBoxStyle) u64 {
 	}
 }
 
-fn native_message_box_supported() bool {
+fn host_message_box_supported() bool {
 	return true
 }
 
-fn native_message_box(cfg MessageBoxConfig) MessageBoxResult {
+fn host_message_box(cfg MessageBoxConfig) MessageBoxResult {
 	pool := macos.autorelease_pool_new()
 	defer {
 		macos.release(pool)
@@ -47,7 +46,7 @@ fn native_message_box(cfg MessageBoxConfig) MessageBoxResult {
 	informative := if cfg.title.len > 0 { cfg.text } else { '' }
 	macos.msg_void1(ns_alert, 'setMessageText:', macos.nsstring(heading))
 	macos.msg_void1(ns_alert, 'setInformativeText:', macos.nsstring(informative))
-	macos.msg_void_u64(ns_alert, 'setAlertStyle:', native_alert_style(cfg.style))
+	macos.msg_void_u64(ns_alert, 'setAlertStyle:', host_alert_style(cfg.style))
 	for title in message_box_button_titles(cfg.buttons) {
 		macos.msg_id1(ns_alert, 'addButtonWithTitle:', macos.nsstring(title))
 	}

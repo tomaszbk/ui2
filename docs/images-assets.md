@@ -4,7 +4,7 @@ Custom images use fractional logical frames, a shared image atlas per drawing
 context, and explicit density variants. Run the fixture with:
 
 ```sh
-v -d ui2_custom_rendering run examples/image_assets
+v run examples/image_assets
 make screenshot EXAMPLE=image_assets
 ```
 
@@ -44,7 +44,7 @@ photo := ui2.Element{
 
 `image_path` is the 1x base source; variants are explicit files. PNG/JPEG and the
 other formats supported by the pinned stb decoder load through the same manager,
-including button images. SF Symbols remain the existing native/symbol text path.
+including button images. `symbol:` images are glyphs of the bundled Material Icons face (`ui/symbols.v`).
 Image styling is a V API in this compiler revision; VML grammar expansion belongs
 to the compiler lowering work. Use `on_event` together with `clickable` or
 `draggable` for image input.
@@ -103,20 +103,13 @@ variant selection when its sampling footprint changes.
 
 `ui2.image_resource_stats()` reports actual decodes, cache hits, page uploads,
 created/destroyed pages and currently retained entries/textures/samplers for the
-active custom window. Native/closed windows return zero. It does not request a
+active window. Closed windows return zero. It does not request a
 frame. The resource tests exercise real GPU submission and normal teardown;
 capture termination alone does not establish teardown or idle behavior.
 
-Native AppKit/UIKit support the simple centered proportional static image.
-All native profiles reject image rotation and interaction (callbacks, pointer
-flags, cursor, menu or tooltip), because the visible-quad input contract requires
-custom rendering. Configure rotation and interaction through Element fields; the old
+Configure rotation and interaction through Element fields; the old
 `transformed_image`/`transformed_image_with_cursor` factories are removed.
-Native profiles also reject custom fit/source/tint/alignment and DPI assets.
-Windows native accepts BMP Image with explicit `ImageStyle{fit: .fill}`, zero
-rotation and no asset configuration. Its bitmap control rejects the default
-proportional fit, crops, tint and DPI variants; use custom rendering for those. Backend
-cross-checks are typechecks, not native runtime acceptance on those hosts.
+Backend cross-checks are typechecks, not runtime acceptance on those hosts.
 
 This work does not package or distribute embedded assets. General affine
 transforms and exact transformed ancestor clips are owned by PR 20; this branch

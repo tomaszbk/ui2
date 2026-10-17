@@ -15,8 +15,8 @@ frame. The handle belongs to that window; after close, `post` returns `false`.
 
 `ui2.render_stats()` reports callbacks, builds, draws, flushes and pending work.
 On Metal, idle callbacks skip both builds and draws. GL, EGL and D3D present after
-each platform callback, so idle callbacks repaint the retained tree. Native
-backends use their platform refresh mechanisms.
+each platform callback, so idle callbacks repaint the retained tree, and so
+does Metal on iOS.
 
 The scheduler suspends painting while the window is iconified or suspended,
 continues to deliver queued business work, and refreshes the surface on restore.
@@ -24,10 +24,10 @@ Close cancels queued work and visual timers.
 
 ## Acceptance fixture
 
-Build and run the custom renderer acceptance fixture on macOS:
+Build and run the renderer acceptance fixture on macOS:
 
 ```sh
-v -b c -cc clang -enable-globals -d ui2_custom_rendering run tests/render_scheduler --seconds 3
+v -b c -cc clang -enable-globals run tests/render_scheduler --seconds 3
 ```
 
 The fixture checks static reuse, worker delivery, request coalescing, a request

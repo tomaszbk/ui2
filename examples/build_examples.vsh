@@ -2,7 +2,7 @@
 
 // Compiles every example under examples/ and reports all failures at once.
 // Extra arguments are passed through to the compiler, e.g.
-//   v -b c run examples/build_examples.vsh -d ui2_custom_rendering
+//   v -b c run examples/build_examples.vsh -d ui2_headless
 
 import os
 import rand
@@ -17,9 +17,6 @@ println('v executable: ${vexe}')
 print('v version: ${os.exec([vexe, 'version']).output}')
 
 extra_flags := os.args[1..]
-custom_profile := os.args.any(it in ['ui2_custom_rendering', '-d=ui2_custom_rendering', 'ui2_headless',
-	'-d=ui2_headless'] || it.ends_with(':ui2_custom_rendering') || it.ends_with(':ui2_headless'))
-mut skipped := 0
 
 examples_dir := join_path(@VMODROOT, 'examples')
 
@@ -40,14 +37,6 @@ for entry in ls(examples_dir)! {
 	}
 	if !exists(join_path(example_dir, 'main.v')) {
 		eprintln('skipping ${example_dir}, it has no main.v')
-		continue
-	}
-	// Profile declarations only exclude presentation features native controls
-	// explicitly reject. Every selected example still compiles with -W.
-	profile := read_lines(join_path(example_dir, 'main.v'))!.filter(it.starts_with('// ui2 profiles:'))
-	if !custom_profile && profile.any(it.starts_with('// ui2 profiles: custom')) {
-		println('skipping ${entry} in native profile: ${profile[0].all_after('// ui2 profiles: ')}')
-		skipped++
 		continue
 	}
 	entries << example_dir
@@ -90,4 +79,4 @@ if failures.len > 0 {
 	exit(1)
 }
 
-println('\nAll ${entries.len} compatible examples compiled successfully; ${skipped} custom-profile examples skipped.')
+println('\nAll ${entries.len} examples compiled successfully.')

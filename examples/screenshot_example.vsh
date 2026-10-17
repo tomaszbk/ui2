@@ -84,10 +84,9 @@ defer {
 
 exe := join_path(build_dir, example + $if windows { '.exe' } $else { '' })
 
-// gg_record adds the recorder to the frame callback; the custom renderer is
-// what the recorder can read, since the native backends draw with the platform
-// toolkit instead of gg.
-mut build_args := [vexe, '-b', 'c', '-d', 'ui2_custom_rendering', '-d', 'gg_record']
+// gg_record adds the recorder to the frame callback, which reads back what
+// the renderer drew.
+mut build_args := [vexe, '-b', 'c', '-d', 'gg_record']
 $if macos {
 	// The recorder reads the presented framebuffer back, which only the GL
 	// backend implements, so keep macOS off its default Metal backend.

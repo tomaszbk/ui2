@@ -1,91 +1,5 @@
 module ui2
 
-// Native presentation is an explicit profile. Check supplied properties,
-// including zero and false, rather than only comparing the resulting values.
-pub fn validate_native_style(patch StylePatch, kind Kind) ! {
-	if patch.hover != BoxStylePatch{} || patch.focus != BoxStylePatch{}
-		|| patch.pressed != BoxStylePatch{} || patch.disabled != BoxStylePatch{}
-		|| patch.hover_text != TextStylePatch{} || patch.focus_text != TextStylePatch{}
-		|| patch.pressed_text != TextStylePatch{} || patch.disabled_text != TextStylePatch{} {
-		return error('interaction styles require the custom renderer')
-	}
-	if patch.box.border_pattern != none || patch.box.dash_length != none
-		|| patch.box.dash_gap != none || patch.box.outline_color != none
-		|| patch.box.outline_width != none || patch.box.outline_offset != none {
-		return error('border patterns and outlines require the custom renderer')
-	}
-	if weight := patch.text.weight {
-		if weight != 0 && weight != 400 && weight != 700 {
-			return error('native typography weight supports 0, 400 and 700; other weights require the custom renderer')
-		}
-	}
-	if patch.text.letter_spacing != none
-		|| patch.text.line_height != none || patch.text.line_height_factor != none
-		|| patch.text.baseline_offset != none || patch.text.tabular_figures != none {
-		return error('tracking, line height, baseline and tabular figures require the custom renderer')
-	}
-	if kind !in [.text_area] && (patch.text.text_background != none
-		|| patch.text.strikethrough != none || patch.text.shadow != none
-		|| patch.text.text_outline != none || patch.text.vertical_align != none
-		|| patch.text.link != none || patch.text.head_indent != none
-		|| patch.text.first_line_indent != none || patch.text.hyphenation_factor != none) {
-		return error('rich text presentation requires TextArea or the custom renderer')
-	}
-	$if macos {
-		if patch.text.font_family != none && kind != .text_area {
-			return error('native macOS font_family requires TextArea or the custom renderer')
-		}
-		if kind == .label && (patch.box.bg != none || patch.box.radius != none || patch.box.transparent != none) {
-			return error('native macOS Label box fill and radius require the custom renderer')
-		}
-		if kind == .text_field {
-			if style_has_padding(patch) || patch.text.italic != none || patch.text.underline != none
-				|| patch.text.text_align != none || patch.text.text_valign != none || patch.text.lines != none {
-				return error('native macOS TextInput insets, italic, underline and text alignment require the custom renderer')
-			}
-			if weight := patch.text.weight {
-				if weight != 0 && weight != 400 {
-					return error('native macOS TextInput weight requires the custom renderer')
-				}
-			}
-			if patch.box.radius != none {
-				return error('native macOS TextInput radius requires the custom renderer')
-			}
-		}
-		if kind in [.dropdown, .checkbox] && (patch.box.bg != none || patch.box.radius != none
-			|| patch.text.foreground != none || patch.text.underline != none
-			|| patch.text.text_align != none || patch.text.text_valign != none || patch.text.lines != none) {
-			return error('native macOS ${kind} colors, radius and text alignment require the custom renderer')
-		}
-		if kind == .checkbox && patch.box.transparent != none {
-			return error('native macOS Checkbox transparency requires the custom renderer')
-		}
-		if kind in [.screen, .scroll, .image] && patch.box.radius != none {
-			return error('native macOS ${kind} radius requires the custom renderer')
-		}
-		if kind == .text_area && patch.text.text_valign != none {
-			return error('native macOS TextArea vertical alignment requires the custom renderer')
-		}
-		if kind in [.button, .toggle_button] && (patch.text.text_align != none
-			|| patch.text.text_valign != none) {
-			return error('native macOS button text alignment requires the custom renderer')
-		}
-		if kind == .image && (patch.box.bg != none || patch.box.transparent != none) {
-			return error('native macOS Image fill requires the custom renderer')
-		}
-		if kind == .screen && (patch.box.border_color != none || patch.box.border_left != none
-			|| patch.box.border_top != none || patch.box.border_right != none || patch.box.border_bottom != none) {
-			return error('native macOS Window borders require the custom renderer')
-		}
-	}
-	if kind in [.button, .toggle_button] && style_has_padding(patch) {
-		return error('button content padding requires the custom renderer')
-	}
-	if kind in [.slider, .switch_control] && patch != StylePatch{} {
-		return error('slider and switch presentation requires the custom renderer')
-	}
-}
-
 fn validate_style_box(box BoxStylePatch) ! {
 	if value := box.radius {
 		if !layout_finite(value) || value < 0 {
@@ -274,9 +188,6 @@ fn apply_style_padding(el Element, patch StylePatch) !Element {
 // node.style(), which restores omitted properties from their unstyled baseline.
 pub fn apply_style(el Element, patch StylePatch) !Element {
 	validate_style_patch(patch)!
-	if backend_native_controls {
-		validate_native_style(patch, el.kind)!
-	}
 	interaction := InteractionStyle{
 		hover:         merge_style_fields(el.interaction_style.hover, patch.hover)
 		focus:         merge_style_fields(el.interaction_style.focus, patch.focus)
@@ -390,9 +301,6 @@ fn validate_content_padding(el Element) ! {
 			if !layout_finite(value) || value < 0 {
 				return error('button content padding must be finite and non-negative')
 			}
-		}
-		if backend_native_controls {
-			return error('button content padding requires the custom renderer')
 		}
 	}
 }

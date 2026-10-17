@@ -204,41 +204,17 @@ fn build_toolbar(layout IdeLayout, app &IdeApp) ui2.Element {
 }
 
 fn build_palette(layout IdeLayout, app &IdeApp) ui2.Element {
-	items := [
-		['pointer', 'Pointer'],
-		['label', 'Label'],
-		['button', 'Button'],
-		['text_field', 'Text field'],
-		['text_area', 'Text area'],
-		['checkbox', 'Checkbox'],
-		['dropdown', 'Dropdown'],
-		['view', 'View'],
-		['image', 'Image'],
-	]
 	mut children := [
 		ui2.label('', 'STANDARD', ui2.rect(14, 7, 82, 16), text_style(9, color_muted, true)),
 	]
-	mut x := 14.0
-	for item in items {
-		kind := item[0]
-		title := item[1]
-		width := if kind in ['text_field', 'text_area', 'view', 'checkbox', 'dropdown'] {
-			82.0
-		} else {
-			68.0
-		}
-		active := if kind == 'pointer' {
-			app.armed_kind.len == 0 && app.palette_drag_kind.len == 0
-		} else {
-			app.armed_kind == kind || app.palette_drag_kind == kind
-		}
-		frame := ui2.rect(x, 26, width, 28)
-		children << if kind == 'pointer' {
-			ide_button('palette_${kind}', title, frame, active)
-		} else {
-			palette_drag_button(kind, title, frame, active)
-		}
-		x += width + 6
+	children << ide_button('palette_pointer', 'Pointer', ui2.rect(14, 26, 68, 28), app.armed_kind.len == 0
+		&& app.palette_drag_kind.len == 0)
+	mut x := 14.0 + 68 + 6
+	for entry in designer_kinds {
+		active := app.armed_kind == entry.kind || app.palette_drag_kind == entry.kind
+		frame := ui2.rect(x, 26, entry.palette_size, 28)
+		children << palette_drag_button(entry.kind, entry.title, frame, active)
+		x += entry.palette_size + 6
 	}
 	children << ui2.label('', if app.palette_drag_kind.len > 0 {
 		'Drag ${component_title(app.palette_drag_kind)} onto the form'
@@ -330,11 +306,8 @@ fn build_form_inspector(width f64, app &IdeApp) []ui2.Element {
 fn build_component_inspector(width f64, component DesignerComponent) []ui2.Element {
 	mut children := []ui2.Element{}
 	children << inspector_field('property_name', 'Name', component.name, 4, width)
-	children << inspector_field('property_text', if component.kind == 'image' {
-		'Source'
-	} else {
-		'Text'
-	}, component.text, 4 + ide_inspector_row_height, width)
+	entry := designer_kind(component.kind) or { return children }
+	children << inspector_field('property_text', entry.text_title(), component.text, 4 + ide_inspector_row_height, width)
 	children << inspector_field('property_x', 'X', int(component.x).str(), 4 + ide_inspector_row_height * 2, width)
 	children << inspector_field('property_y', 'Y', int(component.y).str(), 4 + ide_inspector_row_height * 3, width)
 	children << inspector_field('property_width', 'Width', int(component.width).str(), 4 + ide_inspector_row_height * 4, width)
@@ -343,21 +316,13 @@ fn build_component_inspector(width f64, component DesignerComponent) []ui2.Eleme
 	children << inspector_field('property_color', 'Foreground', color_hex(component.color), 4 + ide_inspector_row_height * 7, width)
 	children << inspector_field('property_font_size', 'Font size', '${component.font_size:g}', 4 + ide_inspector_row_height * 8, width)
 	mut final_row_y := 4 + ide_inspector_row_height * 9
-	if component.kind == 'checkbox' {
+	if entry.has('checked') {
 		children << ui2.with_event(ui2.checkbox('property_checked', 'Checked', component.checked, ui2.rect(86, final_row_y, width - 90, ide_inspector_field_height), text_style(10, color_text, false)), ide_action('property_checked'))
 		final_row_y += ide_inspector_row_height
 	}
 	children << ui2.label('', 'Type', ui2.rect(4, final_row_y + 3, 78, 16), text_style(10, color_muted, false))
-	children << ui2.label('', component_tag(component.kind), ui2.rect(86, final_row_y + 3, width - 90, 16), text_style(10, color_text, true))
+	children << ui2.label('', entry.tag, ui2.rect(86, final_row_y + 3, width - 90, 16), text_style(10, color_text, true))
 	return children
-}
-
-fn component_event_property(component DesignerComponent) string {
-	return if component.kind in ['text_field', 'text_area', 'dropdown'] {
-		'on_change'
-	} else {
-		'on_click'
-	}
 }
 
 fn build_events_inspector(width f64, app &IdeApp) []ui2.Element {
@@ -597,7 +562,7 @@ fn build_designer_form(layout IdeLayout, app &IdeApp) ui2.Element {
 }
 
 fn build_preview_form(layout IdeLayout, mut app IdeApp) ui2.Element {
-	if app.preview_build == unsafe { nil } {
+	if !app.has_preview() {
 		return panel('preview_form', layout.form, app.form_background, [])
 	}
 	root := app.preview_element(ui2.rect(0, 0, app.canvas_width(), app.canvas_height())) or {

@@ -196,22 +196,3 @@ pub:
 	textures int
 	samplers int
 }
-
-// Validate explicitly for native hosts, also usable by headless tooling.
-pub fn validate_native_image(el Element) ! {
-	if el.kind == .image && (el.rotation != 0 || el.clickable || el.draggable || el.long_press || el.swipe_left
-		|| voidptr(el.on_event) != unsafe { nil } || el.menu.len > 0 || el.tooltip.len > 0 || el.cursor.len > 0) {
-		return error('image rotation and visible-quad interaction require the custom renderer (${el.id})')
-	}
-	$if windows {
-		if el.kind == .image {
-			if el.image_asset == ImageAsset{} && el.image_style == ImageStyle{ fit: .fill } && el.rotation == 0 {
-				return
-			}
-			return error('Windows native images require BMP with fit .fill, no crop/tint/DPI/rotation; use the custom renderer (${el.id})')
-		}
-	}
-	if el.image_asset != ImageAsset{} || el.image_style != ImageStyle{} {
-		return error('image fit/source/tint/alignment and DPI assets require the custom renderer (${el.id})')
-	}
-}

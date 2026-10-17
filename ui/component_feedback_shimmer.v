@@ -229,13 +229,10 @@ pub fn shimmer(config ShimmerConfig) !Element {
 			}
 			continue
 		}
-		// The band is square. AppKit clips it to the rounded shape; elsewhere it
-		// crosses only the shape's straight middle so it never pokes past a corner.
-		inset := if feedback_parent_clips() {
-			0.0
-		} else {
-			math.min(placeholder.box.radius, shape.frame.width / 2)
-		}
+		// The band is square and the renderer does not clip it to the rounded
+		// shape, so it crosses only the shape's straight middle and never pokes
+		// past a corner.
+		inset := math.min(placeholder.box.radius, shape.frame.width / 2)
 		mut bands := []Element{}
 		if animate {
 			for layer in 0 .. shimmer_layer_count {

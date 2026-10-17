@@ -20,11 +20,11 @@ fn linux_file_dialog_tool() string {
 	return ''
 }
 
-fn native_file_dialog_supported() bool {
+fn host_file_dialog_supported() bool {
 	return linux_file_dialog_tool().len > 0
 }
 
-fn native_file_dialog(cfg FileDialogConfig) []string {
+fn host_file_dialog(cfg FileDialogConfig) []string {
 	tool := linux_file_dialog_tool()
 	command := match tool {
 		'zenity' { linux_zenity_file_dialog_command(cfg) }

@@ -5,7 +5,6 @@
 model. `vector_canvas` draws prepared shapes, in array order, through the custom
 renderer's existing `DrawContext`. It is a transparent `View`, participates in
 normal identity/reconciliation and has no dedicated textures or GPU resources.
-Native tree validation reports `vector canvas requires the custom renderer`.
 
 ```v
 mut path := ui2.VectorPath{}
@@ -106,8 +105,7 @@ references remain; there is no additional GPU cleanup path. Existing renderer
 teardown and on-demand policy remain authoritative (Linux GL still presents
 retained frames).
 
-Run `examples/vector_canvas` with `-d ui2_custom_rendering` on macOS/Windows
-(Linux uses custom by default). Its nine panels cover polygon segments,
+Run `examples/vector_canvas`. Its nine panels cover polygon segments,
 fill rules and holes, both Bézier types, every cap/join, a closed curved contour,
 frame clipping and ScaledContent. Click paint and empty corners to compare hits.
 The editable UTF-8 field can be used while resizing and interacting with shapes.

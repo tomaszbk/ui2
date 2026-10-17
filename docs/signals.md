@@ -147,7 +147,7 @@ when their state and callbacks are independent.
 
 ## UI integration example
 
-Run `v run examples/signals` or `v -d ui2_custom_rendering run examples/signals`.
+Run `v run examples/signals` or `v run examples/signals`.
 The batch button makes three writes but records one coherent observation;
 toggling the bonus removes/adds that branch's dependency. The editable Spanish
 text retains the same id/declaration across updates, so existing renderer

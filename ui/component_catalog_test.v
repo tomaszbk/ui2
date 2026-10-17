@@ -411,7 +411,7 @@ fn test_pagination_rendering_and_compact_mode() {
 	assert el.children[el.children.len - 1].enabled
 	catalog_click(el.children[el.children.len - 1])
 	assert log.pages == [2]
-	// The current page stays enabled so native backends do not dim its title;
+	// The current page stays enabled so the renderer does not dim its title;
 	// its callback is what turns a click on it into nothing.
 	current := el.children[1]
 	assert current.text == '1'

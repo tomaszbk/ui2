@@ -69,20 +69,6 @@ fn test_box_effects_animate_through_the_generic_api() {
 	assert animation_color_property_value(tinted, 'box.shadow.color') == 0x2563eb
 }
 
-fn test_box_rounded_border_needs_a_radius_and_even_sides() {
-	even := BoxStyle{
-		radius:        8
-		border_left:   2
-		border_top:    2
-		border_right:  2
-		border_bottom: 2
-	}
-	assert box_rounded_border(even) == 2
-	assert box_rounded_border(BoxStyle{ ...even, radius: 0 }) == 0
-	assert box_rounded_border(BoxStyle{ ...even, border_bottom: 1 }) == 0
-	assert box_rounded_border(BoxStyle{ radius: 8 }) == 0
-}
-
 fn test_zero_lines_reach_the_renderers_as_unlimited() {
 	assert text_line_budget(TextStyle{ lines: 0 }.lines) == text_lines_unlimited
 	assert text_line_budget(TextStyle{}.lines) == 1
