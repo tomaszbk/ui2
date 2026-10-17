@@ -153,13 +153,14 @@ precedence.
 
 ## Events and handles
 
-`on_motion` receives a `MotionEvent` for every run: `kind` is `start`,
-`progress` (every frame, with `progress` from 0 to 1), `complete` or `cancel`;
-`source` is `enter`, `exit`, `transition`, `layout` or `timeline` (whose
-`progress` is that of the current `cycle`). A run replaced before it ends
-reports `cancel` at the progress it reached. Events are delivered on the UI
-thread after a frame has sampled every element, in tree order, and a frame that
-delivered events builds again, so a handler may change application state.
+`on_motion` receives a `MotionEvent` for every run: `window` is the window
+whose element moved; `kind` is `start`, `progress` (every frame, with
+`progress` from 0 to 1), `complete` or `cancel`; `source` is `enter`, `exit`,
+`transition`, `layout` or `timeline` (whose `progress` is that of the current
+`cycle`). A run replaced before it ends reports `cancel` at the progress it
+reached. Events are delivered on the UI thread after a frame has sampled every
+element, in tree order, and a frame that delivered events builds again, so a
+handler may change application state.
 
 ```v
 ui2.motion_on(fn [mut app] (event ui2.MotionEvent) {

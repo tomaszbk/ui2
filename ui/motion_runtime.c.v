@@ -414,7 +414,10 @@ fn (mut tree MotionTree) sample(root Element) !bool {
 			break
 		}
 		dispatch := tree.events[index]
-		dispatch.callback(dispatch.event)
+		dispatch.callback(MotionEvent{
+			...dispatch.event
+			window: tree.window
+		})
 		tree.dispatched = true
 	}
 	tree.events.clear()

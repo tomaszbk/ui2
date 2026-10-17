@@ -22,6 +22,8 @@ pub enum MotionEventSource {
 
 pub struct MotionEvent {
 pub:
+	// window is the window whose element moved.
+	window   &Window = unsafe { nil }
 	kind     MotionEventKind
 	source   MotionEventSource
 	id       string // the element's id
