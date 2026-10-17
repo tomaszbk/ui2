@@ -987,25 +987,30 @@ fn vml_project_fast(el Element, p CommonProps) Element {
 // ---------------------------------------------------------------- helpers
 
 // vml_assign converts a widget value for a binding write-back to the type of
-// the bound target (replaces vml_binding_number).
+// the bound target (replaces vml_binding_number). A mismatch is named by the
+// widget value: a text binding needs a string target, whatever it is.
 pub fn vml_assign[T, V](current T, value V) T {
 	_ = current
-	$if T is string {
-		$if V is string {
+	$if V is string {
+		$if T is string {
 			return value
-		} $else $if V is DisplayText {
+		} $else {
+			$compile_error('VML text binding must target a string')
+		}
+	} $else $if V is DisplayText {
+		$if T is string {
 			return value.str()
 		} $else {
 			$compile_error('VML text binding must target a string')
 		}
-	} $else $if T is bool {
-		$if V is bool {
+	} $else $if V is bool {
+		$if T is bool {
 			return value
 		} $else {
 			$compile_error('VML checked binding must target bool')
 		}
-	} $else $if T is $int || T is $float {
-		$if V is $int || V is $float {
+	} $else $if V is $int || V is $float {
+		$if T is $int || T is $float {
 			return T(value)
 		} $else {
 			$compile_error('VML value binding must target a number')
