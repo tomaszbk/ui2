@@ -217,9 +217,6 @@ $if android && !ui2_headless ? && !ui2_document_library ? {
 		dispatch := custom_input_dispatch(g_gg_app)
 		root := g_focus_navigation.root_revision
 		mut editor := g_text_editors[el.id] or { text_editor(value.clone()) }
-		$if macos && ui2_embedder ? {
-			editor = custom_composition_editor(el.id, editor)
-		}
 		shown := editor.text
 		frame := rect(x, y, el.frame.width, el.frame.height)
 		content := text_area_content_rect(frame, el.padding_left, !el.disable_scroll)
@@ -285,22 +282,6 @@ $if android && !ui2_headless ? && !ui2_document_library ? {
 						prefix := lines[index].runes()[..editor.selection.caret - line_range.start].string()
 						caret_x := line_origin + f64(ctx.text_width_f(prefix))
 						g_gg_app.text_caret = rect(caret_x, text_y - line_height / 2, 2, line_height)
-						$if macos && ui2_embedder ? {
-							draw_rect(ctx, caret_x, text_y - line_height / 2, 2, line_height, style.color, 0)
-						}
-					}
-					$if macos && ui2_embedder ? {
-						composition := g_gg_app.composition
-						if composition.field_id == el.id {
-							from := clamp_int(composition.start + composition.mark_start, line_range.start, line_range.end)
-							to := clamp_int(composition.start + composition.mark_start + composition.mark_length, from, line_range.end)
-							if to > from {
-								line_runes := lines[index].runes()
-								left := line_origin + f64(ctx.text_width_f(line_runes[..from - line_range.start].string()))
-								right := line_origin + f64(ctx.text_width_f(line_runes[..to - line_range.start].string()))
-								draw_rect(ctx, left, text_y + line_height / 2 - 1, right - left, 1, style.color, 0)
-							}
-						}
 					}
 				}
 			}
@@ -454,5 +435,37 @@ $if android && !ui2_headless ? && !ui2_document_library ? {
 		to := clamp_int(end, from, runes.len)
 		return runes[..from].string(), runes[from..to].string()
 	}
+
+	// Text measurement hooks of the backend contract (backend.v). Before the gg
+	// context has fonts, measurement falls back to the CPU Fontstash context.
+	fn backend_measure_text(text string, style TextStyle, max_width f64) !LayoutSize {
+		ctx := g_gg_app.ctx
+		if !g_gg_app.scheduler.is_closed() && ctx != unsafe { nil } && ctx.font_inited {
+			ensure_symbol_fallbacks(ctx)
+			return layout_measure_text_lines(text, style, max_width, font_line_height(style.size), fn [ctx, style] (line string) f64 {
+				return menu_text_width(ctx, line, style)
+			})
+		}
+		return layout_measure_cpu_text(text, style, max_width)
+	}
+
+	// Editors wrap every row, unlike labels with a declared line limit.
+	fn backend_measure_element_text(element Element, content string, max_width f64) !LayoutSize {
+		if element.kind != .text_area {
+			return measure_layout_text(content, element.text_style, max_width)
+		}
+		style := element.text_style
+		layout_validate_text_measurement(style, max_width)!
+		ctx := g_gg_app.ctx
+		if !g_gg_app.scheduler.is_closed() && ctx != unsafe { nil } && ctx.font_inited {
+			ensure_symbol_fallbacks(ctx)
+			return layout_measure_text_area_lines(content, style, max_width, font_line_height(style.size), fn [ctx, style] (line string) f64 {
+				return menu_text_width(ctx, line, style)
+			})
+		}
+		return layout_measure_cpu_fontstash(content, style, max_width, true)
+	}
+
+	fn backend_layout_environment(environment LayoutEnvironment) LayoutEnvironment { return environment }
 
 }

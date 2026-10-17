@@ -212,10 +212,10 @@ fn test_linear_progress_loading_follows_gpui_curve() {
 }
 
 fn test_ring_cells_and_strips_cover_the_ring() {
-	$if ui2_custom_rendering ? {
+	if backend_name == 'custom' {
 		assert feedback_draws_strips()
 		assert !feedback_parent_clips()
-	} $else $if macos {
+	} else if backend_name == 'appkit' {
 		assert !feedback_draws_strips()
 		assert feedback_parent_clips()
 	}

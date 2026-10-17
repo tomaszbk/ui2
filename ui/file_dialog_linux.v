@@ -1,7 +1,5 @@
 module ui2
 
-$if !ui2_document_library ? {
-
 import os
 
 fn linux_file_dialog_tool() string {
@@ -143,6 +141,4 @@ fn linux_file_dialog_paths(output string) []string {
 		}
 	}
 	return paths
-}
-
 }

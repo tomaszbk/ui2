@@ -711,4 +711,32 @@ $if (linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ?
 		return LayoutSize{width: if width >= 0 { math.min(width, shaped.size.width) } else { shaped.size.width }, height: height}
 	}
 
+	// Text measurement hooks of the backend contract (backend.v).
+	fn backend_measure_text(text string, style TextStyle, max_width f64) !LayoutSize {
+		return layout_measure_vglyph_text(text, style, max_width)
+	}
+
+	// Editors wrap every row, unlike labels with a declared line limit.
+	fn backend_measure_element_text(element Element, content string, max_width f64) !LayoutSize {
+		if element.kind == .text_area {
+			layout_validate_text_measurement(element.text_style, max_width)!
+			return layout_measure_vglyph_editor_text(content, element.text_style, max_width)
+		}
+		if element.kind == .label && element.text_runs.len > 0 {
+			return layout_measure_vglyph_runs(element.text_runs, element.text_style, max_width)
+		}
+		return measure_layout_text(content, element.text_style, max_width)
+	}
+
+	fn backend_layout_environment(environment LayoutEnvironment) LayoutEnvironment {
+		context_version := if g_gg_app.ctx != unsafe { nil } && g_gg_app.ctx.text != unsafe { nil } {
+			g_gg_app.ctx.text.environment_version
+		} else if g_cpu_text_engine != unsafe { nil } {
+			g_cpu_text_engine.environment_version
+		} else {
+			u64(0)
+		}
+		return LayoutEnvironment{ ...environment, backend_font_version: u64(g_text_font_generation), backend_context_version: context_version, backend_measure_version: if g_cpu_text_engine != unsafe { nil } { g_cpu_text_engine.environment_version } else { u64(0) } }
+	}
+
 }

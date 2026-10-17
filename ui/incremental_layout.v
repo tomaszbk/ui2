@@ -460,18 +460,11 @@ pub fn (mut tree LayoutTree) resolve(constraints LayoutConstraints, measure Layo
 	return error('geometry or measurement environment changed repeatedly during layout')
 }
 
+// The default measurer's results also depend on the backend's font and text
+// context generations, which the backend adds to the environment.
 fn layout_effective_environment(environment LayoutEnvironment, measure LayoutTextMeasureFn) LayoutEnvironment {
-	$if ( linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headless ? && !ui2_document_library ? {
-		if voidptr(measure) == voidptr(measure_layout_text) {
-			context_version := if g_gg_app.ctx != unsafe { nil } && g_gg_app.ctx.text != unsafe { nil } {
-				g_gg_app.ctx.text.environment_version
-			} else if g_cpu_text_engine != unsafe { nil } {
-				g_cpu_text_engine.environment_version
-			} else {
-				u64(0)
-			}
-			return LayoutEnvironment{ ...environment, backend_font_version: u64(g_text_font_generation), backend_context_version: context_version, backend_measure_version: if g_cpu_text_engine != unsafe { nil } { g_cpu_text_engine.environment_version } else { u64(0) } }
-		}
+	if voidptr(measure) == voidptr(measure_layout_text) {
+		return backend_layout_environment(environment)
 	}
 	return environment
 }

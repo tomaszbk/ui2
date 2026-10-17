@@ -1,7 +1,7 @@
 @[has_globals]
 module ui2
 
-$if !ui2_document_library ? {
+$if ios && !ui2_headless ? && !ui2_document_library ? {
 
 import macos
 

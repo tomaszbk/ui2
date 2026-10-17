@@ -31,31 +31,23 @@ pub:
 // file_dialog opens the operating system's own file picker and blocks until it
 // is accepted or dismissed. An empty result means that the user cancelled, or
 // that this target has no native picker. Check file_dialog_supported when those
-// cases must be distinguished.
-$if !ui2_document_library ? {
+// cases must be distinguished. Headless and document-library builds have no
+// picker.
 pub fn file_dialog(cfg FileDialogConfig) []string {
-	return native_file_dialog(cfg)
+	return backend_file_dialog(cfg)
 }
-}
-
 
 // file_dialog_supported reports whether this target can display a native file
 // picker. macOS, Windows, and Linux desktop sessions with zenity or kdialog
 // are supported; mobile and headless fallback targets return false.
-$if !ui2_document_library ? {
 pub fn file_dialog_supported() bool {
-	return native_file_dialog_supported()
+	return backend_file_dialog_supported()
 }
-}
-
 
 // open_file_dialog selects one file, or several when cfg.multiple is true.
-$if !ui2_document_library ? {
 pub fn open_file_dialog(cfg FileDialogConfig) []string {
-	return native_file_dialog(open_file_dialog_config(cfg))
+	return file_dialog(open_file_dialog_config(cfg))
 }
-}
-
 
 fn open_file_dialog_config(cfg FileDialogConfig) FileDialogConfig {
 	return FileDialogConfig{
@@ -70,12 +62,9 @@ fn open_file_dialog_config(cfg FileDialogConfig) FileDialogConfig {
 
 // save_file_dialog asks for a destination filename. It returns either one path
 // or no paths when dismissed.
-$if !ui2_document_library ? {
 pub fn save_file_dialog(cfg FileDialogConfig) []string {
-	return native_file_dialog(save_file_dialog_config(cfg))
+	return file_dialog(save_file_dialog_config(cfg))
 }
-}
-
 
 fn save_file_dialog_config(cfg FileDialogConfig) FileDialogConfig {
 	return FileDialogConfig{
@@ -89,12 +78,9 @@ fn save_file_dialog_config(cfg FileDialogConfig) FileDialogConfig {
 
 // open_folder_dialog selects one existing folder. File filters and `multiple`
 // do not apply to folder dialogs.
-$if !ui2_document_library ? {
 pub fn open_folder_dialog(cfg FileDialogConfig) []string {
-	return native_file_dialog(open_folder_dialog_config(cfg))
+	return file_dialog(open_folder_dialog_config(cfg))
 }
-}
-
 
 fn open_folder_dialog_config(cfg FileDialogConfig) FileDialogConfig {
 	return FileDialogConfig{
