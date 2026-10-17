@@ -58,7 +58,7 @@ replaces the patch: retain your camera/transform in your application model too.
 
 A typed element callback that calls this setter is a presentation-only action
 and skips automatic rebuilding. If that callback also changes layout/model
-content, call `request_refresh()` explicitly. Ordinary callbacks retain automatic
+content, call `event.window.request_refresh()` explicitly. Ordinary callbacks retain automatic
 refresh behavior.
 
 `visual_geometry(id)!` describes an element traversed in the **last presented**
@@ -141,7 +141,7 @@ bounds; they do not inherit the owner's transform again.
 ```v
 camera = camera.pan(parent_delta.x, parent_delta.y)!
 camera = camera.zoom_at(next_zoom, parent_pointer)!
-ui2.set_visual_transform('camera', camera.transform())!
+event.window.set_visual_transform('camera', camera.transform())!
 ```
 
 `pan` takes a parent-logical vector. `zoom_at` takes the next positive zoom and a

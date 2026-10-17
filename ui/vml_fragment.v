@@ -30,8 +30,14 @@ fn vml_visible_child_count(children []&CompiledVmlNode, replacement &CompiledVml
 	mut count := 0
 	for child in children {
 		count += if child.is_fragment {
-			vml_visible_child_count(if voidptr(child) == voidptr(replacement) { replacements } else { child.children }, replacement, replacements)
-		} else { 1 }
+			vml_visible_child_count(if voidptr(child) == voidptr(replacement) {
+				replacements
+			} else {
+				child.children
+			}, replacement, replacements)
+		} else {
+			1
+		}
 	}
 	return count
 }
@@ -121,7 +127,7 @@ fn (mut node CompiledVmlNode) publish_structure() {
 	mut visible := &node
 	for visible.is_fragment && visible.parent != unsafe { nil } { visible = visible.parent }
 	if visible.is_fragment || !visible.live() { return }
-	visible.component.publish(visible.declaration.id, visible.element())
+	visible.component.publish_element(visible.declaration.id, visible.element())
 }
 
 fn (node &CompiledVmlNode) effective_child_rule() ?VmlChildRule {

@@ -23,27 +23,17 @@ $if (android || linux || macos || windows) && !ui2_headless ? {
 
 	fn runtime_motion_pointer(event ElementEvent) { motion_runtime_pointer_events << event }
 
-	fn runtime_motion_frame(mut app GgApp, now i64) !(Element, FrameWork) {
-		work := app.scheduler.begin_frame(now) or { return error('expected a motion frame') }
-		root := resolve_custom_layout(mut app, work, measure_layout_text, take_custom_layout_patches(mut app))!
-		reconcile_mounted_focus_controls(root)
-		update_custom_focus_tree(root)
-		app.scheduler.set_motion_active(motion_tree_needs_frame(app.declared_root))
-		app.scheduler.finish_frame(work)
+	fn runtime_motion_frame(mut w Window, now i64) !(Element, FrameWork) {
+		work := w.scheduler.begin_frame(now) or { return error('expected a motion frame') }
+		root := w.resolve_custom_layout(work, measure_layout_text, w.take_custom_layout_patches())!
+		w.reconcile_mounted_focus_controls(root)
+		w.update_custom_focus_tree(root)
+		w.scheduler.set_motion_active(motion_tree_needs_frame(w.declared_root))
+		w.scheduler.finish_frame(work)
 		return root, work
 	}
 
 	fn test_motion_host_retains_edit_reverses_exit_and_schedules_only_presentation() ! {
-		previous_app := g_gg_app
-		previous_build := g_build_screen
-		previous_window := activate_custom_window_state(new_custom_window_state())
-		defer {
-			g_gg_app.motion_tree.dispose()
-			activate_custom_window_state(previous_window)
-			g_gg_app = previous_app
-			g_build_screen = previous_build
-		}
-		g_build_screen = unsafe { nil }
 		mut clock := &RuntimeMotionClock{}
 		field := with_motion(text_input(TextInputConfig{
 			id:    'edit'
@@ -51,109 +41,93 @@ $if (android || linux || macos || windows) && !ui2_headless ? {
 			frame: rect(60, 20, 120, 40)
 		})!, runtime_motion_style(clock))
 		declared := Element{ kind: .screen, id: 'root', frame: rect(0, 0, 300, 200), children: [field] }
-		mut app := &GgApp{ ctx: &DrawContext{ width: 300, height: 200 }, has_root: true, declared_root: declared }
-		g_gg_app = app
-		runtime_motion_frame(mut app, 0)!
+		mut w := &Window{ ctx: &DrawContext{ width: 300, height: 200 }, has_root: true, declared_root: declared }
+		defer {
+			w.motion_tree.dispose()
+		}
+		runtime_motion_frame(mut w, 0)!
 		clock.now = 0.1
-		_, entering := runtime_motion_frame(mut app, 100)!
+		_, entering := runtime_motion_frame(mut w, 100)!
 		assert !entering.build && entering.reasons == RenderReason.motion
-		mounted := g_focus_navigation.node('edit') or { panic('missing entering input') }
+		mounted := w.navigation.node('edit') or { panic('missing entering input') }
 		assert math.abs(mounted.transform.x + 20) < 0.00001
 		center := mounted.transform.point(mounted.local_frame.x + 60, mounted.local_frame.y + 20)
-		assert hit_test(center.x, center.y).id == 'edit'
-		assert hit_test(175, 40).id == '' // outside the currently presented input
+		assert w.hit_test(center.x, center.y).id == 'edit'
+		assert w.hit_test(175, 40).id == '' // outside the currently presented input
 		clock.now = 0.21
-		runtime_motion_frame(mut app, 210)!
-		assert app.scheduler.begin_frame(211) == none
-		identity := app.layout_tree.identity('edit') or { panic('missing editor layout') }
-		replace_text_value('edit', 'año café ñ')
-		replace_text_editor('edit', TextEditor{ text: 'año café ñ'.clone(), selection: TextSelection{ anchor: 1, caret: 5 } })
-		g_focused_field = 'edit'
-		app.composition = TextComposition{ field_id: 'edit', text: 'á' }
-		app.declared_root = Element{ ...declared, children: [] }
-		app.declaration_pending = true
-		app.scheduler.invalidate(.layout)
-		leaving, removal := runtime_motion_frame(mut app, 220)!
+		runtime_motion_frame(mut w, 210)!
+		assert w.scheduler.begin_frame(211) == none
+		identity := w.layout_tree.identity('edit') or { panic('missing editor layout') }
+		w.replace_text_value('edit', 'año café ñ')
+		w.replace_text_editor('edit', TextEditor{ text: 'año café ñ'.clone(), selection: TextSelection{ anchor: 1, caret: 5 } })
+		w.focused_field = 'edit'
+		w.composition = TextComposition{ field_id: 'edit', text: 'á' }
+		w.declared_root = Element{ ...declared, children: [] }
+		w.declaration_pending = true
+		w.scheduler.invalidate(.layout)
+		leaving, removal := runtime_motion_frame(mut w, 220)!
 		assert !removal.build && leaving.children.len == 1
 		assert leaving.children[0].presence_exiting() && !leaving.children[0].presented_enabled()
 		assert scroll_content_height(Element{ ...leaving, kind: .scroll }) == 0
-		assert g_focused_field == '' && app.composition.field_id == ''
-		assert !(app.editable_fields['edit'] or { true })
-		assert hit_test(100, 40).id == ''
-		assert text('edit') == 'año café ñ'
+		assert w.focused_field == '' && w.composition.field_id == ''
+		assert !(w.editable_fields['edit'] or { true })
+		assert w.hit_test(100, 40).id == ''
+		assert w.text('edit') == 'año café ñ'
 		clock.now = 0.31
-		runtime_motion_frame(mut app, 310)!
-		partial := app.declared_root.children[0].presented_opacity()
-		app.declared_root = declared
-		app.declaration_pending = true
-		app.scheduler.invalidate(.layout)
-		returned, _ := runtime_motion_frame(mut app, 320)!
+		runtime_motion_frame(mut w, 310)!
+		partial := w.declared_root.children[0].presented_opacity()
+		w.declared_root = declared
+		w.declaration_pending = true
+		w.scheduler.invalidate(.layout)
+		returned, _ := runtime_motion_frame(mut w, 320)!
 		assert returned.children.len == 1 && !returned.children[0].presence_exiting()
 		assert returned.children[0].presented_opacity() == partial
-		assert app.layout_tree.identity('edit') or { panic('editor retired') } == identity
-		assert text('edit') == 'año café ñ'
-		assert g_text_editors['edit'].selection == TextSelection{ anchor: 1, caret: 5 }
+		assert w.layout_tree.identity('edit') or { panic('editor retired') } == identity
+		assert w.text('edit') == 'año café ñ'
+		assert w.text_editors['edit'].selection == TextSelection{ anchor: 1, caret: 5 }
 		clock.now = 0.52
-		runtime_motion_frame(mut app, 520)!
-		assert app.scheduler.begin_frame(521) == none
-		app.declared_root = Element{ ...declared, children: [] }
-		app.declaration_pending = true
-		app.scheduler.invalidate(.layout)
-		runtime_motion_frame(mut app, 530)!
+		runtime_motion_frame(mut w, 520)!
+		assert w.scheduler.begin_frame(521) == none
+		w.declared_root = Element{ ...declared, children: [] }
+		w.declaration_pending = true
+		w.scheduler.invalidate(.layout)
+		runtime_motion_frame(mut w, 530)!
 		clock.now = 0.93
-		terminal, _ := runtime_motion_frame(mut app, 930)!
+		terminal, _ := runtime_motion_frame(mut w, 930)!
 		assert terminal.children.len == 0
-		assert app.scheduler.begin_frame(931) == none
+		assert w.scheduler.begin_frame(931) == none
 	}
 
 	fn test_motion_exit_finished_by_public_setter_still_retires_its_retained_tree() ! {
-		previous_app := g_gg_app
-		previous_build := g_build_screen
-		previous_window := activate_custom_window_state(new_custom_window_state())
-		defer {
-			g_gg_app.motion_tree.dispose()
-			activate_custom_window_state(previous_window)
-			g_gg_app = previous_app
-			g_build_screen = previous_build
-		}
-		g_build_screen = unsafe { nil }
 		mut clock := &RuntimeMotionClock{}
 		card := with_motion(view('card', rect(20, 20, 120, 60), BoxStyle{}, []),
 			runtime_motion_style(clock))
 		declared := Element{ kind: .screen, id: 'root', frame: rect(0, 0, 300, 200), children: [card] }
-		mut app := &GgApp{ ctx: &DrawContext{ width: 300, height: 200 }, has_root: true, declared_root: declared }
-		g_gg_app = app
-		runtime_motion_frame(mut app, 0)!
+		mut w := &Window{ ctx: &DrawContext{ width: 300, height: 200 }, has_root: true, declared_root: declared }
+		defer {
+			w.motion_tree.dispose()
+		}
+		runtime_motion_frame(mut w, 0)!
 		clock.now = 0.21
-		runtime_motion_frame(mut app, 210)!
-		app.declared_root = Element{ ...declared, children: [] }
-		app.declaration_pending = true
-		app.scheduler.invalidate(.layout)
-		leaving, _ := runtime_motion_frame(mut app, 220)!
+		runtime_motion_frame(mut w, 210)!
+		w.declared_root = Element{ ...declared, children: [] }
+		w.declaration_pending = true
+		w.scheduler.invalidate(.layout)
+		leaving, _ := runtime_motion_frame(mut w, 220)!
 		assert leaving.children.len == 1 && leaving.children[0].presence_exiting()
 		state := leaving.children[0].motion_state()
 		clock.now = 0.7
-		set_visual_transform('card', VisualTransform{ translate_x: 30 })!
+		w.set_visual_transform('card', VisualTransform{ translate_x: 30 })!
 		assert state.current.phase == .absent && !state.disposed
-		assert app.declared_root.children.len == 1
-		before_revision := app.presentation_revision
-		terminal, _ := runtime_motion_frame(mut app, 700)!
-		assert terminal.children.len == 0 && app.motion_tree.states.len == 0
-		assert state.disposed && app.presentation_revision > before_revision
-		assert app.scheduler.begin_frame(701) == none
+		assert w.declared_root.children.len == 1
+		before_revision := w.presentation_revision
+		terminal, _ := runtime_motion_frame(mut w, 700)!
+		assert terminal.children.len == 0 && w.motion_tree.states.len == 0
+		assert state.disposed && w.presentation_revision > before_revision
+		assert w.scheduler.begin_frame(701) == none
 	}
 
 	fn test_motion_exit_cancels_captured_pointer_before_another_drag() ! {
-		previous_app := g_gg_app
-		previous_build := g_build_screen
-		previous_window := activate_custom_window_state(new_custom_window_state())
-		defer {
-			g_gg_app.motion_tree.dispose()
-			activate_custom_window_state(previous_window)
-			g_gg_app = previous_app
-			g_build_screen = previous_build
-		}
-		g_build_screen = unsafe { nil }
 		motion_runtime_pointer_events.clear()
 		mut clock := &RuntimeMotionClock{}
 		card := with_motion(Element{
@@ -166,22 +140,24 @@ $if (android || linux || macos || windows) && !ui2_headless ? {
 			on_event:  runtime_motion_pointer
 		}, runtime_motion_style(clock))
 		declared := Element{ kind: .screen, id: 'root', frame: rect(0, 0, 300, 200), children: [card] }
-		mut app := &GgApp{ ctx: &DrawContext{ width: 300, height: 200 }, has_root: true, declared_root: declared }
-		g_gg_app = app
-		runtime_motion_frame(mut app, 0)!
+		mut w := &Window{ ctx: &DrawContext{ width: 300, height: 200 }, has_root: true, declared_root: declared }
+		defer {
+			w.motion_tree.dispose()
+		}
+		runtime_motion_frame(mut w, 0)!
 		clock.now = 0.21
-		runtime_motion_frame(mut app, 210)!
-		handle_touch_down(60, 40)
-		assert g_touch.pointer_captured && g_touch.down
+		runtime_motion_frame(mut w, 210)!
+		w.handle_touch_down(60, 40)
+		assert w.touch.pointer_captured && w.touch.down
 		assert motion_runtime_pointer_events.map(it.kind) == [ElementEventKind.pointer_down]
-		app.declared_root = Element{ ...declared, children: [] }
-		app.declaration_pending = true
-		app.scheduler.invalidate(.layout)
-		runtime_motion_frame(mut app, 220)!
-		assert !g_touch.pointer_captured && !g_touch.down
+		w.declared_root = Element{ ...declared, children: [] }
+		w.declaration_pending = true
+		w.scheduler.invalidate(.layout)
+		runtime_motion_frame(mut w, 220)!
+		assert !w.touch.pointer_captured && !w.touch.down
 		before := motion_runtime_pointer_events.len
-		handle_touch_move(90, 60)
-		handle_touch_up(90, 60)
+		w.handle_touch_move(90, 60)
+		w.handle_touch_up(90, 60)
 		assert motion_runtime_pointer_events.len == before
 		assert motion_runtime_pointer_events.filter(it.kind == .pointer_drag).len == 0
 	}

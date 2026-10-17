@@ -141,7 +141,14 @@ fn vml_conformance_run[T](c VmlConformance[T], source string) !VmlConformanceRun
 	mut run := VmlConformanceRun{}
 	vml_conformance_flatten(root.element(), '0', mut run.before)
 	if c.events {
-		vml_conformance_fire(root.element(), '0', mut run.log)
+		// The scripted events come from a window of their own, which never runs,
+		// so that callbacks reach a window as they do in a running application.
+		mut app := new_app()
+		window := app.new_window(
+			title: 'VML conformance'
+			build: fn (mut _ Window) Element { return Element{} }
+		)!
+		vml_conformance_fire(root.element(), '0', window, mut run.log)
 		root.component.invalidate_app()!
 		root.mount()!
 	}
@@ -158,11 +165,12 @@ const vml_conformance_event_kinds = [ElementEventKind.click, .change, .submit, .
 
 // vml_conformance_fire sends every event kind to each element callback,
 // context-menu entry and overlay callback of the tree, in tree order.
-fn vml_conformance_fire(el Element, path string, mut log []string) {
+fn vml_conformance_fire(el Element, path string, window &Window, mut log []string) {
 	if el.on_event != unsafe { nil } {
 		for kind in vml_conformance_event_kinds {
 			log << '${path} ${el.id} ${kind}'
 			el.on_event(ElementEvent{
+				window:  window
 				kind:    kind
 				id:      el.id
 				text:    'T${int(kind)}'
@@ -176,21 +184,21 @@ fn vml_conformance_fire(el Element, path string, mut log []string) {
 	for entry in el.menu {
 		if entry.on_select != unsafe { nil } {
 			log << '${path} menu ${entry.id}'
-			entry.on_select(ElementEvent{ kind: .click, id: entry.id })
+			entry.on_select(ElementEvent{ window: window, kind: .click, id: entry.id })
 		}
 	}
 	if config := el.overlay {
 		if config.on_open != unsafe { nil } {
 			log << '${path} overlay open'
-			config.on_open(ElementEvent{ kind: .open, id: el.id })
+			config.on_open(ElementEvent{ window: window, kind: .open, id: el.id })
 		}
 		if config.on_dismiss != unsafe { nil } {
 			log << '${path} overlay dismiss'
-			config.on_dismiss(ElementEvent{ kind: .dismiss, id: el.id })
+			config.on_dismiss(ElementEvent{ window: window, kind: .dismiss, id: el.id })
 		}
 	}
 	for index, child in el.children {
-		vml_conformance_fire(child, '${path}/${index}', mut log)
+		vml_conformance_fire(child, '${path}/${index}', window, mut log)
 	}
 }
 

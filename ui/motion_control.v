@@ -1,4 +1,3 @@
-@[has_globals]
 module ui2
 
 // Motion events, handles and the reduced motion preference. Motion has no
@@ -23,6 +22,8 @@ pub enum MotionEventSource {
 
 pub struct MotionEvent {
 pub:
+	// window is the window whose element moved.
+	window   &Window = unsafe { nil }
 	kind     MotionEventKind
 	source   MotionEventSource
 	id       string // the element's id
@@ -212,7 +213,7 @@ pub fn (mut handle MotionHandle) cancel() {
 	state.layout_running = false
 	state.layout_progress = 0
 	state.present_at(now) or {}
-	wake_window(.motion)
+	state.wake_window()
 }
 
 // finish ends every running motion at once, like Kivy's stop: a transition
@@ -239,7 +240,7 @@ pub fn (mut handle MotionHandle) finish() {
 		state.layout_progress = 1
 	}
 	state.present_at(now) or {}
-	wake_window(.motion)
+	state.wake_window()
 }
 
 // restart plays the element's timeline again from its start.
@@ -254,7 +255,7 @@ pub fn (mut handle MotionHandle) restart() {
 	}
 	state.start_timeline(now)
 	state.present_at(now) or {}
-	wake_window(.motion)
+	state.wake_window()
 }
 
 fn (mut state ElementMotionState) link_handle() {
@@ -271,23 +272,11 @@ fn (mut state ElementMotionState) unlink_handle() {
 	}
 }
 
-__global g_motion_reduced = false
-
-// set_reduced_motion applies a reduced motion preference to every element, as
-// MotionConfig.reduced_motion does to one: transitions and layout changes
-// show their end at once and timelines do not play, except that a held finite
-// timeline shows its final values. Call it from the UI thread, for example
-// when the platform's accessibility setting changes.
-pub fn set_reduced_motion(reduced bool) {
-	if g_motion_reduced == reduced {
-		return
+// wake_window asks the window that shows the element for a frame, after a
+// handle changed its motion outside a frame.
+fn (state &ElementMotionState) wake_window() {
+	if state.window != unsafe { nil } {
+		mut w := state.window
+		w.backend_invalidate(.motion)
 	}
-	g_motion_reduced = reduced
-	// Components that draw differently at rest build again.
-	wake_window(.build)
-}
-
-// reduced_motion reports the preference set_reduced_motion applies.
-pub fn reduced_motion() bool {
-	return g_motion_reduced
 }

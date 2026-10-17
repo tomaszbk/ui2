@@ -19,12 +19,12 @@ $if macos && ui2_embedder ? && !ui2_headless ? {
 
 	fn replacement_event(event ElementEvent) { replacement_events << event }
 
-	fn build_replacement_screen() Element {
+	fn build_replacement_screen(mut w Window) Element {
 		if replacement_task_pending {
 			replacement_task_pending = false
 			// A posted task runs after the host has completed this frame, including
 			// state pruning and synchronization of its NSTextInputClient snapshot.
-			assert ui_dispatcher().post(replacement_after_build)
+			assert w.dispatcher().post(replacement_after_build)
 		}
 		control := if replacement_kind == .slider {
 			slider(SliderConfig{id: 'same', value: 25, step: 5, on_event: replacement_event, frame: rect(20, 20, 200, 36)})
@@ -47,34 +47,34 @@ $if macos && ui2_embedder ? && !ui2_headless ? {
 		])
 	}
 
-	fn replacement_next_frame(task fn ()) {
+	fn replacement_next_frame(mut w Window, task fn ()) {
 		replacement_after_build = task
 		replacement_task_pending = true
-		request_refresh()
+		w.request_refresh()
 	}
 
-	fn assert_replacement_editor_removed() {
-		assert 'same' !in g_text_values
-		assert 'same' !in g_text_props
-		assert 'same' !in g_text_editors
-		assert 'same' !in g_text_kinds
-		assert 'same' !in g_active_fields
-		assert 'same' !in g_gg_app.editable_fields
-		assert 'same' !in portable_text_area_selections
-		assert 'same' !in g_text_area_layouts
-		assert g_open_dropdown != 'same'
+	fn assert_replacement_editor_removed(mut w Window) {
+		assert 'same' !in w.text_values
+		assert 'same' !in w.text_props
+		assert 'same' !in w.text_editors
+		assert 'same' !in w.text_kinds
+		assert 'same' !in w.active_fields
+		assert 'same' !in w.editable_fields
+		assert 'same' !in w.text_area_selections
+		assert 'same' !in w.text_area_layouts
+		assert w.dropdown_id != 'same'
 	}
 
-	fn assert_replacement_other_editor() {
-		assert text('other') == 'other café ñ'
-		assert text_area_caret('other') == 6
-		assert text_area_selection_length('other') == 3
-		assert portable_text_area_selection('other') == TextAreaSelectionRange{location: 3, length: 3}
+	fn assert_replacement_other_editor(mut w Window) {
+		assert w.text('other') == 'other café ñ'
+		assert w.text_area_caret('other') == 6
+		assert w.text_area_selection_length('other') == 3
+		assert w.text_area_selection('other') == TextAreaSelectionRange{location: 3, length: 3}
 	}
 
-	fn replacement_send_key(code gg.KeyCode) {
-		assert embedder_event(g_gg_app, &C.ui2_embedder_event{kind: 7, key_code: int(code)})
-		embedder_event(g_gg_app, &C.ui2_embedder_event{kind: 8, key_code: int(code)})
+	fn replacement_send_key(mut w Window, code gg.KeyCode) {
+		assert embedder_event(w, &C.ui2_embedder_event{kind: 7, key_code: int(code)})
+		embedder_event(w, &C.ui2_embedder_event{kind: 8, key_code: int(code)})
 	}
 }
 
@@ -87,62 +87,63 @@ fn test_mounted_text_to_control_replacement_retains_focus_scope_and_keyboard_act
 				replacement_kind = source
 				replacement_text = 'declared ñ'
 				replacement_events = []ElementEvent{}
-				window := open_window('Same-id focus replacement', 420, 260, build_replacement_screen) or { panic(err) }
-				defer { window.close() }
-				replacement_after_build = fn [window, source, destination] () {
+				mut app := new_app()
+				mut w := app.new_window(title: 'Same-id focus replacement', width: 420, height: 260, build: build_replacement_screen) or { panic(err) }
+				defer { w.quit() }
+				replacement_after_build = fn [mut w, source, destination] () {
 					mut scheduled := false
-					defer { if !scheduled { window.close() } }
-					set_text('same', 'local café')
-					set_text('other', 'other café ñ')
-					text_area_set_selection('other', 3, 3)
-					assert enter_focus_scope('scope')
-					focus('same')
-					assert focused_id() == 'same'
-					if source == .text_area { text_area_set_selection('same', 1, 3) }
-					if source == .dropdown { assert perform_semantic_action('same', .activate) }
-					replacement_next_frame(fn [window, source, destination] () {
+					defer { if !scheduled { w.quit() } }
+					w.set_text('same', 'local café')
+					w.set_text('other', 'other café ñ')
+					w.text_area_set_selection('other', 3, 3)
+					assert w.enter_focus_scope('scope')
+					w.focus('same')
+					assert w.focused_id() == 'same'
+					if source == .text_area { w.text_area_set_selection('same', 1, 3) }
+					if source == .dropdown { assert w.perform_semantic_action('same', .activate) }
+					replacement_next_frame(mut w, fn [mut w, source, destination] () {
 						mut scheduled := false
-						defer { if !scheduled { window.close() } }
-						view := macos.msg_id(window.native_handle(), 'contentView')
+						defer { if !scheduled { w.quit() } }
+						view := macos.msg_id(w.native_handle(), 'contentView')
 						if source != .dropdown {
-							assert C.ui2_fixture_preedit(window.native_handle(), 'ñ'.str)
+							assert C.ui2_fixture_preedit(w.native_handle(), 'ñ'.str)
 							assert macos.msg_bool(view, 'hasMarkedText')
-							assert g_gg_app.composition.field_id == 'same'
-						} else { assert g_open_dropdown == 'same' }
+							assert w.composition.field_id == 'same'
+						} else { assert w.dropdown_id == 'same' }
 						replacement_kind = destination
-						replacement_next_frame(fn [window, source, destination] () {
+						replacement_next_frame(mut w, fn [mut w, source, destination] () {
 							mut scheduled := false
-							defer { if !scheduled { window.close() } }
-							assert focused_id() == 'same', '${source} -> ${destination} must retain focus after pruning'
-							assert g_focus_navigation.current == 'same'
-							assert active_focus_scope() == 'scope'
-							assert_replacement_editor_removed()
-							assert_replacement_other_editor()
-							assert g_gg_app.composition.field_id == ''
-							view := macos.msg_id(window.native_handle(), 'contentView')
+							defer { if !scheduled { w.quit() } }
+							assert w.focused_id() == 'same', '${source} -> ${destination} must retain focus after pruning'
+							assert w.navigation.current == 'same'
+							assert w.active_focus_scope() == 'scope'
+							assert_replacement_editor_removed(mut w)
+							assert_replacement_other_editor(mut w)
+							assert w.composition.field_id == ''
+							view := macos.msg_id(w.native_handle(), 'contentView')
 							assert !macos.msg_bool(view, 'hasMarkedText')
 							replacement_events = []ElementEvent{}
-							replacement_send_key(if destination == .button { gg.KeyCode.space } else { gg.KeyCode.right })
+							replacement_send_key(mut w, if destination == .button { gg.KeyCode.space } else { gg.KeyCode.right })
 							assert replacement_events.len == 1
 							assert replacement_events[0].id == 'same'
 							assert replacement_events[0].kind == if destination == .button { ElementEventKind.click } else { ElementEventKind.change }
-							if destination == .slider { assert slider_value('same') == 30 }
-							assert focused_id() == 'same'
-							assert_replacement_other_editor()
+							if destination == .slider { assert w.slider_value('same') == 30 }
+							assert w.focused_id() == 'same'
+							assert_replacement_other_editor(mut w)
 							// Reintroducing the editor initializes its declaration, never the
 							// obsolete local draft/selection/composition of the old editor.
 							replacement_kind = source
 							replacement_text = 'fresh ñ'
-							replacement_next_frame(fn [window, source] () {
-								defer { window.close() }
-								assert focused_id() == 'same' && active_focus_scope() == 'scope'
-								assert text('same') == 'fresh ñ'
-								assert g_text_kinds['same'] == source
-								assert_replacement_other_editor()
-								assert g_gg_app.composition.field_id == ''
+							replacement_next_frame(mut w, fn [mut w, source] () {
+								defer { w.quit() }
+								assert w.focused_id() == 'same' && w.active_focus_scope() == 'scope'
+								assert w.text('same') == 'fresh ñ'
+								assert w.text_kinds['same'] == source
+								assert_replacement_other_editor(mut w)
+								assert w.composition.field_id == ''
 								if source != .dropdown {
-									assert C.ui2_fixture_commit(window.native_handle(), 'é'.str)
-									assert text('same') == 'fresh ñé'
+									assert C.ui2_fixture_commit(w.native_handle(), 'é'.str)
+									assert w.text('same') == 'fresh ñé'
 								}
 							})
 							scheduled = true
@@ -152,7 +153,7 @@ fn test_mounted_text_to_control_replacement_retains_focus_scope_and_keyboard_act
 					scheduled = true
 				}
 				replacement_task_pending = true
-				run_windows()
+				app.run()
 			}
 		}
 	}
@@ -165,24 +166,25 @@ fn test_mounted_replacement_preserves_another_editors_native_composition_and_sel
 		for destination in [Kind.button, .slider] {
 			replacement_kind = .text_area
 			replacement_text = 'declared ñ'
-			window := open_window('Unrelated editor replacement', 420, 260, build_replacement_screen) or { panic(err) }
-			defer { window.close() }
-			replacement_after_build = fn [window, destination] () {
+			mut app := new_app()
+			mut w := app.new_window(title: 'Unrelated editor replacement', width: 420, height: 260, build: build_replacement_screen) or { panic(err) }
+			defer { w.quit() }
+			replacement_after_build = fn [mut w, destination] () {
 				mut scheduled := false
-				defer { if !scheduled { window.close() } }
-				set_text('same', 'local café')
-				text_area_set_selection('same', 1, 3)
-				set_text('other', 'other café ñ')
-				text_area_set_selection('other', 3, 3)
-				assert enter_focus_scope('scope')
-				focus('other')
-				replacement_next_frame(fn [window, destination] () {
+				defer { if !scheduled { w.quit() } }
+				w.set_text('same', 'local café')
+				w.text_area_set_selection('same', 1, 3)
+				w.set_text('other', 'other café ñ')
+				w.text_area_set_selection('other', 3, 3)
+				assert w.enter_focus_scope('scope')
+				w.focus('other')
+				replacement_next_frame(mut w, fn [mut w, destination] () {
 					mut scheduled := false
-					defer { if !scheduled { window.close() } }
-					assert C.ui2_fixture_preedit(window.native_handle(), 'ñ'.str)
-					view := macos.msg_id(window.native_handle(), 'contentView')
+					defer { if !scheduled { w.quit() } }
+					assert C.ui2_fixture_preedit(w.native_handle(), 'ñ'.str)
+					view := macos.msg_id(w.native_handle(), 'contentView')
 					assert macos.msg_bool(view, 'hasMarkedText')
-					composition := g_gg_app.composition
+					composition := w.composition
 					selection := macos.msg_range(view, 'selectedRange')
 					marked := macos.msg_range(view, 'markedRange')
 					selection_location := selection.location
@@ -190,13 +192,13 @@ fn test_mounted_replacement_preserves_another_editors_native_composition_and_sel
 					marked_location := marked.location
 					marked_length := marked.length
 					replacement_kind = destination
-					replacement_next_frame(fn [window, composition, selection_location, selection_length, marked_location, marked_length] () {
-						defer { window.close() }
-						assert focused_id() == 'other' && active_focus_scope() == 'scope'
-						assert_replacement_editor_removed()
-						assert_replacement_other_editor()
-						assert g_gg_app.composition == composition
-						view := macos.msg_id(window.native_handle(), 'contentView')
+					replacement_next_frame(mut w, fn [mut w, composition, selection_location, selection_length, marked_location, marked_length] () {
+						defer { w.quit() }
+						assert w.focused_id() == 'other' && w.active_focus_scope() == 'scope'
+						assert_replacement_editor_removed(mut w)
+						assert_replacement_other_editor(mut w)
+						assert w.composition == composition
+						view := macos.msg_id(w.native_handle(), 'contentView')
 						assert macos.msg_bool(view, 'hasMarkedText')
 						selection := macos.msg_range(view, 'selectedRange')
 						marked := macos.msg_range(view, 'markedRange')
@@ -208,7 +210,7 @@ fn test_mounted_replacement_preserves_another_editors_native_composition_and_sel
 				scheduled = true
 			}
 			replacement_task_pending = true
-			run_windows()
+			app.run()
 		}
 	}
 }

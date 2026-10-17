@@ -42,8 +42,9 @@ The rules every control follows:
   which holds the children.
 - A control never calls `validate_element_tree`; the runtime validates once
   per committed batch.
-- Timers start from event handlers through `kit_after`, never from `build`;
-  `kit_cancel` calls one off.
+- Timers start from event handlers on the event's window
+  (`mut w := event.window; w.after(...)`), never from `build`;
+  `w.cancel_timer` calls one off.
 - Popups are overlays (`with_overlay`), with no z-index layers.
 - A control uses few elements. Draw a repeated shape as one vector path or
   gradient, not as a strip of cells.

@@ -26,15 +26,13 @@ $if macos && ui2_embedder ? && ui2_geometry_capture ? && !ui2_headless ? {
 
 fn test_combined_vector_image_text_exact_clip_rotation_once_and_sibling_scope() {
 	$if macos && ui2_embedder ? && ui2_geometry_capture ? && !ui2_headless ? {
-		previous_app := g_gg_app
-		previous_state := activate_custom_window_state(new_custom_window_state())
 		mut ctx := new_surface_draw_context(gg.Config{width:320,height:240},graphics_seam_env())!
-		defer { ctx.destroy(); activate_custom_window_state(previous_state); g_gg_app=previous_app }
+		defer { ctx.destroy() }
 		window := C.ui2_embedder_create(&C.ui2_embedder_config{title:c'Graphics combination',width:320,height:240,visible:false},
 			&C.ui2_embedder_callbacks{},unsafe { nil })
 		assert window != unsafe { nil }
 		defer { C.ui2_embedder_close(window) }
-		g_gg_app=&GgApp{ctx:ctx,has_root:true}
+		mut w:=&Window{ctx:ctx,has_root:true}
 		ctx.submitted_polygon=graphics_seam_observe
 		path := os.join_path(@VMODROOT,'examples','image_assets','assets','pattern.png')
 		image_el := Element{...image('image',path,rect(0,0,100,100)),image_style:ImageStyle{fit:.cover,tint:ImageTint{r:17,g:200,b:30}},
@@ -45,13 +43,13 @@ fn test_combined_vector_image_text_exact_clip_rotation_once_and_sibling_scope() 
 			vector_canvas(id:'vector',frame:rect(0,0,100,100),shapes:[shape])!,image_el,
 			label('text','año café',rect(-10,20,130,40),TextStyle{color:0x3344ee,size:24}),
 		]),VisualTransform{rotation:45,origin_x:50,origin_y:50,scale_x:1.2,scale_y:0.8})
-		update_custom_focus_tree(pane)
+		w.update_custom_focus_tree(pane)
 		graphics_seam_surface(mut ctx,window)
 		ctx.images.begin_frame()
-		preload_images(mut ctx)
+		w.preload_images(mut ctx)
 		ctx.begin()
 		graphics_seam_vertices.clear()
-		render_element(ctx,pane,0,0,rect(0,0,320,240),'','root')
+		w.render_element(ctx,pane,0,0,rect(0,0,320,240),'','root')
 		exact := transformed_clip(pane.frame,pane.visual_transform().matrix(pane.frame)!)
 		assert graphics_seam_vertices.any(it.r==170 && it.g==17 && it.b==34)
 		assert graphics_seam_vertices.any(it.r==17 && it.g==200 && it.b==30)
@@ -61,7 +59,7 @@ fn test_combined_vector_image_text_exact_clip_rotation_once_and_sibling_scope() 
 		assert !exact.contains(corner.x+0.1,corner.y+0.1)
 		assert ctx.content_transform==ContentTransform{} && !ctx.clip_region.bounded && !ctx.clip_base.bounded
 		graphics_seam_vertices.clear()
-		render_element(ctx,view('sibling',rect(250,180,30,30),BoxStyle{bg:0xabcdef},[]Element{}),0,0,rect(0,0,320,240),'','sibling')
+		w.render_element(ctx,view('sibling',rect(250,180,30,30),BoxStyle{bg:0xabcdef},[]Element{}),0,0,rect(0,0,320,240),'','sibling')
 		assert graphics_seam_vertices.len==4 && graphics_seam_vertices[0].x==250
 		// Hand-derived cover/contain local geometry and one R90 after T*S2.
 		cover := image_geometry(rect(0,0,100,100),LayoutSize{width:200,height:100},ImageStyle{fit:.cover})!

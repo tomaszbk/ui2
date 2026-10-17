@@ -269,6 +269,15 @@ pub:
 // and edit buffers; a document that does not load is reported on stderr and
 // the window keeps the last good one.
 pub fn run_vml[T](config VmlRunConfig[T]) ! {
+	mut app := new_app()
+	open_vml[T](mut app, config)!
+	app.run()
+}
+
+// open_vml opens a window of app that shows the interpreted document, as
+// open_compiled_vml does for a compiled one, and returns it before app runs.
+// The document is disposed of as the window closes.
+pub fn open_vml[T](mut app App, config VmlRunConfig[T]) !&Window {
 	if config.model == unsafe { nil } { return error('run_vml requires a live model') }
 	if config.source_path.len == 0 { return error('run_vml requires source_path') }
 	config.theme.validate()!
@@ -295,49 +304,50 @@ pub fn run_vml[T](config VmlRunConfig[T]) ! {
 		interpreter.dispose()
 		return err
 	}
-	dispose_compiled_vml()
-	// The backend disposes the runtime root when the window closes.
-	runtime.root = interpreter.root
-	defer {
-		interpreter.stop = true
-		dispose_compiled_vml()
-	}
-	if config.watch {
-		spawn vml_watch(interpreter)
-	}
 	update := config.update
-	build := fn [mut interpreter, mut model, update] [T]() Element {
-		compiled_vml_begin_snapshot()
-		defer { compiled_vml_end_snapshot() }
-		// As in run_compiled_vml, a frame that shows a document just built
-		// from the updated model does not update it again.
-		if !interpreter.fresh && update != unsafe { nil } { update(mut model) }
-		return interpreter.next_frame()
+	mut w := app.new_window(
+		title:      config.title
+		width:      config.width
+		height:     config.height
+		min_width:  config.min_width
+		min_height: config.min_height
+		build:      fn [mut interpreter, mut model, update] [T](mut w Window) Element {
+			w.begin_compiled_snapshot()
+			defer { w.end_compiled_snapshot() }
+			// As in run_compiled_vml, a frame that shows a document just built
+			// from the updated model does not update it again.
+			if !interpreter.fresh && update != unsafe { nil } { update(mut model) }
+			return interpreter.next_frame(mut w)
+		}
+	) or {
+		interpreter.dispose()
+		return err
 	}
-	$if macos || windows || linux {
-		run_window_with_min_size(config.title, config.width, config.height, config.min_width,
-			config.min_height, build)
-	} $else {
-		run(build)
+	// The window disposes the document as it closes.
+	w.on_close(fn [mut interpreter] () {
+		interpreter.stop = true
+		interpreter.dispose()
+	})
+	if config.watch {
+		spawn vml_watch(interpreter, w)
 	}
+	return w
 }
 
 // next_frame is one window frame of a running document: it applies a reload
 // the watcher asked for, follows the viewport, mounts the document and
 // returns its root element.
-fn (mut i VmlInterpreter) next_frame() Element {
+fn (mut i VmlInterpreter) next_frame(mut w Window) Element {
 	if i.stale {
 		i.reload_file() or {
 			eprintln('ui2 VML reload failed: ${err}')
 			i.watch_files(i.files.keys())
 		}
-		mut runtime := compiled_vml_runtime()
-		if runtime.root != unsafe { nil } && runtime.root != i.root {
-			runtime.root = i.root
-		}
 	}
 	mut root := i.root
-	root.update_viewport(vml_bounds()) or { eprintln('ui2 VML viewport failed: ${err}') }
+	mut component := root.component
+	component.window = w
+	root.update_viewport(w.bounds()) or { eprintln('ui2 VML viewport failed: ${err}') }
 	root.mount() or { eprintln('ui2 VML mount failed: ${err}') }
 	// As in run_compiled_vml: a document built for this frame has just read
 	// the model, unless a mount hook has run since.
@@ -348,17 +358,18 @@ fn (mut i VmlInterpreter) next_frame() Element {
 	return root.element()
 }
 
-// vml_watch polls the document's files and asks for a build when one changes;
-// the build reloads the document on the UI thread. While `stale` is set the
-// watcher leaves the file table alone, which the reload then replaces.
-fn vml_watch(interpreter &VmlInterpreter) {
+// vml_watch polls the document's files and asks window for a build when one
+// changes; the build reloads the document on the UI thread. While `stale` is
+// set the watcher leaves the file table alone, which the reload then replaces.
+fn vml_watch(interpreter &VmlInterpreter, window &Window) {
 	mut watched := unsafe { interpreter }
+	mut w := unsafe { window }
 	for !watched.stop {
 		time.sleep(300 * time.millisecond)
 		if !watched.stale && watched.changed() {
 			watched.stale = true
-			// A timer is the thread-safe way to ask the UI thread for a build.
-			after(0, fn () {})
+			// Invalidation is the thread-safe way to ask the UI thread for a build.
+			w.backend_invalidate(.build)
 		}
 	}
 }

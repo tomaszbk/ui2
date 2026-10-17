@@ -16,7 +16,7 @@ mut:
 const picker_demo = &PickerDemo{}
 
 fn picker_launch(kind ui2.FileDialogKind) ui2.ElementCallback {
-	return fn [kind] (_event ui2.ElementEvent) {
+	return fn [kind] (event ui2.ElementEvent) {
 		mut state := unsafe { picker_demo }
 		state.picker = ui2.new_file_picker(
 			id:        'demo_picker'
@@ -33,19 +33,20 @@ fn picker_launch(kind ui2.FileDialogKind) ui2.ElementCallback {
 				} else {
 					'Cancelled.'
 				}
-				ui2.request_refresh()
+				// The picker reports from its own controls' events, after which
+				// the window rebuilds.
 			}
 		) or {
 			state.selection = 'Cannot open picker: ${err}'
-			ui2.request_refresh()
+			event.window.request_refresh()
 			return
 		}
 		state.picker.open() or { state.selection = 'Cannot open picker: ${err}' }
-		ui2.request_refresh()
+		event.window.request_refresh()
 	}
 }
 
-fn build_picker_demo() ui2.Element {
+fn build_picker_demo(mut w ui2.Window) ui2.Element {
 	mut state := unsafe { picker_demo }
 	button_box := ui2.BoxStyle{ bg: 0x2563eb, radius: 6 }
 	button_text := ui2.TextStyle{ color: 0xffffff }

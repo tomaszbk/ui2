@@ -94,8 +94,9 @@ Disposing the component cancels its tasks and discards queued deliveries.
 Cancellation does not undo side effects a worker has already performed.
 
 Ordinary V fields on `app` remain application data. VML actions invalidate
-bindings that read them; changes made by timers or other application code need
-`ui2.request_refresh()` on the UI thread. Component state updates invalidate
+bindings that read them; changes made by other application code need the
+window's `request_refresh()` on the UI thread (a window rebuilds after its
+timers by itself). Component state updates invalidate
 their signal dependents directly.
 
 ## Slots and typed refs

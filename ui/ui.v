@@ -4,10 +4,13 @@ const named_scroll_prefix = '@scroll-id:'
 const anonymous_text_area_scroll_prefix = '@text-area-key:'
 const anonymous_scroll_prefix = '@scroll-path:'
 
-pub type BuildFn = fn () Element
+// BuildFn declares a window's tree. It receives the window it builds, so it
+// can read its bounds and live control state.
+pub type BuildFn = fn (mut w Window) Element
 
 // Element callbacks are attached to their declaration. An id identifies live
-// state; it never chooses a handler.
+// state; it never chooses a handler. The event names the window it happened
+// in, which is how a callback asks that window for a refresh or a focus change.
 pub type ElementCallback = fn (ElementEvent)
 
 pub enum ElementEventKind {
@@ -41,13 +44,16 @@ pub enum ElementEventKind {
 
 pub struct ElementEvent {
 pub:
-	kind ElementEventKind
-	drag ?DragEvent
+	// window is the window the event happened in; nil only for an event that
+	// application code made up itself.
+	window         &Window = unsafe { nil }
+	kind           ElementEventKind
+	drag           ?DragEvent
 	dismiss_reason OverlayDismissReason
-	id   string
-	x    f64
-	y    f64
-	text string
+	id             string
+	x              f64
+	y              f64
+	text           string
 	// Scroll events carry both logical offsets in x/y and the vertical offset in value.
 	value   f64
 	checked bool
@@ -69,10 +75,10 @@ pub:
 
 pub type ScanCallback = fn (ScanResult)
 
-// KeyFn receives normalized key strings: 'up', 'forward_delete', 'tab',
-// 'cmd+shift+r', 'f5', or text-view commands like 'text:editor:backspace'
-// and 'text:editor:line_break'.
-pub type KeyFn = fn (string)
+// KeyFn receives the window and a normalized key string: 'up',
+// 'forward_delete', 'tab', 'cmd+shift+r', 'f5', or text-view commands like
+// 'text:editor:backspace' and 'text:editor:line_break'.
+pub type KeyFn = fn (mut w Window, key string)
 
 // KeyEventFn receives a layout-independent physical key plus the active
 // modifiers. It complements KeyFn, which remains available for callers that
@@ -208,11 +214,13 @@ pub enum KeyCode {
 
 pub struct KeyEvent {
 pub:
-	code  KeyCode
-	shift bool
-	ctrl  bool
-	alt   bool
-	cmd   bool
+	// window is the window that received the key.
+	window &Window = unsafe { nil }
+	code   KeyCode
+	shift  bool
+	ctrl   bool
+	alt    bool
+	cmd    bool
 }
 
 // name returns the normalized key name used by the KeyFn callback.
@@ -254,10 +262,12 @@ pub type DropFn = fn (DropEvent)
 
 pub struct DropEvent {
 pub:
-	paths []string
-	text  string
-	x     f64
-	y     f64
+	// window is the window the drop landed on.
+	window &Window = unsafe { nil }
+	paths  []string
+	text   string
+	x      f64
+	y      f64
 }
 
 pub enum Align {
@@ -444,65 +454,65 @@ pub:
 	// It is not an authored property or a model/binding value. The retained
 	// runtime maps a built element back to its owner through it in O(1), and
 	// generated code reads it.
-	compiled_node &CompiledVmlNode = unsafe { nil }
+	compiled_node     &CompiledVmlNode     = unsafe { nil }
 	compiled_metadata &CompiledVmlMetadata = unsafe { nil }
 	// kind is readable from outside the module so a renderer can live in
 	// another package: dispatching on it is the first thing any backend does.
-	kind              Kind
-	id                string // lookup/state identity
-	on_event          ElementCallback = unsafe { nil }
-	key               string // stable identity for reconciliation (falls back to child index)
-	text              string
-	checked           bool // checkbox: declared on/off state
-	image_path        string
-	image_asset       ImageAsset
-	image_style       ImageStyle
-	tooltip           string
-	placeholder       string
-	frame             Rect
+	kind        Kind
+	id          string // lookup/state identity
+	on_event    ElementCallback = unsafe { nil }
+	key         string // stable identity for reconciliation (falls back to child index)
+	text        string
+	checked     bool // checkbox: declared on/off state
+	image_path  string
+	image_asset ImageAsset
+	image_style ImageStyle
+	tooltip     string
+	placeholder string
+	frame       Rect
 	// Authored geometry is retained separately from the resolved frame.
-	layout_input      ?Rect
-	layout            LayoutSpec
-	box               BoxStyle
-	interaction_style InteractionStyle // custom renderer: sparse visual state overrides
-	content_padding   ?LayoutPadding // custom button text/image content inset
-	content_size      LayoutSize       // custom: fixed logical composition, fit within frame
-	is_vector_canvas  bool            // preserves vector semantics with an empty shapes array
-	vector_shapes     []VectorShape    // custom: retained local geometry, clipped to the view frame
-	vector_hit_mode   VectorHitMode
-	text_style        TextStyle
-	native_style      bool // button: draw the standard bezel unless a fill is declared
-	text_runs                 []TextRun // label/text_area: optional rich text style runs
-	keyboard                  int
-	long_press                bool
-	swipe_left                bool
-	readonly                  bool // text_area: selectable but not editable
-	disable_scroll            bool // text_area: hide the internal scroll view scroller
-	persistent_scrollbars     bool // scroll: keep a legacy always-visible scroller instead of the auto-fading overlay one
-	secure                    bool // text_field: native password entry
-	clickable                 bool // view/image: emit pointer down/up events
-	button_behavior           bool // view: invoke its callback when released like a button
+	layout_input          ?Rect
+	layout                LayoutSpec
+	box                   BoxStyle
+	interaction_style     InteractionStyle // custom renderer: sparse visual state overrides
+	content_padding       ?LayoutPadding   // custom button text/image content inset
+	content_size          LayoutSize       // custom: fixed logical composition, fit within frame
+	is_vector_canvas      bool             // preserves vector semantics with an empty shapes array
+	vector_shapes         []VectorShape    // custom: retained local geometry, clipped to the view frame
+	vector_hit_mode       VectorHitMode
+	text_style            TextStyle
+	native_style          bool      // button: draw the standard bezel unless a fill is declared
+	text_runs             []TextRun // label/text_area: optional rich text style runs
+	keyboard              int
+	long_press            bool
+	swipe_left            bool
+	readonly              bool // text_area: selectable but not editable
+	disable_scroll        bool // text_area: hide the internal scroll view scroller
+	persistent_scrollbars bool // scroll: keep a legacy always-visible scroller instead of the auto-fading overlay one
+	secure                bool // text_field: native password entry
+	clickable             bool // view/image: emit pointer down/up events
+	button_behavior       bool // view: invoke its callback when released like a button
 	// Sparse properties are shared references: an element without them pays
 	// one word each, and copies share the record.
-	drag_source               ?&DragSource
-	drop_target               ?DropTarget
-	draggable                 bool // view/image: emit pointer drag events
-	hoverable                 bool // any element: report pointer enter/leave as the pointer moves over it
-	opacity               f64 = 1 // custom: inherited per-primitive opacity
-	motion                ?MotionConfig
-	overlay               ?&OverlayConfig
-	rotation                  f64  // custom: clockwise visual rotation, for every element
-	translate_x               f64
-	translate_y               f64
-	scale_x                   f64 = 1
-	scale_y                   f64 = 1
-	origin_x                  f64
-	origin_y                  f64
-	cursor                    string // view/image: hover cursor hint
-	menu                      []MenuEntry
-	children                  []Element
-	hidden                    bool
-	enabled                   bool = true
+	drag_source ?&DragSource
+	drop_target ?DropTarget
+	draggable   bool // view/image: emit pointer drag events
+	hoverable   bool // any element: report pointer enter/leave as the pointer moves over it
+	opacity     f64 = 1 // custom: inherited per-primitive opacity
+	motion      ?MotionConfig
+	overlay     ?&OverlayConfig
+	rotation    f64 // custom: clockwise visual rotation, for every element
+	translate_x f64
+	translate_y f64
+	scale_x     f64 = 1
+	scale_y     f64 = 1
+	origin_x    f64
+	origin_y    f64
+	cursor      string // view/image: hover cursor hint
+	menu        []MenuEntry
+	children    []Element
+	hidden      bool
+	enabled     bool = true
 	// Keyboard identity is id. Negative tab_index permits programmatic focus
 	// while excluding a control from sequential and directional traversal.
 	focus_policy              FocusPolicy
@@ -550,9 +560,13 @@ fn reconciliation_child_key(parent string, index int, el Element) string {
 }
 
 fn authored_child_key(parent string, index int, el Element) string {
-	suffix := if el.key.len > 0 { 'k:' + el.key.bytes().hex() }
-		else if el.compiled_node != unsafe { nil } { 'c:' + el.compiled_node.identity_path() }
-		else { 'i:' + index.str() }
+	suffix := if el.key.len > 0 {
+		'k:' + el.key.bytes().hex()
+	} else if el.compiled_node != unsafe { nil } {
+		'c:' + el.compiled_node.identity_path()
+	} else {
+		'i:' + index.str()
+	}
 	return if parent.len == 0 { suffix } else { parent + '/' + suffix }
 }
 
@@ -678,7 +692,9 @@ fn element_first_duplicate_key(children []Element) int {
 fn validate_element_properties(el Element, path string) ! {
 	if config := el.overlay {
 		config.validate()!
-		if el.kind != .view || el.id.len == 0 { return error('an overlay requires a View with a stable id at ${path}') }
+		if el.kind != .view || el.id.len == 0 {
+			return error('an overlay requires a View with a stable id at ${path}')
+		}
 		if !backend_supports_overlays {
 			return error('overlays require the desktop custom renderer at ${path}')
 		}
@@ -705,7 +721,9 @@ fn validate_element_properties(el Element, path string) ! {
 	}
 	if el.is_vector_canvas || el.vector_shapes.len > 0 {
 		if el.kind != .view { return error('vector canvas must be a view at ${path}') }
-		if el.content_size.width != 0 || el.content_size.height != 0 { return error('put vector canvas inside scaled content at ${path}') }
+		if el.content_size.width != 0 || el.content_size.height != 0 {
+			return error('put vector canvas inside scaled content at ${path}')
+		}
 		validate_layout_frame(el.frame)!
 		for shape in el.vector_shapes {
 			if !shape.prepared { return error('vector canvas needs prepared geometry at ${path}') }
@@ -714,8 +732,12 @@ fn validate_element_properties(el Element, path string) ! {
 	el.image_asset.validate()!
 	el.image_style.validate()!
 	if el.image_asset != ImageAsset{} || el.image_style != ImageStyle{} {
-		if el.kind !in [.image,.button] { return error('image assets/styles require an Image or raster Button at ${path}') }
-		if el.image_path.starts_with('symbol:') { return error('symbol buttons use text_style, not raster image assets/styles at ${path}') }
+		if el.kind !in [.image, .button] {
+			return error('image assets/styles require an Image or raster Button at ${path}')
+		}
+		if el.image_path.starts_with('symbol:') {
+			return error('symbol buttons use text_style, not raster image assets/styles at ${path}')
+		}
 	}
 	if el.content_size.width != 0 || el.content_size.height != 0 {
 		if el.kind != .view { return error('scaled content must be a view at ${path}') }
@@ -937,13 +959,13 @@ pub fn scroll_persistent(id string, frame Rect, bg u32, children []Element) Elem
 // The content is as wide as its rightmost child reaches.
 pub fn scroll_with_mode(id string, frame Rect, bg u32, mode ScrollMode, children []Element) Element {
 	return Element{
-		kind: .scroll
-		id: id
-		frame: frame
-		box: BoxStyle{
+		kind:        .scroll
+		id:          id
+		frame:       frame
+		box:         BoxStyle{
 			bg: bg
 		}
-		children: children
+		children:    children
 		scroll_mode: mode
 	}
 }

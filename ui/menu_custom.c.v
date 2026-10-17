@@ -5,7 +5,6 @@
 // the shortcuts may be left to this file: the renderer matches them against
 // its key events unless the host's menu runs its own key equivalents. Keep the
 // gg import inside the platform block for the same reason ui_immediate.c.v does.
-@[has_globals]
 module ui2
 
 $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_document_library ? {
@@ -50,35 +49,25 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 		is_title  bool
 	}
 
-	// g_menu_open_path holds one element per open panel: [m] is menu m's own
-	// list, [m, r] adds the submenu opened from row r of that list.
-	__global g_menu_open_path = []int{}
-	__global g_menu_hover_path = []int{}
-	__global g_menu_hits = []MenuBarHit{}
-	__global g_menu_panels = []Rect{}
-	// A press that only dismissed an open menu must not let the matching
-	// release reach the control underneath it.
-	__global g_menu_swallow_up = false
-
 	// menu_bar_height is the strip the bar takes off the top of the window.
 	// bounds() subtracts it and the screen is drawn below it, so an element at
 	// y 0 sits under the bar rather than behind it.
-	fn menu_bar_height() f64 {
-		return if menu_bar_drawn() { menubar_height } else { 0.0 }
+	fn (mut w Window) menu_bar_height() f64 {
+		return if w.menu_bar_drawn() { menubar_height } else { 0.0 }
 	}
 
 	// menu_bar_drawn reports whether the window shows a drawn menu bar.
-	fn menu_bar_drawn() bool {
-		return host_menu_bar == .drawn && menu_bar().len > 0
+	fn (mut w Window) menu_bar_drawn() bool {
+		return host_menu_bar == .drawn && w.menus.bar.len > 0
 	}
 
-	fn menu_bar_open() bool {
-		return g_menu_open_path.len > 0
+	fn (mut w Window) menu_bar_open() bool {
+		return w.menu_open_path.len > 0
 	}
 
-	fn close_menu_bar() {
-		g_menu_open_path = []int{}
-		g_menu_hover_path = []int{}
+	fn (mut w Window) close_menu_bar() {
+		w.menu_open_path = []int{}
+		w.menu_hover_path = []int{}
 	}
 
 	// ── Drawing ────────────────────────────────────────────────────────
@@ -114,11 +103,11 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 			return 0.0
 		}
 		$if android || ios {
-			family := text_font_file(style.font_family, style.bold, style.italic)
+			family := text_font_file(ctx, style.font_family, style.bold, style.italic)
 			ensure_family_fallbacks(ctx, family)
 			ctx.set_text_cfg(gg.TextCfg{
 				color: hex_color(style.color)
-				size: int(font_render_size(style.size, text_font_metrics(family)) + 0.5)
+				size: int(font_render_size(style.size, text_font_metrics(ctx, family)) + 0.5)
 				bold: style.bold
 				italic: style.italic
 				family: family
@@ -138,13 +127,13 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 	// draw_menu_bar draws the bar and every open panel, and rebuilds the hit
 	// list the pointer handlers read. It runs after the element tree so the
 	// panels float above the window's own controls.
-	fn draw_menu_bar(ctx &DrawContext) {
-		g_menu_hits = []MenuBarHit{}
-		g_menu_panels = []Rect{}
-		if !menu_bar_drawn() {
+	fn (mut w Window) draw_menu_bar(ctx &DrawContext) {
+		w.menu_hits = []MenuBarHit{}
+		w.menu_panels = []Rect{}
+		if !w.menu_bar_drawn() {
 			return
 		}
-		bar_menus := menu_bar()
+		bar_menus := w.menus.bar
 		window := rect(0, 0, f64(ctx.width), f64(ctx.height))
 		apply_clip(ctx, window)
 		draw_rect(ctx, 0, 0, window.width, menubar_height, menubar_background, 0)
@@ -153,39 +142,39 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 		mut x := menubar_edge_margin + 4.0
 		mut open_x := x
 		for index, m in bar_menus {
-			w := menu_text_width(ctx, m.title, style) + menubar_title_padding * 2
-			if menu_bar_open() && g_menu_open_path[0] == index {
-				draw_rect(ctx, x, 2, w, menubar_height - 5, menubar_highlight, 5)
+			title_width := menu_text_width(ctx, m.title, style) + menubar_title_padding * 2
+			if w.menu_bar_open() && w.menu_open_path[0] == index {
+				draw_rect(ctx, x, 2, title_width, menubar_height - 5, menubar_highlight, 5)
 				open_x = x
 			}
-			draw_text(ctx, m.title, x + menubar_title_padding, 0, w - menubar_title_padding * 2,
+			draw_text(ctx, m.title, x + menubar_title_padding, 0, title_width - menubar_title_padding * 2,
 				menubar_height - 1, style)
-			g_menu_hits << MenuBarHit{
+			w.menu_hits << MenuBarHit{
 				x: x
 				y: 0
-				w: w
+				w: title_width
 				h: menubar_height
 				path: [index]
 				enabled: true
 				has_items: m.items.len > 0
 				is_title: true
 			}
-			x += w
+			x += title_width
 		}
-		if !menu_bar_open() {
+		if !w.menu_bar_open() {
 			return
 		}
-		open := g_menu_open_path[0]
+		open := w.menu_open_path[0]
 		if open < 0 || open >= bar_menus.len {
-			close_menu_bar()
+			w.close_menu_bar()
 			return
 		}
-		draw_menu_panel(ctx, bar_menus[open].items, [open], open_x, menubar_height, window)
+		w.draw_menu_panel(ctx, bar_menus[open].items, [open], open_x, menubar_height, window)
 	}
 
 	// draw_menu_panel draws one list and, when the open path goes deeper,
 	// recurses into the submenu it names.
-	fn draw_menu_panel(ctx &DrawContext, items []MenuItem, path []int, anchor_x f64, anchor_y f64, window Rect) {
+	fn (mut w Window) draw_menu_panel(ctx &DrawContext, items []MenuItem, path []int, anchor_x f64, anchor_y f64, window Rect) {
 		if items.len == 0 {
 			return
 		}
@@ -193,7 +182,7 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 		height := menu_panel_height(items)
 		x := clamp_menu_coordinate(anchor_x, width, window.width)
 		y := clamp_menu_coordinate(anchor_y, height, window.height)
-		g_menu_panels << rect(x, y, width, height)
+		w.menu_panels << rect(x, y, width, height)
 		draw_rect(ctx, x + 1, y + 2, width, height, menubar_panel_shadow, 6)
 		draw_rect(ctx, x, y, width, height, menubar_panel_background, 6)
 		draw_outline(ctx, x, y, width, height, menubar_border, 6)
@@ -209,8 +198,8 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 				continue
 			}
 			row_path := arrays_append_int(path, index)
-			hovered := int_paths_equal(g_menu_hover_path, row_path)
-				|| (item.items.len > 0 && menu_path_starts_with(g_menu_open_path, row_path))
+			hovered := int_paths_equal(w.menu_hover_path, row_path)
+				|| (item.items.len > 0 && menu_path_starts_with(w.menu_open_path, row_path))
 			if hovered && item.enabled {
 				draw_rect(ctx, x + 2, row_y, width - 4, menubar_row_height, menubar_highlight,
 					4)
@@ -233,7 +222,7 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 						menubar_row_height, menu_bar_shortcut_style(item.enabled))
 				}
 			}
-			g_menu_hits << MenuBarHit{
+			w.menu_hits << MenuBarHit{
 				x: x
 				y: row_y
 				w: width
@@ -244,8 +233,8 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 				enabled: item.enabled
 				has_items: item.items.len > 0
 			}
-			if item.items.len > 0 && menu_path_starts_with(g_menu_open_path, row_path)
-				&& g_menu_open_path.len > row_path.len - 1 {
+			if item.items.len > 0 && menu_path_starts_with(w.menu_open_path, row_path)
+				&& w.menu_open_path.len > row_path.len - 1 {
 				child_items = item.items.clone()
 				child_x = x + width - menubar_panel_padding
 				child_y = row_y - menubar_panel_padding
@@ -253,7 +242,7 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 			row_y += menubar_row_height
 		}
 		if child_items.len > 0 {
-			draw_menu_panel(ctx, child_items, g_menu_open_path[..path.len + 1], child_x,
+			w.draw_menu_panel(ctx, child_items, w.menu_open_path[..path.len + 1], child_x,
 				child_y, window)
 		}
 	}
@@ -337,9 +326,9 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 
 	// ── Pointer and keyboard handling ──────────────────────────────────
 
-	fn menu_bar_hit_at(x f64, y f64) ?MenuBarHit {
-		for index := g_menu_hits.len - 1; index >= 0; index-- {
-			hit := g_menu_hits[index]
+	fn (mut w Window) menu_bar_hit_at(x f64, y f64) ?MenuBarHit {
+		for index := w.menu_hits.len - 1; index >= 0; index-- {
+			hit := w.menu_hits[index]
 			if x >= hit.x && x <= hit.x + hit.w && y >= hit.y && y <= hit.y + hit.h {
 				return hit
 			}
@@ -347,8 +336,8 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 		return none
 	}
 
-	fn menu_bar_inside_panels(x f64, y f64) bool {
-		for panel in g_menu_panels {
+	fn (mut w Window) menu_bar_inside_panels(x f64, y f64) bool {
+		for panel in w.menu_panels {
 			if x >= panel.x && x <= panel.x + panel.width && y >= panel.y
 				&& y <= panel.y + panel.height {
 				return true
@@ -360,49 +349,49 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 	// menu_bar_handle_down reports whether the press belonged to the bar. Rows
 	// act on release, the way both platform menus do, so a press-drag-release
 	// selects in one gesture.
-	fn menu_bar_handle_down(x f64, y f64) bool {
-		if !menu_bar_drawn() {
+	fn (mut w Window) menu_bar_handle_down(x f64, y f64) bool {
+		if !w.menu_bar_drawn() {
 			return false
 		}
-		if hit := menu_bar_hit_at(x, y) {
+		if hit := w.menu_bar_hit_at(x, y) {
 			if hit.is_title {
-				if menu_bar_open() && g_menu_open_path[0] == hit.path[0] {
-					close_menu_bar()
+				if w.menu_bar_open() && w.menu_open_path[0] == hit.path[0] {
+					w.close_menu_bar()
 				} else {
-					g_menu_open_path = hit.path.clone()
-					g_menu_hover_path = []int{}
+					w.menu_open_path = hit.path.clone()
+					w.menu_hover_path = []int{}
 				}
 			}
-			g_menu_swallow_up = true
+			w.menu_swallow_up = true
 			return true
 		}
-		if menu_bar_open() || y < menu_bar_height() {
-			close_menu_bar()
-			g_menu_swallow_up = true
+		if w.menu_bar_open() || y < w.menu_bar_height() {
+			w.close_menu_bar()
+			w.menu_swallow_up = true
 			return true
 		}
 		return false
 	}
 
-	fn menu_bar_handle_move(x f64, y f64) bool {
-		if !menu_bar_open() {
+	fn (mut w Window) menu_bar_handle_move(x f64, y f64) bool {
+		if !w.menu_bar_open() {
 			return false
 		}
-		hit := menu_bar_hit_at(x, y) or {
-			g_menu_hover_path = []int{}
-			return menu_bar_inside_panels(x, y)
+		hit := w.menu_bar_hit_at(x, y) or {
+			w.menu_hover_path = []int{}
+			return w.menu_bar_inside_panels(x, y)
 		}
 		if hit.is_title {
-			if hit.path[0] != g_menu_open_path[0] {
-				g_menu_open_path = hit.path.clone()
+			if hit.path[0] != w.menu_open_path[0] {
+				w.menu_open_path = hit.path.clone()
 			}
-			g_menu_hover_path = []int{}
+			w.menu_hover_path = []int{}
 			return true
 		}
-		g_menu_hover_path = hit.path.clone()
+		w.menu_hover_path = hit.path.clone()
 		// Hovering a submenu row opens it; hovering a plain one closes the
 		// panels below the row's own, which is what makes nesting navigable.
-		g_menu_open_path = if hit.has_items {
+		w.menu_open_path = if hit.has_items {
 			hit.path.clone()
 		} else {
 			hit.path[..hit.path.len - 1].clone()
@@ -410,32 +399,32 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 		return true
 	}
 
-	fn menu_bar_handle_up(x f64, y f64) bool {
-		swallow := g_menu_swallow_up
-		g_menu_swallow_up = false
-		if !menu_bar_drawn() {
+	fn (mut w Window) menu_bar_handle_up(x f64, y f64) bool {
+		swallow := w.menu_swallow_up
+		w.menu_swallow_up = false
+		if !w.menu_bar_drawn() {
 			return false
 		}
-		if hit := menu_bar_hit_at(x, y) {
+		if hit := w.menu_bar_hit_at(x, y) {
 			if !hit.is_title && hit.enabled && !hit.has_items {
-				close_menu_bar()
-				emit_menu_callback(hit.on_select, hit.id)
+				w.close_menu_bar()
+				w.emit_menu_callback(hit.on_select, hit.id)
 			}
 			return true
 		}
-		return swallow || menu_bar_inside_panels(x, y)
+		return swallow || w.menu_bar_inside_panels(x, y)
 	}
 
 	// menu_bar_handle_key runs Escape and the declared accelerators. It is
 	// asked before the window's own key handler, so a menu shortcut wins over
 	// an app binding on the same chord. A host menu that runs its own key
 	// equivalents has taken the key before the window sees it.
-	fn menu_bar_handle_key(e &gg.Event) bool {
-		if menu_bar_open() && e.key_code == .escape {
-			close_menu_bar()
+	fn (mut w Window) menu_bar_handle_key(e &gg.Event) bool {
+		if w.menu_bar_open() && e.key_code == .escape {
+			w.close_menu_bar()
 			return true
 		}
-		bar_menus := menu_bar()
+		bar_menus := w.menus.bar
 		if bar_menus.len == 0 || host_menu_key_equivalents {
 			return false
 		}
@@ -445,8 +434,8 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 		}
 		for m in bar_menus {
 			item := find_menu_shortcut(m.items, pressed) or { continue }
-			close_menu_bar()
-			emit_menu_callback(item.on_select, item.id)
+			w.close_menu_bar()
+			w.emit_menu_callback(item.on_select, item.id)
 			return true
 		}
 		return false

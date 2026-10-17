@@ -12,7 +12,7 @@ import math
 // Popovers, hover cards and dropdown menus are floating surfaces built from
 // ordinary elements, so they work on every renderer. Build them last, as the
 // final children of the screen, and give them the window rectangle
-// (ui2.bounds()) and their anchor in window coordinates; they place themselves
+// (the window's bounds()) and their anchor in window coordinates; they place themselves
 // from those. On the desktop custom renderer, with_overlay can present
 // application content in the window's overlay layer instead.
 
@@ -193,7 +193,7 @@ pub:
 	id     string
 	open   bool
 	anchor Rect // The trigger, in window coordinates.
-	window Rect // Pass ui2.bounds().
+	window Rect // Pass the window's bounds().
 	width  f64          = 240 // Surface size, padding included.
 	height f64          = 120
 	side   PopoverSide  = .bottom
@@ -496,7 +496,7 @@ pub:
 	id       string
 	state    HoverCardState
 	anchor   Rect // The trigger, in window coordinates.
-	window   Rect // Pass ui2.bounds().
+	window   Rect // Pass the window's bounds().
 	width    f64          = 280
 	height   f64          = 96
 	side     PopoverSide  = .bottom

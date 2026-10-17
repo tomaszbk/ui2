@@ -11,51 +11,51 @@ fn activated(event ui.ElementEvent) {
 	activations++
 	last_action = '${event.id}: ${event.kind} (${activations})'
 	println('activate ${event.id} count=${activations}')
-	ui.request_refresh()
+	event.window.request_refresh()
 }
 
 fn changed(event ui.ElementEvent) {
 	println('edit ${event.id}: ${event.text}')
 }
 
-fn enter_panel(_event ui.ElementEvent) {
-	ui.enter_focus_scope('panel')
+fn enter_panel(event ui.ElementEvent) {
+	event.window.enter_focus_scope('panel')
 	last_action = 'Panel scope: Tab wraps; Escape restores the previous focus.'
-	ui.request_refresh()
+	event.window.request_refresh()
 }
 
-fn leave_panel(_event ui.ElementEvent) {
-	ui.leave_focus_scope()
-	last_action = 'Restored focus: ${ui.focused_id()}'
-	ui.request_refresh()
+fn leave_panel(event ui.ElementEvent) {
+	event.window.leave_focus_scope()
+	last_action = 'Restored focus: ${event.window.focused_id()}'
+	event.window.request_refresh()
 }
 
 fn key(event ui.KeyEvent) {
 	if event.code in [.tab, .enter, .space] { println('key ${event.code} shift=${event.shift}') }
-	if event.code == .escape && ui.active_focus_scope().len > 0 {
-		leave_panel(ui.ElementEvent{})
-		ui.consume_key()
+	if event.code == .escape && event.window.active_focus_scope().len > 0 {
+		leave_panel(ui.ElementEvent{ window: event.window })
+		event.window.consume_key()
 	}
 	// F2 updates an unrelated label while editing. F3 replaces text explicitly.
 	if event.code == .f2 {
 		unrelated++
-		println('refresh focus=${ui.focused_id()} text=${ui.text('editor')}')
-		ui.request_refresh()
-		ui.consume_key()
+		println('refresh focus=${event.window.focused_id()} text=${event.window.text('editor')}')
+		event.window.request_refresh()
+		event.window.consume_key()
 	}
 	if event.code == .f3 {
-		ui.set_text('editor', 'Replaced: ñ / á')
-		ui.consume_key()
+		event.window.set_text('editor', 'Replaced: ñ / á')
+		event.window.consume_key()
 	}
 	// F4 prints the portable hooks and focus; useful in native and custom mode.
 	if event.code == .f4 {
-		println('focus=${ui.focused_id()} scope=${ui.active_focus_scope()} scroll=${ui.scroll_offset('list')}')
-		for node in ui.semantic_tree() {
+		println('focus=${event.window.focused_id()} scope=${event.window.active_focus_scope()} scroll=${event.window.scroll_offset('list')}')
+		for node in event.window.semantic_tree() {
 			if node.id.len > 0 {
 				println('semantic ${node.id}: ${node.role} name=${node.name} value=${node.value} focused=${node.state.focused}')
 			}
 		}
-		ui.consume_key()
+		event.window.consume_key()
 	}
 }
 
@@ -64,7 +64,7 @@ fn navigation_button(id string, title string, x f64, y f64, callback ui.ElementC
 		ui.BoxStyle{ bg: 0xe2e8f0, radius: 6 }, ui.TextStyle{ size: 14, color: 0x0f172a }), callback)
 }
 
-fn build() ui.Element {
+fn build(mut w ui.Window) ui.Element {
 	mut rows := []ui.Element{}
 	for i in 0 .. 8 {
 		rows << navigation_button('row-${i}', 'Mounted row ${i + 1}', 8, f64(i * 48 + 8), activated)
@@ -97,6 +97,13 @@ fn build() ui.Element {
 }
 
 fn main() {
-	ui.on_key_event(key)
-	ui.run_window('UI2 Focus Navigation', 720, 470, build)
+	mut app := ui.new_app()
+	mut window := app.new_window(
+		title:  'UI2 Focus Navigation'
+		width:  720
+		height: 470
+		build:  build
+	) or { panic(err) }
+	window.on_key_event(key)
+	app.run()
 }

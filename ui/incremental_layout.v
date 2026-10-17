@@ -46,6 +46,9 @@ pub struct LayoutEnvironment {
 	backend_font_version    u64
 	backend_measure_version u64
 	backend_context_version u64
+	// backend_context is set when the window measuring with this environment
+	// supplied its own text context generation in backend_context_version.
+	backend_context bool
 pub:
 	version      u64
 	font_version u64
@@ -81,14 +84,14 @@ mut:
 	version         u64
 	subtree_version u64
 	// Reconciled declarations are compared in place; keys are never formatted.
-	mounted         bool
-	seen            u64
-	metric_flags    u8
-	exterior_fixed  bool
-	own_revision    u64
-	children        []string
-	declaration     Element
-	input           Rect
+	mounted        bool
+	seen           u64
+	metric_flags   u8
+	exterior_fixed bool
+	own_revision   u64
+	children       []string
+	declaration    Element
+	input          Rect
 	// Measurements are valid for this node's version and the tree environment;
 	// both changes clear them, so constraints alone select an entry.
 	measures        []LayoutMeasure
@@ -108,8 +111,8 @@ mut:
 	// Authored and effective/resolved state have independent invalidation.
 	authored_snapshot &Element = unsafe { nil }
 	output_snapshot   &Element = unsafe { nil }
-	authored_dirty    bool = true
-	output_dirty      bool = true
+	authored_dirty    bool     = true
+	output_dirty      bool     = true
 	output_enabled    bool
 	output_index      int
 }
@@ -137,14 +140,14 @@ fn layout_measure_store(mut entries []LayoutMeasure, constraints LayoutConstrain
 @[heap]
 pub struct LayoutTree {
 mut:
-	nodes       map[string]&RetainedLayoutNode
-	root        string
-	serial      u64
-	revision    u64
-	pass        u64
-	environment LayoutEnvironment
-	measurer    LayoutTextMeasureFn = unsafe { nil }
-	counters    LayoutStats
+	nodes             map[string]&RetainedLayoutNode
+	root              string
+	serial            u64
+	revision          u64
+	pass              u64
+	environment       LayoutEnvironment
+	measurer          LayoutTextMeasureFn = unsafe { nil }
+	counters          LayoutStats
 	geometry_snapshot &Element = unsafe { nil }
 	// Portal reflow publishes only its final window-layer geometry, never the
 	// intermediate local origin used while measuring its surface.
@@ -206,7 +209,9 @@ pub fn (mut tree LayoutTree) patch_compiled(owner &CompiledVmlNode, element Elem
 	mut target := unsafe { &RetainedLayoutNode(nil) }
 	for _, node in tree.nodes {
 		if node.declaration.compiled_node == owner {
-			if target != unsafe { nil } { return error('compiled declaration is mounted more than once') }
+			if target != unsafe { nil } {
+				return error('compiled declaration is mounted more than once')
+			}
 			target = node
 		}
 	}
@@ -244,7 +249,9 @@ fn (mut tree LayoutTree) patch_identity(target &RetainedLayoutNode, element Elem
 			parent_node := tree.nodes[ancestor] or { return error('missing layout ancestor') }
 			ancestor = parent_node.parent
 		}
-		if !replaced { return error('duplicate element id `${existing.declaration.id}` outside patched subtree') }
+		if !replaced {
+			return error('duplicate element id `${existing.declaration.id}` outside patched subtree')
+		}
 	}
 	mut retired := []string{}
 	tree.subtree_identities(target.identity, mut retired)
@@ -320,7 +327,9 @@ fn layout_metrics_equal(a Element, b Element) bool {
 	}
 	for i, run in a.text_runs {
 		other := b.text_runs[i]
-		if run.text != other.text || layout_metric_style(run.style) != layout_metric_style(other.style) { return false }
+		if run.text != other.text || layout_metric_style(run.style) != layout_metric_style(other.style) {
+			return false
+		}
 	}
 	return a.layout == b.layout
 }
@@ -391,7 +400,11 @@ fn (mut tree LayoutTree) reconcile(element Element, known string, parent string)
 	own_changed := !own_same || !children_same
 	// A fixed exterior depends only on its frame and visibility.
 	exterior_same := node.mounted && fixed == node.exterior_fixed
-		&& (if fixed { input == node.input && element.hidden == node.declaration.hidden } else { own_same })
+		&& (if fixed {
+			input == node.input && element.hidden == node.declaration.hidden
+		} else {
+			own_same
+		})
 	// Fixed leaves paint new content without changing any geometry dependency.
 	geometry_changed := own_changed && !(fixed && children.len == 0 && exterior_same)
 	if geometry_changed || changed_below {
@@ -454,7 +467,9 @@ pub fn (mut tree LayoutTree) resolve(constraints LayoutConstraints, measure Layo
 			output := tree.output(tree.root, true, 'root', '')
 			if tree.geometry_readonly { return output }
 			output_root := tree.nodes[tree.root] or { return error('missing root') }
-			if voidptr(tree.geometry_snapshot) == voidptr(output_root.output_snapshot) { return output }
+			if voidptr(tree.geometry_snapshot) == voidptr(output_root.output_snapshot) {
+				return output
+			}
 			updates := compiled_vml_sync_geometry(output)!
 			if updates.len > 0 {
 				for updated in updates { tree.patch_compiled(updated.compiled_node, updated)! }
@@ -509,8 +524,16 @@ fn (mut tree LayoutTree) measure_node(identity string, constraints LayoutConstra
 		// Authored dimensions are preferences. Measure dependent content using
 		// the dimensions accepted by the parent, before deriving intrinsic size.
 		assigned := constraints.constrain(LayoutSize{
-			width:  if layout_authored_width(node.declaration) { input.width } else { math.max(0.0, constraints.max_width) }
-			height: if layout_authored_height(node.declaration) { input.height } else { math.max(0.0, constraints.max_height) }
+			width:  if layout_authored_width(node.declaration) {
+				input.width
+			} else {
+				math.max(0.0, constraints.max_width)
+			}
+			height: if layout_authored_height(node.declaration) {
+				input.height
+			} else {
+				math.max(0.0, constraints.max_height)
+			}
 		})!
 		mut available := rect(0, 0, assigned.width, assigned.height)
 		sizes := tree.child_sizes(node, available,
@@ -522,7 +545,11 @@ fn (mut tree LayoutTree) measure_node(identity string, constraints LayoutConstra
 		}
 		frames, natural := tree.container_geometry(node, available, sizes, true, constraints)!
 		_ = frames
-		accepted_width := layout_constrain_axis(if layout_authored_width(node.declaration) { input.width } else { natural.width },
+		accepted_width := layout_constrain_axis(if layout_authored_width(node.declaration) {
+			input.width
+		} else {
+			natural.width
+		},
 			constraints.min_width, constraints.max_width)
 		mut intrinsic_height := natural.height
 		if accepted_width != available.width {
@@ -536,7 +563,11 @@ fn (mut tree LayoutTree) measure_node(identity string, constraints LayoutConstra
 		}
 		preferred = constraints.constrain(LayoutSize{
 			width:  accepted_width
-			height: if layout_authored_height(node.declaration) { input.height } else { intrinsic_height }
+			height: if layout_authored_height(node.declaration) {
+				input.height
+			} else {
+				intrinsic_height
+			}
 		})!
 	}
 	layout_measure_store(mut node.measures, constraints, preferred)
@@ -566,8 +597,8 @@ fn (mut tree LayoutTree) child_sizes(node &RetainedLayoutNode, available Rect, f
 			&& fixed_height && available.height > 0
 			&& (node.declaration.kind != .scroll || node.declaration.scroll_mode == .horizontal_only)
 		size := tree.measure_node(child, LayoutConstraints{
-			min_width: if inherit_width { available.width } else { 0 }
-			max_width: if inherit_width { available.width } else { maximum }
+			min_width:  if inherit_width { available.width } else { 0 }
+			max_width:  if inherit_width { available.width } else { maximum }
 			min_height: if inherit_height { available.height } else { 0 }
 			max_height: if inherit_height { available.height } else { -1 }
 		})!
@@ -579,7 +610,9 @@ fn (mut tree LayoutTree) child_sizes(node &RetainedLayoutNode, available Rect, f
 fn (tree &LayoutTree) width_depends_on_height(node &RetainedLayoutNode) bool {
 	if layout_authored_width(node.declaration) || node.declaration.hidden { return false }
 	if node.declaration.layout.kind == .flex && node.declaration.layout.flex.orientation == .vertical
-		&& node.declaration.layout.flex.wrap { return true }
+		&& node.declaration.layout.flex.wrap {
+		return true
+	}
 	if node.declaration.layout.kind in [.flex, .grid, .stack] {
 		for child in node.children {
 			child_node := tree.nodes[child] or { return false }
@@ -634,7 +667,9 @@ fn (mut tree LayoutTree) container_geometry(node &RetainedLayoutNode, available 
 	mut active_stack := []StackRule{}
 	for index, child in node.children {
 		retained := tree.nodes[child] or { return error('missing leaving layout child') }
-		if retained.declaration.presence_exiting() || retained.declaration.overlay != none { continue }
+		if retained.declaration.presence_exiting() || retained.declaration.overlay != none {
+			continue
+		}
 		children << child
 		active_sizes << sizes[index]
 		indices << index
@@ -686,15 +721,27 @@ fn (mut tree LayoutTree) container_geometry_active(node &RetainedLayoutNode, ava
 			// keep their own extent, including explicit zero and clipped overflow.
 			fill_width := node.declaration.scroll_mode == .vertical_only && !layout_authored_width(child_node.declaration)
 			fill_height := node.declaration.scroll_mode == .horizontal_only && !layout_authored_height(child_node.declaration)
-			content_width := if fill_width { math.max(0.0, available.width - sizes[i].x) } else { sizes[i].width }
-			allocated_height := if fill_height { math.max(0.0, available.height - sizes[i].y) } else { sizes[i].height }
+			content_width := if fill_width {
+				math.max(0.0, available.width - sizes[i].x)
+			} else {
+				sizes[i].width
+			}
+			allocated_height := if fill_height {
+				math.max(0.0, available.height - sizes[i].y)
+			} else {
+				sizes[i].height
+			}
 			measured := tree.measure_node(child, LayoutConstraints{
-				min_width: if fill_width { content_width } else { 0 }
-				max_width: if fill_width { content_width } else { -1 }
+				min_width:  if fill_width { content_width } else { 0 }
+				max_width:  if fill_width { content_width } else { -1 }
 				min_height: if fill_height { allocated_height } else { 0 }
 				max_height: if fill_height { allocated_height } else { -1 }
 			})!
-			frame := rect(sizes[i].x, sizes[i].y, if fill_width { content_width } else { measured.width },
+			frame := rect(sizes[i].x, sizes[i].y, if fill_width {
+				content_width
+			} else {
+				measured.width
+			},
 				if fill_height { allocated_height } else { measured.height })
 			frames << frame
 			width = math.max(width, frame.x + frame.width)
@@ -901,7 +948,11 @@ fn (mut tree LayoutTree) place_node(identity string, frame Rect) ! {
 fn (mut tree LayoutTree) output(identity string, parent_enabled bool, path string, parent_path string) Element {
 	mut node := tree.nodes[identity] or { return Element{} }
 	enabled := parent_enabled && node.declaration.enabled
-	previous := if node.output_snapshot == unsafe { nil } { unsafe { &ElementMount(nil) } } else { node.output_snapshot.mount }
+	previous := if node.output_snapshot == unsafe { nil } {
+		unsafe { &ElementMount(nil) }
+	} else {
+		node.output_snapshot.mount
+	}
 	if !node.output_dirty && node.output_enabled == enabled && node.output_snapshot != unsafe { nil }
 		&& previous != unsafe { nil } && previous.path == path {
 		return *node.output_snapshot
@@ -910,12 +961,18 @@ fn (mut tree LayoutTree) output(identity string, parent_enabled bool, path strin
 	mut children := []Element{cap: node.children.len}
 	for i, child in node.children {
 		mut child_node := tree.nodes[child] or { panic('missing layout child') }
-		child_mount := if child_node.output_snapshot == unsafe { nil } { unsafe { &ElementMount(nil) } } else { child_node.output_snapshot.mount }
+		child_mount := if child_node.output_snapshot == unsafe { nil } {
+			unsafe { &ElementMount(nil) }
+		} else {
+			child_node.output_snapshot.mount
+		}
 		child_path := if child_mount != unsafe { nil } && child_mount.parent_path == path
 			&& child_node.output_snapshot.key == child_node.declaration.key
 			&& (child_node.declaration.key.len > 0 || child_node.declaration.compiled_node != unsafe { nil } || child_node.output_index == i) {
 			child_mount.path
-		} else { authored_child_key(path, i, child_node.declaration) }
+		} else {
+			authored_child_key(path, i, child_node.declaration)
+		}
 		children << tree.output(child, enabled, child_path, path)
 		child_node.output_index = i
 	}
@@ -923,12 +980,16 @@ fn (mut tree LayoutTree) output(identity string, parent_enabled bool, path strin
 		&& node.output_snapshot.id == node.declaration.id && node.output_snapshot.key == node.declaration.key
 		&& previous.path == path {
 		previous.scroll_id
-	} else { authored_scroll_state_id(node.declaration, path) }
+	} else {
+		authored_scroll_state_id(node.declaration, path)
+	}
 	cached_tooltip_key := if previous != unsafe { nil } && node.output_snapshot.kind == node.declaration.kind
 		&& node.output_snapshot.id == node.declaration.id
 		&& (node.declaration.id.len > 0 || previous.path == path) {
 		previous.tooltip_key
-	} else { authored_tooltip_key(node.declaration, path) }
+	} else {
+		authored_tooltip_key(node.declaration, path)
+	}
 	// A declaration that was itself an output (a portal surface) keeps its
 	// overlay presentation; the layout tree owns only the mount identity.
 	declared := node.declaration.mount
@@ -948,8 +1009,8 @@ fn (mut tree LayoutTree) output(identity string, parent_enabled bool, path strin
 }
 
 struct LayoutPatch {
-	id      string
-	element Element
+	id       string
+	element  Element
 	compiled &CompiledVmlNode = unsafe { nil }
 	serial   u64
 	// document marks a compiled document's own publication.
@@ -963,7 +1024,9 @@ pub fn (mut tree LayoutTree) declaration() Element {
 
 fn (mut tree LayoutTree) authored(identity string) Element {
 	mut node := tree.nodes[identity] or { return Element{} }
-	if !node.authored_dirty && node.authored_snapshot != unsafe { nil } { return *node.authored_snapshot }
+	if !node.authored_dirty && node.authored_snapshot != unsafe { nil } {
+		return *node.authored_snapshot
+	}
 	tree.counters.authored_visits++
 	mut children := []Element{cap: node.children.len}
 	for child in node.children { children << tree.authored(child) }

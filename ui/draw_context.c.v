@@ -59,6 +59,20 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 			submitted_polygon   fn ([]PaintVertex) = unsafe { nil }
 			ft                  &gg.FT             = unsafe { nil }
 			font_inited         bool
+			// The symbol fallback faces loaded into ft's fontstash context, and
+			// the fonts they are attached to (ui_text_fontstash.c.v). Sokol
+			// builds a new context when the window is recreated, so they are
+			// tracked against the context they came from.
+			symbol_fons         voidptr
+			symbol_font_ids     []int
+			symbol_font_bases   map[int]bool
+			// The metrics of the regular face, and the font files resolved for
+			// declared families with their metrics.
+			font_metrics        FontMetrics
+			font_files          map[string]string
+			font_indexed        bool
+			font_family_files   map[string]string
+			font_family_metrics map[string]FontMetrics
 			owns_surface        bool
 			gl_context          sgl.Context
 			swapchain           gfx.Swapchain
@@ -106,6 +120,10 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 		}
 	}
 
+	// sokol_gfx and sokol_gl keep their device in process-global C state, set
+	// up once by gfx.setup and torn down once by gfx.shutdown. These count the
+	// drawing contexts that share it and remember the environment it was set
+	// up with, so they are as process-wide as the device they track.
 	__global g_draw_device_users = 0
 	__global g_draw_device_environment = gfx.Environment{}
 	const draw_context_pool_size = 64
@@ -501,7 +519,6 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 	fn (mut ctx DrawContext) destroy() {
 		if ctx.destroyed || ctx.destroying { return }
 		ctx.destroying=true
-		if g_gg_app.ctx==&ctx { cancel_touch() }
 		ctx.activate()
 		$if !(android || ios) {
 			if ctx.text_renderer != unsafe { nil } { ctx.text_renderer.free() }

@@ -149,35 +149,35 @@ fn accent_track_width(frame ui2.Rect) f64 {
 
 fn accent_color_callbacks() map[string]ui2.ElementCallback {
 	return {
-		'reset':        fn (_event ui2.ElementEvent) {
+		'reset':        fn (event ui2.ElementEvent) {
 			mut state := unsafe { accent_color_state }
 			state.reset()
-			ui2.request_refresh()
+			event.window.request_refresh()
 		}
 		'subscribe':    fn (event ui2.ElementEvent) {
 			mut state := unsafe { accent_color_state }
 			state.subscribed = event.checked
-			ui2.request_refresh()
+			event.window.request_refresh()
 		}
 		'sample_input': fn (event ui2.ElementEvent) {
 			mut state := unsafe { accent_color_state }
 			state.sample = event.text
-			ui2.request_refresh()
+			event.window.request_refresh()
 		}
 		'track_red':    fn (event ui2.ElementEvent) {
 			mut state := unsafe { accent_color_state }
-			state.track_channel('red', event, accent_track_width(ui2.bounds()))
-			ui2.request_refresh()
+			state.track_channel('red', event, accent_track_width(event.window.bounds()))
+			event.window.request_refresh()
 		}
 		'track_green':  fn (event ui2.ElementEvent) {
 			mut state := unsafe { accent_color_state }
-			state.track_channel('green', event, accent_track_width(ui2.bounds()))
-			ui2.request_refresh()
+			state.track_channel('green', event, accent_track_width(event.window.bounds()))
+			event.window.request_refresh()
 		}
 		'track_blue':   fn (event ui2.ElementEvent) {
 			mut state := unsafe { accent_color_state }
-			state.track_channel('blue', event, accent_track_width(ui2.bounds()))
-			ui2.request_refresh()
+			state.track_channel('blue', event, accent_track_width(event.window.bounds()))
+			event.window.request_refresh()
 		}
 	}
 }

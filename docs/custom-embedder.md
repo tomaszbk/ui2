@@ -11,7 +11,7 @@ other OS keeps its sokol window.
 v -d ui2_embedder run examples/text_input
 ```
 
-`run_window` and the VML runners use the owned host under this define. The
+`App` and the VML runners use the owned host under this define. The
 host builds and paints on demand; no render policy configuration is required.
 It installs the same native menu bar and status item as the sokol host, plus a
 standard Edit menu whose Cut, Copy, Paste and Select All rows its text view
@@ -20,11 +20,12 @@ answers.
 ## Window ownership and scheduling
 
 ```v
-first := ui2.open_window('First', 600, 400, build_first)!
-second := ui2.open_window('Second', 600, 400, build_second)!
+mut app := ui2.new_app()
+mut first := app.new_window(title: 'First', width: 600, height: 400, build: build_first)!
+mut second := app.new_window(title: 'Second', width: 600, height: 400, build: build_second)!
 dispatcher := first.dispatcher()
 // Pass dispatcher to a worker; apply its result inside dispatcher.post(...).
-ui2.run_windows()
+app.run()
 ```
 
 Each window owns its coordinator, declared tree, editor/focus/selection state,
@@ -32,16 +33,17 @@ scroll positions, input capture, menus, tooltips, motion, images and font
 atlas. Element ids may be identical in different windows. Windows share the Metal
 device; the Sokol renderer resources shut down after the final drawing context closes.
 
-Builders, events and worker callbacks execute with their own window active.
-Existing APIs such as `bounds`, `text`, `focus` and `request_refresh` address
-that window, and motion handles wake the window that shows their element. On the main thread, `window.update(fn () { ... })` scopes a
-callback to a chosen window, restoring the caller's context even with nested
-callbacks. It requests an update and returns false for a closed window or a
-non-main-thread caller. Workers use the captured dispatcher instead. A closed
-dispatcher rejects posts and never redirects them to a replacement window.
+There is no active window. A builder receives its window (`fn (mut w
+ui2.Window) ui2.Element`), and element, key and drop events carry the window
+they happened in as `event.window`. `bounds`, `text`, `focus`,
+`request_refresh` and the other window functions are methods of the window
+they act on, and motion handles wake the window that shows their element. On
+the main thread any window can be called directly, from any window's
+callbacks. Workers use the captured dispatcher instead. A closed dispatcher
+rejects posts and never redirects them to a replacement window.
 
-`window.close()` closes that window; `quit()` closes the active window. The
-host loop exits after all windows close. A close inside a callback cancels
+`window.quit()` closes that window. `app.run()` returns after all its windows
+close. A close inside a callback cancels
 pending work immediately and defers renderer resource destruction until its
 outer callback returns. `native_handle()` returns a borrowed NSWindow for
 main-thread platform integrations while the window remains open.
@@ -155,19 +157,16 @@ On macOS/Metal with the default GC:
   script's array-slice syntax. Direct compilation of text_input, users and
   dropdown with the embedder, plus legacy custom text_input, passed.
 
-## Suggested contract evolution before 1.0
+## Window context
 
-Prefer an explicit window context for new integrations: a window handle owns
-updates, dispatch, metrics and resources, while application lifecycle owns
-the collection of windows. Keep `run_window` as a convenience entry point.
-The independent view/metrics boundary in modern embedders is also illustrated
-by [FlutterWindowsView](https://api.flutter.dev/windows-embedder/classflutter_1_1_flutter_windows_view.html).
-
-UI2 scopes global helpers at callback boundaries so they act on the active
-window. A future builder/event API receiving a window context
-would allow those helpers to become context methods and remove that internal
-activation boundary. This is a proposal for the creator, not an implicit
-change to existing VML bindings or handler signatures.
+Every window is an explicit context: a `Window` owns updates, dispatch,
+metrics and resources, and the `App` owns the collection of windows.
+`run_window` remains a convenience entry point that opens one window and runs
+it. The independent view/metrics boundary in modern embedders is also
+illustrated by
+[FlutterWindowsView](https://api.flutter.dev/windows-embedder/classflutter_1_1_flutter_windows_view.html).
+The host's native callbacks name their window through their opaque userData,
+so no window state is swapped in or out around a callback.
 
 Compiled VML shares the same window ownership. Its callbacks retain typed
 application and component contexts; component scopes own signals and cleanup.

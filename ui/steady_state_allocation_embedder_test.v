@@ -35,9 +35,6 @@ fn test_grouped_retained_idle_hover_and_counter_tick_allocation_budgets() ! {
 
 fn run_retained_allocation_fixture(grouped bool) ! {
 	$if macos && ui2_embedder ?&& !ui2_headless ? {
-		previous_app := g_gg_app
-		previous_build := g_build_screen
-		previous_state := activate_custom_window_state(new_custom_window_state())
 		mut ctx := new_surface_draw_context(gg.Config{ width: 1000, height: 700 }, allocation_fixture_environment())!
 		window := C.ui2_embedder_create(&C.ui2_embedder_config{ title: c'Allocation acceptance', width: 1000, height: 700, visible: false }, &C.ui2_embedder_callbacks{}, unsafe { nil })
 		assert window != unsafe { nil }
@@ -46,12 +43,8 @@ fn run_retained_allocation_fixture(grouped bool) ! {
 			component.dispose() or { panic(err) }
 			C.ui2_embedder_close(window)
 			ctx.destroy()
-			activate_custom_window_state(previous_state)
-			g_build_screen = previous_build
-			g_gg_app = previous_app
 		}
-		g_build_screen = unsafe { nil }
-		g_gg_app = &GgApp{ ctx: ctx, native_window: window, has_root: true }
+		mut w := &Window{ ctx: ctx, native_window: window, has_root: true }
 		mount_watch := time.new_stopwatch()
 		before_mount := gc_allocation_snapshot()!
 		mut root := component.element(Element{ ...screen(0xffffff, []), id: 'root', frame: rect(0, 0, 1000, 700) })!
@@ -80,9 +73,9 @@ fn run_retained_allocation_fixture(grouped bool) ! {
 			children << static_children
 		}
 		root.set_children(children)!
-		g_gg_app.declared_root = root.element()
+		w.declared_root = root.element()
 		root.mount()!
-		on_frame(mut g_gg_app)
+		on_frame(mut w)
 		assert ctx.text.shape_builds >= u64(allocation_fixture_labels + 2)
 		mount_delta := gc_allocation_snapshot()!.delta_since(before_mount)
 		mount_elapsed := mount_watch.elapsed()
@@ -92,32 +85,32 @@ fn run_retained_allocation_fixture(grouped bool) ! {
 		outside := gg.Event{ typ: .mouse_move, mouse_x: 900, mouse_y: 15 }
 		for i in 0 .. 8 {
 			value.set(if i % 2 == 0 { 'tick B' } else { 'tick A' })!
-			on_event(if i % 2 == 0 { &inside } else { &outside }, g_gg_app)
-			on_frame(mut g_gg_app)
+			on_event(if i % 2 == 0 { &inside } else { &outside }, mut w)
+			on_frame(mut w)
 		}
-		assert hit_test(450, 15).id == children[1].element().id
+		assert w.hit_test(450, 15).id == children[1].element().id
 		iterations := if os.getenv('UI2_ALLOCATION_FRAMES').int() > 0 {
 			os.getenv('UI2_ALLOCATION_FRAMES').int()
 		} else {
 			120
 		}
 		// Keep snapshots and the stopwatch on the stack; report after sampling.
-		idle_stats := g_gg_app.scheduler.stats()
+		idle_stats := w.scheduler.stats()
 		mut watch := time.new_stopwatch()
 		idle_before := gc_allocation_snapshot()!
-		for _ in 0 .. iterations { on_frame(mut g_gg_app) }
+		for _ in 0 .. iterations { on_frame(mut w) }
 		idle_delta := gc_allocation_snapshot()!.delta_since(idle_before)
 		idle_elapsed := watch.elapsed()
-		assert g_gg_app.scheduler.stats().draws == idle_stats.draws
+		assert w.scheduler.stats().draws == idle_stats.draws
 		watch.restart()
 		hover_before := gc_allocation_snapshot()!
 		for i in 0 .. iterations {
-			on_event(if i % 2 == 0 { &inside } else { &outside }, g_gg_app)
-			on_frame(mut g_gg_app)
+			on_event(if i % 2 == 0 { &inside } else { &outside }, mut w)
+			on_frame(mut w)
 		}
 		hover_delta := gc_allocation_snapshot()!.delta_since(hover_before)
 		hover_elapsed := watch.elapsed()
-		hover_stats := g_gg_app.scheduler.stats()
+		hover_stats := w.scheduler.stats()
 		assert hover_stats.draws == idle_stats.draws + u64(iterations)
 		assert hover_stats.builds == idle_stats.builds
 		watch.restart()
@@ -126,7 +119,7 @@ fn run_retained_allocation_fixture(grouped bool) ! {
 		mut tick_peak_bytes := u64(0)
 		for i in 0 .. iterations {
 			value.set(if i % 2 == 0 { 'tick B' } else { 'tick A' })!
-			on_frame(mut g_gg_app)
+			on_frame(mut w)
 			tick_now := gc_allocation_snapshot()!
 			tick_bytes := tick_now.delta_since(tick_last).allocated_bytes
 			if tick_bytes > tick_peak_bytes { tick_peak_bytes = tick_bytes }
@@ -134,11 +127,11 @@ fn run_retained_allocation_fixture(grouped bool) ! {
 		}
 		tick_delta := gc_allocation_snapshot()!.delta_since(tick_before)
 		tick_elapsed := watch.elapsed()
-		tick_stats := g_gg_app.scheduler.stats()
+		tick_stats := w.scheduler.stats()
 		assert tick_stats.draws == hover_stats.draws + u64(iterations)
 		assert tick_stats.builds == hover_stats.builds
-		assert g_focus_navigation.node(last_label_id) != none
-		assert hit_test(450, 15).id == children[1].element().id
+		assert w.navigation.node(last_label_id) != none
+		assert w.hit_test(450, 15).id == children[1].element().id
 		name := if grouped { 'grouped' } else { 'flat' }
 		allocation_fixture_report('${name}/mount', mount_delta, 1, mount_elapsed)
 		allocation_fixture_report('${name}/idle', idle_delta, iterations, idle_elapsed)

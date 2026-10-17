@@ -17,7 +17,7 @@ fn main() {
 fn camera_event(event ui2.ElementEvent) {
 	if event.kind !in [.pointer_down, .pointer_drag, .pointer_up] { return }
 	if event.kind == .pointer_up { dragging = false }
-	geometry := ui2.mounted_geometry('camera') or { return }
+	geometry := event.window.mounted_geometry('camera') or { return }
 	window := geometry.transform.point(event.x, event.y)
 	if event.kind == .pointer_down { dragging = true }
 	if event.kind == .pointer_drag && dragging {
@@ -27,21 +27,21 @@ fn camera_event(event ui2.ElementEvent) {
 	pointer_window = window
 	has_pointer = true
 	// Even pointer-down/up are presentation-only callbacks.
-	ui2.set_visual_transform('camera', camera.transform()) or { eprintln(err) }
+	event.window.set_visual_transform('camera', camera.transform()) or { eprintln(err) }
 }
 
-fn zoom(factor f64) {
+fn zoom(mut w ui2.Window, factor f64) {
 	mut anchor := ui2.Point{200, 140}
 	if has_pointer {
-		geometry := ui2.mounted_geometry('camera') or { return }
+		geometry := w.mounted_geometry('camera') or { return }
 		x, y := geometry.parent_transform.inverse(pointer_window.x, pointer_window.y)
 		anchor = ui2.Point{x - geometry.frame.x, y - geometry.frame.y}
 	}
 	camera = camera.zoom_at(math.clamp(camera.zoom * factor, 0.4, 3.0), anchor) or { return }
-	ui2.set_visual_transform('camera', camera.transform()) or { eprintln(err) }
+	w.set_visual_transform('camera', camera.transform()) or { eprintln(err) }
 }
 
-fn build() ui2.Element {
+fn build(mut w ui2.Window) ui2.Element {
 	style := ui2.TextStyle{ size: 17, color: 0x17233c }
 	mut rows := []ui2.Element{}
 	for i in 0 .. 12 {
@@ -86,10 +86,10 @@ fn build() ui2.Element {
 		ui2.label('heading', 'Affine presentation · exact clips · logical layout', ui2.rect(24, 16, 840, 34), ui2.TextStyle{ ...style, size: 25, weight: 700 }),
 		slide,
 		ui2.with_event(ui2.button('zoom-in', 'Zoom +', ui2.rect(24, 610, 110, 38), ui2.BoxStyle{ bg: 0xdbeafe, radius: 6 }, style), fn (event ui2.ElementEvent) {
-			if event.kind == .click { zoom(1.2) }
+			if event.kind == .click { zoom(mut event.window, 1.2) }
 		}),
 		ui2.with_event(ui2.button('zoom-out', 'Zoom −', ui2.rect(148, 610, 110, 38), ui2.BoxStyle{ bg: 0xdbeafe, radius: 6 }, style), fn (event ui2.ElementEvent) {
-			if event.kind == .click { zoom(1 / 1.2) }
+			if event.kind == .click { zoom(mut event.window, 1 / 1.2) }
 		}),
 		ui2.label('hint', 'Drag blue canvas. Wheel follows the rotated scroll axis. Type / select in both editors.', ui2.rect(282, 608, 612, 52), ui2.TextStyle{ ...style, size: 14, lines: 2 }),
 	])

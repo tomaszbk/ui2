@@ -7,14 +7,7 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? {
 	}
 
 	fn test_anonymous_property_effect_patches_custom_layout_without_building_or_exposing_id() ! {
-		previous_app := g_gg_app
-		previous_window := capture_custom_window_state()
-		defer {
-			g_gg_app = previous_app
-			previous_window.restore()
-		}
-		mut app := &GgApp{ scheduler: new_frame_coordinator() }
-		g_gg_app = app
+		mut w := &Window{}
 		mut owner := new_vml_document('anonymous custom')!
 		defer { owner.dispose() or { panic(err) } }
 		mut root := owner.element(Element{ kind: .screen, frame: rect(0, 0, 200, 100) },
@@ -28,22 +21,22 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? {
 			return Element{ ...element, text: text.get()! }
 		})!
 		root.set_children([label])!
-		app.declared_root = root.element()
-		initial := app.scheduler.begin_frame(0) or { panic('missing initial frame') }
-		resolve_custom_layout(mut app, initial, anonymous_retained_measure, take_custom_layout_patches(mut app))!
-		app.scheduler.finish_frame(initial)
+		w.declared_root = root.element()
+		initial := w.scheduler.begin_frame(0) or { panic('missing initial frame') }
+		w.resolve_custom_layout(initial, anonymous_retained_measure, w.take_custom_layout_patches())!
+		w.scheduler.finish_frame(initial)
 		root.mount()!
-		app.layout_tree.reset_stats()
+		w.layout_tree.reset_stats()
 		text.set('Después')!
-		assert app.layout_patches.len == 1
-		assert app.layout_patches[0].compiled == label
-		work := app.scheduler.begin_frame(1) or { panic('missing property frame') }
+		assert w.layout_patches.len == 1
+		assert w.layout_patches[0].compiled == label
+		work := w.scheduler.begin_frame(1) or { panic('missing property frame') }
 		assert !work.build
-		resolved := resolve_custom_layout(mut app, work, anonymous_retained_measure, take_custom_layout_patches(mut app))!
-		app.scheduler.finish_frame(work)
+		resolved := w.resolve_custom_layout(work, anonymous_retained_measure, w.take_custom_layout_patches())!
+		w.scheduler.finish_frame(work)
 		assert resolved.children[0].text == 'Después'
 		assert resolved.children[0].id == '' && resolved.id == ''
-		assert app.layout_tree.stats().builds == 0
-		assert !app.scheduler.stats().pending
+		assert w.layout_tree.stats().builds == 0
+		assert !w.scheduler.stats().pending
 	}
 }

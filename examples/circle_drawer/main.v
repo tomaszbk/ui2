@@ -150,32 +150,32 @@ fn (mut app CircleDrawerDemo) redo() {
 
 fn circle_drawer_callbacks() map[string]ui2.ElementCallback {
 	return {
-		'undo':          fn (_event ui2.ElementEvent) {
+		'undo':          fn (event ui2.ElementEvent) {
 			mut state := unsafe { circle_drawer_state }
 			state.undo()
-			ui2.request_refresh()
+			event.window.request_refresh()
 		}
-		'redo':          fn (_event ui2.ElementEvent) {
+		'redo':          fn (event ui2.ElementEvent) {
 			mut state := unsafe { circle_drawer_state }
 			state.redo()
-			ui2.request_refresh()
+			event.window.request_refresh()
 		}
-		'radius_less':   fn (_event ui2.ElementEvent) {
+		'radius_less':   fn (event ui2.ElementEvent) {
 			mut state := unsafe { circle_drawer_state }
 			state.adjust_radius(-4)
-			ui2.request_refresh()
+			event.window.request_refresh()
 		}
-		'radius_more':   fn (_event ui2.ElementEvent) {
+		'radius_more':   fn (event ui2.ElementEvent) {
 			mut state := unsafe { circle_drawer_state }
 			state.adjust_radius(4)
-			ui2.request_refresh()
+			event.window.request_refresh()
 		}
 		'circle_canvas': fn (event ui2.ElementEvent) {
 			mut state := unsafe { circle_drawer_state }
 			if event.kind == .pointer_up {
 				state.add_or_select(event.x - circle_canvas_root_x, event.y - circle_canvas_root_y)
 			}
-			ui2.request_refresh()
+			event.window.request_refresh()
 		}
 	}
 }

@@ -96,39 +96,39 @@ fn child_card_size(frame ui2.Rect) (f64, f64) {
 
 fn child_window_callbacks() map[string]ui2.ElementCallback {
 	return {
-		'create':         fn (_event ui2.ElementEvent) {
+		'create':         fn (event ui2.ElementEvent) {
 			mut state := unsafe { child_window_state }
 			state.create_window()
-			ui2.request_refresh()
+			event.window.request_refresh()
 		}
-		'close':          fn (_event ui2.ElementEvent) {
+		'close':          fn (event ui2.ElementEvent) {
 			mut state := unsafe { child_window_state }
 			state.close_window()
-			ui2.request_refresh()
+			event.window.request_refresh()
 		}
-		'greet':          fn (_event ui2.ElementEvent) {
+		'greet':          fn (event ui2.ElementEvent) {
 			mut state := unsafe { child_window_state }
 			state.greet()
-			ui2.request_refresh()
+			event.window.request_refresh()
 		}
 		'child_name':     fn (event ui2.ElementEvent) {
 			mut state := unsafe { child_window_state }
 			state.set_name(event.text)
-			ui2.request_refresh()
+			event.window.request_refresh()
 		}
 		'genre':          fn (event ui2.ElementEvent) {
 			mut state := unsafe { child_window_state }
 			state.woman = event.checked
-			ui2.request_refresh()
+			event.window.request_refresh()
 		}
 		'parent_input':   fn (event ui2.ElementEvent) {
 			mut state := unsafe { child_window_state }
 			state.parent_text = event.text
-			ui2.request_refresh()
+			event.window.request_refresh()
 		}
 		'child_titlebar': fn (event ui2.ElementEvent) {
 			mut state := unsafe { child_window_state }
-			card_width, card_height := child_card_size(ui2.bounds())
+			card_width, card_height := child_card_size(event.window.bounds())
 			match event.kind {
 				.pointer_down { state.grab_panel(event.x, event.y) }
 				.pointer_drag, .pointer_up {
@@ -136,7 +136,7 @@ fn child_window_callbacks() map[string]ui2.ElementCallback {
 				}
 				else {}
 			}
-			ui2.request_refresh()
+			event.window.request_refresh()
 		}
 	}
 }

@@ -453,7 +453,7 @@ pub:
 	state  DropdownMenuState
 	items  []DropdownMenuItem
 	anchor Rect // The trigger, in window coordinates.
-	window Rect // Pass ui2.bounds().
+	window Rect // Pass the window's bounds().
 	side   PopoverSide  = .bottom
 	align  PopoverAlign = .start
 	offset f64          = 4

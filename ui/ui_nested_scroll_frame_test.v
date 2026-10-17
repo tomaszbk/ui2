@@ -16,6 +16,7 @@ __global nested_scroll_b_new_events = []f64{}
 __global nested_scroll_nested_events = []string{}
 __global nested_scroll_setup_draws u64
 fn nested_scroll_scrolled(event ElementEvent) {
+	mut w := event.window
 	if event.kind == .scroll {
 		assert event.id == 'pane'
 		nested_scroll_scroll_events << event.value
@@ -25,9 +26,9 @@ fn nested_scroll_scrolled(event ElementEvent) {
 			// Public API reentry while automatic scope restoration is notifying A.
 			// The default case keeps B visible with a changed mounted handler.
 			if nested_scroll_mode == 5 {
-				scroll_to_rect('pane_b', 0, 250, 10, 30)
+				w.scroll_to_rect('pane_b', 0, 250, 10, 30)
 			} else {
-				scroll_to_offset('pane_b', if nested_scroll_mode == 1 { 10_000 } else { 42 })
+				w.scroll_to_offset('pane_b', if nested_scroll_mode == 1 { 10_000 } else { 42 })
 			}
 		}
 	}
@@ -48,75 +49,75 @@ fn nested_scroll_b_new_scrolled(event ElementEvent) {
 		if nested_scroll_removed { nested_scroll_nested_events << 'B_NEW:${event.value}' }
 	}
 }
-fn nested_scroll_setup() {
-	focus('restore')
-	assert focused_id() == 'restore'
-	assert scroll_offset('pane') == 430
+fn nested_scroll_setup(mut w Window) {
+	w.focus('restore')
+	assert w.focused_id() == 'restore'
+	assert w.scroll_offset('pane') == 430
 	assert nested_scroll_scroll_events == [f64(430)], 'ordinary focus reveal callback control'
-	text_area_set_selection('restore', 1, 2)
-	assert text_area_caret('restore') == 3 && text_area_selection_length('restore') == 2
+	w.text_area_set_selection('restore', 1, 2)
+	assert w.text_area_caret('restore') == 3 && w.text_area_selection_length('restore') == 2
 	if nested_scroll_mode != 8 {
-		assert enter_focus_scope('scope')
-		scroll_to_offset('pane', 0)
+		assert w.enter_focus_scope('scope')
+		w.scroll_to_offset('pane', 0)
 		assert nested_scroll_scroll_events == [f64(430), f64(0)], 'public scroll callback control'
-		assert scroll_offset('pane') == 0
+		assert w.scroll_offset('pane') == 0
 	}
 	// Prove B was actually mounted and its old typed handler receives changes.
-	scroll_to_offset('pane_b', 17)
-	assert scroll_offset('pane_b') == 17
+	w.scroll_to_offset('pane_b', 17)
+	assert w.scroll_offset('pane_b') == 17
 	assert nested_scroll_b_old_events == [f64(17)] && nested_scroll_b_new_events.len == 0
-	scroll_to_offset('pane_b', 0)
-	assert scroll_offset('pane_b') == 0
+	w.scroll_to_offset('pane_b', 0)
+	assert w.scroll_offset('pane_b') == 0
 	assert nested_scroll_b_old_events == [f64(17), f64(0)] && nested_scroll_b_new_events.len == 0
 	eprintln('CONTROLS PASSED mode=${nested_scroll_mode} A=${nested_scroll_scroll_events} B_OLD=${nested_scroll_b_old_events} build_count=${nested_scroll_build_count}')
 	nested_scroll_scroll_events.clear()
 	nested_scroll_b_old_events.clear()
 	nested_scroll_b_new_events.clear()
 	nested_scroll_nested_events.clear()
-	nested_scroll_setup_draws = render_stats().draws
+	nested_scroll_setup_draws = w.render_stats().draws
 	nested_scroll_removed = true
-	request_refresh()
+	w.request_refresh()
 }
-fn nested_scroll_verify() {
-	defer { quit() }
-	eprintln('ACTUAL focus=${focused_id()} scope=${active_focus_scope()} offset=${scroll_offset('pane')} callbacks=${nested_scroll_scroll_events} text=${text('restore')} caret=${text_area_caret('restore')} selection_length=${text_area_selection_length('restore')} B_offset=${scroll_offset('pane_b')} B_old=${nested_scroll_b_old_events} B_new=${nested_scroll_b_new_events} nested=${nested_scroll_nested_events}')
-	assert active_focus_scope() == '' && focused_id() == 'restore'
+fn nested_scroll_verify(mut w Window) {
+	defer { w.quit() }
+	eprintln('ACTUAL focus=${w.focused_id()} scope=${w.active_focus_scope()} offset=${w.scroll_offset('pane')} callbacks=${nested_scroll_scroll_events} text=${w.text('restore')} caret=${w.text_area_caret('restore')} selection_length=${w.text_area_selection_length('restore')} B_offset=${w.scroll_offset('pane_b')} B_old=${nested_scroll_b_old_events} B_new=${nested_scroll_b_new_events} nested=${nested_scroll_nested_events}')
+	assert w.active_focus_scope() == '' && w.focused_id() == 'restore'
 	expected_a := if nested_scroll_mode == 8 { f64(196) } else { f64(430) }
-	assert scroll_offset('pane') == expected_a
-	assert text('restore') == 'café ñ'
-	assert text_area_caret('restore') == 3 && text_area_selection_length('restore') == 2
+	assert w.scroll_offset('pane') == expected_a
+	assert w.text('restore') == 'café ñ'
+	assert w.text_area_caret('restore') == 3 && w.text_area_selection_length('restore') == 2
 	assert nested_scroll_scroll_events == [expected_a], 'restoration or paint-time clamping must notify the current mounted Scroll callback'
 	if nested_scroll_mode in [2, 3, 6] {
 		assert nested_scroll_b_old_events.len == 0 && nested_scroll_b_new_events.len == 0
-		assert named_scroll_state_id('pane_b') !in g_scroll_viewports
-		assert g_pending_scroll[named_scroll_state_id('pane_b')] == 42
+		assert named_scroll_state_id('pane_b') !in w.scroll_viewports
+		assert w.pending_scroll[named_scroll_state_id('pane_b')] == 42
 		eprintln('nested current scroll mode=${nested_scroll_mode} passed')
 		return
 	}
 	expected := if nested_scroll_mode == 1 { f64(86) } else if nested_scroll_mode == 5 { f64(80) } else { f64(42) }
-	assert scroll_offset('pane_b') == expected, 'nested public scroll uses the current mounted logical range'
+	assert w.scroll_offset('pane_b') == expected, 'nested public scroll uses the current mounted logical range'
 	assert nested_scroll_b_old_events.len == 0, 'nested public scroll must not dispatch B previous painted handler'
 	assert nested_scroll_b_new_events == [expected], 'nested public scroll must notify B current declared handler exactly once'
 	assert nested_scroll_nested_events == ['A:${expected_a}', 'B_NEW:${expected}']
 	if nested_scroll_mode == 8 {
-		assert render_stats().draws == nested_scroll_setup_draws, 'paint-time notification must abort its stale draw'
+		assert w.render_stats().draws == nested_scroll_setup_draws, 'paint-time notification must abort its stale draw'
 	}
 	if nested_scroll_mode in [4, 7] {
-		assert render_stats().draws > nested_scroll_setup_draws, 'a normal retained frame must complete after restoration'
-		assert named_scroll_state_id('pane_b') in g_scroll_viewports, 'culled mounted panes keep their current logical range after painting'
+		assert w.render_stats().draws > nested_scroll_setup_draws, 'a normal retained frame must complete after restoration'
+		assert named_scroll_state_id('pane_b') in w.scroll_viewports, 'culled mounted panes keep their current logical range after painting'
 	}
 	eprintln('nested current scroll mode=${nested_scroll_mode} passed')
 }
-fn nested_scroll_build() Element {
+fn nested_scroll_build(mut w Window) Element {
 	nested_scroll_build_count++
 	// Both hosts build their first declaration in the retained frame. Posted
 	// controls run at the next callback, after that frame mounted its inputs.
 	// Idle presentation does not request another builder invocation.
-	if nested_scroll_build_count == 1 && !nested_scroll_setup_posted { nested_scroll_setup_posted = true; assert ui_dispatcher().post(nested_scroll_setup) }
+	if nested_scroll_build_count == 1 && !nested_scroll_setup_posted { nested_scroll_setup_posted = true; assert w.dispatcher().post(fn [mut w] () { nested_scroll_setup(mut w) }) }
 	if nested_scroll_removed && !nested_scroll_verify_posted
 		&& (nested_scroll_mode !in [4, 7] || nested_scroll_build_count >= 3) {
 		nested_scroll_verify_posted = true
-		assert ui_dispatcher().post(nested_scroll_verify)
+		assert w.dispatcher().post(fn [mut w] () { nested_scroll_verify(mut w) })
 	}
 	pane := Element{kind: .scroll, id: 'pane', frame: rect(0, 0, 160, 100), on_event: nested_scroll_scrolled,
 		children: [Element{kind: .text_area, id: 'restore', text: 'café ñ', disable_scroll: true,

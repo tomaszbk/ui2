@@ -14,6 +14,16 @@ mut:
 	total        &ui2.Memo[int]
 	observations int
 	last_total   int
+	// The window that shows the demo, which main opens; tests have none.
+	window &ui2.Window = unsafe { nil }
+}
+
+// refresh asks the demo's window, if it has one yet, for a rebuild.
+fn (demo &SignalsDemo) refresh() {
+	if demo.window != unsafe { nil } {
+		mut w := demo.window
+		w.request_refresh()
+	}
 }
 
 fn new_demo() !&SignalsDemo {
@@ -37,7 +47,7 @@ fn new_demo() !&SignalsDemo {
 	scope.effect('observe total', fn [mut demo] () ! {
 		demo.last_total = demo.total.get()!
 		demo.observations++
-		ui2.request_refresh()
+		demo.refresh()
 	})!
 	return demo
 }
@@ -61,7 +71,7 @@ fn (mut demo SignalsDemo) change(action string) ! {
 			else { return error('unknown action: ${action}') }
 		}
 	})!
-	ui2.request_refresh()
+	demo.refresh()
 }
 
 fn (mut demo SignalsDemo) build() ui2.Element {
@@ -97,5 +107,14 @@ fn (mut demo SignalsDemo) build() ui2.Element {
 fn main() {
 	mut demo := new_demo() or { panic(err) }
 	defer { demo.runtime.dispose() or { eprintln(err) } }
-	ui2.run_window('Signals core', 640, 410, fn [mut demo] () ui2.Element { return demo.build() })
+	mut app := ui2.new_app()
+	demo.window = app.new_window(
+		title:  'Signals core'
+		width:  640
+		height: 410
+		build:  fn [mut demo] (mut _ ui2.Window) ui2.Element {
+			return demo.build()
+		}
+	) or { panic(err) }
+	app.run()
 }

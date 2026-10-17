@@ -312,41 +312,41 @@ fn colorbox_callbacks() map[string]ui2.ElementCallback {
 		'red_input':   fn (event ui2.ElementEvent) {
 			mut state := unsafe { colorbox_state }
 			state.apply_channel('red', event.text)
-			ui2.request_refresh()
+			event.window.request_refresh()
 		}
 		'green_input': fn (event ui2.ElementEvent) {
 			mut state := unsafe { colorbox_state }
 			state.apply_channel('green', event.text)
-			ui2.request_refresh()
+			event.window.request_refresh()
 		}
 		'blue_input':  fn (event ui2.ElementEvent) {
 			mut state := unsafe { colorbox_state }
 			state.apply_channel('blue', event.text)
-			ui2.request_refresh()
+			event.window.request_refresh()
 		}
-		'store':       fn (_event ui2.ElementEvent) {
+		'store':       fn (event ui2.ElementEvent) {
 			mut state := unsafe { colorbox_state }
 			state.store_swatch()
-			ui2.request_refresh()
+			event.window.request_refresh()
 		}
 		'hue_strip':   fn (event ui2.ElementEvent) {
 			mut state := unsafe { colorbox_state }
 			if event.kind in [.pointer_down, .pointer_drag, .pointer_up] {
 				state.set_hue(clamp_unit((event.y - hue_root_y) / picker_side) * 359.999)
 			}
-			ui2.request_refresh()
+			event.window.request_refresh()
 		}
 		'sv_square':   fn (event ui2.ElementEvent) {
 			mut state := unsafe { colorbox_state }
 			if event.kind in [.pointer_down, .pointer_drag, .pointer_up] {
 				state.set_saturation_value((event.x - sv_root_x) / picker_side, 1.0 - (event.y - sv_root_y) / picker_side)
 			}
-			ui2.request_refresh()
+			event.window.request_refresh()
 		}
 		'swatch_grid': fn (event ui2.ElementEvent) {
 			mut state := unsafe { colorbox_state }
 			if event.kind == .pointer_up { state.select_swatch(state.swatch_at(event.x, event.y)) }
-			ui2.request_refresh()
+			event.window.request_refresh()
 		}
 	}
 }

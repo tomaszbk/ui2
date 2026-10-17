@@ -18,7 +18,10 @@ Linux, macOS, Windows, Android e iOS.
 ## Migración y propiedad del estado
 
 Las acciones y bindings de los runners VML solicitan refresh después de
-actualizar el modelo. Código que modifica el modelo por otra vía debe llamar a `request_refresh()`. Leer el reloj, archivos
+actualizar el modelo, y la ventana se reconstruye tras cada evento que manejan
+sus elementos y tras sus timers. Código que modifica el modelo por otra vía debe
+llamar a `request_refresh()` en la ventana afectada (`w.request_refresh()`, o
+`event.window.request_refresh()` desde un evento). Leer el reloj, archivos
 o variables externas dentro de `build` no suscribe la vista a sus cambios.
 Usar deadlines o timers para cambios periódicos y solicitar actualización
 cuando vence cada plazo. Una lectura dentro de `build` por sí sola no despierta
@@ -31,8 +34,8 @@ su generación y provoca un flush posterior. `refresh_element` es una
 invalidación amplia en este backend, no una API de actualización incremental.
 
 El hilo de UI posee el modelo y los controles. Un worker recibe un dispatcher
-capturado **en el hilo de UI, después de iniciar la ventana**, por ejemplo en el
-primer build. El worker sólo encola el trabajo:
+capturado **en el hilo de UI** con `w.dispatcher()`, por ejemplo en el primer
+build. El worker sólo encola el trabajo:
 
 ```v
 fn load(dispatcher ui2.UiDispatcher) {
@@ -51,8 +54,8 @@ fn load(dispatcher ui2.UiDispatcher) {
 `post` es seguro entre hilos y solicita actualización. No ejecutar mutadores de
 controles, modificar el modelo compartido ni tocar `gg.Context` desde el worker.
 Las tareas pendientes pertenecen al lifetime de la ventana; el dispatcher de
-una ventana cerrada rechaza trabajo. No consultar de nuevo `ui_dispatcher()`
-desde un worker para buscar una ventana que podría haber sido reemplazada.
+una ventana cerrada rechaza trabajo. Un worker no busca otra ventana: el
+dispatcher capturado identifica la suya.
 
 ## Inventario de invalidaciones
 

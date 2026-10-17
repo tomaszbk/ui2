@@ -248,12 +248,8 @@ fn test_portable_text_area_range_uses_utf16_and_keeps_selection_length() {
 	clamped := clamped_text_area_selection('A🙂BC', 4, 99)
 	assert clamped.location == 4
 	assert clamped.length == 1
-	record_portable_text_area_selection('portable-editor', clamped)
-	assert portable_text_area_selection('portable-editor') == clamped
 	assert utf16_offset_to_rune_index('A🙂BC', 3) == 2
 	assert rune_index_to_utf16_offset('A🙂BC', 2) == 3
-	forget_portable_text_area_selection('portable-editor')
-	assert portable_text_area_selection('portable-editor') == TextAreaSelectionRange{}
 }
 
 fn test_submit_callback_filters_changes_and_preserves_secure_display_text() {

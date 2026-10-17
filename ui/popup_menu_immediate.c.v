@@ -30,28 +30,27 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 		laid_out bool
 	}
 
-	// show_popup_menu opens a popup menu over the current window. on_result runs
-	// once, on the UI thread with the window current: a native menu's result in
-	// the window's next task drain, a drawn menu's in the input event that
-	// closed it.
-	fn show_popup_menu(cfg PopupMenuConfig, on_result PopupMenuCallback) {
-		if host_popup_menu_supported() {
+	// show_popup_menu opens a popup menu over the window. on_result runs once,
+	// on the UI thread: a native menu's result in the window's next task
+	// drain, a drawn menu's in the input event that closed it.
+	fn (mut w Window) show_popup_menu(cfg PopupMenuConfig, on_result PopupMenuCallback) {
+		if host_popup_menu_supported(w.os_window) {
 			window := UiDispatcher{
-				coordinator: g_gg_app.scheduler
+				coordinator: w.scheduler
 			}
-			host_show_popup_menu(cfg, fn [window, on_result] (result PopupMenuResult) {
+			host_show_popup_menu(w.os_window, cfg, fn [window, on_result] (result PopupMenuResult) {
 				window.post(fn [on_result, result] () {
 					on_result(result)
 				})
 			})
 			return
 		}
-		open_drawn_popup_menu(cfg, on_result)
+		w.open_drawn_popup_menu(cfg, on_result)
 	}
 
-	fn popup_menu_scale() f64 {
-		return if g_gg_app.ctx != unsafe { nil } && g_gg_app.ctx.scale > 0 {
-			f64(g_gg_app.ctx.scale)
+	fn (mut w Window) popup_menu_scale() f64 {
+		return if w.ctx != unsafe { nil } && w.ctx.scale > 0 {
+			f64(w.ctx.scale)
 		} else {
 			1.0
 		}
@@ -59,73 +58,71 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 
 	// open_drawn_popup_menu replaces any drawn popup menu, which reports a
 	// dismissal first. A renderer without overlays has nowhere to draw one.
-	fn open_drawn_popup_menu(cfg PopupMenuConfig, on_result PopupMenuCallback) {
-		dismiss_drawn_popup_menu()
+	fn (mut w Window) open_drawn_popup_menu(cfg PopupMenuConfig, on_result PopupMenuCallback) {
+		w.dismiss_drawn_popup_menu()
 		if !backend_supports_overlays || cfg.items.len == 0 {
 			on_result(PopupMenuResult{})
 			return
 		}
-		mut app := g_gg_app
-		app.popup_menu_serial++
+		w.popup_menu_serial++
 		rows := dropdown_menu_items_from_menu(cfg.items)
 		mut path := []int{}
 		if cfg.selected >= 0 && cfg.selected < rows.len && dropdown_menu_navigable(rows[cfg.selected]) {
 			path << cfg.selected
 		}
-		app.popup_menu = &DrawnPopupMenu{
-			serial:    app.popup_menu_serial
+		w.popup_menu = &DrawnPopupMenu{
+			serial:    w.popup_menu_serial
 			items:     cfg.items
 			rows:      rows
 			state:     DropdownMenuState{
 				open: true
 				path: path
 			}
-			anchor:    rect(cfg.anchor.x, cfg.anchor.y - menu_bar_height(), cfg.anchor.width,
+			anchor:    rect(cfg.anchor.x, cfg.anchor.y - w.menu_bar_height(), cfg.anchor.width,
 				cfg.anchor.height)
 			on_result: on_result
 		}
-		app.scheduler.invalidate(.layout)
+		w.scheduler.invalidate(.layout)
 	}
 
-	fn drawn_popup_menu_open() bool {
-		return g_gg_app != unsafe { nil } && g_gg_app.popup_menu != unsafe { nil }
+	fn (mut w Window) drawn_popup_menu_open() bool {
+		return w != unsafe { nil } && w.popup_menu != unsafe { nil }
 	}
 
-	fn finish_drawn_popup_menu(serial u64, result PopupMenuResult) {
-		mut app := g_gg_app
-		menu := app.popup_menu
+	fn (mut w Window) finish_drawn_popup_menu(serial u64, result PopupMenuResult) {
+		menu := w.popup_menu
 		if menu == unsafe { nil } || menu.serial != serial {
 			return
 		}
-		app.popup_menu = unsafe { nil }
-		app.scheduler.invalidate(.layout)
+		w.popup_menu = unsafe { nil }
+		w.scheduler.invalidate(.layout)
 		menu.on_result(result)
 	}
 
-	fn dismiss_drawn_popup_menu() {
-		if drawn_popup_menu_open() {
-			finish_drawn_popup_menu(g_gg_app.popup_menu.serial, PopupMenuResult{})
+	fn (mut w Window) dismiss_drawn_popup_menu() {
+		if w.drawn_popup_menu_open() {
+			w.finish_drawn_popup_menu(w.popup_menu.serial, PopupMenuResult{})
 		}
 	}
 
 	// drawn_popup_menu_step applies a step its rows or keys asked for: a row
 	// chosen, the menu closed, or the highlight moved, which can open or close
 	// a submenu.
-	fn drawn_popup_menu_step(serial u64, step DropdownMenuStep) {
-		mut menu := g_gg_app.popup_menu
+	fn (mut w Window) drawn_popup_menu_step(serial u64, step DropdownMenuStep) {
+		mut menu := w.popup_menu
 		if menu == unsafe { nil } || menu.serial != serial {
 			return
 		}
 		if step.chosen {
 			item := popup_menu_item_at(menu.items, step.path) or { MenuItem{} }
-			finish_drawn_popup_menu(serial, PopupMenuResult{
+			w.finish_drawn_popup_menu(serial, PopupMenuResult{
 				chosen: true
 				item:   item
 			})
 			return
 		}
 		if !step.state.open {
-			finish_drawn_popup_menu(serial, PopupMenuResult{})
+			w.finish_drawn_popup_menu(serial, PopupMenuResult{})
 			return
 		}
 		if step.state == menu.state {
@@ -133,7 +130,7 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 		}
 		menu.state = step.state
 		menu.laid_out = false
-		g_gg_app.scheduler.invalidate(.layout)
+		w.scheduler.invalidate(.layout)
 	}
 
 	// popup_menu_item_at follows path through submenus, as
@@ -154,37 +151,37 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 
 	// drawn_popup_menu_key moves the highlight of an open drawn popup menu. Like
 	// a native menu it takes every key while it is open.
-	fn drawn_popup_menu_key(event KeyEvent) bool {
-		menu := g_gg_app.popup_menu
+	fn (mut w Window) drawn_popup_menu_key(event KeyEvent) bool {
+		menu := w.popup_menu
 		if menu == unsafe { nil } {
 			return false
 		}
 		if step := dropdown_menu_key(menu.rows, menu.state, event) {
-			drawn_popup_menu_step(menu.serial, step)
+			w.drawn_popup_menu_step(menu.serial, step)
 		}
 		return true
 	}
 
 	// drawn_popup_menu_blocks reports whether a wheel at a window point must not
 	// scroll: it would move the content out from under an open drawn popup menu.
-	fn drawn_popup_menu_blocks(x f64, y f64) bool {
-		if !drawn_popup_menu_open() {
+	fn (mut w Window) drawn_popup_menu_blocks(x f64, y f64) bool {
+		if !w.drawn_popup_menu_open() {
 			return false
 		}
-		node := g_focus_navigation.node(drawn_popup_menu_id) or { return true }
-		return !hit_target_contains(custom_focus_target(node), x, y)
+		node := w.navigation.node(drawn_popup_menu_id) or { return true }
+		return !hit_target_contains(w.custom_focus_target(node), x, y)
 	}
 
 	// with_drawn_popup_menu presents an open drawn popup menu as the root's last
 	// overlay, above every declared one. A viewport too small to lay it out in
 	// shows nothing until the next frame tries again.
-	fn with_drawn_popup_menu(mut app GgApp, root Element, viewport Rect) Element {
-		mut menu := app.popup_menu
+	fn (mut w Window) with_drawn_popup_menu(root Element, viewport Rect) Element {
+		mut menu := w.popup_menu
 		if menu == unsafe { nil } {
 			return root
 		}
 		if !menu.laid_out || menu.viewport != viewport {
-			menu.layer = drawn_popup_menu_layer(menu, viewport) or { return root }
+			menu.layer = w.drawn_popup_menu_layer(menu, viewport) or { return root }
 			menu.viewport = viewport
 			menu.laid_out = true
 		}
@@ -203,7 +200,7 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 	// dismisses the whole menu. The highlight is the only cursor, as in the
 	// drawn menu bar: nothing in the overlay takes keyboard focus, which comes
 	// back to its owner when the menu closes.
-	fn drawn_popup_menu_layer(menu &DrawnPopupMenu, viewport Rect) !Element {
+	fn (mut w Window) drawn_popup_menu_layer(menu &DrawnPopupMenu, viewport Rect) !Element {
 		serial := menu.serial
 		config := DropdownMenuConfig{
 			id:        drawn_popup_menu_id
@@ -213,8 +210,8 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 			window:    viewport
 			offset:    if menu.anchor.width > 0 || menu.anchor.height > 0 { 4.0 } else { 0.0 }
 			min_width: if menu.anchor.width > 128 { menu.anchor.width } else { 128.0 }
-			on_step:   fn [serial] (step DropdownMenuStep) {
-				drawn_popup_menu_step(serial, step)
+			on_step:   fn [mut w, serial] (step DropdownMenuStep) {
+				w.drawn_popup_menu_step(serial, step)
 			}
 		}
 		levels := dropdown_menu_levels(config)!
@@ -233,9 +230,9 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 			...view(drawn_popup_menu_id, rect(0, 0, extent.width, extent.height), BoxStyle{
 				transparent: true
 			}, surfaces)
-			on_event:  fn [serial] (event ElementEvent) {
+			on_event:  fn [mut w, serial] (event ElementEvent) {
 				if event.kind == .pointer_down {
-					finish_drawn_popup_menu(serial, PopupMenuResult{})
+					w.finish_drawn_popup_menu(serial, PopupMenuResult{})
 				}
 			}
 			clickable: true
@@ -248,10 +245,10 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 			}
 			gap:        0
 			margin:     0
-			on_dismiss: fn [serial] (event ElementEvent) {
+			on_dismiss: fn [mut w, serial] (event ElementEvent) {
 				// A chosen row has already answered, and a submenu row stays open.
 				if event.dismiss_reason != .selection {
-					finish_drawn_popup_menu(serial, PopupMenuResult{})
+					w.finish_drawn_popup_menu(serial, PopupMenuResult{})
 				}
 			}
 		})!
@@ -272,51 +269,53 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 	// custom_context_press answers a secondary press. It closes the drawn menu
 	// bar or select list it lands on, or goes to the overlays (overlay.v), or
 	// opens the context menu of the element under it.
-	fn custom_context_press(app &GgApp, x f64, y f64) {
-		dispatch := begin_custom_input_dispatch(app)
+	fn (mut w Window) custom_context_press(x f64, y f64) {
+		dispatch := w.begin_custom_input_dispatch()
 		if !dispatch.valid() {
 			return
 		}
-		mut scheduler := app.scheduler
+		mut scheduler := w.scheduler
 		scheduler.invalidate(.paint)
-		g_tooltip.dismiss()
-		if !sync_custom_input_geometry(dispatch) {
+		w.tooltip.dismiss()
+		if !w.sync_custom_input_geometry(dispatch) {
 			return
 		}
-		if menu_bar_open() {
-			close_menu_bar()
+		if w.menu_bar_open() {
+			w.close_menu_bar()
 			return
 		}
-		if g_open_dropdown.len > 0 {
-			close_dropdown()
+		if w.dropdown_id.len > 0 {
+			w.close_dropdown()
 			return
 		}
-		if overlay_context_press(x, y) || !dispatch.valid() {
+		if w.overlay_context_press(x, y) || !dispatch.valid() {
 			return
 		}
-		open_context_menu(x, y)
+		w.open_context_menu(x, y)
 	}
 
 	// open_context_menu shows the menu of the element a secondary press at a
 	// window point belongs to, and reports whether there was one.
-	fn open_context_menu(x f64, y f64) bool {
-		owner := context_menu_owner(x, y) or { return false }
+	fn (mut w Window) open_context_menu(x f64, y f64) bool {
+		owner := w.context_menu_owner(x, y) or { return false }
 		items := owner.el.menu.map(MenuItem{
 			on_select: it.on_select
 			id:        it.id
 			title:     it.title
 		})
-		show_popup_menu(PopupMenuConfig{
+		w.show_popup_menu(PopupMenuConfig{
 			items:  items
 			anchor: rect(x, y, 0, 0)
-			scale:  popup_menu_scale()
-		}, context_menu_result)
+			scale:  w.popup_menu_scale()
+		}, fn [mut w] (result PopupMenuResult) {
+			w.context_menu_result(result)
+		})
 		return true
 	}
 
-	fn context_menu_result(result PopupMenuResult) {
+	fn (mut w Window) context_menu_result(result PopupMenuResult) {
 		if result.chosen {
-			emit_menu_callback(result.item.on_select, result.item.id)
+			w.emit_menu_callback(result.item.on_select, result.item.id)
 		}
 	}
 
@@ -328,25 +327,25 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 	// topmost one with a menu under the point, unless a control painted over it
 	// takes the press, which then belongs to that control's own menu or the
 	// nearest one around it. A select's options are not a context menu.
-	fn context_menu_owner(x f64, y f64) ?FocusNode {
-		nodes := g_focus_navigation.nodes
+	fn (mut w Window) context_menu_owner(x f64, y f64) ?FocusNode {
+		nodes := w.navigation.nodes
 		mut found := -1
 		for i := nodes.len - 1; i >= 0; i-- {
-			if context_menu_node(nodes[i]) && hit_target_contains(custom_focus_target(nodes[i]), x, y) {
+			if context_menu_node(nodes[i]) && hit_target_contains(w.custom_focus_target(nodes[i]), x, y) {
 				found = i
 				break
 			}
 		}
-		target := hit_test(x, y)
+		target := w.hit_test(x, y)
 		if target.identity.len > 0 {
-			mut index := g_focus_navigation.path_indices[target.identity] or { -1 }
+			mut index := w.navigation.path_indices[target.identity] or { -1 }
 			if index > found {
 				for index >= 0 {
 					node := nodes[index]
 					if context_menu_node(node) {
 						return node
 					}
-					index = g_focus_navigation.path_indices[node.parent] or { -1 }
+					index = w.navigation.path_indices[node.parent] or { -1 }
 				}
 				return none
 			}
@@ -360,17 +359,17 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 	// open_host_dropdown shows a select's options in a native popup menu, its
 	// value checked and, where the host does that, laid over the select. The
 	// select reads as expanded until the result arrives.
-	fn open_host_dropdown(target HitTarget) {
+	fn (mut w Window) open_host_dropdown(target HitTarget) {
 		id := target.id
-		if g_gg_app.popup_menu_owner.len > 0 {
+		if w.popup_menu_owner.len > 0 {
 			return
 		}
-		focus(id)
-		node := g_focus_navigation.node(id) or { return }
-		selected := g_text_values[id] or { node.el.text }
-		g_gg_app.popup_menu_owner = id
-		invalidate_custom_paint()
-		show_popup_menu(PopupMenuConfig{
+		w.focus(id)
+		node := w.navigation.node(id) or { return }
+		selected := w.text_values[id] or { node.el.text }
+		w.popup_menu_owner = id
+		w.invalidate_custom_paint()
+		w.show_popup_menu(PopupMenuConfig{
 			items:    target.options.map(MenuItem{
 				id:      it
 				title:   it
@@ -378,26 +377,26 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 			})
 			anchor:   node.frame
 			selected: target.options.index(selected)
-			scale:    popup_menu_scale()
-		}, fn [id] (result PopupMenuResult) {
-			dropdown_popup_menu_result(id, result)
+			scale:    w.popup_menu_scale()
+		}, fn [mut w, id] (result PopupMenuResult) {
+			w.dropdown_popup_menu_result(id, result)
 		})
 	}
 
 	// dropdown_popup_menu_result commits a choice to the select, if it is still
 	// mounted and enabled.
-	fn dropdown_popup_menu_result(id string, result PopupMenuResult) {
-		if g_gg_app.popup_menu_owner == id {
-			g_gg_app.popup_menu_owner = ''
+	fn (mut w Window) dropdown_popup_menu_result(id string, result PopupMenuResult) {
+		if w.popup_menu_owner == id {
+			w.popup_menu_owner = ''
 		}
-		invalidate_custom_paint()
+		w.invalidate_custom_paint()
 		if !result.chosen {
 			return
 		}
-		node := g_focus_navigation.node(id) or { return }
+		node := w.navigation.node(id) or { return }
 		if node.hidden || !node.enabled || node.el.kind != .dropdown {
 			return
 		}
-		commit_dropdown(id, node.el.on_event, result.item.title)
+		w.commit_dropdown(id, node.el.on_event, result.item.title)
 	}
 }

@@ -1,21 +1,30 @@
 module ui2
 
-// The backend applies a compiled document's update: the custom renderer patches
-// its retained layout, the other backends refresh the element or reconcile the
-// cached document snapshot (backend.v).
-fn compiled_vml_publish(id string, element Element) {
+// host_window is the window that mounted the component's document, or nil
+// while no window has mounted it.
+fn (component &CompiledVmlComponent) host_window() &Window {
+	mut owner := unsafe { component }
+	for owner.parent != unsafe { nil } {
+		owner = owner.parent
+	}
+	return owner.window
+}
+
+// publish_element applies a compiled document's update: through the host's
+// publisher when one is attached, otherwise in the window that mounted the
+// document, where the custom renderer patches its retained layout and the
+// other backends refresh the element or reconcile the cached document
+// snapshot (backend.v). A document no window has mounted has nothing to update.
+fn (component &CompiledVmlComponent) publish_element(id string, element Element) {
+	if component.publish != unsafe { nil } {
+		component.publish(id, element)
+		return
+	}
 	if backend_needs_host {
 		panic('compiled VML document library updates require an attached host publisher')
 	}
-	refresh_compiled_element(id, element.compiled_node, element)
-}
-
-// The compiled controller returns its retained document whole. Effects that
-// run while it produces that declaration are already part of it.
-fn compiled_vml_begin_snapshot() {
-	begin_compiled_snapshot()
-}
-
-fn compiled_vml_end_snapshot() {
-	end_compiled_snapshot()
+	mut w := component.host_window()
+	if w != unsafe { nil } {
+		w.refresh_compiled_element(id, element.compiled_node, element)
+	}
 }

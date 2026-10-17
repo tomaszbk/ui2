@@ -713,15 +713,12 @@ fn incremental_compiled_build(mut model IncrementalCompiledModel) Element {
 fn test_compiled_builder_uses_retained_layout_without_interpreter_nodes() {
 	mut model := IncrementalCompiledModel{}
 	mut controller := &CompiledVmlController[IncrementalCompiledModel]{ build: incremental_compiled_build, model: &model }
-	mut runtime := compiled_vml_runtime()
-	previous := runtime.controller
-	defer { runtime.controller = previous }
-	runtime.controller = voidptr(controller)
+	mut w := &Window{}
 	mut tree := LayoutTree{}
-	tree.replace(compiled_vml_controller_build[IncrementalCompiledModel]())!
+	tree.replace(controller.build_frame(mut w))!
 	initial := incremental_resolve(mut tree)!
 	controller.model.text = 'WW WW WW'
-	tree.replace(compiled_vml_controller_build[IncrementalCompiledModel]())!
+	tree.replace(controller.build_frame(mut w))!
 	changed := incremental_resolve(mut tree)!
 	assert initial.children[1].frame.y == 20
 	assert changed.children[1].frame.y == 60

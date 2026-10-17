@@ -185,17 +185,25 @@ fn test_vglyph_paint_colors_reuse_typography_including_rich_run_boundaries() {
 		assert paint.size == first.size
 		assert paint.layout.items[0].color == hex_color(0x3366ff)
 		assert first.layout.items[0].color == hex_color(0x112233), 'cached geometry must not be mutated by painting'
-		runs := [TextRun{ text: 'WW', style: TextStyle{ size: 17.25, color: 0x123456 } },
-			TextRun{ text: 'ii', style: TextStyle{ size: 17.25, color: 0xabcdef } }]
+		runs := [
+			TextRun{ text: 'WW', style: TextStyle{ size: 17.25, color: 0x123456 } },
+			TextRun{ text: 'ii', style: TextStyle{ size: 17.25, color: 0xabcdef } },
+		]
 		rich := engine.shape_runs(runs, style, 80.5, 2, false)!
 		rich_builds := engine.shape_builds
 		changed_runs := runs.map(TextRun{ text: it.text, style: TextStyle{ ...it.style, color: 0xff0000 } })
 		rich_paint := engine.shape_runs(changed_runs, style, 80.5, 2, false)!
 		assert engine.shape_builds == rich_builds
 		assert rich_paint.size == rich.size
-		for item in rich_paint.layout.items { assert item.color == hex_color(0xff0000) }
+		for item in rich_paint.layout.items {
+			assert item.color == hex_color(0xff0000)
+		}
 		for item in rich.layout.items {
-			assert item.color == hex_color(if item.start_index < 2 { u32(0x123456) } else { u32(0xabcdef) })
+			assert item.color == hex_color(if item.start_index < 2 {
+				u32(0x123456)
+			} else {
+				u32(0xabcdef)
+			})
 		}
 		g_text_font_mutex.lock()
 		engine.invalidate_environment()
@@ -209,9 +217,16 @@ fn test_vglyph_repaint_counts_compare_identical_scene_with_uncached_shaping() {
 	$if (linux || macos || windows) && !ui2_headless ? {
 		mut reference := new_text_engine(1)!
 		mut retained := new_text_engine(1)!
-		defer { reference.free(); retained.free() }
+		defer {
+			reference.free()
+			retained.free()
+		}
 		for i in 0 .. 20 {
-			style := TextStyle{ size: 17.25, color: if i % 2 == 0 { u32(0x112233) } else { u32(0x3366ff) } }
+			style := TextStyle{ size: 17.25, color: if i % 2 == 0 {
+				u32(0x112233)
+			} else {
+				u32(0x3366ff)
+			} }
 			g_text_font_mutex.lock()
 			before := reference.build_shape_locked('café ñ', [], style, 80.5, 2, false, false)!
 			g_text_font_mutex.unlock()
@@ -232,9 +247,12 @@ fn test_vglyph_cached_tail_ellipsis_keeps_visible_run_paint_owner() {
 		defer { engine.free() }
 		base := TextStyle{ size: 17.25, color: 0x111111 }
 		for runs in [
-			[TextRun{ text: 'short', style: TextStyle{ ...base, color: 0xff0000 } }, TextRun{ text: '\nhidden', style: TextStyle{ ...base, color: 0x0000ff } }],
-			[TextRun{ text: 'short\n', style: TextStyle{ ...base, color: 0xff0000 } }, TextRun{ text: 'hidden', style: TextStyle{ ...base, color: 0x0000ff } }],
-			[TextRun{ text: 'this part', style: TextStyle{ ...base, color: 0xff0000 } }, TextRun{ text: ' is very long hidden text', style: TextStyle{ ...base, color: 0x0000ff } }],
+			[TextRun{ text: 'short', style: TextStyle{ ...base, color: 0xff0000 } },
+				TextRun{ text: '\nhidden', style: TextStyle{ ...base, color: 0x0000ff } }],
+			[TextRun{ text: 'short\n', style: TextStyle{ ...base, color: 0xff0000 } },
+				TextRun{ text: 'hidden', style: TextStyle{ ...base, color: 0x0000ff } }],
+			[TextRun{ text: 'this part', style: TextStyle{ ...base, color: 0xff0000 } },
+				TextRun{ text: ' is very long hidden text', style: TextStyle{ ...base, color: 0x0000ff } }],
 		] {
 			g_text_font_mutex.lock()
 			reference := engine.build_shape_locked(text_runs_content(runs), runs, base, 300, 1, true, false)!
@@ -269,10 +287,9 @@ fn test_vglyph_link_and_external_paint_metadata_reuse_shaping() {
 
 fn test_public_layout_environment_invalidates_cpu_and_window_shaping_once() {
 	$if (linux || macos || windows) && !ui2_headless ? {
-		previous := g_gg_app
 		mut active := new_text_engine(1)!
-		defer { g_gg_app = previous; active.free() }
-		g_gg_app = &GgApp{ scheduler: new_frame_coordinator(), ctx: &DrawContext{ text: active, text_font_generation: 17 } }
+		defer { active.free() }
+		mut w := &Window{ scheduler: new_frame_coordinator(), ctx: &DrawContext{ text: active, text_font_generation: 17 } }
 		style := TextStyle{ size: 17.25 }
 		_ = layout_measure_vglyph_text('cpu environment', style, 300.5)!
 		_ = layout_measure_vglyph_text('cpu environment', style, 300.5)!
@@ -280,15 +297,15 @@ fn test_public_layout_environment_invalidates_cpu_and_window_shaping_once() {
 		before := cpu.shape_builds
 		cpu_version := cpu.environment_version
 		active_version := active.environment_version
-		invalidate_layout_environment(LayoutEnvironment{ font_version: 1 })
+		w.invalidate_layout_environment(LayoutEnvironment{ font_version: 1 })
 		_ = layout_measure_vglyph_text('cpu environment', style, 300.5)!
 		assert cpu.shape_builds == before + 1
 		assert cpu.environment_version == cpu_version + 1
 		assert active.environment_version == active_version + 1
-		assert g_gg_app.ctx.text_font_generation == -1
-		g_gg_app.ctx.text = cpu
+		assert w.ctx.text_font_generation == -1
+		w.ctx.text = cpu
 		aliased := cpu.environment_version
-		invalidate_layout_environment(LayoutEnvironment{ font_version: 2 })
+		w.invalidate_layout_environment(LayoutEnvironment{ font_version: 2 })
 		assert cpu.environment_version == aliased + 1
 	}
 }

@@ -20,12 +20,15 @@ ancestors, cannot receive focus. Clipping and Scroll culling do not unmount a
 control: traversal includes these destinations and reveals them inside out
 through their Scroll ancestors, including anonymous Scroll containers.
 
+Focus belongs to a window, so these are methods of the window, which a builder
+receives and an event carries as `event.window`:
+
 ```v
-ui.focus('name')
-ui.focus_next()       // Tab
-ui.focus_previous()   // Shift-Tab
-ui.focus_direction(.right)
-println(ui.focused_id())
+w.focus('name')
+w.focus_next()       // Tab
+w.focus_previous()   // Shift-Tab
+w.focus_direction(.right)
+println(w.focused_id())
 ```
 
 Traversal wraps within the window. Arrow keys move between controls using their
@@ -48,8 +51,8 @@ panel := ui.Element{
     children: [/* controls */]
 }
 // After mounting panel:
-ui.enter_focus_scope('settings')
-ui.leave_focus_scope()
+w.enter_focus_scope('settings')
+w.leave_focus_scope()
 ```
 
 Entering focuses the first eligible child and saves the previous destination.
@@ -105,12 +108,12 @@ text nor value. Snapshots include effective hidden/disabled state, focus,
 checked/selected state, readonly, secure and custom dropdown expansion.
 
 ```v
-if node := ui.semantic_node('save') {
+if node := w.semantic_node('save') {
     println('${node.role}: ${node.name}')
 }
-ui.perform_semantic_action('save', .activate)
-ui.perform_semantic_action('name', .focus)
-ui.perform_semantic_action('volume', .increment)
+w.perform_semantic_action('save', .activate)
+w.perform_semantic_action('name', .focus)
+w.perform_semantic_action('volume', .increment)
 ```
 
 Actions are checked against the current declaration, ancestor availability and

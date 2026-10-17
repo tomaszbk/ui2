@@ -33,40 +33,42 @@ fn (mut app DemoEvent) record_key(key string) {
 
 fn demo_event_callbacks() map[string]ui2.ElementCallback {
 	return {
-		'clear':         fn (_event ui2.ElementEvent) {
+		'clear':         fn (event ui2.ElementEvent) {
 			mut state := unsafe { demo_event_state }
 			state.clear_events()
-			ui2.request_refresh()
+			event.window.request_refresh()
 		}
-		'sample_button': fn (_event ui2.ElementEvent) {
+		'sample_button': fn (event ui2.ElementEvent) {
 			mut state := unsafe { demo_event_state }
 			state.last_event = 'Native button tapped.'
 			state.append_history(state.last_event)
-			ui2.request_refresh()
+			event.window.request_refresh()
 		}
 		'event_surface': fn (event ui2.ElementEvent) {
 			mut state := unsafe { demo_event_state }
 			state.record_pointer(event)
-			ui2.request_refresh()
+			event.window.request_refresh()
 		}
 	}
 }
 
-fn handle_demo_key(key string) {
+fn handle_demo_key(mut w ui2.Window, key string) {
 	mut state := unsafe { demo_event_state }
 	state.record_key(key)
-	ui2.request_refresh()
+	w.request_refresh()
 }
 
 fn main() {
-	ui2.on_key(handle_demo_key)
-	ui2.run_compiled_vml[DemoEvent](
+	mut app := ui2.new_app()
+	mut window := ui2.open_compiled_vml[DemoEvent](mut app,
 		build:  build_demo_event
 		model:  demo_event_state
 		title:  'Event Inspector'
 		width:  demo_event_width
 		height: demo_event_height
 	) or { panic(err) }
+	window.on_key(handle_demo_key)
+	app.run()
 }
 
 fn (mut app DemoEvent) clear_events() {

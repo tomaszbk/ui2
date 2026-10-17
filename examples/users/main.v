@@ -37,6 +37,8 @@ pub mut:
 	is_error            bool
 	users               []User
 	next_id             int = 3
+	// The window that shows the form, which main opens; tests have none.
+	window &ui2.Window = unsafe { nil }
 }
 
 fn initial_app() App {
@@ -164,7 +166,9 @@ pub fn (mut app App) add_user() {
 	app.password = ''
 	app.is_error = false
 	app.persist_users()
-	ui2.focus('first_name')
+	if app.window != unsafe { nil } {
+		app.window.focus('first_name')
+	}
 }
 
 pub fn (mut app App) remove_user(id int) {
@@ -181,10 +185,11 @@ pub fn (mut app App) close_help() {
 }
 
 fn main() {
-	mut app := initial_app()
-	ui2.run_compiled_vml[App](
+	mut model := initial_app()
+	mut app := ui2.new_app()
+	model.window = ui2.open_compiled_vml[App](mut app,
 		build:     build_users
-		model:     &app
+		model:     &model
 		title:     'V UI Demo'
 		width:     window_width
 		height:    window_height
@@ -192,6 +197,7 @@ fn main() {
 	) or {
 		panic(err)
 	}
+	app.run()
 }
 
 fn build_users(mut app App) ui2.Element {

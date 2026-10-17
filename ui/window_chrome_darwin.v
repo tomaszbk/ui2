@@ -1,5 +1,5 @@
-// The macOS host's window chrome (platform.v): the main NSWindow, which is
-// sokol's or the embedder's, through the Objective-C runtime bridge.
+// The macOS host's window chrome (platform.v): the window's NSWindow, which
+// is sokol's or the embedder's, through the Objective-C runtime bridge.
 module ui2
 
 import macos
@@ -9,28 +9,12 @@ import macos
 const ns_window_style_full_size_content_view = u64(1) << 15
 const ns_window_title_hidden = i64(1)
 
-// The main window: the key window, else the main one, else the first.
-fn chrome_main_window() macos.Id {
-	app := macos.msg_id(macos.get_class('NSApplication'), 'sharedApplication')
-	for selector in ['keyWindow', 'mainWindow'] {
-		window := macos.msg_id(app, selector)
-		if window != unsafe { nil } {
-			return window
-		}
-	}
-	windows := macos.msg_id(app, 'windows')
-	if windows == unsafe { nil } || macos.msg_u64(windows, 'count') == 0 {
-		return unsafe { nil }
-	}
-	return macos.msg_id_u64(windows, 'objectAtIndex:', 0)
-}
-
 fn host_window_chrome_supported() bool {
 	return true
 }
 
-fn host_set_window_chrome(chrome WindowChrome) bool {
-	window := chrome_main_window()
+fn host_set_window_chrome(native voidptr, chrome WindowChrome) bool {
+	window := macos.Id(native)
 	if window == unsafe { nil } {
 		return false
 	}
@@ -51,8 +35,8 @@ fn host_set_window_chrome(chrome WindowChrome) bool {
 }
 
 // The press that asked for the drag is still the application's current event.
-fn host_start_window_drag() bool {
-	window := chrome_main_window()
+fn host_start_window_drag(native voidptr) bool {
+	window := macos.Id(native)
 	app := macos.msg_id(macos.get_class('NSApplication'), 'sharedApplication')
 	event := macos.msg_id(app, 'currentEvent')
 	// Only a press or a drag can start one (NSEventTypeLeftMouseDown, Dragged).
@@ -64,8 +48,8 @@ fn host_start_window_drag() bool {
 	return true
 }
 
-fn host_minimize_window() bool {
-	window := chrome_main_window()
+fn host_minimize_window(native voidptr) bool {
+	window := macos.Id(native)
 	if window == unsafe { nil } {
 		return false
 	}
@@ -73,8 +57,8 @@ fn host_minimize_window() bool {
 	return true
 }
 
-fn host_toggle_maximize_window() bool {
-	window := chrome_main_window()
+fn host_toggle_maximize_window(native voidptr) bool {
+	window := macos.Id(native)
 	if window == unsafe { nil } {
 		return false
 	}
@@ -82,15 +66,15 @@ fn host_toggle_maximize_window() bool {
 	return true
 }
 
-fn host_window_is_maximized() bool {
-	window := chrome_main_window()
+fn host_window_is_maximized(native voidptr) bool {
+	window := macos.Id(native)
 	return window != unsafe { nil } && macos.msg_bool(window, 'isZoomed')
 }
 
 // The traffic lights take about 70 points from the leading edge of a hidden
 // title bar; measuring the zoom button keeps it right if that changes.
-fn host_window_controls_leading_inset() f64 {
-	window := chrome_main_window()
+fn host_window_controls_leading_inset(native voidptr) f64 {
+	window := macos.Id(native)
 	if window == unsafe { nil } {
 		return 78
 	}

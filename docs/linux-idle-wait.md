@@ -11,8 +11,8 @@ ui2.run_window('Idle wait', 520, 220, build)
 ```
 
 Run `examples/idle_wait` for a stationary-pointer tooltip, worker delivery and an
-editable English/Spanish draft. The worker captures `ui_dispatcher()` on the UI
-thread and calls `dispatcher.post(callback)`. Only that callback mutates the
+editable English/Spanish draft. The worker captures the window's `dispatcher()`
+on the UI thread and calls `dispatcher.post(callback)`. Only that callback mutates the
 model, on the UI thread. Posts coalesce, a request during a flush survives for
 the next flush, and a closed dispatcher rejects late work. `dispatcher.stats()`
 is synchronized and can be read from a worker without waking the window.

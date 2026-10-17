@@ -75,14 +75,17 @@ mut:
 @[heap]
 struct ApiState {
 mut:
-	build      CBuildFn = unsafe { nil }
-	key        CKeyFn   = unsafe { nil }
-	user_data  voidptr
-	building   bool
-	running    bool
-	title      string = 'App'
-	width      int    = 800
-	height     int    = 600
+	build     CBuildFn = unsafe { nil }
+	key       CKeyFn   = unsafe { nil }
+	user_data voidptr
+	building  bool
+	running   bool
+	title     string = 'App'
+	width     int    = 800
+	height    int    = 600
+	// window is the one window ui2_run shows, while it runs. The mounted-control
+	// functions of the ABI name no window, so they act on this one.
+	window     &ui2.Window = unsafe { nil }
 	generation u64
 	// Root every handle while foreign code builds. A foreign runtime's heap
 	// need not be visible to V's collector.
@@ -95,6 +98,15 @@ const api_state = &ApiState{}
 
 fn state() &ApiState {
 	return unsafe { api_state }
+}
+
+// live_window is the window that ui2_run shows, while it runs.
+fn live_window() ?&ui2.Window {
+	st := state()
+	if !st.running || st.window == unsafe { nil } {
+		return none
+	}
+	return st.window
 }
 
 fn input(s &char) string {
@@ -228,15 +240,15 @@ fn dispatch_element_event(callback CEventFn, callback_data voidptr, event ui2.El
 		target:  &char(event.target.str)
 	}
 	callback(callback_data, &foreign)
-	if state().running { ui2.request_refresh() }
+	if mut w := live_window() { w.request_refresh() }
 }
 
-fn dispatch_key(key string) {
+fn dispatch_key(mut w ui2.Window, key string) {
 	st := state()
 	if st.key != unsafe { nil } {
 		st.key(st.user_data, &char(key.str))
 	}
-	if st.running { ui2.request_refresh() }
+	if st.running { w.request_refresh() }
 }
 
 @[export: 'ui2_abi_version']
@@ -274,13 +286,25 @@ pub fn run(config &C.ui2_config) int {
 	if st.last_error.len > 0 {
 		return -1
 	}
-	st.running = true
-	$if macos || windows || linux {
-		ui2.on_key(dispatch_key)
-		ui2.run_window(st.title, st.width, st.height, build_tree)
-	} $else {
-		ui2.run(build_tree)
+	mut app := ui2.new_app()
+	mut w := app.new_window(
+		title:  st.title
+		width:  st.width
+		height: st.height
+		build:  fn (mut _ ui2.Window) ui2.Element {
+			return build_tree()
+		}
+	) or {
+		fail(err.msg())
+		return -1
 	}
+	w.on_key(dispatch_key)
+	st.window = w
+	st.running = true
+	defer {
+		st.window = unsafe { nil }
+	}
+	app.run()
 	return if st.last_error.len == 0 { 0 } else { -1 }
 }
 
@@ -490,18 +514,20 @@ pub fn add_option(handle &C.ui2_node, text &char) {
 
 @[export: 'ui2_request_refresh']
 pub fn request_refresh() {
-	if state().running { ui2.request_refresh() }
+	mut w := live_window() or { return }
+	w.request_refresh()
 }
 
 @[export: 'ui2_quit']
 pub fn quit() {
-	if state().running { ui2.quit() }
+	mut w := live_window() or { return }
+	w.quit()
 }
 
 @[export: 'ui2_bounds']
 pub fn bounds(width &f64, height &f64) {
 	st := state()
-	b := if st.running { ui2.bounds() } else { ui2.rect(0, 0, st.width, st.height) }
+	b := if mut w := live_window() { w.bounds() } else { ui2.rect(0, 0, st.width, st.height) }
 	unsafe {
 		if width != nil { *width = b.width }
 		if height != nil { *height = b.height }
@@ -510,7 +536,10 @@ pub fn bounds(width &f64, height &f64) {
 
 @[export: 'ui2_get_text']
 pub fn get_text(id &char, buffer &char, capacity usize) usize {
-	value := ui2.text(input(id))
+	mut value := ''
+	if mut w := live_window() {
+		value = w.text(input(id))
+	}
 	if buffer != unsafe { nil } && capacity > 0 {
 		count := if usize(value.len) < capacity - 1 { usize(value.len) } else { capacity - 1 }
 		unsafe {
@@ -523,46 +552,58 @@ pub fn get_text(id &char, buffer &char, capacity usize) usize {
 
 @[export: 'ui2_update_text']
 pub fn update_text(id &char, text &char) {
-	ui2.set_text(input(id), input(text))
+	mut w := live_window() or { return }
+	w.set_text(input(id), input(text))
 }
 
 @[export: 'ui2_focus']
 pub fn focus(id &char) {
-	ui2.focus(input(id))
+	mut w := live_window() or { return }
+	w.focus(input(id))
 }
 
 @[export: 'ui2_get_value']
 pub fn get_value(id &char) f64 {
-	return ui2.slider_value(input(id))
+	mut w := live_window() or { return 0 }
+	return w.slider_value(input(id))
 }
 
 @[export: 'ui2_update_value']
 pub fn update_value(id &char, value f64) {
-	ui2.set_slider_value(input(id), value)
+	mut w := live_window() or { return }
+	w.set_slider_value(input(id), value)
 }
 
 @[export: 'ui2_get_checked']
 pub fn get_checked(id &char) int {
-	return if ui2.control_checked(input(id)) { 1 } else { 0 }
+	mut w := live_window() or { return 0 }
+	return if w.control_checked(input(id)) { 1 } else { 0 }
 }
 
 @[export: 'ui2_update_checked']
 pub fn update_checked(id &char, checked int) {
-	ui2.set_control_checked(input(id), checked != 0)
+	mut w := live_window() or { return }
+	w.set_control_checked(input(id), checked != 0)
 }
 
 @[export: 'ui2_scroll_to']
 pub fn scroll_to(id &char, x f64, y f64) {
+	mut w := live_window() or { return }
 	name := input(id)
-	ui2.scroll_to_horizontal_offset(name, x)
-	ui2.scroll_to_offset(name, y)
+	w.scroll_to_horizontal_offset(name, x)
+	w.scroll_to_offset(name, y)
 }
 
 @[export: 'ui2_get_scroll']
 pub fn get_scroll(id &char, x &f64, y &f64) {
 	name := input(id)
+	mut horizontal, mut vertical := 0.0, 0.0
+	if mut w := live_window() {
+		horizontal = w.scroll_horizontal_offset(name)
+		vertical = w.scroll_offset(name)
+	}
 	unsafe {
-		if x != nil { *x = ui2.scroll_horizontal_offset(name) }
-		if y != nil { *y = ui2.scroll_offset(name) }
+		if x != nil { *x = horizontal }
+		if y != nil { *y = vertical }
 	}
 }

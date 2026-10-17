@@ -99,15 +99,15 @@ pub fn (mut app InsideRowDemo) rotate() {
 
 fn canvas_layout_inside_row_callbacks() map[string]ui2.ElementCallback {
 	return {
-		'return': fn (_event ui2.ElementEvent) {
+		'return': fn (event ui2.ElementEvent) {
 			mut state := unsafe { inside_row_state }
 			state.return_to_tray()
-			ui2.request_refresh()
+			event.window.request_refresh()
 		}
-		'rotate': fn (_event ui2.ElementEvent) {
+		'rotate': fn (event ui2.ElementEvent) {
 			mut state := unsafe { inside_row_state }
 			state.rotate()
-			ui2.request_refresh()
+			event.window.request_refresh()
 		}
 		'logo':   fn (event ui2.ElementEvent) {
 			if event.kind !in [.pointer_down, .pointer_drag, .pointer_up] {
@@ -116,10 +116,10 @@ fn canvas_layout_inside_row_callbacks() map[string]ui2.ElementCallback {
 			// Events are inverse-mapped through the logo's current affine transform.
 			// Recover the window point before changing placement (and its pivot).
 			// An unpresented/removed logo or card intentionally ignores input.
-			_ = ui2.visual_geometry('logo') or { return }
-			_ = ui2.visual_geometry('card') or { return }
-			logo := ui2.mounted_geometry('logo') or { return }
-			card := ui2.mounted_geometry('card') or { return }
+			_ = event.window.visual_geometry('logo') or { return }
+			_ = event.window.visual_geometry('card') or { return }
+			logo := event.window.mounted_geometry('logo') or { return }
+			card := event.window.mounted_geometry('card') or { return }
 			window := logo.transform.point(event.x, event.y)
 			mut state := unsafe { inside_row_state }
 			match event.kind {
@@ -129,7 +129,7 @@ fn canvas_layout_inside_row_callbacks() map[string]ui2.ElementCallback {
 				}
 				else {}
 			}
-			ui2.request_refresh()
+			event.window.request_refresh()
 		}
 	}
 }

@@ -78,22 +78,21 @@ fn transition_stage_size(frame ui2.Rect) (f64, f64) {
 
 fn transitions_callbacks() map[string]ui2.ElementCallback {
 	return {
-		'slide': fn (_event ui2.ElementEvent) {
-			handle_transitions_event('slide')
-			ui2.request_refresh()
+		'slide': fn (event ui2.ElementEvent) {
+			handle_transitions_event(mut event.window, 'slide')
 		}
 	}
 }
 
-fn handle_transitions_event(event string) {
+fn handle_transitions_event(mut w ui2.Window, event string) {
 	if event != 'slide' {
 		return
 	}
-	frame := ui2.bounds()
+	frame := w.bounds()
 	stage_width, stage_height := transition_stage_size(frame)
 	mut state := unsafe { transitions_state }
 	state.select_target(stage_width, stage_height)
-	ui2.request_refresh()
+	w.request_refresh()
 }
 
 fn main() {
