@@ -18,18 +18,16 @@ $if (linux || macos || windows) && !ui2_headless ? {
 		}
 	}
 
-	fn check_editor_shape_ownership(id string, value string, multiline bool) ! {
-		previous := activate_custom_window_state(new_custom_window_state())
+	fn check_editor_shape_ownership(mut w Window, id string, value string, multiline bool) ! {
 		mut engine := new_text_engine(1)!
 		defer {
-			forget_text_state(id)
-			activate_custom_window_state(previous)
+			w.forget_text_state(id)
 			engine.free()
 		}
 		style := TextStyle{ size: 16, font_family: 'Roboto Mono' }
-		g_text_kinds[id] = if multiline { Kind.text_area } else { Kind.text_field }
-		replace_text_editor(id, text_editor(value.clone()))
-		editor := g_text_editors[id] or { panic('missing editor') }
+		w.text_kinds[id] = if multiline { Kind.text_area } else { Kind.text_field }
+		w.replace_text_editor(id, text_editor(value.clone()))
+		editor := w.text_editors[id] or { panic('missing editor') }
 		// Allocate the equal-content query before the real replacement frees
 		// editor.text; neither query nor expected value borrows that allocation.
 		query := editor.text.clone()
@@ -50,7 +48,7 @@ $if (linux || macos || windows) && !ui2_headless ? {
 		}
 		assert cursors[1].x > cursors[0].x
 		assert selection.len == 1 && selection[0].width > 0
-		replace_text_editor(id, text_editor('reemplazo á'.clone()))
+		w.replace_text_editor(id, text_editor('reemplazo á'.clone()))
 		hit := if multiline {
 			engine.shape_area(query, style, 400)!
 		} else {
@@ -77,9 +75,9 @@ $if (linux || macos || windows) && !ui2_headless ? {
 			assert cold.lines.map(it.end) == [7, 13, 14]
 			// Remember from an old shape only after the editor has been replaced.
 			for shaped in [cold, hit] {
-				remember_shaped_text_area(id, shaped, 400, style)
-				assert g_text_area_layouts[id].text == value
-				assert g_text_area_layouts[id].lines == ['café ñ🙂', 'área', '']
+				w.remember_shaped_text_area(id, shaped, 400, style)
+				assert w.text_area_layouts[id].text == value
+				assert w.text_area_layouts[id].lines == ['café ñ🙂', 'área', '']
 			}
 		} else {
 			assert cold.lines.len == 1 && cold.lines[0].text == value
@@ -88,11 +86,13 @@ $if (linux || macos || windows) && !ui2_headless ? {
 	}
 
 	fn test_field_cold_and_cached_shapes_survive_real_editor_replacement() {
-		check_editor_shape_ownership('owned-field', 'café ñ🙂', false)!
+		mut w := &Window{}
+		check_editor_shape_ownership(mut w, 'owned-field', 'café ñ🙂', false)!
 	}
 
 	fn test_area_cold_and_cached_shapes_survive_real_editor_replacement() {
-		check_editor_shape_ownership('owned-area', 'café ñ🙂\r\nárea\n', true)!
+		mut w := &Window{}
+		check_editor_shape_ownership(mut w, 'owned-area', 'café ñ🙂\r\nárea\n', true)!
 	}
 
 	fn test_cached_and_uncached_shapes_own_short_lived_external_text() {

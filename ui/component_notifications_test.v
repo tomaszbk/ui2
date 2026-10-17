@@ -623,21 +623,22 @@ fn test_notification_stacks_slide_cards_in_and_slots_out() {
 }
 
 fn test_notification_schedule_runs_timers_through_after() {
+	mut w := &Window{}
 	mut list := NotificationList{
 		enter_duration: 0.01
 		exit_duration:  0.01
 	}
-	list.schedule(list.push(Notification{ message: 'a', duration: 0.01 }))
+	list.schedule(mut w, list.push(Notification{ message: 'a', duration: 0.01 }))
 	assert list.pending_timers() == 1
 	for _ in 0 .. 3 {
-		run_due_timers(time.ticks() + 60_000)
+		w.timers.run_due(time.ticks() + 60_000)
 	}
 	assert list.len() == 0
 	assert list.pending_timers() == 0
-	list.schedule(list.push(Notification{ message: 'b' }))
-	list.schedule(list.dismiss(2))
+	list.schedule(mut w, list.push(Notification{ message: 'b' }))
+	list.schedule(mut w, list.dismiss(2))
 	assert list.pending_timers() == 1, 'the enter timer was not cancelled'
-	run_due_timers(time.ticks() + 60_000)
+	w.timers.run_due(time.ticks() + 60_000)
 	assert list.len() == 0
 	assert list.pending_timers() == 0
 }
@@ -721,16 +722,17 @@ fn test_clipboard_button_takes_clicks_only_while_it_can_copy() {
 }
 
 fn test_clipboard_feedback_expires_with_after() {
+	mut w := &Window{}
 	mut feedback := &ClipboardFeedback{
 		duration: 0.01
 	}
 	assert !feedback.copied('key')
-	feedback.show('key')
+	feedback.show(mut w, 'key')
 	first := feedback.timers['key'] or { panic('no timer') }
-	feedback.show('key')
-	assert !timer_pending(first), 'restarting kept the old timer'
+	feedback.show(mut w, 'key')
+	assert !w.timer_pending(first), 'restarting kept the old timer'
 	assert feedback.copied('key')
-	run_due_timers(time.ticks() + 60_000)
+	w.timers.run_due(time.ticks() + 60_000)
 	assert !feedback.copied('key')
 }
 

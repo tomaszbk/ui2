@@ -87,7 +87,7 @@ fn feedback_test_clocked(part Element, clock MotionClock) Element {
 }
 
 fn feedback_test_mount(part Element) &ElementMotionState {
-	mut state := new_element_motion_state(part) or { panic(err) }
+	mut state := new_element_motion_state(part, unsafe { nil }) or { panic(err) }
 	state.mount() or { panic(err) }
 	return state
 }
@@ -282,14 +282,6 @@ fn test_linear_progress_loading_follows_gpui_curve() {
 	// Leaving the loading state removes the loop, so nothing keeps redrawing.
 	done := linear_progress(id: 'busy', frame: rect(0, 0, 200, 8), value: 20) or { panic(err) }
 	assert feedback_test_ids(done, parts[0]).len == 0
-	// The application's reduced motion preference stills it too.
-	set_reduced_motion(true)
-	reduced := linear_progress(id: 'busy', frame: rect(0, 0, 200, 8), loading: true) or {
-		panic(err)
-	}
-	set_reduced_motion(false)
-	assert reduced.children[0].children[0].frame == rect(65, 0, 70, 8)
-	assert reduced.children[0].children[0].motion == none
 }
 
 fn test_ring_cells_and_strips_cover_the_ring() {
@@ -587,11 +579,6 @@ fn test_feedback_loops_restart_on_new_settings() {
 	moved_band := moved.children[0].children[0]
 	assert band.id == moved_band.id
 	assert feedback_test_timeline(band) != feedback_test_timeline(moved_band)
-	// The application's reduced motion preference stills every loop.
-	set_reduced_motion(true)
-	reduced := loading_spinner(id: 'busy', frame: rect(0, 0, 16, 16)) or { panic(err) }
-	set_reduced_motion(false)
-	assert feedback_test_ids(reduced, component_part_id('busy', '')).len == 0
 }
 
 fn test_feedback_toggle_and_level_loops() {

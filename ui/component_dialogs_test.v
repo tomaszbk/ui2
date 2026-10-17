@@ -884,7 +884,9 @@ fn test_sheet_motion_slides_the_panel_and_fades_the_sheet() {
 	}
 	closed := sheet(SheetConfig{ ...cfg, open: false }) or { panic(err) }
 	closed_panel := dialogs_test_find(closed, panel_id) or { panic('no panel') }
-	mut state := new_element_motion_state(clocked(closed_panel)) or { panic(err) }
+	mut state := new_element_motion_state(clocked(closed_panel), unsafe { nil }) or {
+		panic(err)
+	}
 	state.mount() or { panic(err) }
 	assert state.current.phase == .absent
 	clock.now = 1

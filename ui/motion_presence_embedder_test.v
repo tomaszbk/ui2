@@ -34,9 +34,6 @@ $if macos && ui2_embedder ?&& ui2_geometry_capture ?&& !ui2_headless ? {
 
 fn test_actual_motion_frame_fades_text_images_vectors_retargets_without_build_and_returns_idle() ! {
 	$if macos && ui2_embedder ?&& ui2_geometry_capture ?&& !ui2_headless ? {
-		previous_app := g_gg_app
-		previous_build := g_build_screen
-		previous_state := activate_custom_window_state(new_custom_window_state())
 		mut ctx := new_surface_draw_context(gg.Config{ width: 320, height: 240 }, motion_gpu_environment())!
 		window := C.ui2_embedder_create(&C.ui2_embedder_config{
 			title:   c'Motion presence fixture'
@@ -45,14 +42,6 @@ fn test_actual_motion_frame_fades_text_images_vectors_retargets_without_build_an
 			visible: false
 		}, &C.ui2_embedder_callbacks{}, unsafe { nil })
 		assert window != unsafe { nil }
-		defer {
-			g_gg_app.motion_tree.dispose()
-			C.ui2_embedder_close(window)
-			ctx.destroy()
-			activate_custom_window_state(previous_state)
-			g_build_screen = previous_build
-			g_gg_app = previous_app
-		}
 		mut fixture := &EmbedderMotionFixture{}
 		shape := prepare_vector_shape(vector_polygon([vector_point(0, 0), vector_point(40, 0),
 			vector_point(40, 24), vector_point(0, 24)]), VectorStyle{ fill: 0x00cc44 })!
@@ -92,17 +81,22 @@ fn test_actual_motion_frame_fades_text_images_vectors_retargets_without_build_an
 			box:      BoxStyle{ bg: 0xffffff }
 			children: [outer]
 		}
-		g_build_screen = fn [mut fixture, declared] () Element {
+		mut w := &Window{ ctx: ctx, native_window: window }
+		defer {
+			w.motion_tree.dispose()
+			C.ui2_embedder_close(window)
+			ctx.destroy()
+		}
+		w.build = fn [mut fixture, declared] (mut _ Window) Element {
 			fixture.builds++
 			return declared
 		}
-		g_gg_app = &GgApp{ ctx: ctx, native_window: window }
 		ctx.submitted_polygon = observe_motion_polygon
-		on_frame(mut g_gg_app)
+		on_frame(mut w)
 		assert fixture.builds == 1
 		fixture.now = 0.1
 		motion_gpu_vertices.clear()
-		on_frame(mut g_gg_app)
+		on_frame(mut w)
 		glyphs := motion_gpu_vertices.filter(it.r == 34 && it.g == 51 && it.b == 68)
 		vectors := motion_gpu_vertices.filter(it.r == 0 && it.g == 204 && it.b == 68)
 		images := motion_gpu_vertices.filter(it.x >= 170 && it.x <= 220 && it.y >= 20
@@ -113,54 +107,54 @@ fn test_actual_motion_frame_fades_text_images_vectors_retargets_without_build_an
 		assert images.all(math.abs(it.a - 63.75) < 0.0001)
 		assert ctx.opacity == 1 && ctx.content_transform == ContentTransform{}
 		fixture.now = 0.21
-		on_frame(mut g_gg_app)
-		idle := g_gg_app.scheduler.stats()
-		for _ in 0 .. 3 { on_frame(mut g_gg_app) }
-		assert g_gg_app.scheduler.stats().draws == idle.draws
+		on_frame(mut w)
+		idle := w.scheduler.stats()
+		for _ in 0 .. 3 { on_frame(mut w) }
+		assert w.scheduler.stats().draws == idle.draws
 		assert fixture.builds == 1 && !idle.motion_active && !idle.pending
-		set_text('edit', 'España ñ café')
-		focus('edit')
-		mut editor := g_text_editors['edit'] or { panic('missing editor') }
+		w.set_text('edit', 'España ñ café')
+		w.focus('edit')
+		mut editor := w.text_editors['edit'] or { panic('missing editor') }
 		editor.set_selection(1, 5)
-		replace_text_editor('edit', editor)
-		g_gg_app.composition.update('edit', editor, 'á', 1, 0, -1, 0)
-		on_frame(mut g_gg_app)
-		before_layout := layout_stats()
+		w.replace_text_editor('edit', editor)
+		w.composition.update('edit', editor, 'á', 1, 0, -1, 0)
+		on_frame(mut w)
+		before_layout := w.layout_stats()
 		before_shape := ctx.text.shape_builds
-		set_visual_transform('outer', VisualTransform{ translate_x: 40 })!
-		on_frame(mut g_gg_app)
+		w.set_visual_transform('outer', VisualTransform{ translate_x: 40 })!
+		on_frame(mut w)
 		fixture.now = 0.31
-		on_frame(mut g_gg_app)
-		mounted := g_focus_navigation.node('edit') or { panic('missing animated editor') }
+		on_frame(mut w)
+		mounted := w.navigation.node('edit') or { panic('missing animated editor') }
 		assert math.abs(mounted.transform.x - 20) < 0.00001
-		assert text('edit') == 'España ñ café'
-		assert g_text_editors['edit'].selection == TextSelection{ anchor: 1, caret: 5 }
-		assert g_focused_field == 'edit' && g_gg_app.composition.field_id == 'edit'
+		assert w.text('edit') == 'España ñ café'
+		assert w.text_editors['edit'].selection == TextSelection{ anchor: 1, caret: 5 }
+		assert w.focused_field == 'edit' && w.composition.field_id == 'edit'
 		assert fixture.builds == 1
-		assert layout_stats().measure_visits == before_layout.measure_visits
-		assert layout_stats().layout_visits == before_layout.layout_visits
+		assert w.layout_stats().measure_visits == before_layout.measure_visits
+		assert w.layout_stats().layout_visits == before_layout.layout_visits
 		assert ctx.text.shape_builds == before_shape
 		fixture.now = 0.42
-		on_frame(mut g_gg_app)
-		g_gg_app.declared_root = Element{ ...declared, children: [] }
-		g_gg_app.declaration_pending = true
-		g_gg_app.scheduler.invalidate(.layout)
-		on_frame(mut g_gg_app)
-		assert g_focused_field == '' && g_gg_app.composition.field_id == ''
-		assert g_gg_app.declared_root.children.len == 1
+		on_frame(mut w)
+		w.declared_root = Element{ ...declared, children: [] }
+		w.declaration_pending = true
+		w.scheduler.invalidate(.layout)
+		on_frame(mut w)
+		assert w.focused_field == '' && w.composition.field_id == ''
+		assert w.declared_root.children.len == 1
 		fixture.now = 0.58
-		on_frame(mut g_gg_app)
-		assert g_gg_app.declared_root.children.len == 0
+		on_frame(mut w)
+		assert w.declared_root.children.len == 0
 		mut stale_geometry := false
-		visual_geometry('outer') or { stale_geometry = true }
+		w.visual_geometry('outer') or { stale_geometry = true }
 		assert stale_geometry
 		stale_geometry = false
-		visual_geometry('edit') or { stale_geometry = true }
+		w.visual_geometry('edit') or { stale_geometry = true }
 		assert stale_geometry
-		completed := g_gg_app.scheduler.stats()
-		for _ in 0 .. 4 { on_frame(mut g_gg_app) }
+		completed := w.scheduler.stats()
+		for _ in 0 .. 4 { on_frame(mut w) }
 		assert !completed.motion_active && !completed.pending
-		assert g_gg_app.scheduler.stats().draws == completed.draws && fixture.builds == 1
+		assert w.scheduler.stats().draws == completed.draws && fixture.builds == 1
 		assert sgl.error() == .no_error
 		println('owned Metal: nested fade submitted for glyphs/images/vectors; transforms preserved edits/IME and avoided builds/relayout; enter/exit returned idle')
 	}

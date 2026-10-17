@@ -24,118 +24,111 @@ fn scope_frame_old_scroll(event ElementEvent) {
 }
 
 fn scope_frame_current_scroll(event ElementEvent) {
+	mut w := event.window
 	scope_frame_events << 'current:${event.value}'
 	// Scroll's established range includes its 16 logical unit bottom inset:
 	// 250 + 30 + 16 - 100 = 196 after the post-begin content shrink.
-	expected := if scope_frame_mode >= 10 { 196 } else { 430 }
+	expected := if scope_frame_mode >= 9 { 196 } else { 430 }
 	eprintln('scope callback frame mode=${scope_frame_mode} event=${event.kind} id=${event.id} value=${event.value}')
 	assert event.kind == .scroll && event.id == 'pane' && event.value == expected
-	scope_frame_scheduler = g_gg_app.scheduler
-	scope_frame_draws = render_stats().draws
+	scope_frame_scheduler = w.scheduler
+	scope_frame_draws = w.render_stats().draws
 	scope_frame_gpu_frame = gfx.query_frame_stats().frame_index
 	match scope_frame_mode {
-		1 { on_event(&gg.Event{typ: .unfocused}, g_gg_app) }
-		2 { on_event(&gg.Event{typ: .suspended}, g_gg_app) }
-		3 {
-			previous := activate_custom_window_state(new_custom_window_state())
-			activate_custom_window_state(previous)
+		1 { on_event(&gg.Event{typ: .unfocused}, mut w) }
+		2 { on_event(&gg.Event{typ: .suspended}, mut w) }
+		3 { on_event(&gg.Event{typ: .key_down, key_code: .n}, mut w) }
+		4 { on_event(&gg.Event{typ: .mouse_down, mouse_x: 240, mouse_y: 140}, mut w) }
+		5 { w.update_custom_focus_tree(screen(0xffffff, [Element{kind: .button, id: 'replacement'}])) }
+		6 { w.focus('fresh') }
+		7 {
+			w.scheduler = new_frame_coordinator()
+			assert w.dispatcher().post(fn [mut w] () { scope_frame_verify(mut w) })
 		}
-		4 { on_event(&gg.Event{typ: .key_down, key_code: .n}, g_gg_app) }
-		5 { on_event(&gg.Event{typ: .mouse_down, mouse_x: 240, mouse_y: 140}, g_gg_app) }
-		6 { update_custom_focus_tree(screen(0xffffff, [Element{kind: .button, id: 'replacement'}])) }
-		7 { focus('fresh') }
-		8 {
-			g_gg_app.scheduler = new_frame_coordinator()
-			assert ui_dispatcher().post(scope_frame_verify)
-		}
-		9, 10 { quit() }
-		11 {
-			previous := activate_custom_window_state(new_custom_window_state())
-			activate_custom_window_state(previous)
-		}
+		8, 9 { w.quit() }
 		else {}
 	}
 }
 
-fn scope_frame_verify() {
-	defer { quit() }
-	scope_frame_assert_restoration()
+fn scope_frame_verify(mut w Window) {
+	defer { w.quit() }
+	scope_frame_assert_restoration(mut w)
 	assert scope_frame_verified
 	eprintln('scope callback frame mode=${scope_frame_mode} passed')
 }
 
-fn scope_frame_assert_restoration() {
-	expected := if scope_frame_mode >= 10 { 196.0 } else { 430.0 }
+fn scope_frame_assert_restoration(mut w Window) {
+	expected := if scope_frame_mode >= 9 { 196.0 } else { 430.0 }
 	assert scope_frame_events == ['current:${expected}'], 'the current mounted callback must run exactly once'
 	assert scope_frame_scheduler.stats().draws == scope_frame_draws
 	assert !scope_frame_scheduler.stats().in_flight, 'the captured scheduler must finish an aborted frame'
-	if scope_frame_mode >= 10 {
+	if scope_frame_mode >= 9 {
 		// Cancellation never submits a GPU frame. The completed-frame stats
 		// still describe the preceding valid frame.
 		assert gfx.query_frame_stats().frame_index == scope_frame_gpu_frame
 	}
-	if scope_frame_mode == 6 {
-		assert semantic_tree().filter(it.id == 'restore').len == 0
-	} else if scope_frame_mode in [5, 7] {
-		assert focused_id() == 'fresh'
-	} else {
-		assert active_focus_scope() == '' && focused_id() == 'restore'
-		assert scroll_offset('pane') == expected
-		assert text('restore') == 'café ñ'
-		assert text_area_caret('restore') == 3 && text_area_selection_length('restore') == 2
-	}
 	if scope_frame_mode == 5 {
-		assert g_touch.down && g_touch.pointer_captured && g_touch.pointer_target.id == 'fresh'
-		on_event(&gg.Event{typ: .mouse_up, mouse_x: 240, mouse_y: 140}, g_gg_app)
+		assert w.semantic_tree().filter(it.id == 'restore').len == 0
+	} else if scope_frame_mode in [4, 6] {
+		assert w.focused_id() == 'fresh'
+	} else {
+		assert w.active_focus_scope() == '' && w.focused_id() == 'restore'
+		assert w.scroll_offset('pane') == expected
+		assert w.text('restore') == 'café ñ'
+		assert w.text_area_caret('restore') == 3 && w.text_area_selection_length('restore') == 2
+	}
+	if scope_frame_mode == 4 {
+		assert w.touch.down && w.touch.pointer_captured && w.touch.pointer_target.id == 'fresh'
+		on_event(&gg.Event{typ: .mouse_up, mouse_x: 240, mouse_y: 140}, mut w)
 	}
 	scope_frame_verified = true
 }
 
-fn scope_frame_cleanup(app &GgApp) {
-	if scope_frame_mode in [9, 10] {
-		scope_frame_assert_restoration()
+fn scope_frame_cleanup(mut w Window) {
+	if scope_frame_mode in [8, 9] {
+		scope_frame_assert_restoration(mut w)
 		assert scope_frame_verified
 		assert scope_frame_scheduler.stats().closed
 		eprintln('scope callback frame mode=${scope_frame_mode} passed')
 	}
-	on_cleanup(app)
+	on_cleanup(mut w)
 }
 
 fn scope_frame_pointer(_event ElementEvent) {}
 
-fn scope_frame_setup() {
-	focus('restore')
-	assert focused_id() == 'restore' && scroll_offset('pane') == 430
+fn scope_frame_setup(mut w Window) {
+	w.focus('restore')
+	assert w.focused_id() == 'restore' && w.scroll_offset('pane') == 430
 	assert scope_frame_events == ['old:430.0']
-	text_area_set_selection('restore', 1, 2)
-	if scope_frame_mode < 10 {
-		assert enter_focus_scope('scope')
-		scroll_to_offset('pane', 0)
+	w.text_area_set_selection('restore', 1, 2)
+	if scope_frame_mode < 9 {
+		assert w.enter_focus_scope('scope')
+		w.scroll_to_offset('pane', 0)
 		assert scope_frame_events == ['old:430.0', 'old:0.0']
 	}
 	scope_frame_events.clear()
 	scope_frame_phase = 1
-	request_refresh()
+	w.request_refresh()
 }
 
-fn scope_frame_root() Element {
+fn scope_frame_root(mut w Window) Element {
 	scope_frame_builds++
 	// The first retained frame mounts the declaration; its posted setup runs
 	// on the next callback. Idle GL presentation does not rebuild the model.
 	if scope_frame_builds == 1 && !scope_frame_setup_posted {
 		gfx.enable_frame_stats()
-		g_gg_app.ctx.inner.config = gg.Config{...g_gg_app.ctx.inner.config, cleanup_fn: scope_frame_cleanup}
+		w.ctx.inner.config = gg.Config{...w.ctx.inner.config, cleanup_fn: scope_frame_cleanup}
 		scope_frame_setup_posted = true
-		assert ui_dispatcher().post(scope_frame_setup)
+		assert w.dispatcher().post(fn [mut w] () { scope_frame_setup(mut w) })
 	}
 	if scope_frame_phase == 1 && !scope_frame_verify_posted {
 		scope_frame_verify_posted = true
-		assert ui_dispatcher().post(scope_frame_verify)
+		assert w.dispatcher().post(fn [mut w] () { scope_frame_verify(mut w) })
 	}
 	pane := Element{kind: .scroll, id: 'pane', frame: rect(0, 0, 160, 100),
 		on_event: if scope_frame_phase == 0 { scope_frame_old_scroll } else { scope_frame_current_scroll },
 		children: [Element{kind: .text_area, id: 'restore', text: 'café ñ', disable_scroll: true,
-			frame: rect(0, if scope_frame_phase == 1 && scope_frame_mode >= 10 { 250 } else { 500 }, 150, 30)}]}
+			frame: rect(0, if scope_frame_phase == 1 && scope_frame_mode >= 9 { 250 } else { 500 }, 150, 30)}]}
 	mut children := [pane, Element{kind: .view, id: 'fresh', focus_policy: .focusable, clickable: true,
 		draggable: true, on_event: scope_frame_pointer, frame: rect(200, 120, 100, 50)}]
 	if scope_frame_phase == 0 {
@@ -150,7 +143,7 @@ fn test_scope_removal_notifies_current_scroll_and_aborts_stale_frames_on_real_gl
 	if mode_arg.len == 0 {
 		// NSApplication terminates the Sokol process when its window closes.
 		// Run each case in a child and require its assertion-completion receipt.
-		for mode in 0 .. 12 {
+		for mode in 0 .. 10 {
 			result := os.execute('${os.quoted_path(os.executable())} --scope-frame-mode=${mode}')
 			eprintln(result.output)
 			assert result.exit_code == 0
@@ -159,9 +152,6 @@ fn test_scope_removal_notifies_current_scroll_and_aborts_stale_frames_on_real_gl
 		}
 		return
 	}
-	previous_app := g_gg_app
-	previous := activate_custom_window_state(new_custom_window_state())
-	defer { activate_custom_window_state(previous); g_gg_app = previous_app }
 	// Actual Mac GL windows; synthetic API/input calls do not certify physical
 	// OS keyboard/pointer input or Metal host acceptance.
 	scope_frame_mode = mode_arg[0].all_after('=').int()
@@ -171,10 +161,8 @@ fn test_scope_removal_notifies_current_scroll_and_aborts_stale_frames_on_real_gl
 	scope_frame_verify_posted = false
 	scope_frame_verified = false
 	scope_frame_events = []string{}
-	g_gg_app = &GgApp{}
-	activate_custom_window_state(new_custom_window_state())
 	run_window('Scope callback frame ownership', 320, 180, scope_frame_root)
-	expected := if scope_frame_mode >= 10 { 196.0 } else { 430.0 }
+	expected := if scope_frame_mode >= 9 { 196.0 } else { 430.0 }
 	assert scope_frame_events == ['current:${expected}']
 	assert scope_frame_verified
 }

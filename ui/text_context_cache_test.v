@@ -28,10 +28,14 @@ $if (linux || macos || windows) && !ui2_headless ? {
 		ctx.shape_text('different', style, 400, 1, false)!
 		assert engine.shape_builds == 5
 		ctx.destroyed = true
-		if _ := ctx.shape_text('closed', style, 100, 1, false) { assert false }
+		if _ := ctx.shape_text('closed', style, 100, 1, false) {
+			assert false
+		}
 		ctx.destroyed = false
 		ctx.text = unsafe { nil }
-		if _ := ctx.shape_text_area('closed', style, 100) { assert false }
+		if _ := ctx.shape_text_area('closed', style, 100) {
+			assert false
+		}
 	}
 
 	fn test_owned_rich_text_has_one_cache_per_context_and_validates_constraints() {
@@ -57,14 +61,15 @@ $if (linux || macos || windows) && !ui2_headless ? {
 		assert first_engine.shape_builds == 1
 	}
 	fn test_owned_wrappers_environment_font_dpi_and_rich_ellipsis_keys() {
-		previous_app := g_gg_app
-		previous := activate_custom_window_state(new_custom_window_state())
 		mut engine := new_text_engine(1)!
 		mut dpi_engine := new_text_engine(2)!
-		defer { activate_custom_window_state(previous); g_gg_app = previous_app; engine.free(); dpi_engine.free() }
-		g_gg_app = &GgApp{ctx: &DrawContext{text: engine}}
-		mut ctx := g_gg_app.ctx
-		style := TextStyle{size: 18, color: 0xff0000}
+		defer {
+			engine.free()
+			dpi_engine.free()
+		}
+		mut w := &Window{ ctx: &DrawContext{ text: engine } }
+		mut ctx := w.ctx
+		style := TextStyle{ size: 18, color: 0xff0000 }
 		ctx.shape_text('environment ñ café', style, 300, 1, false)!
 		layout_measure_vglyph_text('environment ñ café', style, 300)!
 		mut cpu := g_cpu_text_engine
@@ -72,7 +77,7 @@ $if (linux || macos || windows) && !ui2_headless ? {
 		before := engine.shape_builds
 		cpu_version := cpu.environment_version
 		draw_version := engine.environment_version
-		invalidate_layout_environment(LayoutEnvironment{version: 7})
+		w.invalidate_layout_environment(LayoutEnvironment{ version: 7 })
 		assert cpu != engine && cpu.environment_version == cpu_version + 1
 		assert engine.environment_version == draw_version + 1
 		ctx.shape_text('environment ñ café', style, 300, 1, false)!
@@ -101,15 +106,19 @@ $if (linux || macos || windows) && !ui2_headless ? {
 		assert dpi_engine.scale == 2 && dpi_engine.shape_builds == 1 && dpi_engine.shape_hits == 1
 		ctx.text = engine
 		ctx.scale = 1
-		runs := [TextRun{text: 'short', style: style}, TextRun{text: '\nhidden', style: TextStyle{...style, color: 0x0000ff}}]
+		runs := [TextRun{ text: 'short', style: style },
+			TextRun{ text: '\nhidden', style: TextStyle{ ...style, color: 0x0000ff } }]
 		first := ctx.shape_runs(runs, style, 300, 1, true)!
 		rich_builds := engine.shape_builds
-		changed := runs.map(TextRun{text: it.text, style: TextStyle{...it.style, color: 0x00aa00}})
+		changed := runs.map(TextRun{ text: it.text, style: TextStyle{ ...it.style, color: 0x00aa00 } })
 		recolored := ctx.shape_runs(changed, style, 300, 1, true)!
 		assert engine.shape_builds == rich_builds && recolored.truncated
 		assert first.size == recolored.size && first.lines == recolored.lines
-		for item in first.layout.items { assert item.color == hex_color(0xff0000) }
-		for item in recolored.layout.items { assert item.color == hex_color(0x00aa00) }
+		for item in first.layout.items {
+			assert item.color == hex_color(0xff0000)
+		}
+		for item in recolored.layout.items {
+			assert item.color == hex_color(0x00aa00)
+		}
 	}
-
 }
