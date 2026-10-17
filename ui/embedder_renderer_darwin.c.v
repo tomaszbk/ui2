@@ -1,27 +1,9 @@
 // vfmt off
-@[has_globals]
 module ui2
 
 $if macos && ui2_embedder ? && !ui2_headless ? && !ui2_document_library ? {
 	import gg
 	import sokol.gfx
-
-	// update runs task for this window on the main thread and requests its
-	// build. Activation is scoped, including nested callbacks during close.
-	// It returns false for a closed window or a call from another thread.
-	pub fn (mut w Window) update(task fn ()) bool {
-		if !C.ui2_embedder_is_main_thread() { return false }
-		if w.scheduler.is_closed() { return false }
-		previous_state := activate_custom_window_state(w.window_state)
-		w.callback_depth++
-		defer {
-			w.finish_embedder_callback()
-			activate_custom_window_state(previous_state)
-		}
-		task()
-		w.scheduler.invalidate(.build)
-		return true
-	}
 
 	// The borrowed NSWindow is for main-thread platform integrations only.
 	pub fn (w &Window) native_handle() voidptr {
@@ -34,14 +16,7 @@ $if macos && ui2_embedder ? && !ui2_headless ? && !ui2_document_library ? {
 	// app's window list keeps a shown window alive until it closes.
 	fn (mut app App) open_embedder_window(config WindowConfig) !&Window {
 		if !C.ui2_embedder_is_main_thread() { return error('windows must be created on the main thread') }
-		first := g_active_custom_window_state == unsafe { nil }
-		state := if first { adopt_custom_window_state() } else { new_custom_window_state() }
-		previous_state := activate_custom_window_state(state)
-		defer {
-			activate_custom_window_state(previous_state)
-		}
 		mut w := new_custom_window(app, config)
-		w.window_state = state
 		font_regular, font_bold := font_paths()
 		device := C.ui2_embedder_metal_device()
 		if device == unsafe { nil } { return error('a main-thread Metal device is required') }
@@ -96,7 +71,6 @@ $if macos && ui2_embedder ? && !ui2_headless ? && !ui2_document_library ? {
 		mut drawing := w.ctx
 		on_cleanup(mut w)
 		drawing.destroy()
-		discard_custom_window_state(w.window_state)
 		w.composition = TextComposition{}
 		w.cleanup_pending = false
 		mut app := w.app
@@ -105,10 +79,6 @@ $if macos && ui2_embedder ? && !ui2_headless ? && !ui2_document_library ? {
 
 	fn embedder_closed(data voidptr) {
 		mut w := unsafe { &Window(data) }
-		previous_state := activate_custom_window_state(w.window_state)
-		defer {
-			activate_custom_window_state(previous_state)
-		}
 		w.cancel_touch()
 		w.reset_custom_keyboard()
 		w.scheduler.close()
@@ -119,11 +89,9 @@ $if macos && ui2_embedder ? && !ui2_headless ? && !ui2_document_library ? {
 	fn embedder_pump(data voidptr) i64 {
 		mut w := unsafe { &Window(data) }
 		if w.scheduler.is_closed() { return -1 }
-		previous_state := activate_custom_window_state(w.window_state)
 		w.callback_depth++
 		defer {
 			w.finish_embedder_callback()
-			activate_custom_window_state(previous_state)
 		}
 		now := renderer_now_ms()
 		interval := C.ui2_embedder_frame_interval(w.native_window)
@@ -176,11 +144,9 @@ $if macos && ui2_embedder ? && !ui2_headless ? && !ui2_document_library ? {
 	fn embedder_event(data voidptr, native &C.ui2_embedder_event) bool {
 		mut w := unsafe { &Window(data) }
 		if w.scheduler.is_closed() { return false }
-		previous_state := activate_custom_window_state(w.window_state)
 		w.callback_depth++
 		defer {
 			w.finish_embedder_callback()
-			activate_custom_window_state(previous_state)
 		}
 		mut event := gg.Event{
 			typ: match native.kind {
@@ -256,11 +222,9 @@ $if macos && ui2_embedder ? && !ui2_headless ? && !ui2_document_library ? {
 	fn embedder_text(data voidptr, native &C.ui2_embedder_text_event) {
 		mut w := unsafe { &Window(data) }
 		if w.scheduler.is_closed() { return }
-		previous_state := activate_custom_window_state(w.window_state)
 		w.callback_depth++
 		defer {
 			w.finish_embedder_callback()
-			activate_custom_window_state(previous_state)
 		}
 		dispatch := w.begin_custom_input_dispatch()
 		id := w.focused_field

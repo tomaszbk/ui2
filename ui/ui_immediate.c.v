@@ -150,7 +150,6 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 		suspended bool
 		dpi_scale f32
 		draining_tasks bool
-		window_state &CustomWindowState = unsafe { nil }
 		// native_window is the embedder's window handle; os_window is the
 		// platform's own window, an NSWindow, an HWND, or nil, that the host
 		// attaches menus and popup menus to.
