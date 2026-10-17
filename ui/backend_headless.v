@@ -620,6 +620,9 @@ $if ui2_headless ? && !ui2_document_library ? {
 
 	fn (mut w Window) backend_remove_tray() {}
 
+	// The window is in memory, so the host has no native one to change.
+	fn (w &Window) backend_native_window() voidptr { return unsafe { nil } }
+
 	// No operating system dialog is shown: pickers return no paths and message
 	// boxes their dismissal result.
 	fn backend_file_dialog(_cfg FileDialogConfig) []string { return [] }

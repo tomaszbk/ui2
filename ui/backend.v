@@ -177,8 +177,12 @@ module ui2
 //   fn backend_menu_bar_supported() bool
 //   fn (mut w Window) backend_set_menu_bar(menus []Menu)
 //   fn backend_tray_supported() bool
-//   fn backend_set_tray(cfg TrayConfig)
-//   fn backend_remove_tray()
+//   fn (mut w Window) backend_set_tray(cfg TrayConfig)
+//   fn (mut w Window) backend_remove_tray()
+//
+// Window chrome (window_chrome.v passes the handle to the host_* functions):
+//   fn (w &Window) backend_native_window() voidptr: w's NSWindow or HWND, or
+//     nil where the window has none
 //
 // Operating system dialogs (file_dialog.v and message_box.v call these; the
 // custom backend forwards to the host's host_* functions):

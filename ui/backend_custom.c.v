@@ -54,6 +54,9 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 
 	fn backend_tray_supported() bool { return host_tray_supported() }
 
+	// The host's per-window services act on the NSWindow or HWND (platform.v).
+	fn (w &Window) backend_native_window() voidptr { return w.os_window }
+
 	// host_menu_owner names this window to the host's menu bar and tray.
 	fn (w &Window) host_menu_owner() HostMenuOwner {
 		return HostMenuOwner{ window: w, native: w.os_window, app_name: w.title }

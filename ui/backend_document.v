@@ -180,6 +180,9 @@ $if ui2_document_library ? {
 
 	fn (mut w Window) backend_remove_tray() {}
 
+	// There is no window, so no native one for the host to change.
+	fn (w &Window) backend_native_window() voidptr { return unsafe { nil } }
+
 	fn backend_file_dialog(_cfg FileDialogConfig) []string { return [] }
 
 	fn backend_file_dialog_supported() bool { return false }
