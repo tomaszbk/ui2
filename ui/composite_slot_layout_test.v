@@ -7,7 +7,6 @@ enum SlotComposite {
 	screen_manager
 	tabbed_panel
 	carousel
-	accordion
 }
 
 __global slot_events = []ElementEvent{}
@@ -94,13 +93,6 @@ fn slot_composite(kind SlotComposite, frame Rect, content Element) !Element {
 			)!
 		}
 		.carousel { carousel(id: 'composite', frame: frame, slides: [content])! }
-		.accordion {
-			accordion(
-				id:    'composite'
-				frame: frame
-				items: [AccordionItem{ id: 'header', title: 'Header', content: content }]
-			)!
-		}
 	}
 }
 
@@ -144,11 +136,10 @@ fn slot_resolve(mut tree LayoutTree) !Element {
 
 fn slot_expected(kind SlotComposite, width f64, height f64) Rect {
 	// Public contracts, without calling any composite geometry helper:
-	// Tabs reserve 40 at top; horizontal accordion reserves its 44-wide header.
+	// Tabs reserve 40 at top.
 	return match kind {
 		.screen_manager, .carousel { rect(0, 0, width, height) }
 		.tabbed_panel { rect(0, 40, width, height - 40) }
-		.accordion { rect(44, 0, width - 44, height) }
 	}
 }
 
@@ -249,12 +240,6 @@ fn test_carousel_grid_slot_resize() { slot_resize_fixture(.carousel, .grid)! }
 
 fn test_carousel_stack_slot_resize() { slot_resize_fixture(.carousel, .stack)! }
 
-fn test_accordion_flex_slot_resize() { slot_resize_fixture(.accordion, .flex)! }
-
-fn test_accordion_grid_slot_resize() { slot_resize_fixture(.accordion, .grid)! }
-
-fn test_accordion_stack_slot_resize() { slot_resize_fixture(.accordion, .stack)! }
-
 fn test_selected_content_slots_follow_headers_and_carousel_keeps_slide_generation() {
 	content := slot_content(.flex)!
 	other := stack(StackConfig{ id: 'other', frame: rect(7, 9, 40, 30) })!
@@ -302,19 +287,6 @@ fn test_selected_content_slots_follow_headers_and_carousel_keeps_slide_generatio
 		selected := slot_resolve(mut tree)!
 		slot_rect(selected.children[0].frame, rect(40, 0, 280, 200))
 		assert selected.children[current + 1].accessibility_value == 'selected'
-		sections := accordion(
-			id:          'sections'
-			frame:       rect(0, 0, 320, 200)
-			orientation: .vertical
-			current:     current
-			items:       [AccordionItem{ id: 'one', content: content },
-				AccordionItem{ id: 'two', content: other }]
-		)!
-		tree.replace(sections)!
-		expanded := slot_resolve(mut tree)!
-		slot_rect(expanded.children[0].frame, rect(0, f64((current + 1) * 44), 320, 112))
-		assert expanded.children[current + 1].accessibility_value == 'expanded'
-		assert expanded.children[0].id == if current == 0 { 'content' } else { 'other' }
 	}
 }
 
@@ -411,7 +383,7 @@ $if macos && !ui2_headless ? {
 			g_gg_app = previous_app
 			previous_window.restore()
 		}
-		for composite in [SlotComposite.screen_manager, .tabbed_panel, .carousel, .accordion] {
+		for composite in [SlotComposite.screen_manager, .tabbed_panel, .carousel] {
 			for layout in [LayoutKind.flex, .grid, .stack] {
 				mut app := &GgApp{ scheduler: new_frame_coordinator() }
 				g_gg_app = app

@@ -1,8 +1,8 @@
 module ui2
 
-// Composite controls: Accordion, TabbedPanel, Carousel, ScreenManager and
-// TreeView, with the typed child declarations they read (AccordionItem, Tab,
-// CarouselSlide, ManagedScreen/ScreenView, TreeNode). A child declaration is an
+// Composite controls: TabbedPanel, Carousel, ScreenManager and TreeView, with
+// the typed child declarations they read (Tab, CarouselSlide,
+// ManagedScreen/ScreenView, TreeNode). A child declaration is an
 // element carrying its record in compiled_metadata, so a parent rebuild sees
 // the same records. Like the existing constructors, composites keep the root
 // element their constructor returns: element events are not attached.
@@ -36,20 +36,6 @@ fn vml_header_text(color u32, size f64, bold bool) TextStyle {
 		bold:  bold
 		align: .center
 	}
-}
-
-fn vml_accordion_items(children []Element) ![]AccordionItem {
-	mut items := []AccordionItem{cap: children.len}
-	for child in children {
-		metadata := child.compiled_metadata
-		if metadata == unsafe { nil } { return error('Accordion requires typed child declarations') }
-		item := metadata.accordion or { return error('Accordion requires typed child declarations') }
-		items << AccordionItem{
-			...item
-			content: child
-		}
-	}
-	return items
 }
 
 fn vml_tabbed_panel_tabs(children []Element) ![]TabbedPanelTab {
@@ -90,90 +76,6 @@ fn vml_tree_nodes(children []Element, tag string) ![]TreeViewNode {
 		nodes << metadata.tree or { return error('${tag} requires TreeNode children') }
 	}
 	return nodes
-}
-
-// AccordionProps shows the content of the `current` item between its headers.
-pub struct AccordionProps {
-	CommonProps
-pub mut:
-	current                 int
-	orientation             LayoutOrientation
-	min_space               f64 = 44
-	title_background        u32 = 0xe2e8f0
-	active_title_background u32 = 0x2563eb
-	title_color             u32 = 0x475569
-	active_title_color      u32 = 0xffffff
-	title_font_size         f64 = 14
-	title_corner_radius     f64 = 6
-}
-
-pub fn (p AccordionProps) vml_container() {}
-
-fn (p AccordionProps) config(ctx VmlBuildContext, items []AccordionItem) AccordionConfig {
-	return AccordionConfig{
-		id:                       ctx.id
-		frame:                    ctx.frame
-		current:                  p.current
-		orientation:              p.orientation
-		min_space:                p.min_space
-		header_box:               vml_header_box(p.title_background, p.title_corner_radius)
-		active_header_box:        vml_header_box(p.active_title_background, p.title_corner_radius)
-		header_text_style:        vml_header_text(p.title_color, p.title_font_size, false)
-		active_header_text_style: vml_header_text(p.active_title_color, p.title_font_size,
-			true)
-		items:                    items
-	}
-}
-
-// Items fill the content region left by the headers.
-pub fn (p AccordionProps) child_input(frame Rect, child_count int) !Rect {
-	geometry := accordion_geometry(p.config(VmlBuildContext{ frame: frame }, []AccordionItem{len: child_count}))!
-	return rect(0, 0, geometry.content.width, geometry.content.height)
-}
-
-pub fn (p AccordionProps) vml_structure() VmlStructure {
-	return .sourced
-}
-
-pub fn (p AccordionProps) build(ctx VmlBuildContext) !Element {
-	return vml_keyed(accordion(p.config(ctx, vml_accordion_items(ctx.children)!))!, ctx)
-}
-
-// AccordionItemProps is one Accordion section; on_select runs from its header.
-pub struct AccordionItemProps {
-	CommonProps
-pub mut:
-	title     string
-	on_select ElementCallback = unsafe { nil }
-}
-
-pub fn (p AccordionItemProps) vml_container() {}
-
-fn (p AccordionItemProps) item(ctx VmlBuildContext) AccordionItem {
-	return AccordionItem{
-		id:       ctx.id
-		title:    p.title
-		on_event: p.on_select
-		enabled:  p.enabled or { true }
-	}
-}
-
-pub fn (p AccordionItemProps) vml_structure() VmlStructure {
-	return .sourced
-}
-
-pub fn (p AccordionItemProps) build(ctx VmlBuildContext) !Element {
-	return Element{
-		...vml_keyed(view(vml_view_id(ctx.id, '__content'), ctx.frame, BoxStyle{}, ctx.children),
-			ctx)
-		compiled_metadata: &CompiledVmlMetadata{
-			accordion: p.item(ctx)
-		}
-	}
-}
-
-pub fn (p AccordionItemProps) part(ctx VmlBuildContext) !VmlPart {
-	return p.item(ctx)
 }
 
 // TabbedPanelProps shows the `current` tab (or its older spelling

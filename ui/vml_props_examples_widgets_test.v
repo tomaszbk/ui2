@@ -2,7 +2,7 @@
 module ui2
 
 // Golden equivalence of hand-written props with the composite widget examples
-// used verbatim: tabbed panel, accordion, tree view, screen manager, carousel.
+// used verbatim: tabbed panel, tree view, screen manager, carousel.
 
 fn props_title(text string, frame Rect) PNode {
 	return pn(LabelProps{
@@ -50,14 +50,6 @@ pub fn (mut app PropsPagesDemo) show_activity() {
 
 pub fn (mut app PropsPagesDemo) show_security() {
 	app.current = 2
-}
-
-pub fn (mut app PropsPagesDemo) show_profile() {
-	app.current = 0
-}
-
-pub fn (mut app PropsPagesDemo) show_notifications() {
-	app.current = 1
 }
 
 fn props_pages_action(mut app PropsPagesDemo, current int) ElementCallback {
@@ -125,62 +117,6 @@ fn test_props_tabbed_panel_example_matches_compiled_vml() {
 		compiled := props_tabbed_panel_compiled(mut compiled_app, frame)
 		built := props_document(props_tabbed_panel_tree(mut props_app, frame), frame)!
 		assert_props_equal('tabbed panel', compiled, built)
-	}
-}
-
-fn props_accordion_compiled(mut app PropsPagesDemo, frame Rect) Element {
-	return $vml('../examples/accordion_widget/accordion_widget.vml', frame)
-}
-
-fn props_accordion_item(mut app PropsPagesDemo, id string, title string, current int, text string, width f64) PNode {
-	return pn(AccordionItemProps{ title: title, on_select: props_pages_action(mut app, current) }, id: id, children: [
-		pn(AbsoluteProps{ style: props_transparent() }, children: [
-			props_page_label(text, 20, 22, width, 28, props_heading(0x0F172A, 18)),
-		]),
-	])
-}
-
-fn props_accordion_tree(mut app PropsPagesDemo, frame Rect) PNode {
-	return pn(ScreenProps{ style: style_list([style_background(0xF1F5F9)]) }, id: 'root', children: [
-		pn(AbsoluteProps{ style: props_transparent() }, children: [
-			props_title('Preferences', frame),
-			pn(AccordionProps{
-				x:                       20
-				y:                       56
-				width:                   frame.width - 40
-				height:                  244
-				current:                 app.current
-				orientation:             .vertical
-				min_space:               44
-				title_background:        0xE2E8F0
-				active_title_background: 0x2563EB
-				title_color:             0x475569
-				active_title_color:      0xFFFFFF
-				style:                   style_list([style_background(0xFFFFFF), style_radius(10)])
-			}, id: 'preferences', children: [
-				props_accordion_item(mut app, 'profile', 'Profile', 0, 'Update your public profile.',
-					320),
-				props_accordion_item(mut app, 'notifications', 'Notifications', 1, 'Choose which alerts you receive.',
-					340),
-				props_accordion_item(mut app, 'security', 'Security', 2, 'Review passwords and active sessions.',
-					350),
-			]),
-		]),
-	])
-}
-
-fn test_props_accordion_example_matches_compiled_vml() {
-	for current in [0, 1] {
-		frame := rect(0, 0, 440, 320)
-		mut compiled_app := PropsPagesDemo{
-			current: current
-		}
-		mut props_app := PropsPagesDemo{
-			current: current
-		}
-		compiled := props_accordion_compiled(mut compiled_app, frame)
-		built := props_document(props_accordion_tree(mut props_app, frame), frame)!
-		assert_props_equal('accordion', compiled, built)
 	}
 }
 

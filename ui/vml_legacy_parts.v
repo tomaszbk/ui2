@@ -1,18 +1,9 @@
 module ui2
 
 // The records of the legacy composite parts. VmlPart names them, so they stay
-// here while their widgets are replaced: AccordionItem, TabbedPanelTab and
-// TreeViewNode by the kit's disclosure and navigation components,
-// MessageBoxAction by its dialogs. Each goes with its VmlPart variant.
-
-pub struct AccordionItem {
-pub:
-	id       string
-	title    string
-	on_event ElementCallback = unsafe { nil }
-	content  Element
-	enabled  bool = true
-}
+// here while their widgets are replaced: TabbedPanelTab and TreeViewNode by
+// the kit's navigation components, MessageBoxAction by its dialogs. Each goes
+// with its VmlPart variant.
 
 pub struct TabbedPanelTab {
 pub:

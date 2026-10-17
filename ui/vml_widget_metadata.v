@@ -5,10 +5,9 @@ module ui2
 @[heap]
 pub struct CompiledVmlMetadata {
 pub:
-	accordion ?AccordionItem
-	tab       ?TabbedPanelTab
-	tree      ?TreeViewNode
-	screen    ?ManagedScreen
+	tab    ?TabbedPanelTab
+	tree   ?TreeViewNode
+	screen ?ManagedScreen
 	// A MenuBar or Menu document carries its application menus; see menus().
 	menu_document bool
 	menus         []Menu

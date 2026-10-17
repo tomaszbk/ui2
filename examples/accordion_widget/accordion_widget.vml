@@ -1,80 +1,19 @@
-Screen(
-    id: "root",
-    style: [background(#F1F5F9)],
-) {
-    Absolute(
-        style: [transparent(true)],
-    ) {
-        Label(text: "Preferences", x: 20, y: 14, width: root.width - 40, height: 30, style: [foreground(#0F172A), font_size(20), weight(700)])
-        Accordion(
-            id: "preferences",
-            x: 20,
-            y: 56,
-            width: root.width - 40,
-            height: 244,
-            current: app.current,
-            orientation: vertical,
-            min_space: 44,
-            title_background: #E2E8F0,
-            active_title_background: #2563EB,
-            title_color: #475569,
-            active_title_color: #FFFFFF,
-            style: [background(#FFFFFF), radius(10)],
-        ) {
-            AccordionItem(
-                id: "profile",
-                title: "Profile",
-                on_select: app.show_profile(),
-            ) {
-                Absolute(
-                    style: [transparent(true)],
-                ) {
-                    Label(
-                        text: "Update your public profile.",
-                        x: 20,
-                        y: 22,
-                        width: 320,
-                        height: 28,
-                        style: [foreground(#0F172A), font_size(18), weight(700)],
-                    )
-                }
+// One preferences section open at a time: the Accordion binds the open
+// section's value, and the status line follows it.
+Screen(id: "root", style: [background(color.surface)]) {
+    Column(id: "page", gap: 12, style: [padding(20)]) {
+        Label(text: "Preferences", style: [font_size(typography.title), weight(700), foreground(color.text)])
+        Accordion(id: "preferences", bind.value: app.section) {
+            AccordionItem(value: "profile", title: "Profile", icon: circle_user) {
+                Label(text: "Update your public profile.", style: [foreground(color.text)])
             }
-            AccordionItem(
-                id: "notifications",
-                title: "Notifications",
-                on_select: app.show_notifications(),
-            ) {
-                Absolute(
-                    style: [transparent(true)],
-                ) {
-                    Label(
-                        text: "Choose which alerts you receive.",
-                        x: 20,
-                        y: 22,
-                        width: 340,
-                        height: 28,
-                        style: [foreground(#0F172A), font_size(18), weight(700)],
-                    )
-                }
+            AccordionItem(value: "notifications", title: "Notifications", icon: bell) {
+                Label(text: "Choose which alerts you receive.", style: [foreground(color.text)])
             }
-            AccordionItem(
-                id: "security",
-                title: "Security",
-                on_select: app.show_security(),
-            ) {
-                Absolute(
-                    style: [transparent(true)],
-                ) {
-                    Label(
-                        text: "Review passwords and active sessions.",
-                        x: 20,
-                        y: 22,
-                        width: 350,
-                        height: 28,
-                        style: [foreground(#0F172A), font_size(18), weight(700)],
-                    )
-                }
+            AccordionItem(value: "security", title: "Security", icon: padlock) {
+                Label(text: "Review passwords and active sessions.", style: [foreground(color.text)])
             }
         }
+        Label(id: "status", text: app.section == "" ? "All sections are closed." : "Open: ${app.section}", style: [foreground(color.muted)])
     }
 }

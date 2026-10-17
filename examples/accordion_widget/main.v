@@ -7,19 +7,7 @@ const accordion_height = 320
 
 pub struct AccordionDemo {
 pub mut:
-	current int
-}
-
-pub fn (mut app AccordionDemo) show_profile() {
-	app.current = 0
-}
-
-pub fn (mut app AccordionDemo) show_notifications() {
-	app.current = 1
-}
-
-pub fn (mut app AccordionDemo) show_security() {
-	app.current = 2
+	section string = 'profile'
 }
 
 fn main() {

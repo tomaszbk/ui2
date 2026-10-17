@@ -284,9 +284,6 @@ fn vml_conformance_metadata(el Element) string {
 	metadata := el.compiled_metadata
 	if metadata == unsafe { nil } { return 'none' }
 	mut parts := []string{}
-	if item := metadata.accordion {
-		parts << 'accordion ${item.id}|${item.title}|${item.enabled}|${vml_conformance_set(item.on_event)}'
-	}
 	if tab := metadata.tab {
 		parts << 'tab ${tab.id}|${tab.title}|${tab.enabled}|${vml_conformance_set(tab.on_event)}'
 	}

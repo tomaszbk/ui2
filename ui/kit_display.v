@@ -662,8 +662,7 @@ pub fn (p DescriptionListProps) build(ctx VmlBuildContext) !Element {
 		record := ctx.child_record[DescriptionItemRecord](index) or {
 			return error('DescriptionList takes DescriptionItem children')
 		}
-		rows << flex_with_rules(FlexConfig{
-			id:          ctx.part_id('row_${index}')
+		row := flex_with_rules(FlexConfig{
 			orientation: .horizontal
 			gap:         t.space_medium
 			padding:     kit_padding(t.space_medium, t.space_small)
@@ -680,6 +679,10 @@ pub fn (p DescriptionListProps) build(ctx VmlBuildContext) !Element {
 			}),
 			child,
 		], [FlexRule{}, ctx.child_layout(index).flex_rule()])!
+		rows << Element{
+			...row
+			key: kit_source_key(child, index)
+		}
 	}
 	root := flex_with_rules(FlexConfig{
 		id:          ctx.id
@@ -760,6 +763,14 @@ pub fn (p DescriptionItemProps) build(ctx VmlBuildContext) !Element {
 }
 
 // ── Shared parts ────────────────────────────────────────────────────
+
+// kit_source_key keys a part that wraps the source child at index with that
+// child's identity, so the part follows its child when the sources reorder:
+// a source keeps the parent it was first placed in.
+fn kit_source_key(child Element, index int) string {
+	node := child.compiled_node
+	return if node != unsafe { nil } { node.local_id } else { index.str() }
+}
 
 // kit_focus_interaction is the focus ring of a focusable kit part that has
 // no hover or pressed fill of its own.

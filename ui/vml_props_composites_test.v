@@ -1,8 +1,9 @@
 // vtest vflags: -d vml_props
 module ui2
 
-// Golden equivalence of the composite props (Accordion, TabbedPanel, Carousel,
-// ScreenManager, TreeView and their child declarations).
+// Golden equivalence of the composite props (Accordion, Collapsible,
+// TabbedPanel, Carousel, ScreenManager, TreeView and their child
+// declarations).
 
 
 fn props_composites_compiled(mut app PropsApp, frame Rect) Element {
@@ -13,14 +14,15 @@ fn props_composites_tree(mut app PropsApp) PNode {
 	return pn(ScreenProps{}, id: 'root', children: [
 		pn(AbsoluteProps{}, id: 'abs', children: [
 			pn(AccordionProps{
-				x:       0
-				y:       0
-				width:   300
-				height:  200
-				current: app.tab
-				style:   style_list([style_background(0xFFFFFF), style_radius(4)])
+				x:         0
+				y:         0
+				width:     300
+				height:    200
+				value:     app.place
+				on_change: props_hit(mut app, 'acc')
+				style:     style_list([style_background(0xFFFFFF), style_radius(4)])
 			}, id: 'acc', children: [
-				pn(AccordionItemProps{ title: 'One', on_select: props_hit(mut app, 'a1') }, id: 'a1', children: [
+				pn(AccordionItemProps{ value: 'Work', title: 'One', icon: .info }, id: 'a1', children: [
 					pn(LabelProps{ text: 'first', width: 100, height: 20 }),
 				]),
 				pn(AccordionItemProps{ title: 'Two', enabled: false }, children: [
@@ -28,21 +30,14 @@ fn props_composites_tree(mut app PropsApp) PNode {
 				]),
 			]),
 			pn(AccordionProps{
-				x:                       0
-				y:                       210
-				width:                   300
-				height:                  200
-				current:                 app.current
-				orientation:             .vertical
-				min_space:               30
-				title_background:        0x111111
-				active_title_background: 0x222222
-				title_color:             0x333333
-				active_title_color:      0x444444
-				title_font_size:         12
-				title_corner_radius:     2
+				x:        0
+				y:        210
+				width:    300
+				height:   200
+				multiple: true
+				bordered: false
 			}, id: 'acc2', children: [
-				pn(AccordionItemProps{ title: 'B1' }, id: 'b1', children: [
+				pn(AccordionItemProps{ title: 'B1', gap: 4 }, id: 'b1', children: [
 					pn(AbsoluteProps{}, children: [
 						pn(ViewProps{ x: 5, y: 5, width: 20, height: 20 }),
 					]),
@@ -50,6 +45,17 @@ fn props_composites_tree(mut app PropsApp) PNode {
 				pn(AccordionItemProps{ title: 'B2' }, id: 'b2', children: [
 					pn(ViewProps{}),
 				]),
+			]),
+			pn(CollapsibleProps{
+				x:      620
+				y:      330
+				width:  200
+				height: 80
+				text:   app.name
+				icon:   .info
+				open:   app.open
+			}, id: 'more', children: [
+				pn(LabelProps{ text: 'more', width: 80, height: 20 }),
 			]),
 			pn(TabbedPanelProps{
 				x:       310

@@ -212,7 +212,8 @@ fn test_group_box_and_description_list() ! {
 	details := tree.children[1]
 	assert details.children.len == 2
 	name := details.children[0]
-	assert name.id.ends_with('details__row_0')
+	// A row follows its item, keyed by the item's identity.
+	assert name.id == '' && name.key.len > 0 && name.key != details.children[1].key
 	assert name.children[0].text == 'Name' && name.children[0].frame.width == 90
 	assert name.children[0].text_style.color == t.muted
 	assert name.children[1].children[0].text == 'Ada'

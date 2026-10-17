@@ -51,8 +51,7 @@ pub:
 // timelines and their keyframes, and the typed records composite parents read
 // from their children. Part tags defined outside ui2 give their parent a
 // VmlRecordPart.
-pub type VmlPart = AccordionItem
-	| ManagedScreen
+pub type VmlPart = ManagedScreen
 	| Menu
 	| MenuEntry
 	| MenuItem
