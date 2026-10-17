@@ -22,8 +22,8 @@ pub mut:
 
 pub fn (app &OverlayDemo) surface_motion() ui2.MotionConfig {
 	return ui2.MotionConfig{
-		enter:            ui2.MotionStyle{ opacity: 0, transform: ui2.VisualTransform{ translate_y: 10, scale_x: 0.98, scale_y: 0.98 } }
-		exit:             ui2.MotionStyle{ opacity: 0, transform: ui2.VisualTransform{ translate_y: -6, scale_x: 0.98, scale_y: 0.98 } }
+		enter:            ui2.MotionStyle{ opacity: 0, translate_y: 10, scale_x: 0.98, scale_y: 0.98 }
+		exit:             ui2.MotionStyle{ opacity: 0, translate_y: -6, scale_x: 0.98, scale_y: 0.98 }
 		enter_transition: ui2.MotionTransition{ duration: 0.2, easing: .out_cubic }
 		exit_transition:  ui2.MotionTransition{ duration: 0.14, easing: .in_cubic }
 		reduced_motion:   app.reduced_motion

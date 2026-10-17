@@ -20,8 +20,8 @@ pub mut:
 
 pub fn (app &MotionApp) panel_motion() ui2.MotionConfig {
 	return ui2.MotionConfig{
-		enter:            ui2.MotionStyle{ opacity: 0, transform: ui2.VisualTransform{ translate_y: 18, scale_x: 0.96, scale_y: 0.96 } }
-		exit:             ui2.MotionStyle{ opacity: 0, transform: ui2.VisualTransform{ translate_y: -18, scale_x: 0.96, scale_y: 0.96 } }
+		enter:            ui2.MotionStyle{ opacity: 0, translate_y: 18, scale_x: 0.96, scale_y: 0.96 }
+		exit:             ui2.MotionStyle{ opacity: 0, translate_y: -18, scale_x: 0.96, scale_y: 0.96 }
 		enter_transition: ui2.MotionTransition{ duration: 0.25, easing: .out_cubic }
 		exit_transition:  ui2.MotionTransition{ duration: 0.2, easing: .in_cubic }
 		transition:       ui2.MotionTransition{ duration: 0.35, easing: .in_out_cubic }

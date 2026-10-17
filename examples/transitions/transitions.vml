@@ -55,8 +55,9 @@ Screen(
                         )
                         View(
                             id: "moving_tile",
-                            x: 24,
-                            y: 24,
+                            x: app.target_x,
+                            y: app.target_y,
+                            motion: app.tile_motion(),
                             width: 82,
                             height: 82,
                             style: [background(#4F6FA8), radius(14)],

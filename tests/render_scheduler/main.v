@@ -19,6 +19,7 @@ __global g_acceptance_state_file = ''
 __global g_acceptance_snapshot_serial = 0
 __global g_acceptance_drags = 0
 __global g_acceptance_releases = 0
+__global g_acceptance_moving_x = 160.0
 
 struct PlatformSnapshot {
 	serial              int
@@ -61,6 +62,7 @@ fn main() {
 		g_acceptance_message = 'New GL context after normal close'
 		g_acceptance_completion_built = false
 		g_acceptance_worker_builds = 0
+		g_acceptance_moving_x = 160
 		ui2.run_window('UI2 renderer scheduler acceptance recreated', 640, 480, build)
 	}
 }
@@ -116,10 +118,12 @@ fn build() ui2.Element {
 		ui2.with_event(ui2.button('animate', 'Animate', ui2.rect(24, 148, 112, 34), box, style), fn (event ui2.ElementEvent) {
 			if event.kind == .click { start_animation() }
 		}),
-		ui2.with_event(ui2.draggable_view('moving', ui2.rect(160, 148, 36, 34), ui2.BoxStyle{ bg: 0x2563eb, radius: 6 }, []ui2.Element{}), fn (event ui2.ElementEvent) {
+		// A new x slides the square there from where it was shown.
+		ui2.with_motion(ui2.with_event(ui2.draggable_view('moving', ui2.rect(g_acceptance_moving_x, 148, 36, 34), ui2.BoxStyle{ bg: 0x2563eb, radius: 6 }, []ui2.Element{}), fn (event ui2.ElementEvent) {
 			if event.kind == .pointer_drag { g_acceptance_drags++ }
 			if event.kind == .pointer_up { g_acceptance_releases++ }
-		}),
+		}), ui2.compose_motion([ui2.motion_layout(.position), ui2.motion_transition(0.8),
+			ui2.motion_on(moved)])),
 		ui2.image('surface-texture', os.join_path(@VMODROOT, 'tests', 'render_scheduler', 'surface.png'),
 			ui2.rect(552, 148, 32, 32)),
 		ui2.scroll('rows', ui2.rect(24, 208, 300, 232), 0xe2e8f0, rows),
@@ -160,17 +164,15 @@ fn platform_key(event ui2.KeyEvent) {
 }
 
 fn start_animation() {
-	ui2.clear_animation('moving')
-	ui2.animation(
-		duration: 0.8
-		x:        280.0
-		on_event: fn (event ui2.AnimationEvent) {
-			if event.kind == .complete {
-				// Event callbacks can mutate the model without their own refresh.
-				g_acceptance_message = 'Animation completed'
-			}
-		}
-	).start('moving')
+	g_acceptance_moving_x = if g_acceptance_moving_x == 160 { 280 } else { 160 }
+	ui2.request_refresh()
+}
+
+fn moved(event ui2.MotionEvent) {
+	if event.source == .layout && event.kind == .complete {
+		// Motion events can mutate the model without their own refresh.
+		g_acceptance_message = 'Animation completed'
+	}
 }
 
 fn observe(dispatcher ui2.UiDispatcher) {
@@ -275,7 +277,7 @@ fn acceptance(dispatcher ui2.UiDispatcher, seconds int, lifecycle bool) {
 		}
 	}
 	assert dispatcher.post(fn [dispatcher] () {
-		assert ui2.animation_info('moving').status == .completed
+		assert g_acceptance_message == 'Animation completed'
 		assert g_acceptance_completion_built
 		println('PASS: static, worker, coalescing, reentrant request, animation, return to idle')
 		ui2.quit()

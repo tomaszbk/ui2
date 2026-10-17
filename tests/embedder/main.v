@@ -13,6 +13,7 @@ mut:
 	completion_built bool
 	input_readonly   bool
 	input_disabled   bool
+	moving_x         f64 = 350
 }
 
 @[heap]
@@ -107,14 +108,21 @@ fn first_build() ui2.Element {
 	if first_model.status == 'Animation completed' {
 		first_model.completion_built = true
 	}
-	return build_window(first_model, first_change, first_animate, first_close)
+	return build_window(first_model, first_change, first_animate, first_close, ui2.compose_motion([
+		ui2.motion_layout(.position),
+		ui2.motion_transition(0.5),
+		ui2.motion_on(first_moved),
+	]))
 }
 
 fn second_build() ui2.Element {
-	return build_window(second_model, second_change, second_animate, second_close)
+	return build_window(second_model, second_change, second_animate, second_close, ui2.compose_motion([
+		ui2.motion_layout(.position),
+		ui2.motion_transition(0.8),
+	]))
 }
 
-fn build_window(model WindowModel, on_change ui2.ElementCallback, on_animate ui2.ElementCallback, on_close ui2.ElementCallback) ui2.Element {
+fn build_window(model WindowModel, on_change ui2.ElementCallback, on_animate ui2.ElementCallback, on_close ui2.ElementCallback, moving ui2.MotionConfig) ui2.Element {
 	style := ui2.TextStyle{ size: 14, color: 0x243247 }
 	editor_style := ui2.TextStyle{ ...style, font_family: interactive_font }
 	box := ui2.BoxStyle{ bg: 0xe2e8f0, radius: 6 }
@@ -155,7 +163,8 @@ fn build_window(model WindowModel, on_change ui2.ElementCallback, on_animate ui2
 		area,
 		ui2.with_event(ui2.button('animate', 'Animate', ui2.rect(350, 58, 138, 36), box, style), on_animate),
 		ui2.with_event(ui2.button('close', 'Close this window', ui2.rect(350, 108, 138, 36), box, style), on_close),
-		ui2.view('moving', ui2.rect(350, 156, 30, 24), ui2.BoxStyle{ bg: 0x2563eb }, []ui2.Element{}),
+		// Moving the square to a new x slides it there from where it was shown.
+		ui2.with_motion(ui2.view('moving', ui2.rect(model.moving_x, 156, 30, 24), ui2.BoxStyle{ bg: 0x2563eb }, []ui2.Element{}), moving),
 		ui2.scroll('rows', ui2.rect(24, 206, 250, 228), 0xe2e8f0, rows),
 		ui2.label('instructions', 'Equal ids in both windows.\nEdits, selection and scroll\nmust remain independent.\nHover heading for tooltip.\nTry IME in either editor.',
 			ui2.rect(294, 214, 202, 154), ui2.TextStyle{ ...style, lines: 5 }),
@@ -191,7 +200,9 @@ fn second_close(event ui2.ElementEvent) {
 }
 
 fn second_animate(event ui2.ElementEvent) {
-	if event.kind == .click { ui2.animation(duration: 0.8, x: 440.0).start('moving') }
+	if event.kind == .click {
+		second_model.moving_x = if second_model.moving_x == 350 { 440 } else { 350 }
+	}
 }
 
 fn second_change(event ui2.ElementEvent) {
@@ -217,16 +228,16 @@ fn assert_second_editor() {
 }
 
 fn start_first_animation() {
-	ui2.clear_animation('moving')
-	ui2.animation(
-		duration: 0.5
-		x:        440.0
-		on_event: fn (event ui2.AnimationEvent) {
-			if event.kind == .complete {
-				first_model.status = 'Animation completed'
-			}
-		}
-	).start('moving')
+	first_model.moving_x = if first_model.moving_x == 350 { 440 } else { 350 }
+	ui2.request_refresh()
+}
+
+// first_moved hears the square's motion. A frame that delivers an event builds
+// again, so first_build sees the completed status.
+fn first_moved(event ui2.MotionEvent) {
+	if event.source == .layout && event.kind == .complete {
+		first_model.status = 'Animation completed'
+	}
 }
 
 fn settled(dispatcher ui2.UiDispatcher) ui2.RenderStats {
@@ -235,7 +246,7 @@ fn settled(dispatcher ui2.UiDispatcher) ui2.RenderStats {
 	for _ in 0 .. 100 {
 		time.sleep(50 * time.millisecond)
 		after := dispatcher.stats()
-		if !after.pending && !after.in_flight && !after.animation_active
+		if !after.pending && !after.in_flight && !after.motion_active
 			&& after.next_deadline < 0 && after.callbacks == before.callbacks {
 			stable++
 			if stable == 4 {
@@ -369,12 +380,13 @@ fn acceptance(first ui2.UiDispatcher, second ui2.UiDispatcher, first_host voidpt
 	}
 	unchanged(after_second, second.stats())
 	assert first.post(fn () {
-		assert ui2.animation_info('moving').status == .completed
+		assert first_model.status == 'Animation completed'
 		assert first_model.completion_built
 		assert_first_editor()
 		assert second_window.update(fn () {
 			assert_second_editor()
-			assert !ui2.has_animated_properties('moving')
+			assert second_model.moving_x == 350
+			assert second_model.status == 'Static window'
 		})
 		assert_first_editor()
 	})
