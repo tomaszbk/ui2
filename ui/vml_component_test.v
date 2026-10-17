@@ -133,7 +133,9 @@ fn test_keyed_list_reorders_instances_updates_items_and_disposes_removed_keys() 
 	layout.patch(parent.element().id, parent.element())!
 	assert layout.identity(first.element().id) or { panic('missing retained item') } == identity
 	before := parent.element()
-	list.update([VmlListItem{'a', 'A'}, VmlListItem{'a', 'duplicate'}]) or {
+	if _ := list.update([VmlListItem{'a', 'A'}, VmlListItem{'a', 'duplicate'}]) {
+		assert false, 'duplicate keys must be rejected'
+	} else {
 		assert err.msg().contains('duplicate')
 		assert parent.element() == before
 	}
@@ -161,7 +163,11 @@ fn test_ref_type_mount_availability_and_slot_author_scope() ! {
 	mut edit := slot.element(Element{ kind: .text_area, id: 'edit' })!
 	button_ref.bind(button)!
 	text_ref.bind(edit)!
-	button_ref.bind(edit) or { assert err.msg().contains('expects') }
+	if _ := button_ref.bind(edit) {
+		assert false, 'a reference must reject another element kind'
+	} else {
+		assert err.msg().contains('expects')
+	}
 	root.set_children([button, edit])!
 	root.mount()!
 	assert button_ref.is_available()
@@ -171,7 +177,11 @@ fn test_ref_type_mount_availability_and_slot_author_scope() ! {
 	assert button_ref.id()! == root.element().children[0].id
 	root.set_children([edit])!
 	assert !button_ref.is_available()
-	button_ref.id() or { assert err.msg().contains('unavailable') }
+	if _ := button_ref.id() {
+		assert false, 'an unmounted reference must be unavailable'
+	} else {
+		assert err.msg().contains('unavailable')
+	}
 	root.set_children([button, edit])!
 	assert button_ref.is_available()
 	host.dispose()!
@@ -410,12 +420,20 @@ fn test_anonymous_declarations_keep_public_ids_empty_and_private_ownership_stabl
 	assert first.identity() != second.identity()
 	assert first.identity().starts_with('/compiled:')
 	assert first_document.element(Element{ kind: .label, key: 'item' }, identity: 'source:0')! == first
-	first_document.element(Element{ kind: .label }) or { assert err.msg().contains('local declaration identity') }
+	if _ := first_document.element(Element{ kind: .label }) {
+		assert false, 'an element without identity must be rejected'
+	} else {
+		assert err.msg().contains('local declaration identity')
+	}
 	mut nested := first_document.child('nested')!
 	mut named := nested.element(Element{ kind: .view, id: 'public' }, identity: 'source:1')!
 	assert named.element().id == nested.namespace + ':' + 'public'.bytes().hex()
 	assert named.identity() != first.identity()
-	first_document.element(Element{ kind: .button }, identity: 'source:0') or { assert err.msg().contains('kind') }
+	if _ := first_document.element(Element{ kind: .button }, identity: 'source:0') {
+		assert false, 'an identity must keep its kind'
+	} else {
+		assert err.msg().contains('kind')
+	}
 	mut composite := first_document.element(view('', Rect{}, BoxStyle{}, [
 		Element{ kind: .label },
 		Element{ kind: .label },

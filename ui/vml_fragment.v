@@ -109,10 +109,11 @@ fn (node &CompiledVmlNode) validate_fragment_children(children []&CompiledVmlNod
 	if parent == unsafe { nil } { return }
 	visible := vml_visible_children(parent.children, node, children)
 	elements := vml_project_children(parent.children, parent.fragment_prefix(), node, children)
+	layout, _ := parent.child_layout_spec(visible, elements)!
 	validate_element_tree(Element{
 		...parent.element()
 		children: elements
-		layout:   parent.layout_for_children(visible, elements)!
+		layout:   layout
 	})!
 }
 
@@ -141,7 +142,7 @@ fn (mut node CompiledVmlNode) mount_visible_owners() ! {
 	}
 }
 
-fn (node &CompiledVmlNode) effective_child_layout() ?VmlChildLayout {
+fn (node &CompiledVmlNode) effective_child_rule() ?VmlChildRule {
 	if node.child_layout_set { return node.child_layout }
 	mut parent := node.parent
 	for parent != unsafe { nil } && parent.is_fragment {

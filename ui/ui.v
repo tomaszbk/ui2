@@ -620,6 +620,99 @@ pub fn validate_element_tree(root Element) ! {
 }
 
 fn validate_element_node(el Element, path string, mut ids map[string]bool) ! {
+	mut walk := ElementValidation{
+		root: path
+	}
+	walk.node(el, mut ids)!
+}
+
+// Paths in diagnostics are built only when a check fails, so validating a
+// valid tree allocates no per-node strings or sibling-key sets.
+struct ElementValidation {
+	root string
+mut:
+	indices []int
+}
+
+fn (walk &ElementValidation) path() string {
+	mut path := walk.root
+	for index in walk.indices { path += '/${index}' }
+	return path
+}
+
+fn (mut walk ElementValidation) node(el Element, mut ids map[string]bool) ! {
+	if walk.indices.len == 0 {
+		validate_element_properties(el, walk.root)!
+	} else {
+		validate_element_properties(el, '') or {
+			// Repeat the failing check with its location for the message.
+			validate_element_properties(el, walk.path())!
+			return err
+		}
+	}
+	if el.id.len > 0 {
+		if el.id in ids {
+			return error('duplicate element id `${el.id}` at ${walk.path()}')
+		}
+		ids[el.id] = true
+	}
+	// The first repeated key is reported where the sibling walk reaches it,
+	// after any failure in the subtrees of the siblings before it.
+	duplicate := element_first_duplicate_key(el.children)
+	for index, child in el.children {
+		if index == duplicate {
+			return error('duplicate sibling key `${child.key}` at ${walk.path()}')
+		}
+		walk.indices << index
+		walk.node(child, mut ids)!
+		walk.indices.delete_last()
+	}
+}
+
+struct ElementKeyRef {
+	value string
+}
+
+// Short sibling lists are compared directly; only long ones build a key set.
+fn element_first_duplicate_key(children []Element) int {
+	if children.len < 2 { return -1 }
+	if children.len <= 16 {
+		for index in 1 .. children.len {
+			key := children[index].key
+			if key.len == 0 { continue }
+			for previous in 0 .. index {
+				if children[previous].key == key { return index }
+			}
+		}
+		return -1
+	}
+	// Sorting the keys proves the common case, uniqueness, with one array. A
+	// wrapper keeps the strings shared (appending a string copies its bytes).
+	mut sorted := []ElementKeyRef{cap: children.len}
+	for child in children {
+		if child.key.len > 0 { sorted << ElementKeyRef{ value: child.key } }
+	}
+	sorted.sort(a.value < b.value)
+	mut repeated := false
+	for index in 1 .. sorted.len {
+		if sorted[index].value == sorted[index - 1].value {
+			repeated = true
+			break
+		}
+	}
+	if !repeated { return -1 }
+	mut keys := map[string]bool{}
+	for index, child in children {
+		if child.key.len == 0 { continue }
+		if child.key in keys { return index }
+		keys[child.key] = true
+	}
+	return -1
+}
+
+// validate_element_properties checks one element's own properties, without
+// its id or children. A retained property update keeps both unchanged.
+fn validate_element_properties(el Element, path string) ! {
 	if config := el.overlay {
 		config.validate()!
 		if el.kind != .view || el.id.len == 0 { return error('an overlay requires a View with a stable id at ${path}') }
@@ -676,22 +769,6 @@ fn validate_element_node(el Element, path string, mut ids map[string]bool) ! {
 		$if !( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headless ? {
 			return error('scaled content requires the custom renderer')
 		}
-	}
-	if el.id.len > 0 {
-		if el.id in ids {
-			return error('duplicate element id `${el.id}` at ${path}')
-		}
-		ids[el.id] = true
-	}
-	mut keys := map[string]bool{}
-	for index, child in el.children {
-		if child.key.len > 0 {
-			if child.key in keys {
-				return error('duplicate sibling key `${child.key}` at ${path}')
-			}
-			keys[child.key] = true
-		}
-		validate_element_node(child, '${path}/${index}', mut ids)!
 	}
 }
 

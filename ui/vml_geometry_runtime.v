@@ -35,7 +35,7 @@ pub fn (mut node CompiledVmlNode) set_frame(frame Rect) ! {
 		frame:        frame
 		layout_input: if node.declaration.layout_input != none { frame } else { none }
 	}
-	validate_element_tree(replacement)!
+	validate_element_properties(replacement, 'root')!
 	node.component.runtime.batch(fn [mut node, replacement, frame] () ! {
 		node.replace_property(replacement)!
 		node.frame_value.set(frame)!

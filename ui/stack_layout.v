@@ -21,6 +21,11 @@ pub:
 }
 
 fn stack_validate(config StackConfig) ! {
+	stack_validate_container(config)!
+	for child in config.children { validate_layout_frame(child.element.frame)! }
+}
+
+fn stack_validate_container(config StackConfig) ! {
 	validate_layout_frame(config.frame)!
 	if config.align_x == .auto || config.align_y == .auto {
 		return error('stack container alignment cannot be auto')
@@ -30,7 +35,6 @@ fn stack_validate(config StackConfig) ! {
 			return error('stack padding must be finite and non-negative')
 		}
 	}
-	for child in config.children { validate_layout_frame(child.element.frame)! }
 }
 
 fn stack_axis(start f64, available f64, preferred f64, alignment LayoutAlignment) (f64, f64) {
