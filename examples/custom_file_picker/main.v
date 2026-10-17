@@ -33,15 +33,15 @@ fn picker_launch(kind ui2.FileDialogKind) ui2.ElementCallback {
 				} else {
 					'Cancelled.'
 				}
-				ui2.refresh()
+				ui2.request_refresh()
 			}
 		) or {
 			state.selection = 'Cannot open picker: ${err}'
-			ui2.refresh()
+			ui2.request_refresh()
 			return
 		}
 		state.picker.open() or { state.selection = 'Cannot open picker: ${err}' }
-		ui2.refresh()
+		ui2.request_refresh()
 	}
 }
 

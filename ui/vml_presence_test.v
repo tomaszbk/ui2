@@ -83,7 +83,9 @@ fn presence_list(mut parent CompiledVmlNode, mut fixture VmlPresenceFixture,
 // A completion may mutate the parent's children; the host likewise takes its
 // states before invoking completion, rather than iterating a mutable tree.
 fn sample_presence_nodes(mut node CompiledVmlNode) ! {
-	if node.declaration.motion_state != unsafe { nil } { node.declaration.motion_state.sample()! }
+	if node.motion_state != unsafe { nil } {
+		node.motion_state.sample()!
+	}
 	for mut child in node.children.clone() { sample_presence_nodes(mut child)! }
 }
 
@@ -108,7 +110,7 @@ fn test_presence_list_retains_exit_and_reentry_preserves_state_and_callbacks() !
 	assert list.leaving == ['a']
 	assert list.nodes().len == 1
 	assert parent.element().children.len == 2
-	assert parent.element().children[1].presence_exiting
+	assert parent.element().children[1].presence_exiting()
 	assert !parent.element().children[1].enabled
 	assert !original.component.is_disposed()
 	assert fixture.cleanups.len == 0
@@ -116,14 +118,14 @@ fn test_presence_list_retains_exit_and_reentry_preserves_state_and_callbacks() !
 	assert original.element().text == '1'
 	clock.now = 0.3
 	sample_presence_nodes(mut parent)!
-	before := original.declaration.motion_state.current.style.opacity
+	before := original.motion_state.current.style.opacity
 	assert math.abs(before - 0.75) < 0.00001
 	list.update([VmlPresenceItem{ id: 'b' }, VmlPresenceItem{ id: 'a' }])!
 	assert list.nodes()[1] == original
 	assert list.leaving.len == 0
 	assert fixture.builds == 2 && fixture.mounts == ['a', 'b']
-	assert original.declaration.motion_state.current.style.opacity == before
-	assert !parent.element().children[1].presence_exiting
+	assert original.motion_state.current.style.opacity == before
+	assert !parent.element().children[1].presence_exiting()
 	callback(ElementEvent{})
 	assert original.element().text == '2'
 	clock.now = 0.5
@@ -157,14 +159,14 @@ fn test_fragment_presence_waits_for_every_visible_root_and_cancels_on_reentry() 
 	list.update([])!
 	assert list.nodes().len == 0 && parent.children == [group]
 	assert parent.element().children.len == 2
-	assert parent.element().children.all(it.presence_exiting && !it.enabled)
+	assert parent.element().children.all(it.presence_exiting() && !it.enabled)
 	clock.now = 0.31
 	sample_presence_nodes(mut parent)!
-	assert lead.declaration.motion_state.current.phase == .absent
+	assert lead.motion_state.current.phase == .absent
 	assert !group.component.is_disposed() && fixture.cleanups.len == 0
 	list.update([VmlPresenceItem{ id: 'a' }])!
 	assert list.nodes()[0] == group && group.children[1] == tail
-	assert lead.declaration.motion_state.current.phase == .entering
+	assert lead.motion_state.current.phase == .entering
 	clock.now = 0.6
 	sample_presence_nodes(mut parent)!
 	list.update([])!
@@ -215,15 +217,15 @@ fn test_hidden_motion_retains_owner_until_visible_again_without_unmounting() ! {
 	sample_presence_nodes(mut node)!
 	node.patch(fn (element Element) Element { return Element{ ...element, hidden: true } })!
 	assert node.declaration.hidden
-	assert !node.declaration.motion_state.presented_hidden(true)
-	assert !node.declaration.motion_state.input_enabled()
+	assert !node.motion_state.presented_hidden(true)
+	assert !node.motion_state.input_enabled()
 	clock.now = 0.61
 	sample_presence_nodes(mut node)!
-	assert node.declaration.motion_state.presented_hidden(true)
+	assert node.motion_state.presented_hidden(true)
 	assert fixture.unmounts.len == 0 && !owner.is_disposed()
 	node.patch(fn (element Element) Element { return Element{ ...element, hidden: false } })!
-	assert node.declaration.motion_state.current.phase == .entering
-	assert !node.declaration.motion_state.presented_hidden(false)
+	assert node.motion_state.current.phase == .entering
+	assert !node.motion_state.presented_hidden(false)
 	owner.dispose()!
 	assert fixture.unmounts == ['root']
 }
@@ -238,13 +240,13 @@ fn test_removing_motion_configuration_detaches_timeline_and_finishes_pending_exi
 	list.update([VmlPresenceItem{ id: 'a' }])!
 	parent.mount()!
 	mut node := list.nodes()[0]
-	old := node.declaration.motion_state
+	old := node.motion_state
 	node.patch(fn (element Element) Element { return Element{ ...element, motion: none } })!
-	assert node.declaration.motion_state == unsafe { nil } && old.disposed
+	assert node.motion_state == unsafe { nil } && old.disposed
 	node.patch(fn [clock] (element Element) Element {
 		return Element{ ...element, motion: presence_config(clock, 0.4, false) }
 	})!
-	assert node.declaration.motion_state != unsafe { nil } && node.declaration.motion_state != old
+	assert node.motion_state != unsafe { nil } && node.motion_state != old
 	clock.now = 0.2
 	sample_presence_nodes(mut parent)!
 	list.update([])!
@@ -299,11 +301,11 @@ fn test_outer_reentry_preserves_an_independent_inner_exit_and_its_cleanup() ! {
 	outer.update([])!
 	clock.now = 0.31
 	sample_presence_nodes(mut parent)!
-	assert group.declaration.motion_state.current.phase == .absent
+	assert group.motion_state.current.phase == .absent
 	assert !child.component.is_disposed() && fixture.cleanups.len == 0
 	outer.update(['a'])!
 	assert outer.nodes()[0] == group && fixture.builds == 1
-	assert child.declaration.motion_state.current.phase == .exiting
+	assert child.motion_state.current.phase == .exiting
 	assert inner.leaving == ['x']
 	clock.now = 0.61
 	sample_presence_nodes(mut parent)!
@@ -331,7 +333,7 @@ fn test_public_mount_reports_invalid_clock_without_mounting_component() ! {
 		rejected = true
 		assert err.msg().contains('monotonic')
 	}
-	assert rejected && !node.mounted && !node.declaration.motion_state.mounted
+	assert rejected && !node.mounted && !node.motion_state.mounted
 	assert fixture.mounts.len == 0
 	clock.now = 1
 	node.mount()!

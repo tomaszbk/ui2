@@ -73,8 +73,11 @@ document scope or inside a component and composed with local overrides. See
 
 Handlers can refer to local functions, contain a short statement such as
 `on_click: count++`, or contain a block. Writes batch per action. `mount { ... }`
-runs once when an instance enters the mounted tree; `unmount { ... }` runs when
-that mounted instance is disposed. `cleanup { ... }` releases resources owned by its
+runs when an instance enters the mounted tree and `unmount { ... }` when it
+leaves it: when its last node is detached, or when a mounted instance is
+disposed. An instance that is detached and attached again keeps its state and
+runs `unmount` and then `mount` again. `cleanup { ... }` runs once, after
+`unmount`, when the instance is disposed, and releases resources owned by its
 scope. Removed keyed instances dispose their effects and cleanups. A callback
 retained after disposal cannot update the old instance.
 

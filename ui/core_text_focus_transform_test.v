@@ -99,7 +99,7 @@ $if macos && ui2_custom_rendering ? && !ui2_headless ? {
 		assert focus_next() && focused_id() == 'target'
 		assert app.layout_tree.stats() == before
 		paint := app.scheduler.begin_frame(2) or { panic('paint') }
-		assert !paint.build && paint.reason_list() == [.paint]
+		assert !paint.build && paint.reasons == RenderReason.paint
 		_ = resolve_custom_layout(mut app, paint, core20_measure, take_custom_layout_patches(mut app))!
 		app.scheduler.finish_frame(paint)
 		assert app.layout_tree.stats().measure_visits == before.measure_visits

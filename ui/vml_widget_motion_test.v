@@ -174,7 +174,7 @@ fn test_generic_commits_use_fast_paths_and_coalesce_per_batch() {
 	// A layout item only changes the child rule.
 	state.set(WFastState{ opacity: 0.5, cursor: 'pointer', grow: 2 })!
 	assert builds.count == 1
-	assert root.element().layout.flex.children[0].grow == 2
+	assert root.element().layout.flex_rules[0].grow == 2
 	// A built property rebuilds once, also with other changes in the batch.
 	mut runtime := root.component.runtime
 	runtime.batch(fn [mut state] () ! {

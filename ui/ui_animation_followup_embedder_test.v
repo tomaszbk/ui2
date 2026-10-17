@@ -45,7 +45,7 @@ $if macos && ui2_custom_rendering ? && ui2_embedder ? && !ui2_headless ? {
 		animation_followup_acted = true
 		assert !C.ui2_test_has_drawable(g_gg_app.native_window), 'animation callbacks precede drawable acquisition'
 		match animation_followup_mode {
-			2 { refresh_element('badge', animation_followup_badge('newer')); refresh() }
+			2 { refresh_element('badge', animation_followup_badge('newer')); request_refresh() }
 			3 { g_gg_app.ctx = new_surface_draw_context(gg.Config{width: 320, height: 180}, g_draw_device_environment) or { panic(err) } }
 			4 { g_gg_app.scheduler = new_frame_coordinator() }
 			5 {

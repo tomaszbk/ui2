@@ -74,10 +74,10 @@ fn slot_content(kind LayoutKind) !Element {
 	}
 	return Element{
 		...content
-		key:            'content-key'
-		on_event:       slot_event
-		focused:        true
-		text_selection: TextSelection{ anchor: 1, caret: 4 }
+		key:                'content-key'
+		on_event:           slot_event
+		accessibility_name: 'slot content'
+		cursor:             cursor_pointing_hand
 	}
 }
 
@@ -132,7 +132,7 @@ fn slot_assert_same_output(actual Element, expected Element) {
 	assert actual.kind == expected.kind && actual.layout.kind == expected.layout.kind
 	assert actual.on_event == expected.on_event
 	assert actual.hidden == expected.hidden && actual.enabled == expected.enabled
-	assert actual.focused == expected.focused && actual.text_selection == expected.text_selection
+	assert actual.accessibility_name == expected.accessibility_name && actual.cursor == expected.cursor
 	assert actual.text == expected.text && actual.box == expected.box
 	assert actual.children.len == expected.children.len
 	for index, child in actual.children { slot_assert_same_output(child, expected.children[index]) }
@@ -201,7 +201,7 @@ fn slot_resize_fixture(composite SlotComposite, layout LayoutKind) ! {
 		assert content.layout.kind == layout
 		assert content.id == 'content' && content.key == 'content-key'
 		assert content.on_event == authored.on_event
-		assert content.focused && content.text_selection == TextSelection{ anchor: 1, caret: 4 }
+		assert content.accessibility_name == 'slot content' && content.cursor == cursor_pointing_hand
 		slot_events = []ElementEvent{}
 		content.on_event(ElementEvent{ kind: .click, id: content.id })
 		assert slot_events.len == 1 && slot_events[0].id == 'content'
@@ -359,7 +359,8 @@ $if linux || ((macos || windows) && ui2_custom_rendering ?) || ui2_headless ?|| 
 						slot_assert_descendants(content, layout, expected)
 					}
 					assert content.key == 'content-key' && content.on_event == authored.on_event
-					assert content.focused && content.text_selection == authored.text_selection
+					assert content.accessibility_name == authored.accessibility_name
+						&& content.cursor == authored.cursor
 					current := [
 						(raw.identity('content') or { panic('missing content identity') }).generation,
 						(raw.identity('nested') or { panic('missing nested identity') }).generation,

@@ -1121,20 +1121,20 @@ fn animation_number_property_value(element Element, property string) f64 {
 		'padding' { element.padding }
 		'slider_style.track_width' { element.slider_style.track_width }
 		'slider_style.thumb_size' { element.slider_style.thumb_size }
-		'toggle_down_box.radius' { element.toggle_down_box.radius }
-		'toggle_down_box.border_left' { element.toggle_down_box.border_left }
-		'toggle_down_box.border_top' { element.toggle_down_box.border_top }
-		'toggle_down_box.border_right' { element.toggle_down_box.border_right }
-		'toggle_down_box.border_bottom' { element.toggle_down_box.border_bottom }
-		'toggle_down_text_style.size' { element.toggle_down_text_style.size }
-		'toggle_down_text_style.head_indent' { element.toggle_down_text_style.head_indent }
+		'toggle_down_box.radius' { element.toggle_down_box().radius }
+		'toggle_down_box.border_left' { element.toggle_down_box().border_left }
+		'toggle_down_box.border_top' { element.toggle_down_box().border_top }
+		'toggle_down_box.border_right' { element.toggle_down_box().border_right }
+		'toggle_down_box.border_bottom' { element.toggle_down_box().border_bottom }
+		'toggle_down_text_style.size' { element.toggle_down_text_style().size }
+		'toggle_down_text_style.head_indent' { element.toggle_down_text_style().head_indent }
 		'toggle_down_text_style.first_line_indent' {
-			element.toggle_down_text_style.first_line_indent
+			element.toggle_down_text_style().first_line_indent
 		}
 		'toggle_down_text_style.hyphenation_factor' {
-			element.toggle_down_text_style.hyphenation_factor
+			element.toggle_down_text_style().hyphenation_factor
 		}
-		'toggle_down_text_style.lines' { f64(element.toggle_down_text_style.lines) }
+		'toggle_down_text_style.lines' { f64(element.toggle_down_text_style().lines) }
 		else { 0.0 }
 	}
 }
@@ -1154,11 +1154,11 @@ fn animation_color_property_value(element Element, property string) u32 {
 		'switch_style.thumb_color' { element.switch_style.thumb_color }
 		'switch_style.disabled_track_color' { element.switch_style.disabled_track_color }
 		'switch_style.disabled_thumb_color' { element.switch_style.disabled_thumb_color }
-		'toggle_down_box.bg' { element.toggle_down_box.bg }
-		'toggle_down_box.border_color' { element.toggle_down_box.border_color }
-		'toggle_down_text_style.color' { element.toggle_down_text_style.color }
+		'toggle_down_box.bg' { element.toggle_down_box().bg }
+		'toggle_down_box.border_color' { element.toggle_down_box().border_color }
+		'toggle_down_text_style.color' { element.toggle_down_text_style().color }
 		'toggle_down_text_style.background_color' {
-			element.toggle_down_text_style.background_color
+			element.toggle_down_text_style().background_color
 		}
 		else { u32(0) }
 	}
@@ -1231,34 +1231,34 @@ fn set_number_animation_property(element Element, property string, value f64) El
 			Element{ ...element, slider_style: SliderStyle{ ...element.slider_style, thumb_size: value } }
 		}
 		'toggle_down_box.radius' {
-			Element{ ...element, toggle_down_box: BoxStyle{ ...element.toggle_down_box, radius: value } }
+			element.with_toggle_down_box(BoxStyle{ ...element.toggle_down_box(), radius: value })
 		}
 		'toggle_down_box.border_left' {
-			Element{ ...element, toggle_down_box: BoxStyle{ ...element.toggle_down_box, border_left: value } }
+			element.with_toggle_down_box(BoxStyle{ ...element.toggle_down_box(), border_left: value })
 		}
 		'toggle_down_box.border_top' {
-			Element{ ...element, toggle_down_box: BoxStyle{ ...element.toggle_down_box, border_top: value } }
+			element.with_toggle_down_box(BoxStyle{ ...element.toggle_down_box(), border_top: value })
 		}
 		'toggle_down_box.border_right' {
-			Element{ ...element, toggle_down_box: BoxStyle{ ...element.toggle_down_box, border_right: value } }
+			element.with_toggle_down_box(BoxStyle{ ...element.toggle_down_box(), border_right: value })
 		}
 		'toggle_down_box.border_bottom' {
-			Element{ ...element, toggle_down_box: BoxStyle{ ...element.toggle_down_box, border_bottom: value } }
+			element.with_toggle_down_box(BoxStyle{ ...element.toggle_down_box(), border_bottom: value })
 		}
 		'toggle_down_text_style.size' {
-			Element{ ...element, toggle_down_text_style: TextStyle{ ...element.toggle_down_text_style, size: value } }
+			element.with_toggle_down_text_style(TextStyle{ ...element.toggle_down_text_style(), size: value })
 		}
 		'toggle_down_text_style.head_indent' {
-			Element{ ...element, toggle_down_text_style: TextStyle{ ...element.toggle_down_text_style, head_indent: value } }
+			element.with_toggle_down_text_style(TextStyle{ ...element.toggle_down_text_style(), head_indent: value })
 		}
 		'toggle_down_text_style.first_line_indent' {
-			Element{ ...element, toggle_down_text_style: TextStyle{ ...element.toggle_down_text_style, first_line_indent: value } }
+			element.with_toggle_down_text_style(TextStyle{ ...element.toggle_down_text_style(), first_line_indent: value })
 		}
 		'toggle_down_text_style.hyphenation_factor' {
-			Element{ ...element, toggle_down_text_style: TextStyle{ ...element.toggle_down_text_style, hyphenation_factor: value } }
+			element.with_toggle_down_text_style(TextStyle{ ...element.toggle_down_text_style(), hyphenation_factor: value })
 		}
 		'toggle_down_text_style.lines' {
-			Element{ ...element, toggle_down_text_style: TextStyle{ ...element.toggle_down_text_style, lines: int(math.round(value)) } }
+			element.with_toggle_down_text_style(TextStyle{ ...element.toggle_down_text_style(), lines: int(math.round(value)) })
 		}
 		else { element }
 	}
@@ -1304,16 +1304,16 @@ fn set_color_animation_property(element Element, property string, value u32) Ele
 			Element{ ...element, switch_style: SwitchStyle{ ...element.switch_style, disabled_thumb_color: value } }
 		}
 		'toggle_down_box.bg' {
-			Element{ ...element, toggle_down_box: BoxStyle{ ...element.toggle_down_box, bg: value } }
+			element.with_toggle_down_box(BoxStyle{ ...element.toggle_down_box(), bg: value })
 		}
 		'toggle_down_box.border_color' {
-			Element{ ...element, toggle_down_box: BoxStyle{ ...element.toggle_down_box, border_color: value } }
+			element.with_toggle_down_box(BoxStyle{ ...element.toggle_down_box(), border_color: value })
 		}
 		'toggle_down_text_style.color' {
-			Element{ ...element, toggle_down_text_style: TextStyle{ ...element.toggle_down_text_style, color: value } }
+			element.with_toggle_down_text_style(TextStyle{ ...element.toggle_down_text_style(), color: value })
 		}
 		'toggle_down_text_style.background_color' {
-			Element{ ...element, toggle_down_text_style: TextStyle{ ...element.toggle_down_text_style, background_color: value } }
+			element.with_toggle_down_text_style(TextStyle{ ...element.toggle_down_text_style(), background_color: value })
 		}
 		else { element }
 	}

@@ -8,7 +8,7 @@ fn test_motion_frames_only_paint_and_stop_waking_at_completion() {
 	for now in [i64(16), 32, 48] {
 		frame := finish_scheduler_test_frame(mut coordinator, now)
 		assert !frame.build && frame.draw
-		assert frame.reason_list() == [RenderReason.motion]
+		assert frame.reasons == RenderReason.motion
 	}
 	assert coordinator.stats().builds == 1
 	coordinator.suspend()
@@ -57,7 +57,7 @@ fn test_frame_scheduler_on_demand_idle_and_coalescing() {
 	pending := coordinator.stats()
 	assert pending.requests == 101
 	assert pending.coalesced == 99
-	assert pending.pending_reasons == [.build]
+	assert pending.pending_reasons == RenderReason.build
 	finish_scheduler_test_frame(mut coordinator, 30_001)
 	assert coordinator.stats().flushes == 2
 	assert !coordinator.stats().pending
@@ -89,13 +89,13 @@ fn test_animation_callback_follow_up_build_preserves_current_frame_and_explicit_
 	assert coordinator.stats().in_flight && coordinator.stats().pending
 	coordinator.finish_frame(work)
 	next := coordinator.begin_frame(1) or { panic('lost callback model update') }
-	assert next.build && next.draw && next.reason_list() == [.animation_follow_up]
+	assert next.build && next.draw && next.reasons == RenderReason.animation_follow_up
 	coordinator.invalidate(.animation_follow_up)
 	coordinator.invalidate(.build)
 	assert coordinator.build_pending(), 'automatic work must not hide an explicit unsafe refresh'
 	coordinator.finish_frame(next)
 	final := finish_scheduler_test_frame(mut coordinator, 2)
-	assert final.build && final.reason_list() == [.animation_follow_up, .build]
+	assert final.build && final.reasons == (RenderReason.animation_follow_up | .build)
 	assert !coordinator.build_pending() && !coordinator.stats().pending
 	if _ := coordinator.begin_frame(3) { assert false, 'finished callback work must return to idle' }
 }
@@ -111,13 +111,13 @@ fn test_frame_scheduler_paint_deadline_and_animation_return_to_idle() {
 		assert false, 'timer fired before its monotonic deadline'
 	}
 	timer := finish_scheduler_test_frame(mut coordinator, 500)
-	assert timer.reason_list() == [.timer]
+	assert timer.reasons == RenderReason.timer
 	assert !timer.build && timer.draw
 	assert coordinator.stats().next_deadline == -1
 	coordinator.set_animation_active(true)
 	animation := finish_scheduler_test_frame(mut coordinator, 501)
 	assert animation.build && animation.draw
-	assert animation.reason_list() == [.animation]
+	assert animation.reasons == RenderReason.animation
 	finish_scheduler_test_frame(mut coordinator, 509)
 	coordinator.set_animation_active(false)
 	if _ := coordinator.begin_frame(510) {
@@ -152,7 +152,7 @@ fn test_frame_scheduler_posted_callbacks_are_outside_lock_and_next_drain() {
 	assert <-delivered == 1
 	first := finish_scheduler_test_frame(mut coordinator, 1)
 	assert first.build
-	assert first.reason_list() == [.worker]
+	assert first.reasons == RenderReason.worker
 	next := coordinator.take_tasks()
 	assert next.len == 1
 	for task in next {
@@ -162,7 +162,7 @@ fn test_frame_scheduler_posted_callbacks_are_outside_lock_and_next_drain() {
 	assert coordinator.take_tasks().len == 0
 	worker := finish_scheduler_test_frame(mut coordinator, 2)
 	assert worker.build
-	assert worker.reason_list() == [.worker]
+	assert worker.reasons == RenderReason.worker
 	assert coordinator.stats().flushes == 3
 }
 
@@ -190,7 +190,7 @@ fn test_frame_scheduler_suspend_resume_preserves_business_tasks_and_restores_sur
 	coordinator.resume()
 	restored := finish_scheduler_test_frame(mut coordinator, 1001)
 	assert restored.build && restored.draw
-	assert RenderReason.surface in restored.reason_list()
+	assert restored.reasons.has(.surface)
 	assert !coordinator.stats().suspended
 	if _ := coordinator.begin_frame(1002) {
 		assert false, 'restored surface must return to idle'
@@ -218,7 +218,7 @@ fn test_frame_scheduler_does_not_deliver_tasks_during_an_active_flush() {
 	}
 	assert <-delivered
 	next := finish_scheduler_test_frame(mut coordinator, 2)
-	assert next.build && next.reason_list() == [.worker]
+	assert next.build && next.reasons == RenderReason.worker
 }
 
 fn test_frame_scheduler_close_cancels_queue_timers_and_rejects_old_handle() {
@@ -256,7 +256,7 @@ fn test_frame_scheduler_required_presentation_reuses_tree_and_respects_lifecycle
 	for now in 1 .. 4 {
 		idle := finish_scheduler_test_frame(mut coordinator, now)
 		assert !idle.build && idle.draw
-		assert idle.reason_list() == [.presentation]
+		assert idle.reasons == RenderReason.presentation
 	}
 	assert coordinator.stats().requests == baseline.requests
 	assert coordinator.stats().generation == baseline.generation
@@ -265,11 +265,11 @@ fn test_frame_scheduler_required_presentation_reuses_tree_and_respects_lifecycle
 		coordinator.invalidate(.build)
 	}
 	changed := finish_scheduler_test_frame(mut coordinator, 4)
-	assert changed.build && changed.draw && changed.reason_list() == [.build]
+	assert changed.build && changed.draw && changed.reasons == RenderReason.build
 	assert coordinator.stats().requests == baseline.requests + 10
 	assert coordinator.stats().coalesced == 9
 	cached := finish_scheduler_test_frame(mut coordinator, 5)
-	assert !cached.build && cached.reason_list() == [.presentation]
+	assert !cached.build && cached.reasons == RenderReason.presentation
 	coordinator.suspend()
 	if _ := coordinator.begin_frame(6) {
 		assert false, 'suspension must suppress even required presentation'
@@ -277,9 +277,9 @@ fn test_frame_scheduler_required_presentation_reuses_tree_and_respects_lifecycle
 	coordinator.resume()
 	restored := finish_scheduler_test_frame(mut coordinator, 7)
 	assert restored.build && restored.draw
-	assert restored.reason_list() == [.surface]
+	assert restored.reasons == RenderReason.surface
 	after_restore := finish_scheduler_test_frame(mut coordinator, 8)
-	assert !after_restore.build && after_restore.reason_list() == [.presentation]
+	assert !after_restore.build && after_restore.reasons == RenderReason.presentation
 	coordinator.set_presentation_required(false)
 	assert !coordinator.stats().presentation_required
 	if _ := coordinator.begin_frame(9) {

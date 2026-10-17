@@ -56,7 +56,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		if el.drag_source!=none || el.drop_target!=none {
 			key := drag_owner_key(target)
 			old := g_drag_registry.owners[key] or { HitTarget{} }
-			mount := if el.id.len>0 || el.key.len>0 { el.mounted_generation } else { u64(0) }
+			mount := if el.id.len>0 || el.key.len>0 { el.mounted_generation() } else { u64(0) }
 			if old.drag_generation>0 && old.kind==el.kind && old.drag_mount_generation==mount {
 				target=HitTarget{...target,drag_generation:old.drag_generation,drag_mount_generation:mount}
 			} else {
@@ -96,7 +96,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	fn begin_drag_candidate(target HitTarget) {
 		source := target.drag_source or { return }
 		captured := HitTarget{...target,
-			drag_source: DragSource{...source, allowed: source.allowed.clone()}}
+			drag_source: &DragSource{...source, allowed: source.allowed.clone()}}
 		g_drag_registry.serial++
 		g_touch.drag = DragSession{pending: true, source: captured, token: g_drag_registry.serial,
 			dispatch:custom_input_dispatch(g_gg_app),context:g_gg_app.ctx}

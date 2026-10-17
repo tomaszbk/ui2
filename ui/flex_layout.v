@@ -25,6 +25,62 @@ pub:
 	align_self     LayoutAlignment = .auto
 }
 
+// FlexRule is a FlexChild without its element: the constraints a container
+// retains for a child. Layout runs on rules and child sizes, so neither the
+// retained layout nor a LayoutSpec copies a declaration to lay it out.
+struct FlexRule {
+	basis          f64 = -1
+	grow           f64
+	shrink         f64 = 1
+	minimum_width  f64
+	minimum_height f64
+	maximum_width  f64             = -1
+	maximum_height f64             = -1
+	align_self     LayoutAlignment = .auto
+}
+
+fn flex_rule(child FlexChild) FlexRule {
+	return FlexRule{
+		basis:          child.basis
+		grow:           child.grow
+		shrink:         child.shrink
+		minimum_width:  child.minimum_width
+		minimum_height: child.minimum_height
+		maximum_width:  child.maximum_width
+		maximum_height: child.maximum_height
+		align_self:     child.align_self
+	}
+}
+
+fn (rule FlexRule) flex_child() FlexChild {
+	return FlexChild{
+		basis:          rule.basis
+		grow:           rule.grow
+		shrink:         rule.shrink
+		minimum_width:  rule.minimum_width
+		minimum_height: rule.minimum_height
+		maximum_width:  rule.maximum_width
+		maximum_height: rule.maximum_height
+		align_self:     rule.align_self
+	}
+}
+
+// flex_rules splits children into their rules and the sizes they lay out.
+fn flex_rules(children []FlexChild) ([]FlexRule, []Rect) {
+	mut rules := []FlexRule{cap: children.len}
+	mut sizes := []Rect{cap: children.len}
+	for index in 0 .. children.len {
+		rules << flex_rule(children[index])
+		sizes << children[index].element.frame
+	}
+	return rules, sizes
+}
+
+// A child without a rule takes the FlexChild defaults.
+fn flex_rule_at(rules []FlexRule, index int) FlexRule {
+	return if index < rules.len { rules[index] } else { FlexRule{} }
+}
+
 pub struct FlexConfig {
 pub:
 	id          string
@@ -52,17 +108,17 @@ pub fn flex_justify(value string) !FlexJustify {
 	}
 }
 
-fn flex_validate(config FlexConfig) ! {
+fn flex_validate(config FlexConfig, rules []FlexRule, sizes []Rect) ! {
 	flex_validate_container(config)!
 	mut totals := flex_validation_totals(config)
-	for child in config.children {
-		flex_validate_child(child, child.element.frame, config.gap, mut totals)!
+	for index, size in sizes {
+		flex_validate_child(flex_rule_at(rules, index), size, config.gap, mut totals)!
 	}
 	flex_validate_totals(totals)!
 }
 
-// The container, child and total checks are separate so retained layouts can
-// validate rules against child frames without materializing FlexChild copies.
+// The container, child and total checks are separate so retained nodes can
+// validate their rules against child frames before building a spec.
 fn flex_validate_container(config FlexConfig) ! {
 	if config.align == .auto {
 		return error('flex layout alignment must be start, center, end, or stretch')
@@ -99,10 +155,9 @@ fn flex_validation_totals(config FlexConfig) FlexValidationTotals {
 	}
 }
 
-fn flex_validate_child(child FlexChild, frame Rect, gap f64, mut totals FlexValidationTotals) ! {
-	for value in [frame.x, frame.y, frame.width, frame.height, child.basis, child.grow,
-		child.shrink, child.minimum_width, child.minimum_height, child.maximum_width,
-		child.maximum_height]! {
+fn flex_validate_child(child FlexRule, frame Rect, gap f64, mut totals FlexValidationTotals) ! {
+	for value in [frame.x, frame.y, frame.width, frame.height, child.basis, child.grow, child.shrink,
+		child.minimum_width, child.minimum_height, child.maximum_width, child.maximum_height]! {
 		if !layout_finite(value) {
 			return error('flex child sizes, bounds, and weights must be finite')
 		}
@@ -137,7 +192,7 @@ fn flex_validate_totals(totals FlexValidationTotals) ! {
 	}
 }
 
-fn flex_main_bounds(child FlexChild, orientation LayoutOrientation) (f64, f64) {
+fn flex_main_bounds(child FlexRule, orientation LayoutOrientation) (f64, f64) {
 	return if orientation == .horizontal {
 		child.minimum_width, child.maximum_width
 	} else {
@@ -145,25 +200,25 @@ fn flex_main_bounds(child FlexChild, orientation LayoutOrientation) (f64, f64) {
 	}
 }
 
-fn flex_basis(child FlexChild, orientation LayoutOrientation) f64 {
+fn flex_basis(child FlexRule, size Rect, orientation LayoutOrientation) f64 {
 	preferred := if child.basis >= 0 {
 		child.basis
 	} else if orientation == .horizontal {
-		child.element.frame.width
+		size.width
 	} else {
-		child.element.frame.height
+		size.height
 	}
 	minimum, maximum := flex_main_bounds(child, orientation)
 	return layout_bound(preferred, minimum, maximum)
 }
 
-fn flex_cross_size(child FlexChild, orientation LayoutOrientation, stretch f64) f64 {
+fn flex_cross_size(child FlexRule, size Rect, orientation LayoutOrientation, stretch f64) f64 {
 	if orientation == .horizontal {
-		return layout_bound(if stretch >= 0 { stretch } else { child.element.frame.height },
-			child.minimum_height, child.maximum_height)
+		return layout_bound(if stretch >= 0 { stretch } else { size.height }, child.minimum_height,
+			child.maximum_height)
 	}
-	return layout_bound(if stretch >= 0 { stretch } else { child.element.frame.width },
-		child.minimum_width, child.maximum_width)
+	return layout_bound(if stretch >= 0 { stretch } else { size.width }, child.minimum_width,
+		child.maximum_width)
 }
 
 struct FlexLine {
@@ -172,13 +227,14 @@ struct FlexLine {
 	cross f64
 }
 
-fn flex_lines(config FlexConfig, available f64) []FlexLine {
+fn flex_lines(config FlexConfig, rules []FlexRule, sizes []Rect, available f64) []FlexLine {
 	mut lines := []FlexLine{}
 	mut start := 0
 	mut used := f64(0)
 	mut cross := f64(0)
-	for index, child in config.children {
-		basis := flex_basis(child, config.orientation)
+	for index, size in sizes {
+		child := flex_rule_at(rules, index)
+		basis := flex_basis(child, size, config.orientation)
 		if config.wrap && index > start && used + config.gap + basis > available {
 			lines << FlexLine{start, index, cross}
 			start = index
@@ -189,20 +245,20 @@ fn flex_lines(config FlexConfig, available f64) []FlexLine {
 			used += config.gap
 		}
 		used += basis
-		cross = layout_max(cross, flex_cross_size(child, config.orientation, -1))
+		cross = layout_max(cross, flex_cross_size(child, size, config.orientation, -1))
 	}
-	if start < config.children.len {
-		lines << FlexLine{start, config.children.len, cross}
+	if start < sizes.len {
+		lines << FlexLine{start, sizes.len, cross}
 	}
 	return lines
 }
 
-fn flex_line_sizes(config FlexConfig, line FlexLine, available f64) []f64 {
+fn flex_line_sizes(config FlexConfig, rules []FlexRule, child_sizes []Rect, line FlexLine, available f64) []f64 {
 	count := line.end - line.start
 	mut bases := []f64{cap: count}
 	mut sizes := []f64{cap: count}
 	for index in line.start .. line.end {
-		basis := flex_basis(config.children[index], config.orientation)
+		basis := flex_basis(flex_rule_at(rules, index), child_sizes[index], config.orientation)
 		bases << basis
 		sizes << basis
 	}
@@ -222,7 +278,7 @@ fn flex_line_sizes(config FlexConfig, line FlexLine, available f64) []f64 {
 		mut max_basis := f64(0)
 		mut active := []bool{len: count}
 		for offset in 0 .. count {
-			child := config.children[line.start + offset]
+			child := flex_rule_at(rules, line.start + offset)
 			minimum, maximum := flex_main_bounds(child, config.orientation)
 			if (growing && child.grow > 0 && (maximum < 0 || sizes[offset] < maximum))
 				|| (!growing && child.shrink > 0 && bases[offset] > 0 && sizes[offset] > minimum) {
@@ -239,7 +295,7 @@ fn flex_line_sizes(config FlexConfig, line FlexLine, available f64) []f64 {
 		mut total_weight := f64(0)
 		for offset, pending in active {
 			if pending {
-				child := config.children[line.start + offset]
+				child := flex_rule_at(rules, line.start + offset)
 				weights[offset] = if growing {
 					child.grow / max_weight
 				} else {
@@ -254,7 +310,7 @@ fn flex_line_sizes(config FlexConfig, line FlexLine, available f64) []f64 {
 		mut limited := false
 		for offset, pending in active {
 			if pending {
-				minimum, maximum := flex_main_bounds(config.children[line.start + offset],
+				minimum, maximum := flex_main_bounds(flex_rule_at(rules, line.start + offset),
 					config.orientation)
 				candidate := sizes[offset] + remaining * (weights[offset] / total_weight)
 				sizes[offset] = layout_bound(candidate, minimum, maximum)
@@ -286,7 +342,14 @@ fn flex_justify_space(justify FlexJustify, free_space f64, count int, gap f64) (
 // An unwrapped line occupies the available cross size. Small viewports clamp
 // available size to zero, while explicit minima and non-shrinking items overflow.
 pub fn flex_frames(config FlexConfig) ![]Rect {
-	flex_validate(config)!
+	rules, sizes := flex_rules(config.children)
+	return flex_layout_frames(config, rules, sizes)
+}
+
+// flex_layout_frames lays out child sizes under their rules. The config's
+// own children are ignored.
+fn flex_layout_frames(config FlexConfig, rules []FlexRule, child_sizes []Rect) ![]Rect {
+	flex_validate(config, rules, child_sizes)!
 	main_start := if config.orientation == .horizontal {
 		config.padding.left
 	} else {
@@ -308,12 +371,12 @@ pub fn flex_frames(config FlexConfig) ![]Rect {
 		config.frame.width - config.padding.left - config.padding.right
 	})
 	line_gap := if config.line_gap >= 0 { config.line_gap } else { config.gap }
-	mut frames := []Rect{cap: config.children.len}
+	mut frames := []Rect{cap: child_sizes.len}
 	mut cross_cursor := cross_start
-	for line in flex_lines(config, main_available) {
+	for line in flex_lines(config, rules, child_sizes, main_available) {
 		count := line.end - line.start
 		gaps := config.gap * f64(count - 1)
-		sizes := flex_line_sizes(config, line, layout_max(0, main_available - gaps))
+		sizes := flex_line_sizes(config, rules, child_sizes, line, layout_max(0, main_available - gaps))
 		mut used := gaps
 		for size in sizes {
 			used += size
@@ -322,9 +385,9 @@ pub fn flex_frames(config FlexConfig) ![]Rect {
 		mut cursor := main_start + offset
 		line_cross := if config.wrap { line.cross } else { cross_available }
 		for index in line.start .. line.end {
-			child := config.children[index]
+			child := flex_rule_at(rules, index)
 			align := if child.align_self == .auto { config.align } else { child.align_self }
-			cross_size := flex_cross_size(child, config.orientation, if align == .stretch {
+			cross_size := flex_cross_size(child, child_sizes[index], config.orientation, if align == .stretch {
 				line_cross
 			} else {
 				-1.0
@@ -350,16 +413,22 @@ pub fn flex_frames(config FlexConfig) ![]Rect {
 // flex_preferred_size reports the natural unwrapped size before growing
 // or shrinking. The caller may measure text/content into element frames first.
 pub fn flex_preferred_size(config FlexConfig) !Rect {
-	flex_validate(config)!
-	mut main := if config.children.len > 0 {
-		config.gap * f64(config.children.len - 1)
+	rules, sizes := flex_rules(config.children)
+	return flex_layout_preferred_size(config, rules, sizes)
+}
+
+fn flex_layout_preferred_size(config FlexConfig, rules []FlexRule, sizes []Rect) !Rect {
+	flex_validate(config, rules, sizes)!
+	mut main := if sizes.len > 0 {
+		config.gap * f64(sizes.len - 1)
 	} else {
 		0.0
 	}
 	mut cross := f64(0)
-	for child in config.children {
-		main += flex_basis(child, config.orientation)
-		cross = layout_max(cross, flex_cross_size(child, config.orientation, -1))
+	for index, size in sizes {
+		child := flex_rule_at(rules, index)
+		main += flex_basis(child, size, config.orientation)
+		cross = layout_max(cross, flex_cross_size(child, size, config.orientation, -1))
 	}
 	return if config.orientation == .horizontal {
 		rect(0, 0, main + config.padding.left + config.padding.right,
@@ -370,8 +439,11 @@ pub fn flex_preferred_size(config FlexConfig) !Rect {
 	}
 }
 
+// flex lays out its children once and keeps their rules, without their
+// elements, in the returned element's layout.
 pub fn flex(config FlexConfig) !Element {
-	frames := flex_frames(config)!
+	rules, sizes := flex_rules(config.children)
+	frames := flex_layout_frames(config, rules, sizes)!
 	mut children := []Element{cap: config.children.len}
 	for index, child in config.children {
 		children << Element{
@@ -382,6 +454,10 @@ pub fn flex(config FlexConfig) !Element {
 	return Element{
 		...view(config.id, config.frame, config.box, children)
 		layout_input: config.frame
-		layout:       LayoutSpec{ kind: .flex, flex: flex_layout_spec(config) }
+		layout:       LayoutSpec{
+			kind:       .flex
+			flex:       flex_layout_spec(config)
+			flex_rules: rules
+		}
 	}
 }

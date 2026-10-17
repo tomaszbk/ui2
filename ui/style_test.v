@@ -54,10 +54,10 @@ fn test_style_replacement_restores_constructor_defaults_and_preserves_live_data(
 		style_font_size(24)]))!
 	mut node := owner.element(Element{
 		...label('caption', 'declarado', rect(3, 4, 70, 30), TextStyle{ size: 17 })
-		key:            'same'
-		focused:        true
-		text_selection: TextSelection{ anchor: 1, caret: 3 }
-		tooltip:        'help'
+		key:                'same'
+		accessibility_name: 'caption name'
+		cursor:             cursor_pointing_hand
+		tooltip:            'help'
 	})!
 	node.style(fn [mut patch] () !StylePatch { return patch.get()! })!
 	node.mount()!
@@ -69,7 +69,8 @@ fn test_style_replacement_restores_constructor_defaults_and_preserves_live_data(
 	assert result.box == label('', '', Rect{}, TextStyle{}).box
 	assert result.text_style.size == 17 && result.text_style.color == 0
 	assert result.text == 'ñ café' && result.tooltip == 'help'
-	assert result.key == 'same' && result.focused && result.text_selection == TextSelection{ anchor: 1, caret: 3 }
+	assert result.key == 'same' && result.accessibility_name == 'caption name'
+		&& result.cursor == cursor_pointing_hand
 	assert node.identity() == identity
 	owner.dispose()!
 	assert owner.runtime.stats() == SignalStats{}

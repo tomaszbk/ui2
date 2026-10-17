@@ -75,7 +75,7 @@ fn nested_scroll_setup() {
 	nested_scroll_nested_events.clear()
 	nested_scroll_setup_draws = render_stats().draws
 	nested_scroll_removed = true
-	refresh()
+	request_refresh()
 }
 fn nested_scroll_verify() {
 	defer { quit() }

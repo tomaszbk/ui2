@@ -17,7 +17,7 @@ $if macos && ui2_custom_rendering ? && !ui2_headless ? {
 		if declaration_drag_changed && declaration_drag_case == 'reject_target' { return .none }
 		if declaration_drag_case in ['accept_withdraw', 'accept_refresh'] && declaration_drag_accepts == 3 {
 			declaration_drag_changed = true
-			refresh()
+			request_refresh()
 		}
 		return .move
 	}
@@ -29,7 +29,7 @@ $if macos && ui2_custom_rendering ? && !ui2_headless ? {
 		if event.kind != .drag_over || !declaration_drag_armed || declaration_drag_case in ['accept_withdraw', 'accept_refresh'] { return }
 		declaration_drag_armed = false
 		declaration_drag_changed = true
-		refresh()
+		request_refresh()
 		match declaration_drag_case {
 			'cancel' { cancel_drag() }
 			'restart' { cancel_drag(); handle_touch_down(20, 30) }
@@ -47,7 +47,7 @@ $if macos && ui2_custom_rendering ? && !ui2_headless ? {
 			match declaration_drag_case {
 				'build_cancel' { cancel_drag() }
 				'build_quit' { quit() }
-				'build_refresh' { refresh() }
+				'build_refresh' { request_refresh() }
 				else {}
 			}
 		}
@@ -65,7 +65,7 @@ $if macos && ui2_custom_rendering ? && !ui2_headless ? {
 				'hide_source' { source = Element{...source, hidden: true} }
 				'disable_source' { source = Element{...source, enabled: false} }
 				'withdraw_source' { source = Element{...source, drag_source: none} }
-				'disallow_source' { source = Element{...source, drag_source: DragSource{allowed: [.copy]}} }
+				'disallow_source' { source = Element{...source, drag_source: &DragSource{allowed: [.copy]}} }
 				'replace_accept' { target = Element{...target, drop_target: DropTarget{accept: declaration_drag_reject}} }
 				'move_target' { target = Element{...target, frame: rect(300, 20, 60, 50)} }
 				'replace_source_kind' { source = Element{...source, kind: .image} }
@@ -112,7 +112,7 @@ $if macos && ui2_custom_rendering ? && !ui2_headless ? {
 		source := g_drag_registry.owners[source_key]
 		target := g_drag_registry.owners[target_key]
 		// Seed the initial rendered geometry only. All withdrawals below use
-		// application state + the real build function + public refresh().
+		// application state + the real build function + public request_refresh().
 		g_hit_targets = [HitTarget{...source, x: 10, y: 20, w: 40, h: 40, button_behavior: true},
 			HitTarget{...target, x: 100, y: 20, w: 60, h: 50}]
 		if case_name == 'scroll_target' {

@@ -11,64 +11,14 @@ pub:
 
 // Retained rules omit FlexChild/StackChild element payloads: a node keeps the
 // constraints its parent applies to it, never a second copy of a declaration.
-struct VmlFlexRule {
-	basis          f64 = -1
-	grow           f64
-	shrink         f64 = 1
-	minimum_width  f64
-	minimum_height f64
-	maximum_width  f64             = -1
-	maximum_height f64             = -1
-	align_self     LayoutAlignment = .auto
-}
-
-struct VmlStackRule {
-	align_x LayoutAlignment = .auto
-	align_y LayoutAlignment = .auto
-}
-
 struct VmlChildRule {
-	flex  VmlFlexRule
+	flex  FlexRule
 	grid  GridSpan
-	stack VmlStackRule
-}
-
-fn vml_flex_rule(child FlexChild) VmlFlexRule {
-	return VmlFlexRule{
-		basis:          child.basis
-		grow:           child.grow
-		shrink:         child.shrink
-		minimum_width:  child.minimum_width
-		minimum_height: child.minimum_height
-		maximum_width:  child.maximum_width
-		maximum_height: child.maximum_height
-		align_self:     child.align_self
-	}
-}
-
-fn (rule VmlFlexRule) flex_child() FlexChild {
-	return FlexChild{
-		basis:          rule.basis
-		grow:           rule.grow
-		shrink:         rule.shrink
-		minimum_width:  rule.minimum_width
-		minimum_height: rule.minimum_height
-		maximum_width:  rule.maximum_width
-		maximum_height: rule.maximum_height
-		align_self:     rule.align_self
-	}
-}
-
-fn vml_stack_rule(child StackChild) VmlStackRule {
-	return VmlStackRule{ align_x: child.align_x, align_y: child.align_y }
-}
-
-fn (rule VmlStackRule) stack_child() StackChild {
-	return StackChild{ align_x: rule.align_x, align_y: rule.align_y }
+	stack StackRule
 }
 
 fn vml_child_rule(layout VmlChildLayout) VmlChildRule {
-	return VmlChildRule{ flex: vml_flex_rule(layout.flex), grid: layout.grid, stack: vml_stack_rule(layout.stack) }
+	return VmlChildRule{ flex: flex_rule(layout.flex), grid: layout.grid, stack: stack_rule(layout.stack) }
 }
 
 pub fn (node &CompiledVmlNode) child_rule() VmlChildLayout {
@@ -82,8 +32,8 @@ pub fn (node &CompiledVmlNode) child_rule() VmlChildLayout {
 fn (mut node CompiledVmlNode) inherit_child_layout(layout LayoutSpec, index int) {
 	match layout.kind {
 		.flex {
-			if index < layout.flex.children.len {
-				node.child_layout = VmlChildRule{ flex: vml_flex_rule(layout.flex.children[index]) }
+			if index < layout.flex_rules.len {
+				node.child_layout = VmlChildRule{ flex: layout.flex_rules[index] }
 				node.child_layout_set = true
 			}
 		}
@@ -96,8 +46,8 @@ fn (mut node CompiledVmlNode) inherit_child_layout(layout LayoutSpec, index int)
 			node.child_layout_set = true
 		}
 		.stack {
-			if index < layout.stack.children.len {
-				node.child_layout = VmlChildRule{ stack: vml_stack_rule(layout.stack.children[index]) }
+			if index < layout.stack_rules.len {
+				node.child_layout = VmlChildRule{ stack: layout.stack_rules[index] }
 				node.child_layout_set = true
 			}
 		}
@@ -124,20 +74,14 @@ pub fn (mut node CompiledVmlNode) set_child_layout(rule VmlChildLayout) ! {
 	}
 }
 
-fn (node &CompiledVmlNode) child_flex_rule(child &CompiledVmlNode, index int) FlexChild {
-	if resolved := child.effective_child_rule() { return resolved.flex.flex_child() }
-	if index < node.declaration.layout.flex.children.len {
-		return FlexChild{ ...node.declaration.layout.flex.children[index], element: Element{} }
-	}
-	return FlexChild{}
+fn (node &CompiledVmlNode) child_flex_rule(child &CompiledVmlNode, index int) FlexRule {
+	if resolved := child.effective_child_rule() { return resolved.flex }
+	return flex_rule_at(node.declaration.layout.flex_rules, index)
 }
 
-fn (node &CompiledVmlNode) child_stack_rule(child &CompiledVmlNode, index int) StackChild {
-	if resolved := child.effective_child_rule() { return resolved.stack.stack_child() }
-	if index < node.declaration.layout.stack.children.len {
-		return StackChild{ ...node.declaration.layout.stack.children[index], element: Element{} }
-	}
-	return StackChild{}
+fn (node &CompiledVmlNode) child_stack_rule(child &CompiledVmlNode, index int) StackRule {
+	if resolved := child.effective_child_rule() { return resolved.stack }
+	return stack_rule_at(node.declaration.layout.stack_rules, index)
 }
 
 fn (node &CompiledVmlNode) child_grid_span(child &CompiledVmlNode, index int) GridSpan {
@@ -150,30 +94,27 @@ fn (node &CompiledVmlNode) child_grid_span(child &CompiledVmlNode, index int) Gr
 
 // child_layout_spec resolves the container's child rules against the visible
 // children and their projected elements, validates them, and reports whether
-// the spec differs from the current declaration. Rules are built without
-// element payloads, and an unchanged spec is returned as is, without copies.
+// the spec differs from the current declaration. An unchanged spec is
+// returned as is, without copies.
 fn (node &CompiledVmlNode) child_layout_spec(children []&CompiledVmlNode, elements []Element) !(LayoutSpec, bool) {
 	layout := node.declaration.layout
 	match layout.kind {
 		.flex {
-			config := FlexConfig{ ...layout.flex, frame: node.declaration.frame, children: [] }
+			config := FlexConfig{ ...layout.flex, frame: node.declaration.frame }
 			flex_validate_container(config)!
 			mut totals := flex_validation_totals(config)
-			mut changed := children.len != layout.flex.children.len || layout.flex.id.len > 0
-				|| layout.flex.frame != Rect{} || layout.flex.box != BoxStyle{}
+			mut changed := children.len != layout.flex_rules.len || layout.flex.id.len > 0
+				|| layout.flex.frame != Rect{} || layout.flex.box != BoxStyle{} || layout.flex.children.len > 0
 			for i, child in children {
 				rule := node.child_flex_rule(child, i)
 				flex_validate_child(rule, elements[i].frame, config.gap, mut totals)!
-				if !changed && rule != layout.flex.children[i] { changed = true }
+				if !changed && rule != layout.flex_rules[i] { changed = true }
 			}
 			flex_validate_totals(totals)!
 			if !changed { return layout, false }
-			mut rules := []FlexChild{cap: children.len}
+			mut rules := []FlexRule{cap: children.len}
 			for i, child in children { rules << node.child_flex_rule(child, i) }
-			return LayoutSpec{
-				...layout
-				flex: FlexConfig{ ...layout.flex, id: '', frame: Rect{}, box: BoxStyle{}, children: rules }
-			}, true
+			return LayoutSpec{ ...layout, flex: flex_layout_spec(layout.flex), flex_rules: rules }, true
 		}
 		.grid {
 			mut changed := children.len != layout.grid.child_spans.len
@@ -197,23 +138,20 @@ fn (node &CompiledVmlNode) child_layout_spec(children []&CompiledVmlNode, elemen
 			return LayoutSpec{ ...layout, grid: config }, true
 		}
 		.stack {
-			config := StackConfig{ ...layout.stack, frame: node.declaration.frame, children: [] }
+			config := StackConfig{ ...layout.stack, frame: node.declaration.frame }
 			stack_validate_container(config)!
-			mut changed := children.len != layout.stack.children.len || layout.stack.id.len > 0
-				|| layout.stack.frame != Rect{} || layout.stack.box != BoxStyle{}
+			mut changed := children.len != layout.stack_rules.len || layout.stack.id.len > 0
+				|| layout.stack.frame != Rect{} || layout.stack.box != BoxStyle{} || layout.stack.children.len > 0
 			for i, child in children {
 				validate_layout_frame(elements[i].frame)!
-				if !changed && node.child_stack_rule(child, i) != layout.stack.children[i] {
+				if !changed && node.child_stack_rule(child, i) != layout.stack_rules[i] {
 					changed = true
 				}
 			}
 			if !changed { return layout, false }
-			mut rules := []StackChild{cap: children.len}
+			mut rules := []StackRule{cap: children.len}
 			for i, child in children { rules << node.child_stack_rule(child, i) }
-			return LayoutSpec{
-				...layout
-				stack: StackConfig{ ...layout.stack, id: '', frame: Rect{}, box: BoxStyle{}, children: rules }
-			}, true
+			return LayoutSpec{ ...layout, stack: stack_layout_spec(layout.stack), stack_rules: rules }, true
 		}
 		else {}
 	}

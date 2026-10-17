@@ -11,7 +11,9 @@ mut:
 	fd int = -1
 }
 
-// RenderReason describes why a custom-renderer frame was requested.
+// RenderReason describes why a custom-renderer frame was requested. A frame
+// collects the reasons requested since the previous one as a set.
+@[flag]
 pub enum RenderReason {
 	build
 	layout
@@ -48,7 +50,7 @@ pub:
 	finished_generation   u64
 	pending               bool
 	in_flight             bool
-	pending_reasons       []RenderReason
+	pending_reasons       RenderReason
 	next_deadline         i64 = -1
 	animation_active      bool
 	motion_active         bool
@@ -57,39 +59,19 @@ pub:
 	closed                bool
 }
 
-// Reasons travel by value so a new request cannot overwrite an in-flight frame.
-fn (work FrameWork) reason_list() []RenderReason {
-	mut result := []RenderReason{cap: work.reason_count}
-	for i in 0 .. work.reason_count { result << work.reasons[i] }
-	return result
-}
-
-fn (coordinator &FrameCoordinator) has_reason(reason RenderReason) bool {
-	for i in 0 .. coordinator.pending_count {
-		if coordinator.pending_reasons[i] == reason { return true }
-	}
-	return false
-}
-
-fn (coordinator &FrameCoordinator) pending_reason_list() []RenderReason {
-	mut result := []RenderReason{cap: coordinator.pending_count}
-	for i in 0 .. coordinator.pending_count { result << coordinator.pending_reasons[i] }
-	return result
-}
-
 fn (mut coordinator FrameCoordinator) build_pending() bool {
 	coordinator.mutex.lock()
 	defer { coordinator.mutex.unlock() }
-	return coordinator.has_reason(.build)
+	return coordinator.pending_reasons.has(.build)
 }
 
+// Reasons travel by value so a new request cannot overwrite an in-flight frame.
 struct FrameWork {
 	generation u64
 	serial     u64
 	build      bool
 	draw       bool
-	reasons    [10]RenderReason
-	reason_count int
+	reasons    RenderReason
 }
 
 // Each renderer context owns one coordinator. The lock protects only scheduler
@@ -112,8 +94,7 @@ mut:
 	requests              u64
 	generation            u64
 	finished_generation   u64
-	pending_reasons       [10]RenderReason
-	pending_count         int
+	pending_reasons       RenderReason
 	next_serial           u64
 	active_serial         u64
 	next_deadline         i64 = -1
@@ -163,7 +144,7 @@ fn (mut coordinator FrameCoordinator) next_wake(now i64, last_frame i64, interva
 	if coordinator.suspended {
 		return -1
 	}
-	if coordinator.pending_count > 0 {
+	if !coordinator.pending_reasons.is_empty() {
 		return now
 	}
 	mut deadline := coordinator.next_deadline
@@ -199,7 +180,7 @@ fn (mut coordinator FrameCoordinator) set_presentation_required(required bool) {
 
 fn (mut coordinator FrameCoordinator) invalidate(reason RenderReason) {
 	coordinator.mutex.lock()
-	was_pending := coordinator.pending_count > 0
+	was_pending := !coordinator.pending_reasons.is_empty()
 	coordinator.invalidate_locked(reason)
 	coordinator.unlock_and_wake(!was_pending)
 }
@@ -210,13 +191,10 @@ fn (mut coordinator FrameCoordinator) invalidate_locked(reason RenderReason) {
 	}
 	coordinator.requests++
 	coordinator.generation++
-	if coordinator.pending_count > 0 {
+	if !coordinator.pending_reasons.is_empty() {
 		coordinator.coalesced++
 	}
-	if !coordinator.has_reason(reason) {
-		coordinator.pending_reasons[coordinator.pending_count] = reason
-		coordinator.pending_count++
-	}
+	coordinator.pending_reasons.set(reason)
 }
 
 // begin_frame takes a generation snapshot and detaches its reasons. Requests
@@ -239,34 +217,23 @@ fn (mut coordinator FrameCoordinator) begin_frame(now i64) ?FrameWork {
 	if coordinator.motion_active {
 		coordinator.invalidate_locked(.motion)
 	}
-	if coordinator.pending_count == 0
-		&& !coordinator.presentation_required {
+	if coordinator.pending_reasons.is_empty() && !coordinator.presentation_required {
 		return none
 	}
-	mut reasons := coordinator.pending_reasons
-	mut reason_count := coordinator.pending_count
-	if reason_count == 0 && coordinator.presentation_required {
-		reasons[0] = .presentation
-		reason_count = 1
+	reasons := if coordinator.pending_reasons.is_empty() {
+		RenderReason.presentation
+	} else {
+		coordinator.pending_reasons
 	}
-	coordinator.pending_count = 0
+	coordinator.pending_reasons = RenderReason.zero()
 	coordinator.next_serial++
 	coordinator.active_serial = coordinator.next_serial
-	mut build := false
-	for index in 0 .. reason_count {
-		reason := reasons[index]
-		if reason in [.build, .surface, .animation, .animation_follow_up, .worker] {
-			build = true
-			break
-		}
-	}
 	return FrameWork{
 		generation: coordinator.generation
 		serial:     coordinator.active_serial
-		build:      build
+		build:      reasons.has(.build | .surface | .animation | .animation_follow_up | .worker)
 		draw:       true
 		reasons:    reasons
-		reason_count: reason_count
 	}
 }
 
@@ -374,7 +341,7 @@ fn (mut coordinator FrameCoordinator) close() {
 	coordinator.motion_active = false
 	coordinator.next_deadline = -1
 	coordinator.active_serial = 0
-	coordinator.pending_count = 0
+	coordinator.pending_reasons = RenderReason.zero()
 	coordinator.tasks = []fn (){}
 	coordinator.wakeup = unsafe { nil }
 }
@@ -418,7 +385,7 @@ fn (mut coordinator FrameCoordinator) take_tasks() []fn () {
 	// A callback in an earlier batch can post another task before begin_frame.
 	// Its post may have been acknowledged by that frame while the task itself
 	// waited for the next drain. Delivery must still invalidate its own frame.
-	if tasks.len > 0 && !coordinator.has_reason(.worker) {
+	if tasks.len > 0 && !coordinator.pending_reasons.has(.worker) {
 		coordinator.invalidate_locked(.worker)
 	}
 	return tasks
@@ -442,9 +409,9 @@ fn (mut coordinator FrameCoordinator) stats() RenderStats {
 		requests:              coordinator.requests
 		generation:            coordinator.generation
 		finished_generation:   coordinator.finished_generation
-		pending:               coordinator.pending_count > 0
+		pending:               !coordinator.pending_reasons.is_empty()
 		in_flight:             coordinator.active_serial != 0
-		pending_reasons:       coordinator.pending_reason_list()
+		pending_reasons:       coordinator.pending_reasons
 		next_deadline:         coordinator.next_deadline
 		animation_active:      coordinator.animation_active
 		motion_active:         coordinator.motion_active

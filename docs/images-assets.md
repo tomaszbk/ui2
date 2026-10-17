@@ -83,7 +83,7 @@ change uniform sampling density. Variant order has no effect.
 No variants means decoded pixel dimensions are the logical intrinsic size unless
 `logical_size` is supplied. A missing/invalid selected file paints the existing
 placeholder and has no image hit target. There is no silent fallback to a
-potentially stale variant. Change the declaration and call `refresh()` to retry.
+potentially stale variant. Change the declaration and call `request_refresh()` to retry.
 Changes to file size/mtime invalidate its cached entry on the next frame. Bump
 `ImageAsset.revision` for same-size replacements within timestamp resolution.
 Paths/revisions are context-local identities; changing a path, revision or selected

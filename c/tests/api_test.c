@@ -140,7 +140,7 @@ int main(void) {
     ui2_bounds(&x, &y);
     assert(x > 0 && y > 0);
     ui2_bounds(NULL, NULL);
-    ui2_refresh();
+    ui2_request_refresh();
     ui2_quit();
     puts("C ABI tests passed");
     return 0;

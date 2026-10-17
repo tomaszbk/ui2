@@ -43,8 +43,6 @@ $if ui2_document_library ? {
 
 	pub fn safe_area_top() f64 { document_without_window('safe_area_top') }
 
-	pub fn refresh() { panic('compiled VML document library refresh requires a host publisher') }
-
 	pub fn request_refresh() { panic('compiled VML document library refresh requires a host publisher') }
 
 	pub fn refresh_element(_id string, _element Element) { panic('compiled VML document library updates require an attached host publisher') }

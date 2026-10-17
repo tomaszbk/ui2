@@ -34,7 +34,7 @@ $if macos && ui2_custom_rendering ? && ui2_embedder ? && !ui2_headless ? {
 			if canceled_work_mode == 3 { refresh_element('badge', canceled_work_badge('newer')) }
 			if canceled_work_mode == 4 { quit() }
 			if canceled_work_mode == 5 { g_gg_app.scheduler = new_frame_coordinator() }
-			if canceled_work_mode == 6 { refresh() }
+			if canceled_work_mode == 6 { request_refresh() }
 		}
 		return root
 	}

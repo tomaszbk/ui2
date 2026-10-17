@@ -98,7 +98,7 @@ pub fn with_overlay(element Element, config OverlayConfig) !Element {
 	validate_layout_frame(element.frame)!
 	return Element{
 		...element
-		overlay:            config
+		overlay:            &OverlayConfig{ ...config }
 		hidden:             element.hidden || !config.open
 		focus_scope:        config.kind in [.dialog, .menu, .context_menu] || config.initial_focus.len > 0 || element.focus_scope
 		focus_policy:       if config.kind == .tooltip {

@@ -494,7 +494,7 @@ fn (n &VmlWidgetNode[P]) vml_styled(el Element, mode VmlStyleMode) !Element {
 			base := if mode == .reset {
 				Element{
 					...el
-					box: el.style_default_box or { el.box }
+					box: style_reset_box(el.compiled_metadata, el.box)
 				}
 			} else {
 				el

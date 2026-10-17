@@ -543,7 +543,7 @@ fn check_ime(first ui2.UiDispatcher, second ui2.UiDispatcher) {
 		assert C.ui2_fixture_preedit(first_window.native_handle(), c'にほん')
 		assert ui2.text('input') == 'A😀Z'
 		assert C.ui2_fixture_has_preedit(first_window.native_handle())
-		ui2.refresh()
+		ui2.request_refresh()
 		assert second_window.update(fn () {
 			assert_second_editor()
 			assert ui2.text('input') == 'A😀Z'

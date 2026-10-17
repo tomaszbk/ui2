@@ -3,7 +3,7 @@ module ui2
 struct OverlayLayer {
 mut:
 	element      Element
-	config       OverlayConfig
+	config       &OverlayConfig = unsafe { nil }
 	path         string
 	parent       string
 	dependencies []string
@@ -14,7 +14,33 @@ mut:
 	layout       &LayoutTree = &LayoutTree{}
 	surface      Element
 	backdrop     Element
+	// Presentation records derived from the surface once per resolve, so a
+	// geometry-only reprojection links them again without allocating.
+	mount          &ElementMount   = unsafe { nil }
+	runtime_shown  &ElementRuntime = unsafe { nil }
+	runtime_hidden &ElementRuntime = unsafe { nil }
+	inert          InertMountCache
 }
+
+// The modal gate makes a presented slot inert; the inert variant of a mount
+// is kept until its base record changes.
+struct InertMountCache {
+mut:
+	base    &ElementMount = unsafe { nil }
+	variant &ElementMount = unsafe { nil }
+}
+
+fn (mut cache InertMountCache) get(base &ElementMount, inert bool) &ElementMount {
+	current := base != unsafe { nil } && base.overlay_inert
+	if current == inert { return base }
+	if cache.base != base || cache.variant == unsafe { nil } {
+		cache.base = base
+		cache.variant = base.with_inert(inert)
+	}
+	return cache.variant
+}
+
+const overlay_host_record = &ElementMount{ overlay_host: true }
 
 // One window owns its portal projections. The authored/layout tree retains
 // component lifetime; this tree only owns placement and presentation snapshots.
@@ -38,6 +64,7 @@ mut:
 	candidate          Element
 	candidate_buffer   []Element
 	output_buffer      []Element
+	root_inert         InertMountCache
 }
 
 fn element_has_overlays(element Element) bool {
@@ -49,7 +76,7 @@ fn element_has_overlays(element Element) bool {
 const overlay_host_path = 'overlay_host'
 
 fn presentation_root_path(element Element) string {
-	return if element.overlay_host { overlay_host_path } else { 'root' }
+	return if element.overlay_host() { overlay_host_path } else { 'root' }
 }
 
 fn strip_overlay_children(element Element, path string, parent string) Element {
@@ -64,8 +91,8 @@ fn strip_overlay_children(element Element, path string, parent string) Element {
 		children << clean
 		changed = changed || clean != child
 	}
-	return if changed || element.mounted_path.len == 0 {
-		Element{ ...element, children: children, mounted_path: path, mounted_parent_path: parent }
+	return if changed || element.mounted_path().len == 0 {
+		Element{ ...element, children: children, mount: element.mount.with_path(path, parent) }
 	} else {
 		element
 	}
@@ -84,12 +111,8 @@ fn restore_portal_identity(element Element, source Element) Element {
 	}
 	return Element{
 		...element
-		mounted_generation:  source.mounted_generation
-		mounted_path:        source.mounted_path
-		mounted_parent_path: source.mounted_parent_path
-		mounted_scroll_id:   source.mounted_scroll_id
-		mounted_tooltip_key: source.mounted_tooltip_key
-		children:            children
+		mount:    element.mount.with_identity(source.mount)
+		children: children
 	}
 }
 
@@ -159,7 +182,7 @@ fn (mut tree OverlayTree) collect(element Element, path string, parent string, o
 			dependencies: dependencies
 			frame:        element.frame
 			layout:       old[element.id] or { &LayoutTree{} }
-			backdrop:     Element{ ...backdrop, mounted_path: overlay_host_path + '/backdrop:' + element.id.bytes().hex(), mounted_parent_path: overlay_host_path, clickable: true, focus_policy: .unfocusable, accessibility_role: 'presentation' }
+			backdrop:     Element{ ...backdrop, mount: &ElementMount{ path: overlay_host_path + '/backdrop:' + element.id.bytes().hex(), parent_path: overlay_host_path }, clickable: true, focus_policy: .unfocusable, accessibility_role: 'presentation' }
 		}
 	}
 	for i, child in element.children {
@@ -251,38 +274,31 @@ fn (mut tree OverlayTree) resolve(root Element, offsets map[string]f64, viewport
 	} else {
 		view('', viewport, BoxStyle{ transparent: true }, [])
 	}
-	children << Element{ ...base, frame: mounted_root_frame(root, viewport), mounted_path: 'root', mounted_parent_path: overlay_host_path }
+	base_mount := base.mount
+	children << Element{ ...base, frame: mounted_root_frame(root, viewport), mount: base_mount.with_path('root', overlay_host_path) }
 	for index in 0 .. tree.layers.len {
 		mut layer := &tree.layers[index]
 		layer.scopes = tree.logical_scopes(layer.parent)
-		tree.place_layer(index, Element{ ...view('', viewport, BoxStyle{ transparent: true }, children), overlay_host: true }, offsets, viewport)!
+		tree.place_layer(index, Element{ ...view('', viewport, BoxStyle{ transparent: true }, children), mount: overlay_host_record }, offsets, viewport)!
 		// The surface has its own constraints; shrinking at a viewport edge must
 		// reflow its children rather than merely clipping their old layout.
 		surface := layer.resolve_surface(tree.measure, tree.environment)!
 		layer.surface = surface
-		children << Element{
-			...surface
-			frame:               layer.frame
-			overlay:             layer.config
-			overlay_scopes:      layer.scopes
-			mounted_path:        layer.path
-			mounted_parent_path: overlay_host_path
-			hidden:              surface.hidden || !layer.config.open || !layer.available
-			motion_state:        if layer.available && (layer.config.open || layer.element.hidden) {
-				layer.element.motion_state
-			} else {
-				unsafe { nil }
-			}
-			enabled:             surface.enabled && layer.active
-			overlay_inert:       layer.config.kind == .tooltip
+		layer.mount = if surface.mount == unsafe { nil } {
+			&ElementMount{ path: layer.path, parent_path: overlay_host_path, overlay_scopes: layer.scopes, overlay_inert: layer.config.kind == .tooltip }
+		} else {
+			&ElementMount{ ...*surface.mount, path: layer.path, parent_path: overlay_host_path, overlay_scopes: layer.scopes, overlay_inert: layer.config.kind == .tooltip }
 		}
+		layer.runtime_shown = surface.runtime.with_motion_state(layer.element.motion_state())
+		layer.runtime_hidden = surface.runtime.with_motion_state(unsafe { nil })
+		children << layer.presented(surface, layer.frame)
 	}
 	mut presented := []Element{cap: 1 + tree.layers.len * 2}
 	tree.fill_presentation(children, mut presented, viewport)
-	tree.candidate = Element{ ...view('', viewport, BoxStyle{ transparent: true }, children), overlay_host: true }
+	tree.candidate = Element{ ...view('', viewport, BoxStyle{ transparent: true }, children), mount: overlay_host_record }
 	tree.candidate_buffer = []Element{cap: children.len}
 	for child in children { tree.candidate_buffer << unsafe { child } }
-	tree.output = Element{ ...view('', viewport, BoxStyle{ transparent: true }, presented), overlay_host: true }
+	tree.output = Element{ ...view('', viewport, BoxStyle{ transparent: true }, presented), mount: overlay_host_record }
 	tree.output_buffer = []Element{cap: 1 + tree.layers.len * 2}
 	return tree.output
 }
@@ -293,8 +309,9 @@ fn (mut tree OverlayTree) fill_presentation(candidates []Element, mut presented 
 		if layer.active && layer.config.kind == .dialog { tree.modal = layer.element.id }
 	}
 	presented.trim(0)
-	presented << Element{ ...candidates[0], overlay_inert: tree.modal.len > 0 }
-	for index, layer in tree.layers {
+	presented << Element{ ...candidates[0], mount: tree.root_inert.get(candidates[0].mount, tree.modal.len > 0) }
+	for index in 0 .. tree.layers.len {
+		mut layer := &tree.layers[index]
 		allowed := tree.modal.len == 0 || layer.element.id == tree.modal || tree.modal in layer.scopes
 		if layer.config.kind == .dialog {
 			// Keep a stable hidden slot when its anchor is clipped or presence ends.
@@ -307,7 +324,8 @@ fn (mut tree OverlayTree) fill_presentation(candidates []Element, mut presented 
 				enabled: layer.active && allowed
 			}
 		}
-		presented << Element{ ...candidates[index + 1], overlay_inert: !allowed || layer.config.kind == .tooltip }
+		candidate := candidates[index + 1]
+		presented << Element{ ...candidate, mount: layer.inert.get(candidate.mount, !allowed || layer.config.kind == .tooltip) }
 	}
 }
 
@@ -351,7 +369,7 @@ fn (mut tree OverlayTree) place_layer(index int, candidate Element, offsets map[
 			}
 		}
 	}
-	layer.frame = overlay_frame(layer.config, LayoutSize{ width: layer.element.frame.width, height: layer.element.frame.height }, anchor_frame, viewport)!
+	layer.frame = overlay_frame(*layer.config, LayoutSize{ width: layer.element.frame.width, height: layer.element.frame.height }, anchor_frame, viewport)!
 	layer.available = available
 	layer.active = available && layer.config.open && !layer.element.hidden && layer.element.presented_enabled()
 }
@@ -388,22 +406,7 @@ fn (mut tree OverlayTree) reproject(offsets map[string]f64, viewport Rect) !bool
 			updates := compiled_vml_sync_geometry(projection)!
 			if updates.len > 0 { return false }
 		}
-		candidates[index + 1] = Element{
-			...layer.surface
-			frame:               frame
-			overlay:             layer.config
-			overlay_scopes:      layer.scopes
-			mounted_path:        layer.path
-			mounted_parent_path: overlay_host_path
-			hidden:              layer.surface.hidden || !layer.config.open || !layer.available
-			motion_state:        if layer.available && (layer.config.open || layer.element.hidden) {
-				layer.element.motion_state
-			} else {
-				unsafe { nil }
-			}
-			enabled:             layer.surface.enabled && layer.active
-			overlay_inert:       layer.config.kind == .tooltip
-		}
+		candidates[index + 1] = layer.presented(layer.surface, frame)
 	}
 	mut presented := unsafe { tree.output_buffer }
 	tree.fill_presentation(candidates, mut presented, viewport)
@@ -414,6 +417,24 @@ fn (mut tree OverlayTree) reproject(offsets map[string]f64, viewport Rect) !bool
 	tree.output = Element{ ...tree.output, frame: viewport, children: presented }
 	tree.output_buffer = previous_output
 	return true
+}
+
+// presented is a layer's slot in the window layer: its surface at the placed
+// frame, with the layer's mount and the motion state of an available layer.
+fn (layer &OverlayLayer) presented(surface Element, frame Rect) Element {
+	return Element{
+		...surface
+		frame:   frame
+		overlay: layer.config
+		mount:   layer.mount
+		hidden:  surface.hidden || !layer.config.open || !layer.available
+		runtime: if layer.available && (layer.config.open || layer.element.hidden) {
+			layer.runtime_shown
+		} else {
+			layer.runtime_hidden
+		}
+		enabled: surface.enabled && layer.active
+	}
 }
 
 fn (tree &OverlayTree) top_active() ?OverlayLayer {

@@ -51,7 +51,7 @@ fn toolbar_button(id string, text string, x f64, width f64, theme ui2.ComponentT
 			if event.kind == .click {
 				mut state := unsafe { gallery }
 				change(mut state)
-				ui2.refresh()
+				ui2.request_refresh()
 			}
 		}
 	}

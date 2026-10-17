@@ -30,7 +30,7 @@ fn props_toggle_find(el ui2.Element, id string) ?ui2.Element {
 }
 
 fn props_toggle_fields(el ui2.Element) string {
-	return '${el.kind}|${el.text}|${el.checked}|${el.toggle_group}|${el.toggle_allow_no_selection}|${el.native_style}|${el.enabled}|${el.accessibility_role}|${el.accessibility_label}|${el.accessibility_value}\n${el.box}\n${el.text_style}\n${el.toggle_down_box}\n${el.toggle_down_text_style}\n${el.interaction_style}'
+	return '${el.kind}|${el.text}|${el.checked}|${el.toggle_group()}|${el.toggle_allow_no_selection()}|${el.native_style}|${el.enabled}|${el.accessibility_role}|${el.accessibility_label}|${el.accessibility_value}\n${el.box}\n${el.text_style}\n${el.toggle_down_box()}\n${el.toggle_down_text_style()}\n${el.interaction_style}'
 }
 
 fn test_styled_toggle_button_props_match_compiled_vml() {
@@ -58,7 +58,7 @@ fn test_styled_toggle_button_props_match_compiled_vml() {
 		})!
 		styled := ui2.apply_style(built, style)!
 		assert props_toggle_fields(styled) == props_toggle_fields(compiled)
-		assert compiled.toggle_down_text_style.color == 0xFFFFFF
-		assert compiled.toggle_down_box.bg == 0x1D4ED8
+		assert compiled.toggle_down_text_style().color == 0xFFFFFF
+		assert compiled.toggle_down_box().bg == 0x1D4ED8
 	}
 }

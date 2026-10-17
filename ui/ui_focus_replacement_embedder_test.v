@@ -50,7 +50,7 @@ $if macos && ui2_custom_rendering ? && ui2_embedder ? && !ui2_headless ? {
 	fn replacement_next_frame(task fn ()) {
 		replacement_after_build = task
 		replacement_task_pending = true
-		refresh()
+		request_refresh()
 	}
 
 	fn assert_replacement_editor_removed() {
