@@ -17,7 +17,7 @@ This group ports GPUI Kit's
 
 Shared helpers live in `ui/component_feedback.v`, the tests in
 `ui/component_feedback_test.v`, and `examples/gpui_feedback/main.v` shows every
-component and variant with its animations running:
+component and variant with its loops running:
 
 ```sh
 # from the directory that contains the ui2 checkout
@@ -30,27 +30,27 @@ selection control (Kivy's Spinner), and the icon builder is `named_icon` because
 `icon` is a local variable in `ui/message_box_windows.c.v`, which a function of
 that name would shadow.
 
-## How the animations work
+## How the loops work
 
 ui2 has no canvas, no clipping view and no per-frame callback, so every moving
-part is an ordinary view driven by a looping animation from the
-[animation API](../../README.md#widget-animations), started on the part's id with
-`component_keep_animating`. The native backends redraw while one runs; the custom
-renderer draws every frame anyway.
+part is an ordinary view whose [motion](../motion.md) plays a looping timeline
+over it: keyframes of its position, box width, opacity or color from the start
+of the cycle to its end. A part is laid out once; its timeline moves it and
+sizes its box by presentation alone, and nothing allocates while it runs.
 
-- Every animated component therefore requires a non-empty `id`. Its parts use ids
+- Every animated component requires a non-empty `id`. Its parts use stable ids
   under `${id}:component:`.
-- A loop keeps running after its element leaves the tree, and the native backend
-  keeps redrawing for as long as one runs. When you stop showing a spinner,
-  shimmer, shimmer text or loading progress indicator, call
-  `stop_feedback_animations(id)`. Building it again starts it afresh.
-- Part ids carry a signature of whatever their keyframes depend on (size, speed,
-  and the colors of parts that fade), so a rebuild with new settings starts new
-  loops and clears the old ones. Rebuilding with the same settings leaves the
-  running loops alone.
-- Every animated component takes `reduce_motion`, which draws it at rest and
-  stops its loops: GPUI does the same when the system asks for reduced motion.
-  ui2 has no API to read that setting, so the application passes it.
+- A loop plays while its part is mounted and ends when the part leaves the
+  tree, so a spinner that is no longer shown stops on its own and the window
+  returns to idle.
+- Rebuilding with the same settings keeps the loops running; a new size, speed
+  or fading color is a new timeline, which starts over.
+- Every animated component takes `reduce_motion`, which draws it at rest: GPUI
+  does the same when the system asks for reduced motion. `set_reduced_motion`
+  does the same for every component in the application.
+- Renderers without motion (the native AppKit, Windows, UIKit and Android
+  backends) draw the components at rest, as `reduce_motion` does. Linear
+  progress changes its value at once there.
 
 ui2 colors are opaque, so GPUI's translucent tracks are flattened: a track
 defaults to the indicator color mixed 20% over the theme's background. Rings
@@ -134,8 +134,10 @@ Omitted from Progress and ProgressCircle:
 - GPUI's `Styled` refinements (borders, arbitrary styles): ui2 configs take the
   explicit fields above instead.
 - A transition when a ring's value changes: the arc is rebuilt from cells, which
-  the property animation API cannot interpolate. Linear bars do transition.
-- Reading the system's reduce-motion setting: pass `reduce_motion`.
+  motion cannot interpolate. Linear bars do transition, with a `.box` layout
+  transition of their indicator.
+- Reading the system's reduce-motion setting: pass `reduce_motion`, or call
+  `set_reduced_motion` once for the whole application.
 
 ## Spinner: `loading_spinner`
 
@@ -321,7 +323,7 @@ v -d ui2_custom_rendering test ui2/ui/component_feedback_test.v
 The suite covers value clamping and announcement, size presets and geometry,
 both ring builders (cells cover the centerline, strips cover the annulus and the
 caps by area), value transitions from the width on screen, the indeterminate
-curves sampled through the animation runtime, eased spinner windows, loop
-restarts on new settings and `stop_feedback_animations`, reduced motion, GPUI's
+curves sampled from the parts' timelines, eased spinner windows, loop restarts
+on new settings, reduced motion, GPUI's
 shimmer spread, band and highlight rules, `once`, the icon table against
 `symbol_known`, and tiny or empty frames for every component.

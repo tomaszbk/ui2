@@ -16,7 +16,7 @@ GPUI Kit keeps a `NotificationList` inside the window's `Root` and pushes into
 it with `window.push_notification`. In ui2 the application owns a
 `NotificationList` value and draws it with `notification_stacks`. Every change
 to the list returns the timers it needs as `[]NotificationTimer` data, which
-`list.schedule(id, timers)` turns into `after`/`cancel_timer` calls; when a
+`list.schedule(timers)` turns into `after`/`cancel_timer` calls; when a
 timer is due it is fed back to `list.fire(timer)`. The list itself never
 starts a timer, so it is deterministic and is tested with a fake clock.
 
@@ -33,7 +33,7 @@ starts a timer, so it is deterministic and is tested with a fake clock.
 | `list.pause(placement)`, `list.resume(placement)` | Stop and restart every countdown, keeping the time left |
 | `list.settle()` | Finish every slide in now, for notifications already on screen when a window opens |
 | `list.fire(timer)` | Advance the notification a due timer belongs to; stale timers change nothing |
-| `list.schedule(id, timers)` | Run timer requests with `after`/`cancel_timer` and release animation state |
+| `list.schedule(timers)` | Run timer requests with `after`/`cancel_timer` |
 | `list.entries()`, `list.visible()`, `list.find(key)`, `list.remaining(seq)`, `list.is_paused()`, `list.len()` | Read the list |
 | `notification_stacks(NotificationStackConfig) ![]Element` | One stack per placement in use |
 | `NotificationEvent` | `kind` (`close`, `action`, `click`, `hover_start`, `hover_end`), `seq`, `key`, `placement`: what `on_notification` receives |
@@ -80,13 +80,13 @@ fn answer_notification(note ui2.NotificationEvent) {
 	if note.kind == .action && note.key == 'connection' {
 		// Retry here.
 	}
-	state.notes.schedule('toasts', state.notes.respond(note))
+	state.notes.schedule(state.notes.respond(note))
 	ui2.request_refresh()
 }
 
 fn save(event ui2.ElementEvent) {
 	mut state := unsafe { app }
-	state.notes.schedule('toasts', state.notes.push(
+	state.notes.schedule(state.notes.push(
 		kind:    .success
 		title:   'Saved'
 		message: 'Your changes have been saved.'
@@ -99,23 +99,21 @@ A failed connection with a retry button that stays until it is handled, and an
 upload whose notification is replaced when it finishes:
 
 ```v
-state.notes.schedule('toasts', state.notes.push(
+state.notes.schedule(state.notes.push(
 	key:     'connection'
 	kind:    .error
 	title:   'Connection lost'
 	message: 'Unable to connect to the server.'
 	action:  'Retry' // An action turns auto-hide off unless autohide says otherwise.
 ))
-state.notes.schedule('toasts', state.notes.push(key: 'upload', kind: .info, message: 'Uploading…', autohide: false))
+state.notes.schedule(state.notes.push(key: 'upload', kind: .info, message: 'Uploading…', autohide: false))
 // Later: same key, so it replaces the first one.
-state.notes.schedule('toasts', state.notes.push(key: 'upload', kind: .success, message: 'Uploaded'))
+state.notes.schedule(state.notes.push(key: 'upload', kind: .success, message: 'Uploaded'))
 ```
 
 Keep the list in heap-allocated state (as above): `schedule` hands its address
-to the timers it starts. Pass the same `id` to `schedule` and
-`notification_stacks`, since `schedule` uses it to release the animation state
-of notifications that are gone. Call `schedule` from a callback or a timer,
-never from a build.
+to the timers it starts. Call `schedule` from a callback or a timer, never from
+a build.
 
 ### Behavior
 
@@ -138,8 +136,9 @@ never from a build.
   grows from (sideways for the side-centered placements), all of a stack's
   arrivals by one distance so they move together; leaving ones slide out
   sideways. The card moves inside its slot and the slot inside the stack, along
-  axes whose declared offset is zero, so a reflow or a window resize never
-  fights the values an animation leaves behind. `animate: false` turns it off.
+  axes whose declared offset is otherwise zero, with the cards' and slots' own
+  [motion](../motion.md), which ends with their elements. `animate: false`
+  turns it off, as do renderers without motion.
 - Callbacks. Each part's callback is computed from the list the stacks were
   built from: a notification that is leaving has none, a part it does not have
   (an action on one without, a click on one that is not clickable) is not
@@ -170,7 +169,7 @@ never from a build.
 | Unique ids (`id::<T>()`, `id1`) and `remove_notification` | `key`, replacing on push, and `dismiss_key` |
 | `clear_notifications` | `clear` |
 | Custom content builder | `content` elements in a `content_height` box below the message |
-| Enter/exit animation (slide and fade) | Slide only: ui2 has no opacity to animate |
+| Enter/exit animation (slide and fade) | Slide only |
 | Collapsed Sonner-style stack that expands on hover | Omitted: notifications are always listed; expanding on hover would move cards under the pointer without the springs GPUI Kit animates them with |
 | Close button shown on hover only | Always shown: touch backends have no hover, and a hidden control is hard to discover |
 | Middle-click to dismiss | Omitted: ui2 reports no auxiliary clicks |
@@ -231,7 +230,7 @@ fn copy_api_key() {
 	mut state := unsafe { app }
 	if state.clips.copy('api-key', 'sk-1234567890abcdef') {
 		// GPUI Kit's on_copied: here, a notification.
-		state.notes.schedule('toasts', state.notes.push(kind: .success, message: 'API key copied'))
+		state.notes.schedule(state.notes.push(kind: .success, message: 'API key copied'))
 		ui2.request_refresh()
 	}
 }

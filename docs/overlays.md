@@ -136,5 +136,5 @@ Attach ordinary `motion: app.surface_motion()` in VML or `with_motion` in V.
 The surface and Dialog backdrop share sampled opacity. Closing disables input
 and restores focus immediately while an exit continues painting. Reentry can
 reverse that exit without losing local edits. Reduced motion, controlled
-clocks and component cleanup use the existing [motion contract](motion-presence.md).
+clocks and component cleanup use the existing [motion contract](motion.md).
 Stable overlay projections reuse retained geometry and layout snapshots.
