@@ -432,15 +432,10 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 
 	pub fn (mut w Window) bounds() Rect {
 		if w.ctx == unsafe { nil } {
-			$if linux || macos || windows {
-				return Rect{
-					width: 800
-					height: 600
-				}
-			}
+			// Before the window opens: the size it asked for.
 			return Rect{
-				width: 400
-				height: 800
+				width: if w.width > 0 { w.width } else { default_window_width }
+				height: if w.height > 0 { w.height } else { default_window_height }
 			}
 		}
 		// The drawn menu bar owns the top strip of the window, so the screen
