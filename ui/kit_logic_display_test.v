@@ -250,3 +250,29 @@ fn test_pagination_large_datasets() {
 	last := pagination_state(2147483647, 2147483647)
 	assert (last.next_page() or { -1 }) == -1
 }
+
+// kit_roving is roving_index, or -1 for none.
+fn kit_roving(enabled []bool, current int, key string, wrap bool) int {
+	return roving_index(enabled, current, key, wrap) or { -1 }
+}
+
+fn test_roving_index_skips_disabled_items() {
+	enabled := [true, false, true, true]
+	assert kit_roving(enabled, 0, 'right', false) == 2
+	assert kit_roving(enabled, 2, 'left', false) == 0
+	assert kit_roving(enabled, 3, 'down', false) == -1
+	assert kit_roving(enabled, 3, 'right', true) == 0
+	assert kit_roving(enabled, 0, 'left', true) == 3
+	assert kit_roving(enabled, 2, 'home', false) == 0
+	assert kit_roving(enabled, 0, 'end', false) == 3
+	// The first and last enabled items, from the end the key names.
+	assert kit_roving([false, true, true, false], 2, 'home', false) == 1
+	assert kit_roving([false, true, true, false], 1, 'end', false) == 2
+	// From no selection, the keys start at an end.
+	assert kit_roving(enabled, -1, 'right', false) == 0
+	assert kit_roving(enabled, -1, 'up', false) == 3
+	// Nothing to move to.
+	assert kit_roving(enabled, 0, 'home', true) == -1
+	assert kit_roving([false, false], 0, 'right', true) == -1
+	assert kit_roving(enabled, 0, 'enter', true) == -1
+}

@@ -5,7 +5,6 @@ module ui2
 @[heap]
 pub struct CompiledVmlMetadata {
 pub:
-	tab    ?TabbedPanelTab
 	tree   ?TreeViewNode
 	screen ?ManagedScreen
 	// A MenuBar or Menu document carries its application menus; see menus().

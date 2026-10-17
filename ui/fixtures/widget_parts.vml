@@ -1,9 +1,9 @@
 Column(id: "parts", width: 420, height: 900) {
-    TabbedPanel(id: "tabs", width: 300, height: 120, current: app.tab) {
-        Tab(id: "t1", text: app.name, on_select: app.hit("t1")) {
+    Tabs(id: "tabs", width: 300, height: 120, value: app.place, on_change: app.hit("tabs")) {
+        Tab(id: "t1", value: "Work", text: app.name) {
             Label(text: app.notes, width: 100, height: 20)
         }
-        Tab(id: "t2", text: "Second", enabled: app.agree) {
+        Tab(id: "t2", value: "Home", text: "Second", enabled: app.agree) {
             View()
         }
     }

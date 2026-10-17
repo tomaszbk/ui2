@@ -210,7 +210,7 @@ fn props_common_tree(mut app PropsApp) PNode {
 							pn(TreeNodeProps{ text: DisplayText('n') }),
 						]
 					),
-					pn(TabbedPanelProps{
+					pn(TabsProps{
 						x:                  0
 						y:                  320
 						width:              200

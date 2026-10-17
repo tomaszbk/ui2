@@ -27,7 +27,7 @@ fn kit_display_widgets() map[string]VmlWidgetType {
 		'Collapsible':     vml_widget[CollapsibleProps]()
 		'Accordion':       vml_widget[AccordionProps]()
 		'AccordionItem':   vml_widget[AccordionItemProps]()
-		'TabbedPanel':     vml_widget[TabbedPanelProps]()
+		'Tabs':            vml_widget[TabsProps]()
 		'Tab':             vml_widget[TabProps]()
 		'Carousel':        vml_widget[CarouselProps]()
 		'CarouselSlide':   vml_widget[CarouselSlideProps]()
@@ -39,7 +39,7 @@ fn kit_display_widgets() map[string]VmlWidgetType {
 // kit_display_expected_bindables are the fragment's bindable properties,
 // `Tag.field`, which the registry test checks.
 fn kit_display_expected_bindables() []string {
-	return ['Accordion.value', 'Accordion.values', 'Clipboard.copied', 'Collapsible.open']
+	return ['Accordion.value', 'Accordion.values', 'Clipboard.copied', 'Collapsible.open', 'Tabs.value']
 }
 
 // kit_display_expected_parts are the fragment's part-only tags, which take no

@@ -1067,8 +1067,8 @@ Typed-VML ports from `v-ui` include:
   share the available width as the window resizes.
 - `v -b c run examples/accordion/main.v` — collapsible component pages with one
   active section at a time.
-- `v -b c run examples/tabs/main.v` — three keyed pages selected through a
-  tab-style button bar.
+- `v -b c run examples/tabs/main.v` — settings pages in kit Tabs, with a
+  segmented Tabs bound to the same page.
 - `v -b c run examples/double_listbox/main.v` — transfer keyed values between two
   scrollable lists and inspect the result.
 - `v -b c run examples/treeview/main.v` — expand nested folders and select files in

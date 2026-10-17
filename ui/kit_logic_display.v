@@ -459,3 +459,54 @@ pub fn (state PaginationState) items() []PaginationItem {
 	}
 	return items
 }
+
+// ── Keyboard selection ──────────────────────────────────────────────
+
+// roving_index is where a navigation key moves a selection among items, of
+// which only the enabled ones can be selected: left or up to the previous
+// enabled item, right or down to the next, home and end to the first and
+// last. At either end it wraps with `wrap` and stays otherwise. From no
+// selection (current out of range) the keys start at the first or last
+// item. It is none for another key, or when no item is enabled or the
+// selection does not move.
+pub fn roving_index(enabled []bool, current int, key string, wrap bool) ?int {
+	count := enabled.len
+	if count == 0 || !enabled.any(it) {
+		return none
+	}
+	step := match key {
+		'left', 'up' { -1 }
+		'right', 'down' { 1 }
+		'home', 'end' { 0 }
+		else { return none }
+	}
+	outside := current < 0 || current >= count
+	mut index := if key == 'home' || (outside && step > 0) {
+		-1
+	} else if key == 'end' || (outside && step < 0) {
+		count
+	} else {
+		current
+	}
+	direction := if step == 0 {
+		if key == 'home' { 1 } else { -1 }
+	} else {
+		step
+	}
+	for _ in 0 .. count {
+		index += direction
+		if index < 0 || index >= count {
+			if !wrap || step == 0 {
+				return none
+			}
+			index = (index + count) % count
+		}
+		if enabled[index] {
+			if index == current {
+				return none
+			}
+			return index
+		}
+	}
+	return none
+}

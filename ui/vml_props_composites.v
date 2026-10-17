@@ -1,8 +1,8 @@
 module ui2
 
-// Composite controls: TabbedPanel, Carousel, ScreenManager and TreeView, with
-// the typed child declarations they read (Tab, CarouselSlide,
-// ManagedScreen/ScreenView, TreeNode). A child declaration is an
+// Composite controls: Carousel, ScreenManager and TreeView, with the typed
+// child declarations they read (CarouselSlide, ManagedScreen/ScreenView,
+// TreeNode). A child declaration is an
 // element carrying its record in compiled_metadata, so a parent rebuild sees
 // the same records. Like the existing constructors, composites keep the root
 // element their constructor returns: element events are not attached.
@@ -38,22 +38,6 @@ fn vml_header_text(color u32, size f64, bold bool) TextStyle {
 	}
 }
 
-fn vml_tabbed_panel_tabs(children []Element) ![]TabbedPanelTab {
-	mut tabs := []TabbedPanelTab{cap: children.len}
-	for child in children {
-		metadata := child.compiled_metadata
-		if metadata == unsafe { nil } {
-			return error('TabbedPanel requires typed child declarations')
-		}
-		tab := metadata.tab or { return error('TabbedPanel requires typed child declarations') }
-		tabs << TabbedPanelTab{
-			...tab
-			content: child
-		}
-	}
-	return tabs
-}
-
 fn vml_managed_screens(children []Element) ![]ManagedScreen {
 	mut screens := []ManagedScreen{cap: children.len}
 	for child in children {
@@ -76,93 +60,6 @@ fn vml_tree_nodes(children []Element, tag string) ![]TreeViewNode {
 		nodes << metadata.tree or { return error('${tag} requires TreeNode children') }
 	}
 	return nodes
-}
-
-// TabbedPanelProps shows the `current` tab (or its older spelling
-// `current_tab`) below or beside its tab headers.
-pub struct TabbedPanelProps {
-	CommonProps
-pub mut:
-	current               ?int
-	current_tab           ?int
-	tab_pos               TabPosition
-	tab_height            f64 = 40
-	tab_width             f64 = 100
-	tab_background        u32 = 0xe2e8f0
-	active_tab_background u32 = 0xffffff
-	tab_color             u32 = 0x475569
-	active_tab_color      u32 = 0x0f172a
-	tab_font_size         f64 = 14
-	tab_corner_radius     f64 = 6
-}
-
-pub fn (p TabbedPanelProps) vml_container() {}
-
-pub fn (p TabbedPanelProps) child_input(frame Rect, child_count int) !Rect {
-	geometry := tabbed_panel_geometry(TabbedPanelConfig{
-		frame:        frame
-		tab_position: p.tab_pos
-		tab_height:   p.tab_height
-		tab_width:    p.tab_width
-	})!
-	return rect(0, 0, geometry.content.width, geometry.content.height)
-}
-
-pub fn (p TabbedPanelProps) vml_structure() VmlStructure {
-	return .sourced
-}
-
-pub fn (p TabbedPanelProps) build(ctx VmlBuildContext) !Element {
-	return vml_keyed(tabbed_panel(TabbedPanelConfig{
-		id:                       ctx.id
-		frame:                    ctx.frame
-		current:                  p.current or { p.current_tab or { 0 } }
-		tab_position:             p.tab_pos
-		tab_height:               p.tab_height
-		tab_width:                p.tab_width
-		header_box:               vml_header_box(p.tab_background, p.tab_corner_radius)
-		active_header_box:        vml_header_box(p.active_tab_background, p.tab_corner_radius)
-		header_text_style:        vml_header_text(p.tab_color, p.tab_font_size, false)
-		active_header_text_style: vml_header_text(p.active_tab_color, p.tab_font_size, true)
-		tabs:                     vml_tabbed_panel_tabs(ctx.children)!
-	})!, ctx)
-}
-
-// TabProps is one TabbedPanel page; on_select runs from its header.
-pub struct TabProps {
-	CommonProps
-pub mut:
-	text      DisplayText     = ''
-	on_select ElementCallback = unsafe { nil }
-}
-
-pub fn (p TabProps) vml_container() {}
-
-fn (p TabProps) tab(ctx VmlBuildContext) TabbedPanelTab {
-	return TabbedPanelTab{
-		id:       ctx.id
-		title:    p.text.str()
-		on_event: p.on_select
-		enabled:  p.enabled or { true }
-	}
-}
-
-pub fn (p TabProps) vml_structure() VmlStructure {
-	return .sourced
-}
-
-pub fn (p TabProps) build(ctx VmlBuildContext) !Element {
-	return Element{
-		...vml_keyed(view(vml_view_id(ctx.id, '__content'), ctx.frame, BoxStyle{}, ctx.children),
-			ctx)
-		compiled_metadata: &CompiledVmlMetadata{
-			tab: p.tab(ctx)
-		}
-	}
-}
-
-pub fn (p TabProps) part(ctx VmlBuildContext) !VmlPart {
-	return p.tab(ctx)
 }
 
 // CarouselProps shows one CarouselSlide at a time.

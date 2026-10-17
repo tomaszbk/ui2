@@ -2,7 +2,7 @@
 module ui2
 
 // Golden equivalence of hand-written props with the composite widget examples
-// used verbatim: tabbed panel, tree view, screen manager, carousel.
+// used verbatim: tree view, screen manager, carousel.
 
 fn props_title(text string, frame Rect) PNode {
 	return pn(LabelProps{
@@ -32,92 +32,6 @@ fn props_page_label(text string, x f64, y f64, width f64, height f64, style Styl
 
 fn props_heading(color u32, size f64) StylePatch {
 	return style_list([style_foreground(color), style_font_size(size), style_weight(700)])
-}
-
-struct PropsPagesDemo {
-pub mut:
-	current int
-	log     []string
-}
-
-pub fn (mut app PropsPagesDemo) show_overview() {
-	app.current = 0
-}
-
-pub fn (mut app PropsPagesDemo) show_activity() {
-	app.current = 1
-}
-
-pub fn (mut app PropsPagesDemo) show_security() {
-	app.current = 2
-}
-
-fn props_pages_action(mut app PropsPagesDemo, current int) ElementCallback {
-	return fn [mut app, current] (e ElementEvent) {
-		app.current = current
-	}
-}
-
-fn props_tabbed_panel_compiled(mut app PropsPagesDemo, frame Rect) Element {
-	return $vml('../examples/tabbed_panel/tabbed_panel.vml', frame)
-}
-
-fn props_tabbed_panel_tree(mut app PropsPagesDemo, frame Rect) PNode {
-	return pn(ScreenProps{ style: style_list([style_background(0xF1F5F9)]) }, id: 'root', children: [
-		pn(AbsoluteProps{ style: props_transparent() }, children: [
-			props_title('Settings', frame),
-			pn(TabbedPanelProps{
-				x:                     20
-				y:                     56
-				width:                 frame.width - 40
-				height:                220
-				current:               app.current
-				tab_width:             118
-				tab_height:            40
-				tab_background:        0xE2E8F0
-				active_tab_background: 0xFFFFFF
-				tab_color:             0x475569
-				active_tab_color:      0x1D4ED8
-				style:                 style_list([style_background(0xFFFFFF), style_radius(10)])
-			}, id: 'settings', children: [
-				pn(TabProps{ text: 'Overview', on_select: props_pages_action(mut app, 0) }, id: 'overview', children: [
-					pn(AbsoluteProps{ style: props_transparent() }, children: [
-						props_page_label('Account overview', 24, 30, 300, 32, props_heading(0x0F172A,
-							22)),
-						props_page_label('Reusable content for the active tab.', 24, 70, 330,
-							24, style_list([style_foreground(0x64748B)])),
-					]),
-				]),
-				pn(TabProps{ text: 'Activity', on_select: props_pages_action(mut app, 1) }, id: 'activity', children: [
-					pn(AbsoluteProps{ style: props_transparent() }, children: [
-						props_page_label('Recent activity', 24, 30, 300, 32, props_heading(0x14532D,
-							22)),
-					]),
-				]),
-				pn(TabProps{ text: 'Security', on_select: props_pages_action(mut app, 2) }, id: 'security', children: [
-					pn(AbsoluteProps{ style: props_transparent() }, children: [
-						props_page_label('Security options', 24, 30, 300, 32, props_heading(0x7C2D12,
-							22)),
-					]),
-				]),
-			]),
-		]),
-	])
-}
-
-fn test_props_tabbed_panel_example_matches_compiled_vml() {
-	for current in [0, 2] {
-		frame := rect(0, 0, 440, 300)
-		mut compiled_app := PropsPagesDemo{
-			current: current
-		}
-		mut props_app := PropsPagesDemo{
-			current: current
-		}
-		compiled := props_tabbed_panel_compiled(mut compiled_app, frame)
-		built := props_document(props_tabbed_panel_tree(mut props_app, frame), frame)!
-		assert_props_equal('tabbed panel', compiled, built)
-	}
 }
 
 struct PropsTreeDemo {

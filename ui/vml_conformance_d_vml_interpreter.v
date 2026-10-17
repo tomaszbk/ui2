@@ -284,9 +284,6 @@ fn vml_conformance_metadata(el Element) string {
 	metadata := el.compiled_metadata
 	if metadata == unsafe { nil } { return 'none' }
 	mut parts := []string{}
-	if tab := metadata.tab {
-		parts << 'tab ${tab.id}|${tab.title}|${tab.enabled}|${vml_conformance_set(tab.on_event)}'
-	}
 	if node := metadata.tree { parts << 'tree ${vml_conformance_tree_node(node)}' }
 	if screen := metadata.screen { parts << 'screen ${screen.name}' }
 	if metadata.menu_document {

@@ -20,17 +20,16 @@ fn w_parts_generic(mut app PropsApp) !Element {
 	mut d := vml_document(rect(0, 0, 420, 900))!
 	mut owner := d.owner
 	mut root := vml_root(mut owner, ColumnProps{ width: 420, height: 900 }, id: 'parts', path: '0')!
-	mut tabs := vml_child(mut root, mut owner, TabbedPanelProps{ width: 300, height: 120 },
-		id:   'tabs'
-		path: '0.0'
-	)!
-	tabs.prop('current', fn [mut app, mut owner] (mut p TabbedPanelProps) ! {
+	mut tabs := vml_child(mut root, mut owner, TabsProps{
+		width:     300
+		height:    120
+		on_change: w_action(mut app, mut owner, 'tabs')
+	}, id: 'tabs', path: '0.0')!
+	tabs.prop('value', fn [mut app, mut owner] (mut p TabsProps) ! {
 		owner.watch_app()!
-		p.current = app.tab
+		p.value = app.place
 	})!
-	mut first := vml_child(mut tabs, mut owner, TabProps{
-		on_select: w_action(mut app, mut owner, 't1')
-	}, id: 't1', path: '0.0.0')!
+	mut first := vml_child(mut tabs, mut owner, TabProps{ value: 'Work' }, id: 't1', path: '0.0.0')!
 	first.prop('text', fn [mut app, mut owner] (mut p TabProps) ! {
 		owner.watch_app()!
 		p.text = app.name
@@ -42,7 +41,7 @@ fn w_parts_generic(mut app PropsApp) !Element {
 		owner.watch_app()!
 		p.text = app.notes
 	})!
-	mut second := vml_child(mut tabs, mut owner, TabProps{ text: 'Second' },
+	mut second := vml_child(mut tabs, mut owner, TabProps{ value: 'Home', text: 'Second' },
 		id:   't2'
 		path: '0.0.1'
 	)!
@@ -189,7 +188,6 @@ fn w_assert_equal_except(name string, compiled Element, generic Element) {
 fn w_parts_update(mut app PropsApp) {
 	app.name = 'Grace'
 	app.notes = 'updated'
-	app.tab = 1
 	app.open = false
 	app.msg_hidden = true
 	app.dark = true

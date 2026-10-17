@@ -1,9 +1,8 @@
 // vtest vflags: -d vml_props
 module ui2
 
-// Golden equivalence of the composite props (Accordion, Collapsible,
-// TabbedPanel, Carousel, ScreenManager, TreeView and their child
-// declarations).
+// Golden equivalence of the composite props (Accordion, Collapsible, Tabs,
+// Carousel, ScreenManager, TreeView and their child declarations).
 
 
 fn props_composites_compiled(mut app PropsApp, frame Rect) Element {
@@ -57,38 +56,31 @@ fn props_composites_tree(mut app PropsApp) PNode {
 			}, id: 'more', children: [
 				pn(LabelProps{ text: 'more', width: 80, height: 20 }),
 			]),
-			pn(TabbedPanelProps{
-				x:       310
-				y:       0
-				width:   300
-				height:  200
-				current: app.tab
-				style:   style_list([style_background(0xFFFFFF)])
+			pn(TabsProps{
+				x:         310
+				y:         0
+				width:     300
+				height:    200
+				value:     app.place
+				on_change: props_hit(mut app, 'tabs')
+				style:     style_list([style_background(0xFFFFFF)])
 			}, id: 'tabs', children: [
-				pn(TabProps{ text: 'First', on_select: props_hit(mut app, 't1') }, id: 't1', children: [
+				pn(TabProps{ value: 'Work', text: 'First', icon: .info }, id: 't1', children: [
 					pn(LabelProps{ text: 'tab one', width: 100, height: 20 }),
 				]),
-				pn(TabProps{ text: 'Second' }, id: 't2', children: [
+				pn(TabProps{ value: 'Home', text: 'Second' }, id: 't2', children: [
 					pn(ViewProps{}),
 				]),
 			]),
-			pn(TabbedPanelProps{
-				x:                     310
-				y:                     210
-				width:                 300
-				height:                200
-				current_tab:           app.current
-				tab_pos:               .left_top
-				tab_height:            30
-				tab_width:             80
-				tab_background:        0x111111
-				active_tab_background: 0x222222
-				tab_color:             0x333333
-				active_tab_color:      0x444444
-				tab_font_size:         12
-				tab_corner_radius:     2
+			pn(TabsProps{
+				x:       310
+				y:       210
+				width:   300
+				height:  200
+				variant: .segmented
+				size:    .small
 			}, id: 'tabs2', children: [
-				pn(TabProps{ text: 'A' }, children: [pn(ViewProps{})]),
+				pn(TabProps{ text: 'A', gap: 4 }, children: [pn(ViewProps{})]),
 				pn(TabProps{ text: 'B', enabled: false }, children: [pn(ViewProps{})]),
 			]),
 			pn(CarouselProps{ x: 620, y: 0, width: 200, height: 100 }, id: 'car', children: [

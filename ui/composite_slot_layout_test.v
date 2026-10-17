@@ -5,7 +5,6 @@ import math
 
 enum SlotComposite {
 	screen_manager
-	tabbed_panel
 	carousel
 }
 
@@ -85,13 +84,6 @@ fn slot_composite(kind SlotComposite, frame Rect, content Element) !Element {
 				screens: [ManagedScreen{ name: 'first', content: content }]
 			)!
 		}
-		.tabbed_panel {
-			tabbed_panel(
-				id:    'composite'
-				frame: frame
-				tabs:  [TabbedPanelTab{ id: 'tab', title: 'Tab', content: content }]
-			)!
-		}
 		.carousel { carousel(id: 'composite', frame: frame, slides: [content])! }
 	}
 }
@@ -135,11 +127,9 @@ fn slot_resolve(mut tree LayoutTree) !Element {
 }
 
 fn slot_expected(kind SlotComposite, width f64, height f64) Rect {
-	// Public contracts, without calling any composite geometry helper:
-	// Tabs reserve 40 at top.
+	// Public contracts, without calling any composite geometry helper.
 	return match kind {
 		.screen_manager, .carousel { rect(0, 0, width, height) }
-		.tabbed_panel { rect(0, 40, width, height - 40) }
 	}
 }
 
@@ -228,12 +218,6 @@ fn test_screen_manager_grid_slot_resize() { slot_resize_fixture(.screen_manager,
 
 fn test_screen_manager_stack_slot_resize() { slot_resize_fixture(.screen_manager, .stack)! }
 
-fn test_tabbed_panel_flex_slot_resize() { slot_resize_fixture(.tabbed_panel, .flex)! }
-
-fn test_tabbed_panel_grid_slot_resize() { slot_resize_fixture(.tabbed_panel, .grid)! }
-
-fn test_tabbed_panel_stack_slot_resize() { slot_resize_fixture(.tabbed_panel, .stack)! }
-
 fn test_carousel_flex_slot_resize() { slot_resize_fixture(.carousel, .flex)! }
 
 fn test_carousel_grid_slot_resize() { slot_resize_fixture(.carousel, .grid)! }
@@ -275,18 +259,6 @@ fn test_selected_content_slots_follow_headers_and_carousel_keeps_slide_generatio
 		)!
 		tree.replace(screens)!
 		slot_rect(slot_resolve(mut tree)!.children[0].frame, rect(0, 0, 320, 200))
-		tabs := tabbed_panel(
-			id:           'tabs'
-			frame:        rect(0, 0, 320, 200)
-			current:      current
-			tab_position: .left_top
-			tabs:         [TabbedPanelTab{ id: 'one', content: content },
-				TabbedPanelTab{ id: 'two', content: other }]
-		)!
-		tree.replace(tabs)!
-		selected := slot_resolve(mut tree)!
-		slot_rect(selected.children[0].frame, rect(40, 0, 280, 200))
-		assert selected.children[current + 1].accessibility_value == 'selected'
 	}
 }
 
@@ -383,7 +355,7 @@ $if macos && !ui2_headless ? {
 			g_gg_app = previous_app
 			previous_window.restore()
 		}
-		for composite in [SlotComposite.screen_manager, .tabbed_panel, .carousel] {
+		for composite in [SlotComposite.screen_manager, .carousel] {
 			for layout in [LayoutKind.flex, .grid, .stack] {
 				mut app := &GgApp{ scheduler: new_frame_coordinator() }
 				g_gg_app = app
