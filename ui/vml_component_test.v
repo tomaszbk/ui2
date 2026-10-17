@@ -88,11 +88,91 @@ fn test_component_lifecycle_cleanup_and_late_callback_are_owned_once() ! {
 	child.dispose()!
 	child.dispose()!
 	callback(ElementEvent{})
-	assert fixture.lifecycle == ['mount', 'event', 'cleanup', 'unmount']
+	assert fixture.lifecycle == ['mount', 'event', 'unmount', 'cleanup']
 	mut replacement := root.child('child')!
 	assert replacement != child
 	root.dispose()!
 	assert root.runtime.stats() == SignalStats{}
+}
+
+fn test_detached_component_unmounts_and_remounts_without_disposing() ! {
+	mut root := new_vml_component('remount')!
+	root.publish = fn (_ string, _ Element) {}
+	mut fixture := &VmlComponentFixture{}
+	mut child := root.child('child')!
+	mut count := child.state('count', 1)!
+	child.on_mount('mount', fn [mut fixture, mut count] () ! {
+		fixture.lifecycle << 'mount:${count.get()!}'
+	})!
+	child.on_unmount('first', fn [mut fixture] () { fixture.lifecycle << 'unmount:first' })!
+	child.on_unmount('second', fn [mut fixture] () { fixture.lifecycle << 'unmount:second' })!
+	child.on_cleanup('resource', fn [mut fixture] () { fixture.lifecycle << 'cleanup' })!
+	mut child_node := child.element(Element{ kind: .label, id: 'child' })!
+	mut root_node := root.element(Element{ kind: .view, id: 'root' })!
+	root_node.set_children([child_node])!
+	root_node.mount()!
+	assert child.mounted && child_node.mounted
+	root_node.set_children([])!
+	assert !child.mounted && !child_node.mounted && root.mounted
+	assert !child.is_disposed()
+	count.set(2)!
+	root_node.set_children([child_node])!
+	assert child.mounted && child_node.mounted
+	assert fixture.lifecycle == ['mount:1', 'unmount:second', 'unmount:first', 'mount:2']
+	child.dispose()!
+	assert fixture.lifecycle == ['mount:1', 'unmount:second', 'unmount:first', 'mount:2',
+		'unmount:second', 'unmount:first', 'cleanup']
+	assert root.mounted && !child.mounted
+	root.dispose()!
+	assert root.runtime.stats() == SignalStats{}
+}
+
+fn track_vml_lifecycle(mut owner CompiledVmlComponent, mut fixture VmlComponentFixture, name string) ! {
+	owner.on_mount('mount', fn [mut fixture, name] () ! { fixture.lifecycle << 'mount:' + name })!
+	owner.on_unmount('unmount', fn [mut fixture, name] () { fixture.lifecycle << 'unmount:' + name })!
+}
+
+fn test_nested_components_mount_parents_first_and_unmount_children_first() ! {
+	mut root := new_vml_component('nested lifecycle')!
+	root.publish = fn (_ string, _ Element) {}
+	mut fixture := &VmlComponentFixture{}
+	// The group owns no node of its own; it is mounted while a row is.
+	mut group := root.child('group')!
+	mut row := group.child('row')!
+	track_vml_lifecycle(mut group, mut fixture, 'group')!
+	track_vml_lifecycle(mut row, mut fixture, 'row')!
+	mut cell := row.element(Element{ kind: .label, id: 'cell' })!
+	mut row_node := row.element(Element{ kind: .view, id: 'row' })!
+	row_node.set_children([cell])!
+	mut root_node := root.element(Element{ kind: .view, id: 'root' })!
+	root_node.mount()!
+	assert !group.mounted && !row.mounted && fixture.lifecycle.len == 0
+	root_node.set_children([row_node])!
+	assert group.mounted && row.mounted
+	root_node.set_children([])!
+	assert !group.mounted && !row.mounted
+	assert fixture.lifecycle == ['mount:group', 'mount:row', 'unmount:row', 'unmount:group']
+	root.dispose()!
+	assert fixture.lifecycle.len == 4
+	assert root.runtime.stats() == SignalStats{}
+}
+
+fn test_disposing_an_unmounted_component_runs_only_its_cleanups() ! {
+	mut root := new_vml_component('dispose unmounted')!
+	mut fixture := &VmlComponentFixture{}
+	mut child := root.child('child')!
+	child.on_mount('mount', fn [mut fixture] () ! { fixture.lifecycle << 'mount' })!
+	child.on_unmount('unmount', fn [mut fixture] () { fixture.lifecycle << 'unmount' })!
+	child.on_cleanup('resource', fn [mut fixture] () { fixture.lifecycle << 'cleanup' })!
+	child.element(Element{ kind: .label, id: 'never attached' })!
+	child.dispose()!
+	assert fixture.lifecycle == ['cleanup']
+	child.on_unmount('late', fn () {}) or {
+		assert err.msg() == 'compiled VML component is disposed'
+		root.dispose()!
+		return
+	}
+	assert false
 }
 
 struct VmlListItem {
@@ -214,7 +294,7 @@ fn test_slot_lexical_author_values_and_receiving_component_cleanup() ! {
 	value.set('updated by author')!
 	assert content.element().text == 'updated by author'
 	host.dispose()!
-	assert fixture.lifecycle == ['mount', 'cleanup', 'unmount']
+	assert fixture.lifecycle == ['mount', 'unmount', 'cleanup']
 	value.set('author remains alive')!
 	assert fixture.values == ['author', 'updated by author']
 	assert value.get()! == 'author remains alive'
@@ -433,7 +513,7 @@ fn test_lifecycle_reads_state_and_lazy_memos_before_nodes_are_disposed() ! {
 	callback := child.callback(fn [mut fixture] (_ ElementEvent) ! { fixture.lifecycle << 'late' })
 	root.dispose()!
 	callback(ElementEvent{})
-	assert fixture.lifecycle == ['cleanup', 'child:4:8', 'parent:2']
+	assert fixture.lifecycle == ['child:3:6', 'cleanup', 'parent:2']
 	assert fixture.values == ['3']
 	assert root.runtime.stats() == SignalStats{}
 }

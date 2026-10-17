@@ -216,7 +216,7 @@ fn (mut node CompiledVmlNode) update_motion(element Element) !Element {
 			node.component.on_cleanup('motion:' + node.local_id, fn [mut node] () {
 				if node.motion_state != unsafe { nil } { node.motion_state.force_cancel() }
 			})!
-			if node.mounted { motion_state.mount()! }
+			if node.live() { motion_state.mount()! }
 		}
 	} else {
 		motion_state.update(element)!
