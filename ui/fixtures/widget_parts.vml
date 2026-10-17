@@ -1,0 +1,33 @@
+Column(id: "parts", width: 420, height: 900) {
+    TabbedPanel(id: "tabs", width: 300, height: 120, current: app.tab) {
+        Tab(id: "t1", text: app.name, on_select: app.hit("t1")) {
+            Label(text: app.notes, width: 100, height: 20)
+        }
+        Tab(id: "t2", text: "Second", enabled: app.agree) {
+            View()
+        }
+    }
+    Dropdown(id: "choice", width: 200, height: 30, bind.text: app.color) {
+        Option(text: app.name)
+        Option(text: "Green")
+    }
+    Label(id: "rich", width: 200, height: 20) {
+        Run(text: app.name)
+        Run(text: "!", style: [weight(700)])
+    }
+    MessageBox(id: "box", title: app.name, text: app.notes, hidden: app.msg_hidden, width: 300, height: 150) {
+        Button(id: "ok", text: app.place, on_click: app.hit("ok"))
+    }
+    Button(id: "trigger", text: "Open", width: 80, height: 30)
+    Dialog(id: "dialog", width: 200, height: 100, open: app.open, anchor: "trigger") {
+        Label(text: app.name, width: 100, height: 20)
+    }
+    View(id: "menu_view", width: 40, height: 40) {
+        MenuItem(id: "copy", text: app.name, on_click: app.hit("copy"))
+    }
+    Checkbox(id: "agree", text: "Agree", bind.checked: app.agree, width: 120, height: 24)
+    Slider(bind.value: app.level, width: 120, height: 24)
+    TreeView(id: "tree", width: 200, height: 80) {
+        TreeNode(id: "n1", text: app.name, expanded: app.dark)
+    }
+}
