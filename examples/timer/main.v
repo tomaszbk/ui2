@@ -152,7 +152,7 @@ fn timer_callbacks() map[string]ui2.ElementCallback {
 			mut state := unsafe { timer_state }
 			state.start_at(time.ticks())
 			schedule_timer_refresh()
-			ui2.refresh()
+			ui2.request_refresh()
 		}
 		'pause':           fn (_event ui2.ElementEvent) {
 			mut state := unsafe { timer_state }
@@ -163,12 +163,12 @@ fn timer_callbacks() map[string]ui2.ElementCallback {
 				state.resume_at(time.ticks())
 				schedule_timer_refresh()
 			}
-			ui2.refresh()
+			ui2.request_refresh()
 		}
 		'duration_slider': fn (event ui2.ElementEvent) {
 			mut state := unsafe { timer_state }
 			state.set_duration(event.value)
-			ui2.refresh()
+			ui2.request_refresh()
 		}
 	}
 }

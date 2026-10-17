@@ -389,7 +389,7 @@ fn handle_ide_key(key string) {
 	if handled {
 		ui2.consume_key()
 		ui2.set_menu_bar(state.menus())
-		ui2.refresh()
+		ui2.request_refresh()
 	}
 }
 
@@ -406,7 +406,7 @@ fn handle_ide_drop(event ui2.DropEvent) {
 		state.log(state.status)
 	}
 	ui2.set_menu_bar(state.menus())
-	ui2.refresh()
+	ui2.request_refresh()
 }
 
 fn main() {
@@ -432,7 +432,7 @@ fn ide_action(action string) ui2.ElementCallback {
 		mut state := unsafe { ide_state }
 		state.perform_action(action, event)
 		ui2.set_menu_bar(state.menus())
-		ui2.refresh()
+		ui2.request_refresh()
 	}
 }
 
@@ -449,7 +449,7 @@ fn palette_callback(kind string) ui2.ElementCallback {
 	return fn [kind] (event ui2.ElementEvent) {
 		mut state := unsafe { ide_state }
 		state.handle_palette_pointer(event.kind, kind, event.x, event.y, ide_layout(ui2.bounds(), state))
-		ui2.refresh()
+		ui2.request_refresh()
 	}
 }
 
@@ -469,7 +469,7 @@ fn component_pointer_callback(component_id int, mode string) ui2.ElementCallback
 	return fn [component_id, mode] (event ui2.ElementEvent) {
 		mut state := unsafe { ide_state }
 		state.handle_component_pointer(component_id, mode, event, ui2.bounds())
-		ui2.refresh()
+		ui2.request_refresh()
 	}
 }
 
@@ -483,5 +483,5 @@ fn form_pointer_callback(event ui2.ElementEvent) {
 		state.selected_id = 0
 		state.status = '${state.form_name} selected.'
 	}
-	ui2.refresh()
+	ui2.request_refresh()
 }

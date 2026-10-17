@@ -488,8 +488,8 @@ pub fn add_option(handle &C.ui2_node, text &char) {
 	n.element = ui2.Element{ ...n.element, menu: entries }
 }
 
-@[export: 'ui2_refresh']
-pub fn refresh() {
+@[export: 'ui2_request_refresh']
+pub fn request_refresh() {
 	if state().running { ui2.request_refresh() }
 }
 

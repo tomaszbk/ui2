@@ -16,21 +16,6 @@ fn test_text_editor_insert_and_replace_selection() {
 	assert editor.selection.collapsed()
 }
 
-fn test_element_can_carry_backend_text_focus_and_selection() {
-	element := Element{
-		kind:           .text_field
-		focused:        true
-		text_selection: TextSelection{
-			anchor: 1
-			caret:  3
-		}
-	}
-	assert element.focused
-	start, end := element.text_selection.ordered()
-	assert start == 1
-	assert end == 3
-}
-
 fn test_text_editor_deletes_utf8_by_rune() {
 	mut editor := text_editor('a🙂b')
 	editor.set_caret(2)

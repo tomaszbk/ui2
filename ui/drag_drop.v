@@ -90,7 +90,7 @@ pub:
 }
 
 pub fn with_drag_source(el Element, source DragSource) Element {
-	return Element{ ...el, drag_source: source }
+	return Element{ ...el, drag_source: &DragSource{ ...source } }
 }
 
 pub fn with_drop_target(el Element, target DropTarget) Element {

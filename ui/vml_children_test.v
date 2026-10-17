@@ -46,7 +46,7 @@ fn test_keyed_segments_keep_static_neighbours_constraints_and_reactive_indices()
 	assert list.nodes()[0] == second && list.nodes()[2] == first
 	assert second.element().text == '0:b' && first.element().text == '2:a'
 	assert parent.children[0] == prefix && parent.children.last() == suffix
-	assert parent.element().layout.flex.children.map(it.basis) == [30.0, 20.0, 20.0, 20.0, 50.0]
+	assert parent.element().layout.flex_rules.map(it.basis) == [30.0, 20.0, 20.0, 20.0, 50.0]
 	mut layout := &LayoutTree{}
 	layout.replace(parent.element())!
 	resolved := layout.resolve(LayoutConstraints{}, measure_layout_text, LayoutEnvironment{})!
@@ -56,7 +56,7 @@ fn test_keyed_segments_keep_static_neighbours_constraints_and_reactive_indices()
 		assert child.frame.width > 73 && child.frame.width < 74
 	}
 	first.set_child_layout(VmlChildLayout{ flex: FlexChild{ basis: 25, grow: 2 } })!
-	assert parent.element().layout.flex.children[3].grow == 2
+	assert parent.element().layout.flex_rules[3].grow == 2
 	before := parent.element()
 	first.set_child_layout(VmlChildLayout{ flex: FlexChild{ grow: -1 } }) or {
 		assert err.msg().contains('negative') || err.msg().contains('non-negative')
@@ -64,7 +64,7 @@ fn test_keyed_segments_keep_static_neighbours_constraints_and_reactive_indices()
 	}
 	list.dispose()!
 	assert parent.children == [prefix, suffix]
-	assert parent.element().layout.flex.children.map(it.basis) == [30.0, 50.0]
+	assert parent.element().layout.flex_rules.map(it.basis) == [30.0, 50.0]
 	owner.dispose()!
 	assert owner.runtime.stats() == SignalStats{}
 }

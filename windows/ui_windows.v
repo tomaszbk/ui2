@@ -423,6 +423,7 @@ mut:
 	pending_scroll_x   map[string]int
 	run_config         WindowsRunConfig
 	rendering          bool
+	rebuild_queued     bool // request_refresh posted a rebuild that has not run yet
 	key_consumed       bool
 	pointer_handle     voidptr
 	pointer_binding    WindowsPointerBinding
@@ -709,7 +710,7 @@ fn run_window_with_min_size(title string, width int, height int, min_width int, 
 	// attach whatever was declared now that there is a window to attach to.
 	publish_menu_context(title, root)
 	install_declared_menus()
-	refresh()
+	rebuild_now()
 	C.ui2_win_show_main_window(root)
 	C.ui2_win_message_loop()
 	menu_win32_remove_tray()
@@ -717,11 +718,13 @@ fn run_window_with_min_size(title string, width int, height int, min_width int, 
 	C.ui2_win_shutdown_accessibility()
 }
 
-pub fn refresh() {
+// rebuild_now builds and renders the window's tree on the UI thread.
+fn rebuild_now() {
 	mut st := windows_state()
 	if st.root == unsafe { nil } || st.rendering || voidptr(st.build_screen) == unsafe { nil } {
 		return
 	}
+	st.rebuild_queued = false
 	// `after` callbacks run on the UI thread before the build, so it declares
 	// what they changed.
 	run_due_timers_now()
@@ -795,9 +798,11 @@ fn windows_render_resolved(resolved Element) {
 	windows_update_hover()
 }
 
+// request_refresh posts a rebuild to the window's message loop.
 pub fn request_refresh() {
-	st := windows_state()
+	mut st := windows_state()
 	if st.root != unsafe { nil } {
+		st.rebuild_queued = true
 		C.ui2_win_post_refresh(st.root)
 	}
 }
@@ -1071,9 +1076,16 @@ pub fn scroll_to_offset(id string, offset f64) {
 		key := st.view_keys[id] or { '' }
 		if key.len > 0 {
 			if hwnd := st.views[id] {
-				st.scroll_positions[key] = C.ui2_win_set_scroll_position(hwnd, wanted, 0)
+				reached := C.ui2_win_set_scroll_position(hwnd, wanted, 0)
+				st.scroll_positions[key] = reached
 				windows_reposition_scroll_children(key)
-				st.pending_scroll.delete(id)
+				// Past the current range while a rebuild is queued: that rebuild's
+				// layout takes the offset up again, with the content it adds.
+				if reached != wanted && st.rebuild_queued {
+					st.pending_scroll[id] = wanted
+				} else {
+					st.pending_scroll.delete(id)
+				}
 				return
 			}
 		}
@@ -1094,11 +1106,17 @@ pub fn scroll_to_horizontal_offset(id string, offset f64) {
 		key := st.view_keys[id] or { '' }
 		if key.len > 0 {
 			if hwnd := st.views[id] {
+				mut reached := wanted
 				if key in st.scroll_positions_x {
-					st.scroll_positions_x[key] = C.ui2_win_set_scroll_position(hwnd, wanted, 1)
+					reached = C.ui2_win_set_scroll_position(hwnd, wanted, 1)
+					st.scroll_positions_x[key] = reached
 					windows_reposition_scroll_children(key)
 				}
-				st.pending_scroll_x.delete(id)
+				if reached != wanted && st.rebuild_queued {
+					st.pending_scroll_x[id] = wanted
+				} else {
+					st.pending_scroll_x.delete(id)
+				}
 				return
 			}
 		}
@@ -1181,9 +1199,9 @@ fn windows_render_element(parent voidptr, el Element, key string, parent_key str
 	}
 	st.node_parents[key] = parent_key
 	st.node_frames[key] = el.frame
-	visual_box := if el.kind == .toggle_button && el.checked { el.toggle_down_box } else { el.box }
+	visual_box := if el.kind == .toggle_button && el.checked { el.toggle_down_box() } else { el.box }
 	visual_text_style := if el.kind == .toggle_button && el.checked {
-		el.toggle_down_text_style
+		el.toggle_down_text_style()
 	} else {
 		el.text_style
 	}
@@ -1613,8 +1631,8 @@ fn windows_register_bindings(hwnd voidptr, key string, el Element) {
 		st.slider_specs[handle] = slider_spec(el)
 	}
 	if el.kind == .toggle_button {
-		st.toggle_groups[handle] = el.toggle_group
-		st.toggle_allow_no_selection[handle] = el.toggle_allow_no_selection
+		st.toggle_groups[handle] = el.toggle_group()
+		st.toggle_allow_no_selection[handle] = el.toggle_allow_no_selection()
 		st.toggle_ids[handle] = el.id
 		st.toggle_views[handle] = hwnd
 		if C.ui2_win_get_checked(hwnd) != 0 {
@@ -2374,12 +2392,12 @@ fn ui2_windows_window_proc(hwnd voidptr, message u32, wparam usize, lparam isize
 		}
 		win_wm_size {
 			if hwnd == st.root && !st.rendering {
-				refresh()
+				rebuild_now()
 			}
 			return 0
 		}
 		win_wm_refresh {
-			refresh()
+			rebuild_now()
 			return 0
 		}
 		win_wm_tray {

@@ -103,12 +103,12 @@ fn canvas_layout_inside_row_callbacks() map[string]ui2.ElementCallback {
 		'return': fn (_event ui2.ElementEvent) {
 			mut state := unsafe { inside_row_state }
 			state.return_to_tray()
-			ui2.refresh()
+			ui2.request_refresh()
 		}
 		'rotate': fn (_event ui2.ElementEvent) {
 			mut state := unsafe { inside_row_state }
 			state.rotate()
-			ui2.refresh()
+			ui2.request_refresh()
 		}
 		'logo':   fn (event ui2.ElementEvent) {
 			if event.kind !in [.pointer_down, .pointer_drag, .pointer_up] {
@@ -130,7 +130,7 @@ fn canvas_layout_inside_row_callbacks() map[string]ui2.ElementCallback {
 				}
 				else {}
 			}
-			ui2.refresh()
+			ui2.request_refresh()
 		}
 	}
 }

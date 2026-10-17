@@ -37,18 +37,18 @@ fn demo_event_callbacks() map[string]ui2.ElementCallback {
 		'clear':         fn (_event ui2.ElementEvent) {
 			mut state := unsafe { demo_event_state }
 			state.clear_events()
-			ui2.refresh()
+			ui2.request_refresh()
 		}
 		'sample_button': fn (_event ui2.ElementEvent) {
 			mut state := unsafe { demo_event_state }
 			state.last_event = 'Native button tapped.'
 			state.append_history(state.last_event)
-			ui2.refresh()
+			ui2.request_refresh()
 		}
 		'event_surface': fn (event ui2.ElementEvent) {
 			mut state := unsafe { demo_event_state }
 			state.record_pointer(event)
-			ui2.refresh()
+			ui2.request_refresh()
 		}
 	}
 }
@@ -56,7 +56,7 @@ fn demo_event_callbacks() map[string]ui2.ElementCallback {
 fn handle_demo_key(key string) {
 	mut state := unsafe { demo_event_state }
 	state.record_key(key)
-	ui2.refresh()
+	ui2.request_refresh()
 }
 
 fn main() {

@@ -113,27 +113,27 @@ fn slider_textbox_callbacks() map[string]ui2.ElementCallback {
 		'reset':             fn (_event ui2.ElementEvent) {
 			mut state := unsafe { slider_textbox_state }
 			state.reset()
-			ui2.refresh()
+			ui2.request_refresh()
 		}
 		'horizontal_input':  fn (event ui2.ElementEvent) {
 			mut state := unsafe { slider_textbox_state }
 			state.apply_horizontal_text(event.text)
-			ui2.refresh()
+			ui2.request_refresh()
 		}
 		'vertical_input':    fn (event ui2.ElementEvent) {
 			mut state := unsafe { slider_textbox_state }
 			state.apply_vertical_text(event.text)
-			ui2.refresh()
+			ui2.request_refresh()
 		}
 		'horizontal_slider': fn (event ui2.ElementEvent) {
 			mut state := unsafe { slider_textbox_state }
 			state.set_horizontal(int(event.value))
-			ui2.refresh()
+			ui2.request_refresh()
 		}
 		'vertical_slider':   fn (event ui2.ElementEvent) {
 			mut state := unsafe { slider_textbox_state }
 			state.set_vertical(int(event.value))
-			ui2.refresh()
+			ui2.request_refresh()
 		}
 	}
 }

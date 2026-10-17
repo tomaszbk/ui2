@@ -20,6 +20,9 @@ struct CompiledVmlController[T] {
 mut:
 	model &T               = unsafe { nil }
 	node  &CompiledVmlNode = unsafe { nil }
+	// The first frame shows the document that run_compiled_vml has just
+	// built from the updated model, so it neither updates nor rereads it.
+	fresh bool
 }
 
 @[heap]
@@ -51,8 +54,9 @@ fn compiled_vml_controller_build[T]() Element {
 	mut controller := unsafe { &CompiledVmlController[T](runtime.controller) }
 	compiled_vml_begin_snapshot()
 	defer { compiled_vml_end_snapshot() }
-	if controller.update != unsafe { nil } { controller.update(mut controller.model) }
-	mut built := false
+	mut built := controller.fresh
+	controller.fresh = false
+	if !built && controller.update != unsafe { nil } { controller.update(mut controller.model) }
 	if controller.node == unsafe { nil } {
 		declaration := controller.build(mut controller.model)
 		if declaration.compiled_node == unsafe { nil } { return declaration }
@@ -65,8 +69,8 @@ fn compiled_vml_controller_build[T]() Element {
 	controller.node.mount() or { eprintln('ui2 compiled VML mount failed: ${err}') }
 	// A later build is requested after code outside compiled callbacks ran
 	// (input handlers, tasks, refresh), which may have changed the model. A
-	// document built by this call has just read the current model, unless a
-	// mount hook has run since.
+	// document built by this call, or by run_compiled_vml for the first
+	// frame, has just read the current model, unless a mount hook has run since.
 	if !built || controller.node.component.has_mount_hooks() {
 		controller.node.component.invalidate_app() or { eprintln('ui2 compiled VML app update failed: ${err}') }
 	}
@@ -86,6 +90,19 @@ pub fn dispose_compiled_vml() {
 
 // The compiled builder attaches its callbacks while borrowing this live model.
 pub fn run_compiled_vml[T](config CompiledVmlRunConfig[T]) ! {
+	start_compiled_vml[T](config)!
+	defer { dispose_compiled_vml() }
+	$if macos || windows || linux {
+		run_window_with_min_size(config.title, config.width, config.height, config.min_width,
+			config.min_height, compiled_vml_controller_build[T])
+	} $else {
+		run(compiled_vml_controller_build[T])
+	}
+}
+
+// start_compiled_vml updates the model, builds and validates the document and
+// installs its controller, whose first frame then shows that document.
+fn start_compiled_vml[T](config CompiledVmlRunConfig[T]) ! {
 	if config.model == unsafe { nil } { return error('compiled VML requires a live model') }
 	if config.build == unsafe { nil } { return error('compiled VML requires a build function') }
 	mut controller := &CompiledVmlController[T]{ build: config.build, update: config.update, model: config.model }
@@ -105,14 +122,8 @@ pub fn run_compiled_vml[T](config CompiledVmlRunConfig[T]) ! {
 		return err
 	}
 	controller.node = declaration.compiled_node
+	controller.fresh = true
 	dispose_compiled_vml()
 	runtime.controller = voidptr(controller)
 	runtime.root = controller.node
-	defer { dispose_compiled_vml() }
-	$if macos || windows || linux {
-		run_window_with_min_size(config.title, config.width, config.height, config.min_width,
-			config.min_height, compiled_vml_controller_build[T])
-	} $else {
-		run(compiled_vml_controller_build[T])
-	}
 }

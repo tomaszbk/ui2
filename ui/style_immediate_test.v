@@ -7,6 +7,37 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		return LayoutSize{ width: if width < 0 { f64(text.runes().len * 8) } else { width }, height: 30 }
 	}
 
+	// Text focus owned by a split-process input backend is window state, not an
+	// Element property: the renderer paints its focus style from the window.
+	fn test_backend_text_focus_is_window_state_that_paints_focus_style() {
+		previous_app := g_gg_app
+		previous_state := capture_custom_window_state()
+		defer {
+			g_gg_app = previous_app
+			previous_state.restore()
+		}
+		g_gg_app = &GgApp{ scheduler: new_frame_coordinator() }
+		g_focused_field = ''
+		g_tooltip.pointer_in = false
+		g_touch = TouchState{}
+		field := Element{
+			kind:              .text_field
+			id:                'remote'
+			frame:             rect(0, 0, 120, 30)
+			box:               BoxStyle{ bg: 0x111111 }
+			interaction_style: InteractionStyle{ focus: BoxStylePatch{ bg: 0x222222 } }
+		}
+		area := rect(0, 0, 120, 30)
+		viewport := rect(0, 0, 400, 300)
+		assert resolve_custom_visual_style(field, area, viewport, ContentTransform{}).box.bg == 0x111111
+		set_backend_text_focus(BackendTextFocus{ id: 'remote', selection: TextSelection{ anchor: 1, caret: 3 } })
+		start, end := backend_text_focus().selection.ordered()
+		assert start == 1 && end == 3
+		assert resolve_custom_visual_style(field, area, viewport, ContentTransform{}).box.bg == 0x222222
+		set_backend_text_focus(BackendTextFocus{})
+		assert resolve_custom_visual_style(field, area, viewport, ContentTransform{}).box.bg == 0x111111
+	}
+
 	fn test_theme_style_patch_preserves_live_edit_state_and_uses_paint_invalidation() ! {
 		previous_app := g_gg_app
 		previous_state := capture_custom_window_state()

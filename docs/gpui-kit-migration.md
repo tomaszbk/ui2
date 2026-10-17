@@ -63,7 +63,7 @@ pages := ui2.pagination(
     on_page: fn [mut app] (page int) {
         // Rebuild pagination with pagination_state(page, state.total_pages()).
         app.page = page
-        ui2.refresh()
+        ui2.request_refresh()
     }
 ) or { panic(err) }
 ```

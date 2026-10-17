@@ -670,6 +670,15 @@ pub mut:
 	caret  int
 }
 
+// BackendTextFocus is the text focus of an input backend that runs outside
+// the renderer (a split-process host). The custom renderer keeps it per window
+// (set_backend_text_focus) and paints the focus ring of the element with id.
+pub struct BackendTextFocus {
+pub:
+	id        string
+	selection TextSelection
+}
+
 pub fn (s TextSelection) collapsed() bool {
 	return s.anchor == s.caret
 }

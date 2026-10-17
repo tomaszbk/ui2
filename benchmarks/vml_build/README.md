@@ -52,8 +52,21 @@ and that change produced:
 | 300 | First build/dispose | 962,341,840 bytes / 33 GC | 31,039,072 bytes / 8 GC |
 | 300 | One warm build/dispose | 962,701,456 bytes / 16 GC, 1.30 s | 31,398,480 bytes / 3 GC, 0.10 s |
 
-The first-build regression tests enforce a 4.5 MiB budget for 20 keys and a
-64 MiB budget for 300 keys, about twice the Linux measurements. Collection
+Runtime state then moved out of `Element` into records owned by the runtime,
+sparse properties moved behind shared references, and Flex and Stack layouts
+kept compact child rules instead of full child Elements. `sizeof(Element)` went
+from 5,976 to 4,096 bytes. On a Linux x86-64 host with the command above,
+revision `dcce5ab` and those changes produced:
+
+| Keys | Scope | Before | After |
+| ---: | --- | ---: | ---: |
+| 20 | First build/dispose | 2,554,688 bytes / 4 GC | 2,038,224 bytes / 4 GC |
+| 20 | Warm build/dispose, mean of 1,000 | 2,686,004 bytes | 2,169,524 bytes |
+| 300 | First build/dispose | 34,440,832 bytes / 8 GC | 27,818,032 bytes / 8 GC |
+| 300 | One warm build/dispose | 34,800,208 bytes / 3 GC | 28,177,520 bytes / 3 GC |
+
+The first-build regression tests enforce a 4 MiB budget for 20 keys and a
+56 MiB budget for 300 keys, about twice the Linux measurements. Collection
 counts and elapsed time depend on collector and host state; the test bounds
 allocation traffic rather than imposing a machine-specific timing threshold.
 
@@ -69,5 +82,18 @@ process:
 | 300 | First build/dispose | 34,445,696 bytes / 8 GC | 20,049,248 bytes / 7 GC |
 | 300 | One warm build/dispose | 34,805,104 bytes / 3 GC, 78 ms | 20,086,672 bytes / 2 GC, 37 ms |
 
-The generic first builds have the same budgets as the compiled ones, and a test
+Merged with the smaller `Element` above, and with generic children that keep
+compact Flex and Stack rules instead of FlexChild and StackChild values, both
+lowerings allocate less. Same command and host, revision `dd48359` against
+that merge, each figure from its own process:
+
+| Keys | Scope | Compiled before | Compiled after | Generic before | Generic after |
+| ---: | --- | ---: | ---: | ---: | ---: |
+| 20 | First build/dispose | 2,555,136 bytes / 4 GC | 2,038,640 bytes / 4 GC | 1,581,728 bytes / 3 GC | 1,301,632 bytes / 3 GC |
+| 20 | Warm build/dispose, mean of 1,000 | 2,686,436 bytes | 2,169,956 bytes | 1,645,644 bytes | 1,365,852 bytes |
+| 300 | First build/dispose | 34,445,728 bytes / 8 GC | 27,822,992 bytes / 8 GC | 20,048,928 bytes / 7 GC | 16,772,048 bytes / 7 GC |
+| 300 | One warm build/dispose | 34,805,152 bytes / 3 GC | 28,182,400 bytes / 3 GC | 20,086,656 bytes / 2 GC | 16,809,760 bytes / 2 GC |
+
+The generic first-build tests enforce a 2.5 MiB budget for 20 keys and a
+34 MiB budget for 300 keys, about twice the Linux measurements, and a test
 checks that both lowerings build the same tree.

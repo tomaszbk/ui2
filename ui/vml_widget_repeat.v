@@ -103,7 +103,7 @@ fn (mut s VmlSegment) realize() ![]&CompiledVmlNode {
 		}
 		mut node := child.build_element(input, placement) or { return child.src.wrap_error(err) }
 		if rule := vml_child_rule_for(kind, child.typed().vml_layout_item()) {
-			node.set_child_layout(rule)!
+			node.set_child_rule(rule)!
 		}
 		nodes << node
 	}

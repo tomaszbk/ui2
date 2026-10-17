@@ -120,26 +120,8 @@ fn (node &CompiledVmlNode) validate_fragment_children(children []&CompiledVmlNod
 fn (mut node CompiledVmlNode) publish_structure() {
 	mut visible := &node
 	for visible.is_fragment && visible.parent != unsafe { nil } { visible = visible.parent }
-	if visible.is_fragment || !visible.mounted { return }
+	if visible.is_fragment || !visible.live() { return }
 	visible.component.publish(visible.declaration.id, visible.element())
-}
-
-fn (mut node CompiledVmlNode) mount_visible_owners() ! {
-	mut owner := node.component
-	mut owners := []&CompiledVmlComponent{}
-	// Empty attached fragments remain available for later insertion, but do not
-	// mount a scope until one of its actual controls has been attached.
-	for owner != unsafe { nil } {
-		owners << owner
-		owner = owner.parent
-	}
-	for i := owners.len - 1; i >= 0; i-- {
-		mut candidate := owners[i]
-		if candidate.has_mounted_nodes() { candidate.mount()! }
-	}
-	for mut child in node.children {
-		if child.component.has_mounted_nodes() { child.component.mount()! }
-	}
 }
 
 fn (node &CompiledVmlNode) effective_child_rule() ?VmlChildRule {

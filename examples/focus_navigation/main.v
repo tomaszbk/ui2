@@ -11,7 +11,7 @@ fn activated(event ui.ElementEvent) {
 	activations++
 	last_action = '${event.id}: ${event.kind} (${activations})'
 	println('activate ${event.id} count=${activations}')
-	ui.refresh()
+	ui.request_refresh()
 }
 
 fn changed(event ui.ElementEvent) {
@@ -21,13 +21,13 @@ fn changed(event ui.ElementEvent) {
 fn enter_panel(_event ui.ElementEvent) {
 	ui.enter_focus_scope('panel')
 	last_action = 'Panel scope: Tab wraps; Escape restores the previous focus.'
-	ui.refresh()
+	ui.request_refresh()
 }
 
 fn leave_panel(_event ui.ElementEvent) {
 	ui.leave_focus_scope()
 	last_action = 'Restored focus: ${ui.focused_id()}'
-	ui.refresh()
+	ui.request_refresh()
 }
 
 fn key(event ui.KeyEvent) {
@@ -40,7 +40,7 @@ fn key(event ui.KeyEvent) {
 	if event.code == .f2 {
 		unrelated++
 		println('refresh focus=${ui.focused_id()} text=${ui.text('editor')}')
-		ui.refresh()
+		ui.request_refresh()
 		ui.consume_key()
 	}
 	if event.code == .f3 {

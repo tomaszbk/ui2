@@ -24,7 +24,7 @@ $if macos && ui2_custom_rendering ? && ui2_embedder ? && !ui2_headless ? {
 			'switch_stay' { activate_custom_window_state(new_custom_window_state()) }
 			'quit' { quit() }
 			'restart' { cancel_drag(); handle_touch_down(20,30) }
-			else { refresh() }
+			else { request_refresh() }
 		}
 	}
 	fn graphics_drag_accept(_ DragOffer) DragOperation {

@@ -210,9 +210,10 @@ fn (mut manager FocusManager) refresh_geometry(el Element, frame Rect, path stri
 		return -1
 	}
 	hidden := ancestor_hidden || el.presented_hidden()
-	enabled := ancestor_enabled && el.presented_enabled() && !el.overlay_inert
+	enabled := ancestor_enabled && el.presented_enabled() && !el.overlay_inert()
 	local := rect(off_x + frame.x, off_y + frame.y, frame.width, frame.height)
-	inherited_scopes := if el.overlay_scopes.len > 0 { el.overlay_scopes } else { scopes }
+	declared_scopes := el.overlay_scopes()
+	inherited_scopes := if declared_scopes.len > 0 { declared_scopes } else { scopes }
 	if !rebuild && !manager.refresh_offsets_changed && !manager.refresh_motion_changed && previous.el == el && previous.local_frame == local && previous.parent_transform == outer
 		&& previous.clip == clip && previous.hidden == hidden && previous.enabled == enabled
 		&& previous.scrolls == scrolls && !el.focus_scope && previous.scopes == inherited_scopes {

@@ -551,7 +551,7 @@ $if windows && !ui2_custom_rendering ? {
 					Element{kind: kind, id: 'edit', text: 'café ñ', on_event: windows_focus_fixture_event, frame: rect(10, 10, 180, 80)},
 					Element{kind: .button, id: 'press', text: 'Press', on_event: windows_focus_fixture_event, frame: rect(10, 110, 100, 30)},
 				])
-				refresh()
+				rebuild_now()
 				set_text('edit', 'café ñ')
 				focus('press')
 				windows_focus_fixture_events = []ElementEvent{}
@@ -564,7 +564,7 @@ $if windows && !ui2_custom_rendering ? {
 				before := text('edit')
 				selection := windows_native_get_selection(editor)
 				windows_focus_fixture_root = screen(0xeeeeee, [windows_focus_fixture_root.children[0]])
-				refresh() // Removes the button while its physical activation is held.
+				rebuild_now() // Removes the button while its physical activation is held.
 				if scan == 0x11c {
 					C.ui2_win_focus_test_key(editor, win_wm_key_up, key, 0x1c, 0)
 					assert st.activation_keys[windows_physical_key(key, scan)] or { false }
@@ -595,7 +595,7 @@ $if windows && !ui2_custom_rendering ? {
 					windows_focus_fixture_root.children[0],
 					Element{kind: .button, id: 'press', text: 'Press', on_event: windows_focus_fixture_event, frame: rect(10, 110, 100, 30)},
 				])
-				refresh()
+				rebuild_now()
 				focus('press')
 				active_button := st.views['press'] or { panic('missing activation source') }
 				C.ui2_win_focus_test_key(active_button, win_wm_key_down, key, scan, 0)

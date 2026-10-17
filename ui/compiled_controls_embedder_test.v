@@ -79,7 +79,7 @@ fn test_compiled_slider_switch_and_focus_ring_follow_the_pointer() {
 		g_build_screen = compiled_vml_controller_build[CompiledControlsModel]
 		g_gg_app = &GgApp{ ctx: ctx, native_window: window }
 		ctx.submitted_polygon = observe_controls_polygon
-		refresh()
+		request_refresh()
 		on_frame(mut g_gg_app)
 		// Slider: press near the right end, drag to the left end.
 		slider := controls_node(.slider).frame

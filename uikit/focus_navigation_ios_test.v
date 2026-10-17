@@ -86,8 +86,8 @@ fn test_ios_public_semantic_toggle_groups_keep_or_release_selection_by_policy() 
 		for has_handler in [true, false] {
 			callback := if has_handler { ElementCallback(ios_semantic_event) } else { ElementCallback(unsafe { nil }) }
 			render_root(screen(0xffffff, [
-				Element{ kind: .toggle_button, id: 'toggle_a', text: 'A', checked: true, toggle_group: 'group', toggle_allow_no_selection: allow_empty, on_event: callback, frame: rect(0, 0, 100, 32) },
-				Element{ kind: .toggle_button, id: 'toggle_b', text: 'B', toggle_group: 'group', toggle_allow_no_selection: allow_empty, on_event: callback, frame: rect(0, 40, 100, 32) },
+				Element{ kind: .toggle_button, id: 'toggle_a', text: 'A', checked: true, toggle: &ToggleSpec{ group: 'group', allow_no_selection: allow_empty }, on_event: callback, frame: rect(0, 0, 100, 32) },
+				Element{ kind: .toggle_button, id: 'toggle_b', text: 'B', toggle: &ToggleSpec{ group: 'group', allow_no_selection: allow_empty }, on_event: callback, frame: rect(0, 40, 100, 32) },
 			]))
 			ios_semantic_events = []ElementEvent{}
 			assert perform_semantic_action('toggle_a', .activate)

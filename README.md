@@ -31,7 +31,7 @@ v -b c -d ui2_custom_rendering run examples/users/main.v
 ```
 
 The custom renderer builds on demand. Model changes outside VML handlers
-require `refresh()` or `request_refresh()`; timers and deadlines must request
+require `request_refresh()`; timers and deadlines must request
 updates when external state changes. Workers can post changes through a captured
 `ui2.ui_dispatcher()`. Idle drawing currently stops on macOS Metal. GL/EGL/D3D
 reuse the declared tree but still repaint because Sokol presents every callback.
@@ -849,9 +849,10 @@ and a `.scroll` element callback reports a change along either axis.
 The event carries both offsets in `x` and `y`, with the vertical offset in `value`.
 An offset asked for before
 the element exists is taken up when it is first laid out. To scroll to content
-the event being handled has just added, call `refresh()` first so the element
-has its new range. The iOS backend scrolls the same modes but does not expose
-these functions.
+the event being handled has just added, call `request_refresh()` first: an
+offset past the current range, asked for while a rebuild is pending, is taken up
+again once that rebuild has laid out the new range. The iOS backend scrolls the
+same modes but does not expose these functions.
 
 ## Fonts and text sizes
 
@@ -984,7 +985,7 @@ Charts expose their title and data through accessibility metadata. Data markers
 and slices use the existing backend tooltip support. Legends wrap, and category
 labels are thinned to fit. The frame must be at least 120 by 100 and have enough
 height for its title and legend. For resizing, derive the frame from
-`ui2.bounds()` in your build function. Update the model and call `ui2.refresh()`
+`ui2.bounds()` in your build function. Update the model and call `ui2.request_refresh()`
 to rebuild with new data.
 
 This is a basic chart component rather than the complete Chart.js API: it has

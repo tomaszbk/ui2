@@ -115,7 +115,7 @@ $if ( linux || macos || windows ) && !ui2_headless ?&& ( linux || ui2_custom_ren
 		editor.set_caret(2)
 		replace_text_editor('editor', editor)
 		image_probe_stage = 1
-		refresh()
+		request_refresh()
 	}
 
 	fn image_probe_one() {
@@ -125,7 +125,7 @@ $if ( linux || macos || windows ) && !ui2_headless ?&& ( linux || ui2_custom_ren
 		assert g_focused_field == 'editor'
 		assert (g_text_editors['editor'] or { panic('editor lost') }).selection.caret == 2
 		image_probe_stage = 2
-		refresh()
+		request_refresh()
 	}
 
 	fn image_probe_none() {

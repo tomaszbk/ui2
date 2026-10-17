@@ -41,7 +41,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		drag_cancel_on_enter = false
 		source := HitTarget{id: 'source', identity: 'source', w: 40, h: 40, x: 10, y: 20,
 			on_event: record_drag, button_behavior: true, drag_generation: 1,
-			drag_source: DragSource{payload: Parcel{42}, allowed: [.copy, .move]}}
+			drag_source: &DragSource{payload: Parcel{42}, allowed: [.copy, .move]}}
 		target := drag_fixture_target('target', 100, accept_parcel)
 		rejected := drag_fixture_target('rejected', 200, reject_parcel)
 		g_hit_targets = [source, target, rejected]
@@ -77,7 +77,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		handle_touch_up(26, 30)
 		assert drag_kinds() == [.click]
 		reset_drag_fixture()
-		g_hit_targets[0] = HitTarget{...g_hit_targets[0], drag_source: DragSource{threshold: 20}}
+		g_hit_targets[0] = HitTarget{...g_hit_targets[0], drag_source: &DragSource{threshold: 20}}
 		g_drag_registry.owners['id:source'] = g_hit_targets[0]
 		handle_touch_down(20, 30)
 		handle_touch_move(35, 30) // below source threshold, beyond raw tap threshold
@@ -113,14 +113,14 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		reset_drag_fixture()
 		mut offered := [DragOperation.move]
 		g_hit_targets[0] = HitTarget{...g_hit_targets[0],
-			drag_source: DragSource{payload: Parcel{42}, allowed: offered}}
+			drag_source: &DragSource{payload: Parcel{42}, allowed: offered}}
 		g_drag_registry.owners['id:source'] = g_hit_targets[0]
 		g_hit_targets[1] = drag_fixture_target('target', 100, unoffered_operation)
 		g_drag_registry.owners['id:target'] = g_hit_targets[1]
 		handle_touch_down(20, 30)
 		offered[0] = .link
 		g_drag_registry.owners['id:source'] = HitTarget{...g_hit_targets[0],
-			drag_source: DragSource{payload: Parcel{42}, allowed: [.link]}}
+			drag_source: &DragSource{payload: Parcel{42}, allowed: [.link]}}
 		handle_touch_up(120, 30)
 		assert ElementEventKind.drop !in drag_kinds(), 'link was not offered at pointer-down'
 		assert (drag_records[0].drag or { panic('missing') }).offer.allowed == [DragOperation.move]

@@ -115,7 +115,7 @@ fn scope_frame_setup() {
 	}
 	scope_frame_events.clear()
 	scope_frame_phase = 1
-	refresh()
+	request_refresh()
 }
 
 fn scope_frame_root() Element {

@@ -29,7 +29,7 @@ mut:
 fn (tree &OverlayTree) focus_layer() ?OverlayLayer {
 	for i := tree.layers.len - 1; i >= 0; i-- {
 		layer := tree.layers[i]
-		if layer.active && !layer.element.overlay_inert
+		if layer.active && !layer.element.overlay_inert()
 			&& (layer.config.kind in [.dialog, .menu, .context_menu] || layer.config.initial_focus.len > 0)
 			&& (tree.modal.len == 0 || layer.element.id == tree.modal || tree.modal in layer.scopes) {
 			return layer

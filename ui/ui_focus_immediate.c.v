@@ -5,7 +5,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	fn focus_manager() &FocusManager { return g_focus_navigation }
 
 	fn custom_focus_offsets(el Element, path string, mut offsets map[string]f64, mut offsets_x map[string]f64) {
-		current_path := if el.overlay_host { overlay_host_path } else { path }
+		current_path := if el.overlay_host() { overlay_host_path } else { path }
 		if el.kind == .scroll {
 			x, y := scroll_mode_offset(el.scroll_mode, scroll_state_offset_x(scroll_view_state_id(el, path)), scroll_state_offset(scroll_view_state_id(el, path)))
 			offsets[path] = y
@@ -89,6 +89,8 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		el := node.el
 		options := node.menu_options_snapshot()
 		geometry := element_hit_geometry(el,node.local_frame,node.transform,node.clip)
+		// The Element accessors take its address, which would move `el` to the heap.
+		toggle_group, toggle_allow_no_selection := toggle_selection(el.toggle)
 		return HitTarget{
 			...geometry
 			identity:                  node.path
@@ -113,8 +115,8 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			switch_control:            el.kind == .switch_control
 			switch_state:              el.checked
 			toggle_button:             el.kind == .toggle_button
-			toggle_group:              el.toggle_group
-			toggle_allow_no_selection: el.toggle_allow_no_selection
+			toggle_group:              toggle_group
+			toggle_allow_no_selection: toggle_allow_no_selection
 			dropdown:                  el.kind == .dropdown
 			options:                   options
 			button_behavior:           el.kind == .view && el.button_behavior
@@ -205,11 +207,11 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	}
 
 	fn sync_mounted_focus_controls(el Element, path string) {
-		sync_mounted_focus_control_subtree(el, if el.overlay_host { overlay_host_path } else { path }, true)
+		sync_mounted_focus_control_subtree(el, if el.overlay_host() { overlay_host_path } else { path }, true)
 	}
 
 	fn sync_mounted_focus_control_subtree(el Element, path string, ancestor_enabled bool) {
-		enabled := ancestor_enabled && el.presented_enabled() && !el.presented_hidden() && !el.overlay_inert
+		enabled := ancestor_enabled && el.presented_enabled() && !el.presented_hidden() && !el.overlay_inert()
 		sync_mounted_control(Element{ ...el, enabled: enabled })
 		if el.kind == .scroll {
 			g_active_scrolls[scroll_view_state_id(el, path)] = true
@@ -269,8 +271,8 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 				g_active_switches[el.id] = true
 			}
 			.toggle_button {
-				g_toggle_groups[el.id] = el.toggle_group
-				g_toggle_allow_no_selection[el.id] = el.toggle_allow_no_selection
+				g_toggle_groups[el.id] = el.toggle_group()
+				g_toggle_allow_no_selection[el.id] = el.toggle_allow_no_selection()
 				if el.id !in g_toggle_values || (g_toggle_declared[el.id] or { el.checked }) != el.checked {
 					g_toggle_values[el.id] = el.checked
 				}

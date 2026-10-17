@@ -112,27 +112,19 @@ fn props_document(root PNode, frame Rect) !Element {
 fn props_normal(el Element) Element {
 	return Element{
 		...el
-		mounted_generation:  0
-		mounted_path:        ''
-		mounted_parent_path: ''
-		mounted_scroll_id:   ''
-		mounted_tooltip_key: ''
-		// The reset base of the compiled style effect: the compiled lowering
-		// sets it whenever a style is authored, props when it is not empty.
-		style_default_box:   none
+		mount:             unsafe { nil }
+		runtime:           unsafe { nil }
 		// A reactive compiled ProgressBar also writes its value into the
 		// view's `value` after an update (a property effect the structural
 		// rebuild overwrites at layout); the bar itself draws its fill child.
-		value:               if el.accessibility_role == 'progressbar' { 0 } else { el.value }
-		layout:              props_normal_layout(el.layout)
-		compiled_source:     unsafe { nil }
-		motion_state:        unsafe { nil }
-		compiled_node:       unsafe { nil }
-		compiled_metadata:   unsafe { nil }
-		on_event:            unsafe { nil }
-		menu:                el.menu.map(MenuEntry{ ...it, on_select: unsafe { nil } })
-		overlay:             if config := el.overlay {
-			?OverlayConfig(OverlayConfig{
+		value:             if el.accessibility_role == 'progressbar' { 0 } else { el.value }
+		layout:            props_normal_layout(el.layout)
+		compiled_node:     unsafe { nil }
+		compiled_metadata: unsafe { nil }
+		on_event:          unsafe { nil }
+		menu:              el.menu.map(MenuEntry{ ...it, on_select: unsafe { nil } })
+		overlay:           if config := el.overlay {
+			?&OverlayConfig(&OverlayConfig{
 				...config
 				on_open:    unsafe { nil }
 				on_dismiss: unsafe { nil }
@@ -140,7 +132,7 @@ fn props_normal(el Element) Element {
 		} else {
 			none
 		}
-		children:            []
+		children:          []
 	}
 }
 
@@ -148,14 +140,11 @@ fn props_normal(el Element) Element {
 // list of default rules equals no list (when the runtime last projected the
 // rules depends on update order, not on the document).
 fn props_normal_layout(layout LayoutSpec) LayoutSpec {
-	if layout.stack.children.len > 0
-		&& layout.stack.children.all(it.align_x == .auto && it.align_y == .auto) {
+	if layout.stack_rules.len > 0
+		&& layout.stack_rules.all(it.align_x == .auto && it.align_y == .auto) {
 		return LayoutSpec{
 			...layout
-			stack: StackConfig{
-				...layout.stack
-				children: []
-			}
+			stack_rules: []
 		}
 	}
 	return layout
@@ -191,7 +180,9 @@ fn props_metadata(el Element) string {
 	if node := metadata.tree { parts << 'tree ${props_tree_node(node)}' }
 	if screen := metadata.screen { parts << 'screen ${screen.name}' }
 	if metadata.menu_document { parts << 'menus ${metadata.menus.len}' }
-	return parts.join(' ')
+	// A record holding only the style reset box (style_default_box) is the
+	// compiled lowering's style base, not authored metadata.
+	return if parts.len == 0 { 'none' } else { parts.join(' ') }
 }
 
 fn props_diff(compiled Element, props Element, path string, mut out []string) {

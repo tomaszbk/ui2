@@ -98,21 +98,20 @@ pub mut:
 }
 
 fn (f VmlFlexFields) build_flex(p CommonProps, orientation LayoutOrientation, ctx VmlBuildContext) !Element {
-	mut items := []FlexChild{cap: ctx.children.len}
-	for index, child in ctx.children {
-		items << ctx.child_layout(index).flex_child(child)
+	mut rules := []FlexRule{cap: ctx.children.len}
+	for index in 0 .. ctx.children.len {
+		rules << ctx.child_layout(index).flex_rule()
 	}
-	base := flex(FlexConfig{
+	base := flex_with_rules(FlexConfig{
 		id:          ctx.id
 		frame:       ctx.frame
-		children:    items
 		orientation: orientation
 		gap:         f.gap or { f.spacing or { 0 } }
 		line_gap:    f.line_gap
 		wrap:        f.wrap
 		justify:     f.justify
 		align:       f.align_items
-	})!
+	}, ctx.children, rules)!
 	return vml_layout_element(base, p, ctx)
 }
 
@@ -248,17 +247,16 @@ pub fn (p StackProps) child_placement(placement VmlPlacement) VmlPlacement {
 // A Stack's events are not attached: like the other composite constructors
 // it keeps the element the constructor returns.
 pub fn (p StackProps) build(ctx VmlBuildContext) !Element {
-	mut children := []StackChild{cap: ctx.children.len}
-	for index, child in ctx.children {
-		children << ctx.child_layout(index).stack_child(child)
+	mut rules := []StackRule{cap: ctx.children.len}
+	for index in 0 .. ctx.children.len {
+		rules << ctx.child_layout(index).stack_rule()
 	}
-	return vml_keyed(stack(StackConfig{
-		id:       ctx.id
-		frame:    ctx.frame
-		align_x:  p.align_x
-		align_y:  p.align_y
-		children: children
-	})!, ctx)
+	return vml_keyed(stack_with_rules(StackConfig{
+		id:      ctx.id
+		frame:   ctx.frame
+		align_x: p.align_x
+		align_y: p.align_y
+	}, ctx.children, rules)!, ctx)
 }
 
 // ScrollProps scrolls its content along scroll_mode.

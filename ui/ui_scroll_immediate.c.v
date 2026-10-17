@@ -491,12 +491,14 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	// Anonymous Scroll nodes retain state by structural/key identity. The
 	// private state key never becomes the event's authored source id.
 	fn scroll_view_state_id(el Element, path string) string {
-		if el.mounted_scroll_id.len > 0 && el.mounted_path == path { return el.mounted_scroll_id }
+		mounted := el.mounted_scroll_id()
+		if mounted.len > 0 && el.mounted_path() == path { return mounted }
 		return authored_scroll_state_id(Element{...el, kind: .scroll}, path)
 	}
 
 	fn text_area_scroll_id(el Element) string {
-		if el.mounted_scroll_id.len > 0 { return el.mounted_scroll_id }
+		mounted := el.mounted_scroll_id()
+		if mounted.len > 0 { return mounted }
 		return authored_scroll_state_id(Element{...el, kind: .text_area}, '')
 	}
 
