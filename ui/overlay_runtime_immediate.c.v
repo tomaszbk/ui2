@@ -62,8 +62,7 @@ $if (linux || macos || windows) && !ui2_headless ? && !ui2_document_library ? {
 	// when its owner is under it. It reports whether an overlay took the press.
 	fn (mut w Window) overlay_context_press(x f64, y f64) bool {
 		dispatch := w.custom_input_dispatch()
-		app := w
-		if active := app.overlay_tree.top_active() {
+		if active := w.overlay_tree.top_active() {
 			if active.config.kind == .context_menu && !w.overlay_contains(active, x, y)
 				&& active.config.on_open != unsafe { nil } {
 				owner_id := if active.config.anchor.len > 0 { active.config.anchor } else { active.config.owner }
@@ -76,8 +75,8 @@ $if (linux || macos || windows) && !ui2_headless ? && !ui2_document_library ? {
 			}
 		}
 		if w.overlay_pointer_down(x, y) || !dispatch.valid() { return true }
-		for i := app.overlay_tree.layers.len - 1; i >= 0; i-- {
-			layer := app.overlay_tree.layers[i]
+		for i := w.overlay_tree.layers.len - 1; i >= 0; i-- {
+			layer := w.overlay_tree.layers[i]
 			if layer.config.kind != .context_menu || !layer.available || layer.config.on_open == unsafe { nil } { continue }
 			owner_id := if layer.config.anchor.len > 0 { layer.config.anchor } else { layer.config.owner }
 			node := w.navigation.node(owner_id) or { continue }

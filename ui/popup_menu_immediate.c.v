@@ -64,15 +64,14 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 			on_result(PopupMenuResult{})
 			return
 		}
-		mut app := w
-		app.popup_menu_serial++
+		w.popup_menu_serial++
 		rows := dropdown_menu_items_from_menu(cfg.items)
 		mut path := []int{}
 		if cfg.selected >= 0 && cfg.selected < rows.len && dropdown_menu_navigable(rows[cfg.selected]) {
 			path << cfg.selected
 		}
-		app.popup_menu = &DrawnPopupMenu{
-			serial:    app.popup_menu_serial
+		w.popup_menu = &DrawnPopupMenu{
+			serial:    w.popup_menu_serial
 			items:     cfg.items
 			rows:      rows
 			state:     DropdownMenuState{
@@ -83,7 +82,7 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 				cfg.anchor.height)
 			on_result: on_result
 		}
-		app.scheduler.invalidate(.layout)
+		w.scheduler.invalidate(.layout)
 	}
 
 	fn (mut w Window) drawn_popup_menu_open() bool {
@@ -91,13 +90,12 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 	}
 
 	fn (mut w Window) finish_drawn_popup_menu(serial u64, result PopupMenuResult) {
-		mut app := w
-		menu := app.popup_menu
+		menu := w.popup_menu
 		if menu == unsafe { nil } || menu.serial != serial {
 			return
 		}
-		app.popup_menu = unsafe { nil }
-		app.scheduler.invalidate(.layout)
+		w.popup_menu = unsafe { nil }
+		w.scheduler.invalidate(.layout)
 		menu.on_result(result)
 	}
 

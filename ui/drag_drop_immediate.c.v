@@ -262,10 +262,9 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 
 	fn (mut w Window) release_drag_session(x f64, y f64) bool {
 		if !w.touch.drag.active && !w.touch.drag.pending { return false }
-		mut app := w
-		if app.releasing_drag { return true }
-		app.releasing_drag = true
-		defer { app.releasing_drag = false }
+		if w.releasing_drag { return true }
+		w.releasing_drag = true
+		defer { w.releasing_drag = false }
 		token := w.touch.drag.token
 		if !w.reconcile_drag_release(token) { return true }
 		// A release beyond threshold counts even if the host coalesced all moves.
