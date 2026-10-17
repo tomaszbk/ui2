@@ -28,8 +28,6 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 	@[heap]
 	struct CustomWindowState {
 	mut:
-		input_generation u64
-		keyboard CustomKeyboardState
 		text_values map[string]string
 		text_props map[string]string
 		text_editors map[string]TextEditor
@@ -47,10 +45,6 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 		toggle_declared map[string]bool
 		toggle_groups map[string]string
 		toggle_allow_no_selection map[string]bool
-		focused_field string
-		backend_text_focus BackendTextFocus
-		focus_visible bool = true
-		navigation &FocusManager = &FocusManager{}
 		scroll_targets map[string]HitTarget
 		scroll_offsets_x map[string]f64
 		scroll_offsets map[string]f64
@@ -65,9 +59,6 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 		scroll_parents map[string]string
 		scrollbar_geometries_x map[string]ScrollbarGeometry
 		scrollbar_geometries map[string]ScrollbarGeometry
-		hit_targets []HitTarget
-		drag_registry DragRegistry
-		touch TouchState
 		active_fields map[string]bool
 		active_sliders map[string]bool
 		active_switches map[string]bool
@@ -82,7 +73,6 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 		tooltip_targets []TooltipTarget
 		tooltip TooltipState
 		tooltip_owners int
-		hover HoverState
 		menu_context MenuState
 		menu_open_path []int
 		menu_hover_path []int
@@ -126,9 +116,6 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 		if previous == state {
 			return previous
 		}
-		previous.input_generation++
-		mut next := unsafe { state }
-		next.input_generation++
 		previous.capture()
 		state.restore()
 		g_active_custom_window_state = state
@@ -141,7 +128,6 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 	// resource caches. Disposing one window also leaves a nested caller intact.
 	fn discard_custom_window_state(state &CustomWindowState) {
 		previous := activate_custom_window_state(state)
-		reset_custom_keyboard()
 		for id in g_text_values.keys() {
 			forget_text_state(id)
 		}
@@ -159,7 +145,6 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 	}
 
 	fn (mut state CustomWindowState) capture() {
-		state.keyboard = g_custom_keyboard
 		state.text_values = g_text_values
 		state.text_props = g_text_props
 		state.text_editors = g_text_editors
@@ -177,10 +162,6 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 		state.toggle_declared = g_toggle_declared
 		state.toggle_groups = g_toggle_groups
 		state.toggle_allow_no_selection = g_toggle_allow_no_selection
-		state.focused_field = g_focused_field
-		state.backend_text_focus = g_backend_text_focus
-		state.focus_visible = g_focus_visible
-		state.navigation = g_focus_navigation
 		state.scroll_targets = g_scroll_targets
 		state.scroll_offsets_x = g_scroll_offsets_x
 		state.scroll_offsets = g_scroll_offsets
@@ -195,9 +176,6 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 		state.scroll_parents = g_scroll_parents
 		state.scrollbar_geometries_x = g_scrollbar_geometries_x
 		state.scrollbar_geometries = g_scrollbar_geometries
-		state.hit_targets = g_hit_targets
-		state.drag_registry = g_drag_registry
-		state.touch = g_touch
 		state.active_fields = g_active_fields
 		state.active_sliders = g_active_sliders
 		state.active_switches = g_active_switches
@@ -221,7 +199,6 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 		state.tooltip_targets = g_tooltip_targets
 		state.tooltip = g_tooltip
 		state.tooltip_owners = g_tooltip_owners
-		state.hover = g_hover
 		state.menu_context = *menu_state()
 		state.menu_open_path = g_menu_open_path
 		state.menu_hover_path = g_menu_hover_path
@@ -231,7 +208,6 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 	}
 
 	fn (state &CustomWindowState) restore() {
-		g_custom_keyboard = state.keyboard
 		g_text_values = state.text_values
 		g_text_props = state.text_props
 		g_text_editors = state.text_editors
@@ -249,10 +225,6 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 		g_toggle_declared = state.toggle_declared
 		g_toggle_groups = state.toggle_groups
 		g_toggle_allow_no_selection = state.toggle_allow_no_selection
-		g_focused_field = state.focused_field
-		g_backend_text_focus = state.backend_text_focus
-		g_focus_visible = state.focus_visible
-		g_focus_navigation = state.navigation
 		g_scroll_targets = state.scroll_targets
 		g_scroll_offsets_x = state.scroll_offsets_x
 		g_scroll_offsets = state.scroll_offsets
@@ -267,9 +239,6 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 		g_scroll_parents = state.scroll_parents
 		g_scrollbar_geometries_x = state.scrollbar_geometries_x
 		g_scrollbar_geometries = state.scrollbar_geometries
-		g_hit_targets = state.hit_targets
-		g_drag_registry = state.drag_registry
-		g_touch = state.touch
 		g_active_fields = state.active_fields
 		g_active_sliders = state.active_sliders
 		g_active_switches = state.active_switches
@@ -293,7 +262,6 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 		g_tooltip_targets = state.tooltip_targets
 		g_tooltip = state.tooltip
 		g_tooltip_owners = state.tooltip_owners
-		g_hover = state.hover
 		mut menu := menu_state()
 		menu.menus = state.menu_context.menus
 		menu.tray = state.menu_context.tray

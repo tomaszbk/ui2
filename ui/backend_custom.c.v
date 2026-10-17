@@ -20,7 +20,7 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 
 	fn (mut w Window) backend_input_dispatch() CustomInputDispatch { return w.custom_input_dispatch() }
 
-	fn (mut w Window) backend_own_activation(code KeyCode) { own_custom_activation(code) }
+	fn (mut w Window) backend_own_activation(code KeyCode) { w.own_custom_activation(code) }
 
 	fn (mut w Window) backend_invalidate(reason RenderReason) { w.scheduler.invalidate(reason) }
 
@@ -87,9 +87,9 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 			w.layout_tree.set_transform(id, transform)!
 		}
 		w.declared_root = root
-		mounted, mounted_found := replace_visual_transform(g_focus_navigation.root, id, transform)!
+		mounted, mounted_found := replace_visual_transform(w.navigation.root, id, transform)!
 		if mounted_found {
-			g_focus_navigation.set_root(mounted)
+			w.navigation.set_root(mounted)
 			w.sync_focus_navigation()
 		}
 		w.presentation_revision++
@@ -100,7 +100,7 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 	// Querying it never resolves layout or changes the last-presented snapshot.
 	pub fn (mut w Window) mounted_geometry(id string) !VisualGeometry {
 		w.sync_focus_navigation()
-		node := g_focus_navigation.node(id) or { return error('element `${id}` has no mounted geometry') }
+		node := w.navigation.node(id) or { return error('element `${id}` has no mounted geometry') }
 		if node.hidden { return error('element `${id}` is hidden') }
 		return VisualGeometry{
 			frame:            node.local_frame

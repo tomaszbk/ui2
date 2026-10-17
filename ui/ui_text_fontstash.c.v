@@ -214,7 +214,7 @@ $if (android || ios) && !ui2_headless ? && !ui2_document_library ? {
 
 	fn (mut w Window) draw_legacy_text_area_content(ctx &DrawContext, el Element, value string, x f64, y f64, clip Rect, scroll_parent_id string) {
 		dispatch := w.custom_input_dispatch()
-		root := g_focus_navigation.root_revision
+		root := w.navigation.root_revision
 		mut editor := g_text_editors[el.id] or { text_editor(value.clone()) }
 		shown := editor.text
 		frame := rect(x, y, el.frame.width, el.frame.height)
@@ -237,7 +237,7 @@ $if (android || ios) && !ui2_headless ? && !ui2_document_library ? {
 		})
 		line_ranges := text_area_line_rune_ranges(shown, lines)
 		selection_start, selection_end := editor.selection.ordered()
-		show_selection := g_focused_field == el.id && selection_start != selection_end
+		show_selection := w.focused_field == el.id && selection_start != selection_end
 		line_height := math.max(1.0, font_line_height(style.size))
 		content_height := f64(lines.len) * line_height + text_area_vertical_padding * 2
 		// Read-only means not editable, not unscrollable. disable_scroll only
@@ -245,7 +245,7 @@ $if (android || ios) && !ui2_headless ? && !ui2_document_library ? {
 		scroll_id := text_area_scroll_id(el)
 		offset := w.register_scroll_view_in_parent(scroll_id, scroll_parent_id, frame, clip, content_height, el.enabled,
 			!el.disable_scroll, el.persistent_scrollbars, HitTarget{ id: el.id, on_event: el.on_event })
-		if !custom_frame_current(dispatch, ctx) || g_focus_navigation.root_revision != root { return }
+		if !custom_frame_current(dispatch, ctx) || w.navigation.root_revision != root { return }
 		text_clip := intersect_rect(content, clip)
 		if text_clip.width > 0 && text_clip.height > 0 {
 			apply_clip(ctx, text_clip)
@@ -273,7 +273,7 @@ $if (android || ios) && !ui2_headless ? && !ui2_document_library ? {
 					}
 				}
 				ctx.draw_text(int(text_x), int(text_y), lines[index], cfg)
-				if g_focused_field == el.id && index < line_ranges.len {
+				if w.focused_field == el.id && index < line_ranges.len {
 					line_range := line_ranges[index]
 					line_origin := text_field_aligned_text_origin(content.x, content.width,
 						f64(ctx.text_width_f(lines[index])), style.align)

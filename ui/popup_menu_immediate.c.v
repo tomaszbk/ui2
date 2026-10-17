@@ -171,7 +171,7 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 		if !w.drawn_popup_menu_open() {
 			return false
 		}
-		node := g_focus_navigation.node(drawn_popup_menu_id) or { return true }
+		node := w.navigation.node(drawn_popup_menu_id) or { return true }
 		return !hit_target_contains(w.custom_focus_target(node), x, y)
 	}
 
@@ -331,7 +331,7 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 	// takes the press, which then belongs to that control's own menu or the
 	// nearest one around it. A select's options are not a context menu.
 	fn (mut w Window) context_menu_owner(x f64, y f64) ?FocusNode {
-		nodes := g_focus_navigation.nodes
+		nodes := w.navigation.nodes
 		mut found := -1
 		for i := nodes.len - 1; i >= 0; i-- {
 			if context_menu_node(nodes[i]) && hit_target_contains(w.custom_focus_target(nodes[i]), x, y) {
@@ -341,14 +341,14 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 		}
 		target := w.hit_test(x, y)
 		if target.identity.len > 0 {
-			mut index := g_focus_navigation.path_indices[target.identity] or { -1 }
+			mut index := w.navigation.path_indices[target.identity] or { -1 }
 			if index > found {
 				for index >= 0 {
 					node := nodes[index]
 					if context_menu_node(node) {
 						return node
 					}
-					index = g_focus_navigation.path_indices[node.parent] or { -1 }
+					index = w.navigation.path_indices[node.parent] or { -1 }
 				}
 				return none
 			}
@@ -368,7 +368,7 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 			return
 		}
 		w.focus(id)
-		node := g_focus_navigation.node(id) or { return }
+		node := w.navigation.node(id) or { return }
 		selected := g_text_values[id] or { node.el.text }
 		w.popup_menu_owner = id
 		w.invalidate_custom_paint()
@@ -396,7 +396,7 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 		if !result.chosen {
 			return
 		}
-		node := g_focus_navigation.node(id) or { return }
+		node := w.navigation.node(id) or { return }
 		if node.hidden || !node.enabled || node.el.kind != .dropdown {
 			return
 		}

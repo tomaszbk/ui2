@@ -67,7 +67,7 @@ $if (linux || macos || windows) && !ui2_headless ? && !ui2_document_library ? {
 			if active.config.kind == .context_menu && !w.overlay_contains(active, x, y)
 				&& active.config.on_open != unsafe { nil } {
 				owner_id := if active.config.anchor.len > 0 { active.config.anchor } else { active.config.owner }
-				if owner := g_focus_navigation.node(owner_id) {
+				if owner := w.navigation.node(owner_id) {
 					if !owner.hidden && owner.enabled && hit_target_contains(w.custom_focus_target(owner), x, y) {
 						w.request_overlay_open(active, x, y - menu_bar_height())
 						return true
@@ -80,7 +80,7 @@ $if (linux || macos || windows) && !ui2_headless ? && !ui2_document_library ? {
 			layer := app.overlay_tree.layers[i]
 			if layer.config.kind != .context_menu || !layer.available || layer.config.on_open == unsafe { nil } { continue }
 			owner_id := if layer.config.anchor.len > 0 { layer.config.anchor } else { layer.config.owner }
-			node := g_focus_navigation.node(owner_id) or { continue }
+			node := w.navigation.node(owner_id) or { continue }
 			if node.hidden || !node.enabled || !hit_target_contains(w.custom_focus_target(node), x, y) { continue }
 			w.request_overlay_open(layer, x, y - menu_bar_height())
 			return true
@@ -88,18 +88,18 @@ $if (linux || macos || windows) && !ui2_headless ? && !ui2_document_library ? {
 		return false
 	}
 
-	fn overlay_anchor_focused(anchor FocusNode) bool {
-		mut current := g_focus_navigation.node(g_focused_field) or { return false }
-		for _ in 0 .. g_focus_navigation.nodes.len {
+	fn (mut w Window) overlay_anchor_focused(anchor FocusNode) bool {
+		mut current := w.navigation.node(w.focused_field) or { return false }
+		for _ in 0 .. w.navigation.nodes.len {
 			if current.path == anchor.path { return true }
-			current = g_focus_navigation.path_node(current.parent) or { return false }
+			current = w.navigation.path_node(current.parent) or { return false }
 		}
 		return false
 	}
 
 	fn (mut w Window) update_overlay_triggers(now i64) {
 		dispatch := w.custom_input_dispatch()
-		root := g_focus_navigation.root_revision
+		root := w.navigation.root_revision
 		if w.overlay_trigger_revision != w.overlay_tree.source_revision {
 			for id in w.overlay_triggers.keys() {
 				if w.overlay_tree.layer_index(id) < 0 { w.overlay_triggers.delete(id) }
@@ -119,19 +119,19 @@ $if (linux || macos || windows) && !ui2_headless ? && !ui2_document_library ? {
 					w.request_overlay_dismiss(layer, .owner_unavailable)
 				}
 			} else { w.overlay_unavailable.delete(id) }
-			if !dispatch.valid() || root != g_focus_navigation.root_revision { return }
+			if !dispatch.valid() || root != w.navigation.root_revision { return }
 			if layer.config.kind != .tooltip || layer.config.on_open == unsafe { nil } {
 				w.overlay_triggers.delete(id)
 				continue
 			}
-			anchor := g_focus_navigation.node(layer.config.anchor) or {
+			anchor := w.navigation.node(layer.config.anchor) or {
 				w.overlay_triggers.delete(id)
 				continue
 			}
-			focused := !anchor.hidden && anchor.enabled && overlay_anchor_focused(anchor)
+			focused := !anchor.hidden && anchor.enabled && w.overlay_anchor_focused(anchor)
 			hovered := !anchor.hidden && anchor.enabled && g_tooltip.pointer_in
 				&& hit_target_contains(w.custom_focus_target(anchor), g_tooltip.pointer_x, g_tooltip.pointer_y)
-			inside := layer.available && (focused || hovered) && !g_touch.down && !menu_bar_open() && !w.drawn_popup_menu_open() && g_open_dropdown.len == 0
+			inside := layer.available && (focused || hovered) && !w.touch.down && !menu_bar_open() && !w.drawn_popup_menu_open() && g_open_dropdown.len == 0
 			mut state := w.overlay_triggers[id] or { OverlayTrigger{ owner: owner } }
 			if state.owner != owner { state = OverlayTrigger{ owner: owner } }
 			if inside && !state.inside {
@@ -158,7 +158,7 @@ $if (linux || macos || windows) && !ui2_headless ? && !ui2_document_library ? {
 			if leaving && layer.config.open { w.request_overlay_dismiss(layer, .pointer_leave) }
 			if ready && !layer.config.open { w.request_overlay_open(layer, anchor.frame.x, anchor.frame.y - menu_bar_height()) }
 			if layer.active { g_tooltip.dismiss() }
-			if !dispatch.valid() || root != g_focus_navigation.root_revision { return }
+			if !dispatch.valid() || root != w.navigation.root_revision { return }
 		}
 	}
 
@@ -171,7 +171,7 @@ $if (linux || macos || windows) && !ui2_headless ? && !ui2_document_library ? {
 	}
 
 	fn (mut w Window) overlay_contains(layer OverlayLayer, x f64, y f64) bool {
-		node := g_focus_navigation.node(layer.element.id) or { return false }
+		node := w.navigation.node(layer.element.id) or { return false }
 		return hit_target_contains(w.custom_focus_target(node), x, y)
 	}
 
@@ -201,7 +201,7 @@ $if (linux || macos || windows) && !ui2_headless ? && !ui2_document_library ? {
 	}
 
 	fn (mut w Window) overlay_selection_owner(id string) ?OverlayLayer {
-		node := g_focus_navigation.node(id) or { return none }
+		node := w.navigation.node(id) or { return none }
 		for i := w.overlay_tree.layers.len - 1; i >= 0; i-- {
 			layer := w.overlay_tree.layers[i]
 			if layer.active && layer.config.kind in [.menu, .context_menu] && layer.element.id in node.scopes { return layer }

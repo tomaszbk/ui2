@@ -17,8 +17,6 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 		pending KeyCode = .invalid
 	}
 
-	__global g_custom_keyboard = CustomKeyboardState{}
-
 	fn (keyboard &CustomKeyboardState) held(key gg.KeyCode) bool {
 		return match key {
 			.enter { keyboard.enter }
@@ -37,65 +35,54 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 		}
 	}
 
-	// A key belongs to its window, that window's scheduler and its mounted
-	// state. The generation is owned by the state, never copied by
-	// capture/restore. Blur, teardown, another key or a window switch
-	// invalidates continuations, even if a nested callback restores the same
-	// window before returning.
+	// Input belongs to its window and that window's scheduler. Blur,
+	// teardown or newer input advances the window's generation, which
+	// invalidates the continuations of earlier input.
 	struct CustomInputDispatch {
 		window &Window
 		scheduler &FrameCoordinator
-		state &CustomWindowState
 		generation u64
 	}
 
 	fn (mut w Window) custom_input_dispatch() CustomInputDispatch {
-		if g_active_custom_window_state == unsafe { nil } {
-			adopt_custom_window_state()
-		}
 		return CustomInputDispatch{
 			window: w
 			scheduler: w.scheduler
-			state: g_active_custom_window_state
-			generation: g_active_custom_window_state.input_generation
+			generation: w.input_generation
 		}
 	}
 
 	fn (mut w Window) begin_custom_input_dispatch() CustomInputDispatch {
-		w.custom_input_dispatch()
-		g_active_custom_window_state.input_generation++
+		w.input_generation++
 		return w.custom_input_dispatch()
 	}
 
 	fn (dispatch CustomInputDispatch) owner_current() bool {
 		mut scheduler := dispatch.scheduler
-		return voidptr(dispatch.state) == voidptr(g_active_custom_window_state)
-			&& voidptr(dispatch.scheduler) == voidptr(dispatch.window.scheduler)
+		return voidptr(dispatch.scheduler) == voidptr(dispatch.window.scheduler)
 			&& !scheduler.is_closed()
 	}
 
 	fn (dispatch CustomInputDispatch) valid() bool {
-		return dispatch.owner_current() && dispatch.generation == dispatch.state.input_generation
+		return dispatch.owner_current() && dispatch.generation == dispatch.window.input_generation
 	}
 
-	fn own_custom_activation(code KeyCode) {
-		g_custom_keyboard.set_held(unsafe { gg.KeyCode(int(code)) }, true)
-		g_custom_keyboard.pending = code
+	fn (mut w Window) own_custom_activation(code KeyCode) {
+		w.keyboard.set_held(unsafe { gg.KeyCode(int(code)) }, true)
+		w.keyboard.pending = code
 	}
 
-	fn reset_custom_keyboard() {
-		if g_active_custom_window_state != unsafe { nil } {
-			g_active_custom_window_state.input_generation++
-		}
-		g_custom_keyboard = CustomKeyboardState{}
+	fn (mut w Window) reset_custom_keyboard() {
+		w.input_generation++
+		w.keyboard = CustomKeyboardState{}
 	}
 
 	fn (mut w Window) custom_key_down(event &gg.Event, skip_dispatch bool, composing bool, dispatch CustomInputDispatch) bool {
 		// Invalidation claims the event: callers and the native text host must
 		// not reinterpret it as an editor command in a different context.
 		if !dispatch.valid() { return true }
-		g_custom_keyboard.pending = .invalid
-		mut consumed := !skip_dispatch && event.key_repeat && g_custom_keyboard.held(event.key_code)
+		w.keyboard.pending = .invalid
+		mut consumed := !skip_dispatch && event.key_repeat && w.keyboard.held(event.key_code)
 		if !skip_dispatch {
 			if consumed {
 				// Observers still receive owned repeats, before any new menu.
@@ -120,9 +107,9 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 				if !dispatch.valid() { return true }
 			}
 		}
-		if !event.key_repeat { g_custom_keyboard.set_held(event.key_code, consumed) }
+		if !event.key_repeat { w.keyboard.set_held(event.key_code, consumed) }
 		if consumed {
-			g_custom_keyboard.pending = unsafe { KeyCode(int(event.key_code)) }
+			w.keyboard.pending = unsafe { KeyCode(int(event.key_code)) }
 		}
 		return consumed
 	}
@@ -131,22 +118,20 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 		dispatch := w.begin_custom_input_dispatch()
 		if dispatch.valid() {
 			w.scheduler.invalidate(.build)
-			if !custom_consumed_character(character) { w.handle_char_input(character) }
+			if !w.custom_consumed_character(character) { w.handle_char_input(character) }
 		}
 		return dispatch
 	}
 
-	fn custom_key_up(key gg.KeyCode) {
-		if g_active_custom_window_state != unsafe { nil } {
-			g_active_custom_window_state.input_generation++
-		}
-		g_custom_keyboard.set_held(key, false)
-		g_custom_keyboard.pending = .invalid
+	fn (mut w Window) custom_key_up(key gg.KeyCode) {
+		w.input_generation++
+		w.keyboard.set_held(key, false)
+		w.keyboard.pending = .invalid
 	}
 
-	fn custom_consumed_character(character u32) bool {
-		pending := g_custom_keyboard.pending
-		g_custom_keyboard.pending = .invalid
+	fn (mut w Window) custom_consumed_character(character u32) bool {
+		pending := w.keyboard.pending
+		w.keyboard.pending = .invalid
 		return match pending {
 			.space { character == ` ` }
 			.tab { character == `\t` }

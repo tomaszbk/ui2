@@ -2,7 +2,7 @@
 module ui2
 
 $if (android || ios || linux || macos || windows) && !ui2_headless ?&& !ui2_document_library ? {
-	fn (mut w Window) focus_manager() &FocusManager { return g_focus_navigation }
+	fn (mut w Window) focus_manager() &FocusManager { return w.navigation }
 
 	fn custom_focus_offsets(el Element, path string, mut offsets map[string]f64, mut offsets_x map[string]f64) {
 		current_path := if el.overlay_host() { overlay_host_path } else { path }
@@ -17,12 +17,12 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ?&& !ui2_docu
 	}
 
 	fn (mut w Window) sync_focus_navigation() {
-		if g_focus_navigation.geometry_revision != g_focus_navigation.root_revision || g_focus_navigation.geometry_serial == 0 {
+		if w.navigation.geometry_revision != w.navigation.root_revision || w.navigation.geometry_serial == 0 {
 			w.focus_offsets.clear()
 			w.focus_offsets_x.clear()
-			custom_focus_offsets(g_focus_navigation.root, 'root', mut w.focus_offsets, mut w.focus_offsets_x)
+			custom_focus_offsets(w.navigation.root, 'root', mut w.focus_offsets, mut w.focus_offsets_x)
 		} else {
-			for node in g_focus_navigation.nodes {
+			for node in w.navigation.nodes {
 				if node.el.kind == .scroll {
 					x, y := scroll_mode_offset(node.el.scroll_mode, scroll_state_offset_x(scroll_view_state_id(node.el, node.path)), scroll_state_offset(scroll_view_state_id(node.el, node.path)))
 					w.focus_offsets[node.path] = y
@@ -30,66 +30,66 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ?&& !ui2_docu
 				}
 			}
 		}
-		g_focus_navigation.update_mounted_axes(g_focus_navigation.root, w.focus_offsets, w.focus_offsets_x, w.bounds(), ContentTransform{ y: menu_bar_height() })
+		w.navigation.update_mounted_axes(w.navigation.root, w.focus_offsets, w.focus_offsets_x, w.bounds(), ContentTransform{ y: menu_bar_height() })
 		w.sync_mounted_scroll_views()
 	}
 
 	fn (mut w Window) update_custom_focus_tree(root Element) {
-		previous := g_focused_field
+		previous := w.focused_field
 		previous_scopes := if w.overlay_focus.stack.len == 0 && w.overlay_tree.focus_layer() != none {
-			g_focus_navigation.scopes.clone()
+			w.navigation.scopes.clone()
 		} else {
 			[]FocusScopeEntry{}
 		}
-		g_focus_navigation.set_root(root)
-		g_focus_navigation.current = g_focused_field
+		w.navigation.set_root(root)
+		w.navigation.current = w.focused_field
 		w.sync_focus_navigation()
-		w.overlay_focus.sync(mut g_focus_navigation, w.overlay_tree, previous, previous_scopes)
-		g_focused_field = g_focus_navigation.current
-		if g_touch.down && g_touch.pointer_captured {
-			captured := g_touch.pointer_target
-			if node := g_focus_navigation.node(captured.id) {
+		w.overlay_focus.sync(mut w.navigation, w.overlay_tree, previous, previous_scopes)
+		w.focused_field = w.navigation.current
+		if w.touch.down && w.touch.pointer_captured {
+			captured := w.touch.pointer_target
+			if node := w.navigation.node(captured.id) {
 				if !node.enabled || node.hidden { w.cancel_touch() }
-			} else if node := g_focus_navigation.path_node(captured.identity) {
+			} else if node := w.navigation.path_node(captured.identity) {
 				if !node.enabled || node.hidden { w.cancel_touch() }
 			}
 		}
-		if w.composition.field_id.len > 0 && w.composition.field_id != g_focused_field {
+		if w.composition.field_id.len > 0 && w.composition.field_id != w.focused_field {
 			w.composition = TextComposition{}
 		}
-		if g_focused_field.len > 0 && g_focused_field != previous {
-			w.reveal_custom_focus(g_focused_field)
+		if w.focused_field.len > 0 && w.focused_field != previous {
+			w.reveal_custom_focus(w.focused_field)
 		}
 	}
 
 	fn (mut w Window) reveal_custom_focus(id string) {
 		dispatch := w.custom_input_dispatch()
 		ctx := dispatch.window.ctx
-		root := g_focus_navigation.root_revision
-		if !custom_scroll_dispatch_current(dispatch, ctx, root) { return }
-		for request in g_focus_navigation.reveals(id) {
-			pane := g_focus_navigation.path_node(request.path) or { continue }
+		root := w.navigation.root_revision
+		if !w.custom_scroll_dispatch_current(dispatch, ctx, root) { return }
+		for request in w.navigation.reveals(id) {
+			pane := w.navigation.path_node(request.path) or { continue }
 			state_id := scroll_view_state_id(pane.el, pane.path)
 			g_pending_scroll.delete(state_id)
 			g_pending_scroll_x.delete(state_id)
 			before := scroll_state_offset(state_id)
 			next := focus_reveal_offset(before, pane.el.frame.height, request.rect)
 			w.set_scroll_offset(state_id, next, scroll_maximum(state_id))
-			if !custom_scroll_dispatch_current(dispatch, ctx, root) || g_focused_field != id {
+			if !w.custom_scroll_dispatch_current(dispatch, ctx, root) || w.focused_field != id {
 				return
 			}
 			before_x := scroll_state_offset_x(state_id)
 			next_x := focus_reveal_offset(before_x, pane.el.frame.width, rect(request.rect.y, request.rect.x, request.rect.height, request.rect.width))
 			w.set_scroll_offset_x(state_id, next_x, scroll_maximum_x(state_id))
-			if !custom_scroll_dispatch_current(dispatch, ctx, root) || g_focused_field != id {
+			if !w.custom_scroll_dispatch_current(dispatch, ctx, root) || w.focused_field != id {
 				return
 			}
 		}
 		w.sync_focus_navigation()
 	}
 
-	fn mounted_menu_options(el Element, path string) []string {
-		if node := g_focus_navigation.path_node(path) {
+	fn (mut w Window) mounted_menu_options(el Element, path string) []string {
+		if node := w.navigation.path_node(path) {
 			if node.el.menu == el.menu { return node.menu_options_snapshot() }
 		}
 		return element_menu_options(el)
@@ -136,8 +136,8 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ?&& !ui2_docu
 	fn (mut w Window) activate_semantic_control(id string, action SemanticAction) bool {
 		dispatch := w.custom_input_dispatch()
 		if !dispatch.valid() { return false }
-		node := g_focus_navigation.node(id) or { return false }
-		if node.hidden || !node.enabled || !g_focus_navigation.in_scope(node) { return false }
+		node := w.navigation.node(id) or { return false }
+		if node.hidden || !node.enabled || !w.navigation.in_scope(node) { return false }
 		target := w.custom_focus_target(node)
 		if action in [.increment, .decrement] && node.el.kind == .slider {
 			spec := slider_spec(node.el)
@@ -171,7 +171,7 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ?&& !ui2_docu
 	fn (mut w Window) live_semantic_nodes(nodes []SemanticNode) []SemanticNode {
 		mut result := []SemanticNode{cap: nodes.len}
 		for node in nodes {
-			el := g_focus_navigation.node(node.id) or {
+			el := w.navigation.node(node.id) or {
 				result << node
 				continue
 			}

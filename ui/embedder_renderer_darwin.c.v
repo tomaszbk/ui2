@@ -106,7 +106,7 @@ $if macos && ui2_embedder ? && !ui2_headless ? && !ui2_document_library ? {
 	fn (mut w Window) cleanup_embedder_window() {
 		if w.ctx == unsafe { nil } { return }
 		mut drawing := w.ctx
-		on_cleanup(w)
+		on_cleanup(mut w)
 		drawing.destroy()
 		discard_custom_window_state(w.window_state)
 		w.composition = TextComposition{}
@@ -122,7 +122,7 @@ $if macos && ui2_embedder ? && !ui2_headless ? && !ui2_document_library ? {
 			activate_custom_window_state(previous_state)
 		}
 		w.cancel_touch()
-		reset_custom_keyboard()
+		w.reset_custom_keyboard()
 		w.scheduler.close()
 		w.cleanup_pending = true
 		if w.callback_depth == 0 { w.cleanup_embedder_window() }
@@ -244,7 +244,7 @@ $if macos && ui2_embedder ? && !ui2_headless ? && !ui2_document_library ? {
 			w.sync_embedder_text()
 			return false
 		} else if event.typ == .char {
-			if g_focused_field.len > 0 && !w.editable_fields[g_focused_field] { return false }
+			if w.focused_field.len > 0 && !w.editable_fields[w.focused_field] { return false }
 			dispatch := w.custom_character_input(event.char_code)
 			if dispatch.valid() { w.sync_embedder_text() }
 			return false
@@ -259,7 +259,7 @@ $if macos && ui2_embedder ? && !ui2_headless ? && !ui2_document_library ? {
 				w.scheduler.invalidate(.build)
 			}
 		} else {
-			on_event(&event, w)
+			on_event(&event, mut w)
 		}
 		if dispatch_context.valid() { w.sync_embedder_text() }
 		return false
@@ -275,10 +275,10 @@ $if macos && ui2_embedder ? && !ui2_headless ? && !ui2_document_library ? {
 			activate_custom_window_state(previous_state)
 		}
 		dispatch := w.begin_custom_input_dispatch()
-		id := g_focused_field
+		id := w.focused_field
 		// NSTextInputClient text/IME deliveries have their own provenance and
 		// must never inherit a pending Sokol character from a physical key.
-		g_custom_keyboard.pending = .invalid
+		w.keyboard.pending = .invalid
 		if id.len == 0 || id !in g_active_fields || !w.editable_fields[id] { return }
 		mut editor := g_text_editors[id] or { text_editor((g_text_values[id] or { '' }).clone()) }
 		value := if native.text == unsafe { nil } { '' } else { unsafe { cstring_to_vstring(native.text) } }
@@ -308,7 +308,7 @@ $if macos && ui2_embedder ? && !ui2_headless ? && !ui2_document_library ? {
 	}
 
 	fn (mut w Window) sync_embedder_text() {
-		id := g_focused_field
+		id := w.focused_field
 		editor := g_text_editors[id] or { TextEditor{} }
 		display := w.custom_composition_editor(id, editor)
 		start, end := display.selection.ordered()
