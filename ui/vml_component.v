@@ -617,6 +617,12 @@ pub fn (mut component CompiledVmlComponent) mount() ! {
 	}
 }
 
+fn (component &CompiledVmlComponent) has_mount_hooks() bool {
+	if component.mount_order.len > 0 { return true }
+	for _, child in component.children { if child.has_mount_hooks() { return true } }
+	return false
+}
+
 fn (component &CompiledVmlComponent) has_mounted_nodes() bool {
 	if component.is_disposed() { return false }
 	for _, node in component.nodes { if node.mounted && !node.is_fragment { return true } }

@@ -245,6 +245,7 @@ struct VmlRunnerFixture {
 mut:
 	builds  int
 	updates int
+	reads   int
 	text    string
 	owner   &CompiledVmlComponent = unsafe { nil }
 }
@@ -257,9 +258,17 @@ fn component_runner_build(mut model VmlRunnerFixture) Element {
 	mut node := owner.element(Element{ kind: .label, id: 'caption' }) or { panic(err) }
 	node.effect('text', fn [owner, mut model] (element Element) !Element {
 		owner.watch_app()!
+		model.reads++
 		return Element{ ...element, text: model.text }
 	}) or { panic(err) }
 	return node.element()
+}
+
+fn mount_hook_runner_build(mut model VmlRunnerFixture) Element {
+	mut root := component_runner_build(mut model)
+	mut owner := model.owner
+	owner.on_mount('load', fn [mut model] () ! { model.text = 'mounted' }) or { panic(err) }
+	return root
 }
 
 fn ordinary_runner_build(mut model VmlRunnerFixture) Element {
@@ -282,8 +291,11 @@ fn test_runner_retains_component_builder_and_invalidates_external_app_reads() ! 
 	}
 	runtime.controller = voidptr(controller)
 	assert compiled_vml_controller_build[VmlRunnerFixture]().text == 'before'
+	// The document built by this call has already read the model.
+	assert model.reads == 1
 	model.text = 'after'
 	assert compiled_vml_controller_build[VmlRunnerFixture]().text == 'after'
+	assert model.reads == 2
 	assert controller.model.builds == 1
 	dispose_compiled_vml()
 	assert controller.model.owner.runtime.stats() == SignalStats{}
@@ -296,6 +308,25 @@ fn test_runner_retains_component_builder_and_invalidates_external_app_reads() ! 
 	ordinary.model.text = 'new'
 	assert compiled_vml_controller_build[VmlRunnerFixture]().text == 'new'
 	assert ordinary.model.builds == 2
+}
+
+fn test_runner_first_build_observes_model_changes_from_mount_hooks() ! {
+	mut runtime := compiled_vml_runtime()
+	previous := runtime.controller
+	previous_root := runtime.root
+	defer {
+		runtime.controller = previous
+		runtime.root = previous_root
+	}
+	mut model := &VmlRunnerFixture{ text: 'before' }
+	mut controller := &CompiledVmlController[VmlRunnerFixture]{
+		build: mount_hook_runner_build
+		model: model
+	}
+	runtime.controller = voidptr(controller)
+	assert compiled_vml_controller_build[VmlRunnerFixture]().text == 'mounted'
+	dispose_compiled_vml()
+	assert controller.model.owner.runtime.stats() == SignalStats{}
 }
 
 fn test_compiled_callbacks_accept_void_signatures_and_absent_listener() {
