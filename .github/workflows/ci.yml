@@ -156,6 +156,12 @@ jobs:
         if: runner.os == 'Linux' || matrix.custom
         run: v ${{ matrix.compiler_flags }} ${{ matrix.custom && '-d ui2_custom_rendering' || '' }} test ui2/tests/compiled_vml
 
+      # Language fixtures moved from the compiler: sibling_scope_test.v builds one
+      # application per layout case and runs locally only.
+      - name: Test compiled VML examples
+        if: runner.os == 'Linux'
+        run: v ${{ matrix.compiler_flags }} test ui2/tests/vml_examples/vml_component_aliases ui2/tests/vml_examples/vml_computed_app ui2/tests/vml_examples/vml_initializers ui2/tests/vml_examples/vml_key_locations ui2/tests/vml_examples/vml_motion ui2/tests/vml_examples/vml_run_styles ui2/tests/vml_examples/vml_switch_events ui2/tests/vml_examples/vml_visual/visual_test.v ui2/tests/vml_examples/vml_visual/combined_callbacks_test.v ui2/tests/vml_examples/vml_visual/final_composition_test.v ui2/tests/vml_examples/vml_visual/diagnostics_test.v
+
       - name: Test typed styles, theme tokens and retained updates
         if: runner.os == 'Linux' || matrix.custom
         run: |

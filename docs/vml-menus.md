@@ -1,7 +1,8 @@
 # Menus in compiled VML
 
-A standalone Menu or MenuBar document compiles to `[]ui2.Menu`. Attach explicit
-callbacks and install the result with `set_menu_bar`:
+A standalone Menu or MenuBar document builds a `ui2.Element` like any other
+document; `ui2.menus(el)` returns its `[]ui2.Menu`. Attach explicit callbacks and
+install the result with `set_menu_bar`:
 
 ```v okfmt
 fn file_new(event ui2.ElementEvent) {
@@ -9,7 +10,7 @@ fn file_new(event ui2.ElementEvent) {
 }
 
 fn menus() []ui2.Menu {
-	return $vml('menus.vml')
+	return ui2.menus($vml('menus.vml')) or { panic(err) }
 }
 ```
 

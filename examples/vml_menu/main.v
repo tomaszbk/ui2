@@ -42,5 +42,5 @@ fn build_menus() []ui2.Menu {
 	callback_export_pdf := callbacks['export_pdf'] or { panic('missing export_pdf callback') }
 	callback_export_png := callbacks['export_png'] or { panic('missing export_png callback') }
 	callback_word_wrap := callbacks['word_wrap'] or { panic('missing word_wrap callback') }
-	return $vml('menus.vml')
+	return ui2.menus($vml('menus.vml')) or { panic(err) }
 }
