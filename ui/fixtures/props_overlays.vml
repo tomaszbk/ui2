@@ -1,0 +1,32 @@
+View(id: "document", width: 500, height: 400) {
+    Button(id: "anchor", width: 80, height: 30, text: "Open")
+    View(id: "owner_view", width: 50, height: 20)
+    Dialog(id: "dialog", width: 320, height: 180, open: app.open, on_dismiss: app.hit("dismiss"), on_open: app.hit("open")) {
+        Column {
+            Label(text: "in dialog", width: 100, height: 20)
+        }
+    }
+    Dialog(open: true, owner: "owner_view", initial_focus: "anchor", dismiss_on_escape: false, dismiss_on_outside: false, backdrop: app.backdrop, backdrop_opacity: 0.5, width: 100, height: 50) {
+        View()
+    }
+    Popover(id: "pop", anchor: "anchor", placement: top, gap: 10, margin: 4, width: 100, height: 60, open: app.open) {
+        Label(text: "pop")
+    }
+    MenuOverlay(id: "menu_overlay", anchor: "anchor", placement: right_start, width: 120, height: 80) {
+        Button(text: "Item")
+    }
+    ContextMenu(id: "context", width: 160, height: 100, anchor: "anchor", point: app.point, open: app.context_open) {
+        Button(id: "context_action", text: "Action", width: 140, height: 30)
+    }
+    Tooltip(id: "help", width: 120, height: 40, anchor: "anchor", open: false, tooltip_delay: 0.25, accessibility_role: "note") {
+        Label(text: "Help")
+    }
+    View(id: "with_overlay", overlay: app.overlay, width: 40, height: 40, on_dismiss: app.hit("view dismiss"))
+    View(id: "with_menu", width: 40, height: 40) {
+        MenuItem(id: "copy", text: "Copy", on_click: app.hit("copy"))
+        MenuItem(text: "Paste")
+    }
+    Label(id: "label_menu", text: "menu", width: 40, height: 20) {
+        MenuItem(id: "cut", text: "Cut", on_click: app.hit("cut"))
+    }
+}

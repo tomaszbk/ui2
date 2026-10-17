@@ -1,0 +1,78 @@
+Screen(id: "root") {
+    Absolute(id: "abs") {
+        Accordion(id: "acc", x: 0, y: 0, width: 300, height: 200, current: app.tab, style: [background(#FFFFFF), radius(4)]) {
+            AccordionItem(id: "a1", title: "One", on_select: app.hit("a1")) {
+                Label(text: "first", width: 100, height: 20)
+            }
+            AccordionItem(title: "Two", enabled: false) {
+                View()
+            }
+        }
+        Accordion(id: "acc2", x: 0, y: 210, width: 300, height: 200, current: app.current, orientation: vertical, min_space: 30, title_background: #111111, active_title_background: #222222, title_color: #333333, active_title_color: #444444, title_font_size: 12, title_corner_radius: 2) {
+            AccordionItem(id: "b1", title: "B1") {
+                Absolute {
+                    View(x: 5, y: 5, width: 20, height: 20)
+                }
+            }
+            AccordionItem(id: "b2", title: "B2") {
+                View()
+            }
+        }
+        TabbedPanel(id: "tabs", x: 310, y: 0, width: 300, height: 200, current: app.tab, style: [background(#FFFFFF)]) {
+            Tab(id: "t1", text: "First", on_select: app.hit("t1")) {
+                Label(text: "tab one", width: 100, height: 20)
+            }
+            Tab(id: "t2", text: "Second") {
+                View()
+            }
+        }
+        TabbedPanel(id: "tabs2", x: 310, y: 210, width: 300, height: 200, current_tab: app.current, tab_pos: left_top, tab_height: 30, tab_width: 80, tab_background: #111111, active_tab_background: #222222, tab_color: #333333, active_tab_color: #444444, tab_font_size: 12, tab_corner_radius: 2) {
+            Tab(text: "A") {
+                View()
+            }
+            Tab(text: "B", enabled: false) {
+                View()
+            }
+        }
+        Carousel(id: "car", x: 620, y: 0, width: 200, height: 100) {
+            CarouselSlide(id: "s1") {
+                Label(text: "slide 1", width: 80, height: 20)
+            }
+            CarouselSlide {
+                View()
+            }
+        }
+        Carousel(id: "car2", x: 620, y: 110, width: 200, height: 100, index: app.current, direction: left, loop: true, min_move: 0.3, ignore_perpendicular_swipes: true) {
+            CarouselSlide {
+                View()
+            }
+            CarouselSlide {
+                View()
+            }
+        }
+        ScreenManager(id: "screens", x: 620, y: 220, width: 200, height: 100, current: app.screen, style: [background(#FFFFFF)]) {
+            Screen(id: "home") {
+                Label(text: "home", width: 80, height: 20)
+            }
+            Screen(id: "named", name: "settings", style: [background(#EFF6FF)]) {
+                View()
+            }
+            ManagedScreen(name: "managed") {
+                View()
+            }
+            ScreenView(id: "sv") {
+                View()
+            }
+        }
+        TreeView(id: "tree", x: 0, y: 420, width: 300, height: 200) {
+            TreeNode(id: "n1", text: "Docs", expanded: true, on_toggle: app.hit("toggle")) {
+                TreeNode(id: "n11", title: "Intro", selected: true, on_select: app.hit("select"))
+                TreeNode(text: "Other", enabled: false)
+            }
+            TreeNode(id: "n2", text: app.count)
+        }
+        TreeView(id: "tree2", x: 310, y: 420, width: 300, height: 200, row_height: 30, spacing: 4, indent: 20, disclosure_width: 24, row_background: #111111, row_corner_radius: 2, selected_background: #222222, disclosure_background: #333333, selected_color: #444444, disclosure_color: #555555, style: [foreground(#666666), font_size(13)]) {
+            TreeNode(id: "m1", text: "M1")
+        }
+    }
+}

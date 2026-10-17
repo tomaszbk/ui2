@@ -1,0 +1,60 @@
+Screen(id: "root") {
+    Absolute(id: "abs") {
+        View(id: "all", key: "all-key", x: 4, y: 6, width: 100, height: 50,
+            button_behavior: true, secure: true, clickable: true, draggable: true, long_press: true, swipe_left: true,
+            rotation: 15, opacity: 0.5, motion: app.motion, translate_x: 2, translate_y: 3, scale_x: 1.5, scale_y: 0.5,
+            origin_x: 10, origin_y: 20, cursor: "pointer", tooltip: "tip", hidden: false, enabled: false,
+            accessibility_role: "button", accessibility_label: "All", accessibility_value: "v", native: true, autocorrect: false,
+            on_click: app.hit("click"), on_change: app.hit("change"), on_scroll: app.hit("scroll"),
+            on_pointer_down: app.hit("down"), on_pointer_drag: app.hit("drag"), on_pointer_up: app.hit("up"),
+            on_long_press: app.hit("long"), on_swipe_left: app.hit("swipe"), on_link: app.hit("link"),
+            on_open: app.hit("open"), on_dismiss: app.hit("dismiss"),
+            style: [background(#FF0000), radius(4)])
+        Label(id: "common_label", x: 0, y: 60, width: 80, height: 20, text: "L", opacity: 0.8, tooltip: "label tip", hidden: true, accessibility_label: "Lbl", key: app.name)
+        Slider(id: "common_slider", x: 0, y: 90, width: 120, height: 30, value: 3, enabled: false, clickable: true, accessibility_value: "3", cursor: "grab", rotation: 5)
+        Switch(id: "common_switch", x: 130, y: 90, width: 60, height: 30, button_behavior: true, secure: true, accessibility_role: "toggle")
+        ToggleButton(id: "common_toggle", key: "toggle-key", x: 0, y: 130, width: 80, height: 30, text: "T", button_behavior: false, native: true, enabled: false, accessibility_role: "switch", opacity: 0.9, on_click: app.hit("toggle click"))
+        TextInput(id: "pw", x: 0, y: 170, width: 120, height: 30, password: true)
+        TextInput(id: "sec", x: 130, y: 170, width: 120, height: 30, secure: true, autocorrect: false, accessibility_label: "Secret")
+        Accordion(id: "common_acc", x: 0, y: 210, width: 200, height: 100, hidden: false, opacity: 0.7, tooltip: "acc", accessibility_label: "Acc", clickable: true, on_click: app.hit("acc click")) {
+            AccordionItem(title: "x") {
+                View()
+            }
+        }
+        ProgressBar(id: "common_progress", x: 210, y: 210, width: 100, height: 10, value: 10, tooltip: "p", enabled: false, accessibility_label: "Progress")
+        Spinner(id: "common_spinner", x: 210, y: 230, width: 100, height: 30, opacity: 0.6, on_click: app.hit("spin click")) {
+            Option(text: "a")
+        }
+        MessageBox(id: "common_msg", x: 210, y: 270, width: 200, height: 100, accessibility_role: "alertdialog", tooltip: "m") {
+            Button(text: "OK", on_click: app.hit("common ok"))
+        }
+        Image(id: "common_image", x: 320, y: 0, width: 20, height: 20, source: "a.png", accessibility_label: "Img", draggable: true)
+        Checkbox(id: "common_check", x: 320, y: 30, width: 80, height: 20, text: "C", accessibility_role: "switch", accessibility_value: "on")
+        Button(x: 320, y: 60, width: 80, height: 20, text: app.name, bind.checked: app.agree)
+        Scroll(id: "common_scroll", x: 320, y: 90, width: 80, height: 40, on_scroll: app.hit("scrolled"), opacity: 0.5) {
+            View(width: 10, height: 100)
+        }
+        TreeView(id: "common_tree", x: 320, y: 140, width: 100, height: 60, enabled: false, tooltip: "tree") {
+            TreeNode(text: "n")
+        }
+        TabbedPanel(id: "common_tabs", x: 0, y: 320, width: 200, height: 100, accessibility_role: "tablist", rotation: 1) {
+            Tab(text: "a", tooltip: "tab tip", opacity: 0.5) {
+                View()
+            }
+        }
+        Carousel(id: "common_carousel", x: 210, y: 380, width: 100, height: 40, cursor: "move", swipe_left: false) {
+            CarouselSlide(opacity: 0.4) {
+                View()
+            }
+        }
+        Stack(id: "common_stack", x: 320, y: 210, width: 80, height: 40, opacity: 0.3, on_click: app.hit("stack")) {
+            View(width: 10, height: 10)
+        }
+        Grid(id: "common_grid", x: 320, y: 260, width: 80, height: 40, columns: 2, tooltip: "grid", on_click: app.hit("grid")) {
+            View()
+        }
+        Row(id: "common_row", x: 320, y: 310, width: 80, height: 30, hidden: true, on_click: app.hit("row")) {
+            View()
+        }
+    }
+}
