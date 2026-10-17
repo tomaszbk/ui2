@@ -69,29 +69,4 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? {
 		assert !work.build && work.reasons == RenderReason.paint
 		app.scheduler.finish_frame(work)
 	}
-
-	fn test_animation_frame_reconciles_retained_geometry_and_paint() {
-		previous_app := g_gg_app
-		previous_animations := g_animation_runtime
-		defer {
-			g_gg_app = previous_app
-			g_animation_runtime = previous_animations
-		}
-		g_animation_runtime = &AnimationRuntime{}
-		mut app := &GgApp{ scheduler: new_frame_coordinator() }
-		g_gg_app = app
-		app.declared_root = screen(0xffffff, [view('tile', rect(0, 0, 40, 30), BoxStyle{}, [])])
-		first := app.scheduler.begin_frame(0) or { panic('no initial frame') }
-		_ = resolve_custom_layout(mut app, first, incremental_runtime_measure, take_custom_layout_patches(mut app))!
-		app.scheduler.finish_frame(first)
-		start_widget_animation_at('tile', animation(AnimationConfig{ duration: 1, width: 80, background: u32(0x123456) }), animation_now_ms() - 2_000, false)
-		app.scheduler.set_animation_active(true)
-		work := app.scheduler.begin_frame(1) or { panic('no animation frame') }
-		assert work.build && work.reasons == RenderReason.animation
-		root := resolve_custom_layout(mut app, work, incremental_runtime_measure, take_custom_layout_patches(mut app))!
-		app.scheduler.finish_frame(work)
-		assert root.children[0].frame.width == 80
-		assert root.children[0].box.bg == 0x123456
-		assert root.children[0].layout_input or { Rect{} } == rect(0, 0, 80, 30)
-	}
 }

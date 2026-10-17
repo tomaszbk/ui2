@@ -31,7 +31,7 @@ const gallery = &Gallery{
 }
 
 fn (mut app Gallery) push(n ui2.Notification) {
-	app.notes.schedule(gallery_toasts, app.notes.push(ui2.Notification{
+	app.notes.schedule(app.notes.push(ui2.Notification{
 		...n
 		placement: if n.placement == .inherit { app.placement } else { n.placement }
 	}))
@@ -319,7 +319,7 @@ fn push_demo(mut app Gallery, name string) {
 			app.uploading = !app.uploading
 		}
 		'clear' {
-			app.notes.schedule(gallery_toasts, app.notes.clear())
+			app.notes.schedule(app.notes.clear())
 		}
 		else {}
 	}
@@ -341,7 +341,7 @@ fn answer_notification(event ui2.NotificationEvent) {
 			}
 			else {}
 		}
-		app.notes.schedule(gallery_toasts, app.notes.respond(event))
+		app.notes.schedule(app.notes.respond(event))
 	})
 }
 
@@ -378,6 +378,6 @@ fn main() {
 		duration:  8
 		placement: .bottom_right
 	)
-	app.notes.schedule(gallery_toasts, app.notes.settle())
+	app.notes.schedule(app.notes.settle())
 	ui2.run_window('GPUI Kit notifications', 900, 640, build)
 }

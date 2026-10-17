@@ -21,7 +21,7 @@ fn test_embedder_uses_presentation_cadence_and_suspends_visual_deadlines() {
 	mut scheduler := new_frame_coordinator()
 	first := scheduler.begin_frame(100) or { panic('missing mount') }
 	scheduler.finish_frame(first)
-	scheduler.set_animation_active(true)
+	scheduler.set_motion_active(true)
 	assert scheduler.next_wake(101, 100, 8) == 108
 	scheduler.set_deadline(105)
 	assert scheduler.next_wake(101, 100, 8) == 105

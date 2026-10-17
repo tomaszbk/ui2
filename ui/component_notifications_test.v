@@ -48,9 +48,8 @@ fn test_notification_push_orders_oldest_first_and_replaces_by_key() {
 	replaced := list.push(Notification{ key: 'upload', kind: .success, message: 'uploaded' })
 	assert list.entries().map(it.notification.message) == ['one', 'three', 'uploaded']
 	assert list.entries().last().seq == 4
-	// The old entry's timer is called off and its elements released.
+	// The old entry's timer is called off.
 	assert replaced.any(it.op == .cancel && it.seq == 2 && it.kind == .enter)
-	assert replaced.any(it.op == .release && it.seq == 2)
 	assert notification_only_start(replaced, .enter).seq == 4
 	found := list.find('upload') or { panic('keyed notification missing') }
 	assert found.seq == 4
@@ -97,8 +96,7 @@ fn test_notification_lifecycle_runs_enter_expire_and_remove_timers() {
 	remove := notification_only_start(list.fire(expire), .remove)
 	assert remove.seconds == notification_exit_duration
 	assert list.entries()[0].phase == .leaving
-	done := list.fire(remove)
-	assert done.any(it.op == .release && it.seq == 1)
+	list.fire(remove)
 	assert list.len() == 0
 	assert list.fire(remove).len == 0
 }
@@ -176,7 +174,7 @@ fn test_notification_removing_a_hovered_stack_resumes_the_rest() {
 	remove := notification_only_start(list.dismiss(2), .remove)
 	timers := list.fire(remove)
 	assert !list.is_paused()
-	assert timers.any(it.op == .release && it.seq == 2)
+	assert list.entries().map(it.seq) == [1]
 	assert notification_only_start(timers, .expire).seq == 1
 }
 
@@ -187,11 +185,12 @@ fn test_notification_replacing_keeps_a_hovered_stack_paused() {
 	list.pause(.top_right)
 	timers := list.push(Notification{ key: 'upload', message: 'Uploaded' })
 	assert list.is_paused(), 'replacing the only notification resumed a hovered stack'
-	assert timers.any(it.op == .release && it.seq == 1)
+	assert list.entries().map(it.seq) == [2]
 	// Moving it to another placement leaves the hovered stack empty.
 	moved := list.push(Notification{ key: 'upload', message: 'Moved', placement: .bottom_left })
 	assert !list.is_paused()
-	assert moved.any(it.op == .release && it.seq == 2)
+	assert moved.len > 0
+	assert list.entries().map(it.seq) == [3]
 }
 
 fn test_notification_dismiss_clear_and_zero_durations() {
@@ -222,7 +221,6 @@ fn test_notification_dismiss_clear_and_zero_durations() {
 	assert notification_only_start(timers, .expire).seq == 1
 	gone := instant.dismiss(1)
 	assert gone.any(it.op == .cancel && it.kind == .expire)
-	assert gone.any(it.op == .release)
 	assert instant.len() == 0
 }
 
@@ -529,7 +527,7 @@ fn test_notification_kind_icons_use_symbols_or_a_ring() {
 	}
 }
 
-fn test_notification_leaving_cards_hide_without_animation() {
+fn test_notification_leaving_cards_hide_when_not_animated() {
 	clock := &NotificationTestClock{}
 	mut list := notification_test_list(clock, 10)
 	list.push(Notification{ message: 'a' })
@@ -575,32 +573,53 @@ fn test_notification_entering_block_starts_past_its_edge() {
 	assert side_y == 0
 }
 
-fn test_notification_stacks_start_enter_and_exit_motion() {
+fn test_notification_stacks_slide_cards_in_and_slots_out() {
 	clock := &NotificationTestClock{}
 	mut list := notification_test_list(clock, 10)
 	list.push(Notification{ message: 'animated' })
 	card_id := notification_card_id('motion', 1)
 	slot_id := notification_slot_id('motion', 1)
-	defer {
-		clear_animation(card_id)
-		clear_animation(slot_id)
+	config := NotificationStackConfig{
+		id:    'motion'
+		frame: rect(0, 0, 800, 600)
+		list:  list
 	}
-	notification_stacks(id: 'motion', frame: rect(0, 0, 800, 600), list: list) or { panic(err) }
-	entering := animation_info(card_id)
-	assert entering.status == .running
-	assert entering.animated_properties == ['y']
+	entering := notification_stacks(config) or { panic(err) }
+	card := notification_find_in(entering, card_id) or { panic('no card') }
+	slot := notification_find_in(entering, slot_id) or { panic('no slot') }
+	// Without animate nothing moves.
+	still := notification_stacks(NotificationStackConfig{ ...config, animate: false }) or {
+		panic(err)
+	}
+	assert (notification_find_in(still, card_id) or { panic('no card') }).motion == none
+	if !backend_supports_motion {
+		assert card.motion == none && slot.motion == none
+		return
+	}
+	// The card enters from the stack's edge, along y for a top stack.
+	card_motion := card.motion or { panic('no card motion') }
+	layouts := notification_stack_layouts(config) or { panic(err) }
+	_, in_y := notification_entering_offset(config, layouts[0])
+	assert card_motion.enter == MotionStyle{
+		translate_y: in_y
+	}
+	assert card_motion.enter_transition.duration == notification_seconds(list.enter_duration)
+	assert card_motion.enter_transition.easing == .out_cubic
+	assert slot.translate_x == 0
+	// A leaving slot moves past the right edge of the window with the exit
+	// duration; its card stays where it is in the slot.
 	list.dismiss(1)
-	notification_stacks(id: 'motion', frame: rect(0, 0, 800, 600), list: list) or { panic(err) }
-	leaving := animation_info(slot_id)
-	assert leaving.status == .running
-	assert leaving.animated_properties == ['x']
-	mut released := NotificationList{}
-	released.schedule('motion', [NotificationTimer{
-		op:  .release
-		seq: 1
-	}])
-	assert animation_info(card_id).status == .idle
-	assert animation_info(slot_id).status == .idle
+	leaving := notification_stacks(NotificationStackConfig{ ...config, list: list }) or {
+		panic(err)
+	}
+	moving := notification_find_in(leaving, slot_id) or { panic('no slot') }
+	slot_motion := moving.motion or { panic('no slot motion') }
+	assert slot_motion.transition.duration == notification_seconds(list.exit_duration)
+	assert slot_motion.transition.easing == .in_cubic
+	stack := notification_find_in(leaving, notification_stack_id('motion', .top_right)) or {
+		panic('no stack')
+	}
+	assert stack.frame.x + moving.frame.x + moving.translate_x == 800
 }
 
 fn test_notification_schedule_runs_timers_through_after() {
@@ -608,15 +627,15 @@ fn test_notification_schedule_runs_timers_through_after() {
 		enter_duration: 0.01
 		exit_duration:  0.01
 	}
-	list.schedule('sched', list.push(Notification{ message: 'a', duration: 0.01 }))
+	list.schedule(list.push(Notification{ message: 'a', duration: 0.01 }))
 	assert list.pending_timers() == 1
 	for _ in 0 .. 3 {
 		run_due_timers(time.ticks() + 60_000)
 	}
 	assert list.len() == 0
 	assert list.pending_timers() == 0
-	list.schedule('sched', list.push(Notification{ message: 'b' }))
-	list.schedule('sched', list.dismiss(2))
+	list.schedule(list.push(Notification{ message: 'b' }))
+	list.schedule(list.dismiss(2))
 	assert list.pending_timers() == 1, 'the enter timer was not cancelled'
 	run_due_timers(time.ticks() + 60_000)
 	assert list.len() == 0

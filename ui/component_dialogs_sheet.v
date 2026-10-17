@@ -41,8 +41,9 @@ pub:
 	// and the application rebuilds with it.
 	resizable bool
 	min_size  f64 = 160
-	// animation_duration is the length of sheet_open_animation and
-	// sheet_close_animation, in seconds.
+	// animation_duration is how long, in seconds, the panel slides in as the
+	// sheet opens and out as it closes, while the sheet fades; zero shows and
+	// hides it at once.
 	animation_duration f64           = 0.2
 	enabled            bool          = true
 	size               ComponentSize = .medium
@@ -138,8 +139,7 @@ pub fn sheet_layout(config SheetConfig) !DialogLayout {
 	}
 }
 
-// sheet_panel_id is the id of the sliding panel, the element
-// sheet_open_animation and sheet_close_animation move.
+// sheet_panel_id is the id of the sliding panel.
 pub fn sheet_panel_id(id string) string {
 	return component_part_id(id, 'panel')
 }
@@ -170,12 +170,35 @@ fn sheet_resize_callback(config SheetConfig) ElementCallback {
 	}
 }
 
+// sheet_motion slides the panel in from offset as the sheet opens and back out
+// as it closes; with fade it fades the whole sheet, backdrop included.
+fn sheet_motion(config SheetConfig, enter MotionStyle) ?MotionConfig {
+	if !backend_supports_motion || config.animation_duration <= 0 {
+		return none
+	}
+	return MotionConfig{
+		enter:            enter
+		exit:             enter
+		enter_transition: MotionTransition{
+			duration: config.animation_duration
+			easing:   .out_cubic
+		}
+		exit_transition:  MotionTransition{
+			duration: config.animation_duration
+			easing:   .in_cubic
+		}
+		transition:       MotionTransition{
+			duration: 0
+		}
+	}
+}
+
 // sheet builds a panel that slides over one side of the frame, with a backdrop
 // over the rest: a backdrop button, then a surface button that keeps clicks
 // inside the panel from reaching it, anchored to an edge. It is an ordinary
-// element rather than an overlay, so it slides with sheet_open_animation on
-// every renderer; add it as the last child of the screen. A closed sheet stays
-// in the tree, hidden.
+// element rather than an overlay; add it as the last child of the screen.
+// Opening and closing it slides the panel and fades the sheet (see
+// animation_duration). A closed sheet stays in the tree, hidden.
 pub fn sheet(config SheetConfig) !Element {
 	geom := sheet_layout(config)!
 	on_dialog := dialog_active_callback(config.on_dialog, config.open, config.enabled)
@@ -221,9 +244,20 @@ pub fn sheet(config SheetConfig) !Element {
 			accessibility_role: 'presentation'
 		}
 	}
+	slide := if config.side in [.left, .right] {
+		MotionStyle{
+			translate_x: geom.offscreen.x - geom.surface.x
+		}
+	} else {
+		MotionStyle{
+			translate_y: geom.offscreen.y - geom.surface.y
+		}
+	}
 	children << Element{
 		...view(sheet_panel_id(config.id), geom.surface, sheet_panel_box(config), panel_children)
 		key:                 'panel'
+		hidden:              !config.open
+		motion:              sheet_motion(config, slide)
 		accessibility_role:  'group'
 		accessibility_label: config.title
 	}
@@ -232,6 +266,7 @@ pub fn sheet(config SheetConfig) !Element {
 	return component_finish(Element{
 		...view(config.id, config.frame, BoxStyle{ transparent: true }, children)
 		hidden:              !config.open
+		motion:              sheet_motion(config, MotionStyle{ opacity: 0 })
 		accessibility_role:  'dialog'
 		accessibility_label: config.title
 	})
@@ -272,60 +307,4 @@ pub fn sheet_size_from_pointer(config SheetConfig, pointer ElementEvent) ?f64 {
 		return none
 	}
 	return math.max(math.min(config.min_size, limit), math.min(raw, limit))
-}
-
-// sheet_open_animation slides the panel in from its edge. Rebuild with open set
-// and start it on sheet_panel_id(config.id); when it ends, the panel returns
-// to its declared frame.
-pub fn sheet_open_animation(config SheetConfig) !Animation {
-	geom := sheet_layout(config)!
-	horizontal := config.side in [.left, .right]
-	jump := if horizontal {
-		animation(duration: 0, x: geom.offscreen.x)
-	} else {
-		animation(duration: 0, y: geom.offscreen.y)
-	}
-	slide := if horizontal {
-		animation(
-			duration:   config.animation_duration
-			transition: .out_cubic
-			x:          geom.surface.x
-		)
-	} else {
-		animation(
-			duration:   config.animation_duration
-			transition: .out_cubic
-			y:          geom.surface.y
-		)
-	}
-	return (jump + slide).with_event_handler(dialog_release_animation)
-}
-
-// sheet_close_animation slides the panel back out past its edge, then calls
-// closed, where the application sets open to false. Start it on
-// sheet_panel_id(config.id) instead of closing the sheet directly.
-pub fn sheet_close_animation(config SheetConfig, closed fn ()) !Animation {
-	geom := sheet_layout(config)!
-	slide := if config.side in [.left, .right] {
-		animation(
-			duration:   config.animation_duration
-			transition: .in_cubic
-			x:          geom.offscreen.x
-		)
-	} else {
-		animation(
-			duration:   config.animation_duration
-			transition: .in_cubic
-			y:          geom.offscreen.y
-		)
-	}
-	return slide.with_event_handler(fn [closed] (event AnimationEvent) {
-		if event.kind != .complete {
-			return
-		}
-		if voidptr(closed) != unsafe { nil } {
-			closed()
-		}
-		clear_animation(event.id)
-	})
 }

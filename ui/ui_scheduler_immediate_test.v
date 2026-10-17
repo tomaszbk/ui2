@@ -11,10 +11,27 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? {
 		g_scheduler_element_events << event
 	}
 
-	fn scheduler_immediate_animation_event(event AnimationEvent) {
-		if event.kind == .complete {
-			g_scheduler_immediate_events << 'completed'
+	__global g_scheduler_motion_now = f64(0)
+
+	fn scheduler_motion_clock() f64 {
+		return g_scheduler_motion_now
+	}
+
+	fn scheduler_immediate_motion_event(event MotionEvent) {
+		match event.kind {
+			.complete { g_scheduler_immediate_events << 'completed' }
+			.progress { g_scheduler_immediate_events << 'progress' }
+			else {}
 		}
+	}
+
+	// scheduler_motion_frame runs one frame's layout and motion the way on_frame does.
+	fn scheduler_motion_frame(mut app GgApp, now i64) !FrameWork {
+		work := app.scheduler.begin_frame(now) or { return error('expected a frame at ${now}') }
+		resolve_custom_layout(mut app, work, measure_layout_text, take_custom_layout_patches(mut app))!
+		app.scheduler.set_motion_active(motion_tree_needs_frame(app.declared_root))
+		app.scheduler.finish_frame(work)
+		return work
 	}
 
 	fn scheduler_immediate_finish(mut app GgApp, now i64) FrameWork {
@@ -272,101 +289,92 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? {
 		}
 	}
 
-	fn test_custom_scheduler_completion_callback_requests_final_model_build() {
+	fn test_custom_scheduler_motion_completion_requests_final_model_build() ! {
 		previous_app := g_gg_app
 		previous_events := g_scheduler_immediate_events.clone()
-		runtime := g_animation_runtime
-		runtime.mutex.lock()
-		previous_callback := runtime.refresh_callback
-		previous_drive_frames := runtime.drive_frames
-		runtime.mutex.unlock()
 		defer {
-			reset_widget_animations()
-			configure_animation_driver(previous_callback, previous_drive_frames)
+			g_gg_app.motion_tree.dispose()
 			g_gg_app = previous_app
 			g_scheduler_immediate_events = previous_events.clone()
 		}
-		reset_widget_animations()
-		mut app := &GgApp{ scheduler: new_frame_coordinator() }
-		g_gg_app = app
+		g_scheduler_motion_now = 0
 		g_scheduler_immediate_events = []string{}
-		g_scheduler_element_events = []ElementEvent{}
-		configure_animation_driver(refresh_animation_frame, false)
-		root := screen(0xffffff, [view('animated', rect(0, 0, 40, 40), BoxStyle{}, [])])
-		start_widget_animation_at('animated', animation(AnimationConfig{
-			duration: 1
-			x:        100
-			on_event: scheduler_immediate_animation_event
-		}), 1_000, false)
-		initial := app.scheduler.begin_frame(1_000) or { panic('missing initial frame') }
-		apply_custom_widget_animations_at(root, 1_000)
-		app.scheduler.set_animation_active(custom_animations_need_frame(root))
-		app.scheduler.finish_frame(initial)
-		terminal := app.scheduler.begin_frame(2_000) or { panic('missing terminal frame') }
-		assert terminal.build
-		assert g_scheduler_immediate_events.len == 0
-		apply_custom_widget_animations_at(root, 2_000)
-		assert g_scheduler_immediate_events == ['completed']
-		app.scheduler.set_animation_active(custom_animations_need_frame(root))
-		assert !app.scheduler.stats().animation_active
-		app.scheduler.finish_frame(terminal)
-		// The model changed after the terminal frame's build. Its callback must
-		// request another build even though the animation no longer needs frames.
-		follow_up := app.scheduler.begin_frame(2_001) or { panic('completion lost its model update') }
+		root := screen(0xffffff, [
+			with_motion(view('animated', rect(0, 0, 40, 40), BoxStyle{}, []), MotionConfig{
+				clock:            scheduler_motion_clock
+				enter:            MotionStyle{ translate_x: -100 }
+				enter_transition: MotionTransition{ duration: 1 }
+				on_motion:        scheduler_immediate_motion_event
+			}),
+		])
+		mut app := &GgApp{ scheduler: new_frame_coordinator(), has_root: true, declared_root: root }
+		g_gg_app = app
+		initial := scheduler_motion_frame(mut app, 1_000)!
+		assert initial.build
+		assert app.scheduler.stats().motion_active
+		g_scheduler_motion_now = 1
+		terminal := scheduler_motion_frame(mut app, 2_000)!
+		// The first frame's progress handler asked for a build; the motion itself
+		// did not.
+		assert terminal.reasons.has(.motion) && terminal.reasons.has(.motion_follow_up)
+		assert g_scheduler_immediate_events == ['progress', 'completed']
+		assert !app.scheduler.stats().motion_active
+		// The model changed after the terminal frame's build. Its handler must
+		// request another build even though motion no longer needs frames.
+		follow_up := scheduler_motion_frame(mut app, 2_001)!
 		assert follow_up.build
-		assert follow_up.reasons == RenderReason.animation_follow_up
-		apply_custom_widget_animations_at(root, 2_001)
-		app.scheduler.finish_frame(follow_up)
-		assert g_scheduler_immediate_events == ['completed']
+		assert follow_up.reasons == RenderReason.motion_follow_up
+		assert g_scheduler_immediate_events == ['progress', 'completed']
 		if _ := app.scheduler.begin_frame(2_002) {
-			assert false, 'completion callback follow-up must return to idle'
+			assert false, 'completion follow-up must return to idle'
 		}
 	}
 
-	fn test_custom_scheduler_hidden_repeating_callbacks_cannot_keep_drawing() {
+	fn test_custom_scheduler_hidden_looping_timelines_cannot_keep_drawing() ! {
 		previous_app := g_gg_app
 		previous_events := g_scheduler_immediate_events.clone()
-		runtime := g_animation_runtime
-		runtime.mutex.lock()
-		previous_callback := runtime.refresh_callback
-		previous_drive_frames := runtime.drive_frames
-		runtime.mutex.unlock()
 		defer {
-			reset_widget_animations()
-			configure_animation_driver(previous_callback, previous_drive_frames)
+			g_gg_app.motion_tree.dispose()
 			g_gg_app = previous_app
 			g_scheduler_immediate_events = previous_events.clone()
 		}
-		reset_widget_animations()
-		mut app := &GgApp{ scheduler: new_frame_coordinator() }
-		g_gg_app = app
+		g_scheduler_motion_now = 0
 		g_scheduler_immediate_events = []string{}
-		g_scheduler_element_events = []ElementEvent{}
-		configure_animation_driver(refresh_animation_frame, false)
-		root := screen(0xffffff, [view('animated', rect(0, 0, 40, 40), BoxStyle{}, [])])
-		start_widget_animation_at('animated', animation(AnimationConfig{
-			duration: 1
-			x:        100
-			repeat:   true
-			on_event: scheduler_immediate_animation_event
-		}), 1_000, false)
-		initial := app.scheduler.begin_frame(1_500) or { panic('missing initial frame') }
-		apply_custom_widget_animations_at(root, 1_500)
-		assert animation_info('animated').progress == 0.5
-		app.scheduler.finish_frame(initial)
-		hidden := Element{ ...root, hidden: true }
-		hiding := app.scheduler.begin_frame(1_750) or { panic('missing callback follow-up') }
-		apply_custom_widget_animations_at(hidden, 1_750)
-		app.scheduler.set_animation_active(custom_animations_need_frame(hidden))
-		app.scheduler.finish_frame(hiding)
-		assert animation_info('animated').status == .running
-		assert animation_info('animated').progress == 0.5
-		if _ := app.scheduler.begin_frame(1_900) {
-			assert false, 'hidden progress callbacks must not invalidate forever'
+		pulse := with_motion(view('animated', rect(0, 0, 40, 40), BoxStyle{}, []), MotionConfig{
+			clock:     scheduler_motion_clock
+			enter:     MotionStyle{}
+			timeline:  motion_keyframes(1, MotionKeyframe{ at: 0.5, style: MotionStyle{ opacity: 0 } },
+				MotionKeyframe{ at: 1, style: MotionStyle{ opacity: 1 } }).looped()
+			on_motion: scheduler_immediate_motion_event
+		})
+		root := screen(0xffffff, [pulse])
+		mut app := &GgApp{ scheduler: new_frame_coordinator(), has_root: true, declared_root: root }
+		g_gg_app = app
+		scheduler_motion_frame(mut app, 1_000)!
+		g_scheduler_motion_now = 0.25
+		scheduler_motion_frame(mut app, 1_250)!
+		assert app.scheduler.stats().motion_active
+		assert app.declared_root.children[0].presented_opacity() == 0.5
+		app.declared_root = Element{
+			...app.declared_root
+			hidden: true
 		}
-		// Showing the subtree samples the retained timeline again.
-		apply_custom_widget_animations_at(root, 2_750)
-		assert animation_info('animated').progress == 0.75
-		assert custom_animations_need_frame(root)
+		app.declaration_pending = true
+		app.scheduler.invalidate(.build)
+		g_scheduler_motion_now = 0.5
+		scheduler_motion_frame(mut app, 1_500)!
+		assert !app.scheduler.stats().motion_active
+		// Nothing samples the hidden timeline, so no handler asks for a frame.
+		if _ := app.scheduler.begin_frame(1_900) {
+			assert false, 'a hidden looping timeline must not keep drawing'
+		}
+		// Showing the subtree samples the retained timeline where it stands.
+		app.declared_root = root
+		app.declaration_pending = true
+		app.scheduler.invalidate(.build)
+		g_scheduler_motion_now = 1.75
+		scheduler_motion_frame(mut app, 2_750)!
+		assert app.declared_root.children[0].presented_opacity() == 0.5
+		assert app.scheduler.stats().motion_active
 	}
 }

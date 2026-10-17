@@ -66,40 +66,28 @@ fn linear_progress_loading_spans(width f64) []FeedbackSpan {
 	return feedback_compact_spans(spans)
 }
 
-// feedback_width_target is the width the last tween started on id is heading
-// for, so a rebuild with the same value leaves a running transition alone.
-fn feedback_width_target(id string) ?f64 {
-	runtime := g_animation_runtime
-	runtime.mutex.lock()
-	defer {
-		runtime.mutex.unlock()
+// feedback_width_motion eases changes of the indicator's width over duration
+// seconds: layout gives it the new width once and its box grows or shrinks
+// from what is on screen. A zero duration changes the width at once.
+fn feedback_width_motion(indicator Element, duration f64) Element {
+	if !backend_supports_motion || duration <= 0 {
+		return indicator
 	}
-	tween := runtime.runs[id] or { return none }
-	definition := tween.definition
-	if definition.kind != .tween {
-		return none
-	}
-	return definition.targets.width
-}
-
-// feedback_transition_width eases the width of id to target over duration. The
-// first build only records the width; later changes animate from what is on
-// screen. A zero duration releases the element to its declared width.
-fn feedback_transition_width(id string, target f64, duration f64) {
-	current := feedback_width_target(id)
-	if duration <= 0 {
-		if _ := current {
-			clear_animation(id)
+	return with_motion(indicator, MotionConfig{
+		enter:            MotionStyle{}
+		exit:             MotionStyle{}
+		enter_transition: MotionTransition{
+			duration: 0
 		}
-		return
-	}
-	if previous := current {
-		if math.abs(previous - target) > 1e-6 {
-			animation(duration: duration, transition: .out_cubic, width: target).start(id)
+		exit_transition:  MotionTransition{
+			duration: 0
 		}
-		return
-	}
-	animation(duration: 0, width: target).start(id)
+		transition:       MotionTransition{
+			duration: duration
+			easing:   .out_cubic
+		}
+		layout:           .box
+	})
 }
 
 pub fn linear_progress(config LinearProgressConfig) !Element {
@@ -127,29 +115,20 @@ pub fn linear_progress(config LinearProgressConfig) !Element {
 	}
 	mut indicator := Element{}
 	if config.loading {
-		if config.reduce_motion {
-			feedback_clear_parts(config.id, 'loading')
+		if !feedback_animates(config.reduce_motion) {
 			indicator = view('', rect(width * 0.325, 0, width * 0.35, thickness), indicator_box,
 				[]Element{})
 		} else {
-			signature := feedback_signature([width, period], []u32{})
-			part := component_part_id(config.id, 'loading:${signature}')
-			if feedback_should_start(config.id, 'loading', part, false) {
-				component_keep_animating(part, feedback_span_loop(period, linear_progress_loading_spans(width),
-					true))
-			}
-			indicator = view(part, rect(0, 0, 0, thickness), indicator_box, []Element{})
+			part := component_part_id(config.id, 'loading')
+			indicator = feedback_motion(view(part, rect(0, 0, width, thickness), indicator_box,
+				[]Element{}), feedback_span_loop(period, linear_progress_loading_spans(width),
+				0, width, true))
 		}
 	} else {
-		feedback_clear_parts(config.id, 'loading')
 		part := component_part_id(config.id, 'indicator')
 		target := width * percent / 100
-		feedback_transition_width(part, target, if config.reduce_motion {
-			0.0
-		} else {
-			config.transition
-		})
-		indicator = view(part, rect(0, 0, target, thickness), indicator_box, []Element{})
+		indicator = feedback_width_motion(view(part, rect(0, 0, target, thickness), indicator_box,
+			[]Element{}), if config.reduce_motion { 0.0 } else { config.transition })
 	}
 	track_view := view('', rect(0, (config.frame.height - thickness) / 2, width, thickness),
 		BoxStyle{
@@ -280,12 +259,10 @@ pub fn progress_circle(config ProgressCircleConfig) !Element {
 	full := !config.loading && percent >= 100
 	mut parts := feedback_ring_track(diameter, stroke, if full { color } else { track },
 		background)
-	if config.loading && !config.reduce_motion && diameter > 0 {
-		signature := feedback_signature([diameter, stroke, period], []u32{})
-		parts << feedback_ring_loop(config.id, 'loading', signature, diameter, stroke, color,
-			period, .progress)
+	if config.loading && feedback_animates(config.reduce_motion) && diameter > 0 {
+		parts << feedback_ring_loop(config.id, 'loading', diameter, stroke, color, period,
+			.progress)
 	} else {
-		feedback_clear_parts(config.id, 'loading')
 		first, last := if config.loading {
 			progress_circle_lit_turns(25, ring, stroke)
 		} else {

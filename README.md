@@ -45,9 +45,10 @@ caps/joins and shape-based pointer hits. See `examples/vector_canvas`.
 Windows support [typed drag sources, drop targets and previews](docs/drag-drop.md).
 Run `v -b c run examples/drag_drop` to try the interaction.
 
-The renderer supports retained [motion and presence](docs/motion-presence.md):
-entry and exit, fading, animated transforms, reduced motion and controlled clocks.
-Run `v -b c run examples/motion_presence` to try it.
+The renderer supports retained [motion](docs/motion.md): entry and exit,
+transitions of opacity, transforms and paint, layout transitions, keyframe
+timelines, events, handles, reduced motion and controlled clocks. Run
+`v -b c run examples/motion_presence` or `examples/transitions` to try it.
 
 Windows support retained [overlays](docs/overlays.md): Dialog, Popover,
 MenuOverlay, ContextMenu and Tooltip, with controlled open state, focus
@@ -131,73 +132,45 @@ The renderer builds on demand and reuses its tree while idle. See
 [render scheduling](docs/render-scheduling.md) for invalidation, worker delivery,
 window lifecycle and the acceptance fixture.
 
-## Widget animations
+## Motion
 
-Animations target a mounted element by `id` and are applied after each
-declarative build, so they work with both V-built and VML-built trees. The
-renderer requests frames while visible animations run and returns to idle when
-they finish.
-
-```v
-move := ui2.animation(
-	duration: 0.75
-	transition: .in_out_cubic
-	x: 320
-	y: 180
-	rotation: 90
-)
-move.start('tile')
-```
-
-The original shorthand targets are `x`, `y`, `width`, `height`, `rotation`,
-`background`, `corner_radius`, `text_color`, `text_background`, `font_size`,
-and `padding_left`. For any other numeric or color property on `Element` or
-its visual styles, use typed property targets. They accept concise names where
-unambiguous and dotted paths for nested styles:
+Motion is the one animation system: an element's `motion` configuration is
+retained with the element by the renderer, which draws frames only while
+something moves. Compose it from `motion_<name>` pieces, as styles compose from
+`style_<name>` pieces:
 
 ```v
-ui2.animation(
-	duration: 0.3
-	properties: [
-		ui2.animation_number_property('value', 75),
-		ui2.animation_number_property('slider_style.thumb_size', 28),
-		ui2.animation_color_property('slider_style.thumb_color', 0xf97316),
-		ui2.animation_color_property('box.border_color', 0x0ea5e9),
-	]
-).start('volume')
+tile := ui2.with_motion(ui2.view('tile', ui2.rect(app.x, app.y, 82, 82),
+	ui2.BoxStyle{ bg: app.color, radius: 14 }, []ui2.Element{}), ui2.compose_motion([
+	ui2.motion_fade(0.2),
+	ui2.motion_layout(.position), // a new x or y slides there
+	ui2.motion_transition(0.75),
+	ui2.motion_easing(.in_out_cubic), // a new color fades the same way
+	ui2.motion_on(fn [mut app] (event ui2.MotionEvent) {
+		if event.source == .layout && event.kind == .complete {
+			app.status = 'Arrived'
+		}
+	}),
+]))
 ```
 
-This covers numeric geometry, text metrics, slider state and chrome, switch
-colors, borders, and toggle-button selected styles. Use
-`is_animatable_property(name, kind)` to validate a property name before
-constructing an animation. Strings, booleans, enums, child lists, and callback
-fields are deliberately not interpolated. `duration` and `step` use seconds.
-All of Kivy's named linear, sine, quadratic, cubic, quartic, quintic,
-exponential, circular, back, elastic, and bounce transitions are available;
-`transition_fn` accepts a custom `fn (f64) f64` curve.
+Keyframe timelines loop, sequence and run in parallel, on the element or on
+descendants named by id. In VML a `Timeline` part declares one:
 
-Use `+` or `sequence(...)` to run definitions in order and `parallel(...)` to
-run them together:
-
-```v
-there_and_back := ui2.animation(duration: 0.4, x: 320) +
-	ui2.animation(duration: 0.4, x: 20)
-pulse := ui2.parallel(
-	ui2.animation(duration: 0.25, width: 140, height: 140),
-	ui2.animation(duration: 0.25, background: u32(0x60a5fa)),
-)
-
-there_and_back.repeating().start('tile')
-pulse.start('badge')
+```vml
+View(id: "card", motion: app.card_motion()) {
+    Image(id: "logo", width: 48, height: 48, source: "logo.png")
+    Timeline(duration: 1.2, repeat: true) {
+        Keyframe(target: "logo", at: 0.5, opacity: 0.4, scale: 1.1, easing: in_out_sine)
+        Keyframe(target: "logo", at: 1, opacity: 1, scale: 1)
+    }
+}
 ```
 
-`stop_animation` emits a `.complete` callback while `cancel_animation` does
-not; their property-specific and all-widget variants follow the same rule.
-Both retain the values currently on screen, as does natural completion.
-`clear_animation(id)` releases those retained values and returns the element to
-its declaration. Query `animation_info(id)` for status and progress, or attach
-one callback for `.start`, `.progress`, and `.complete` with `on_event` or
-`with_event_handler`.
+`MotionHandle` cancels, finishes or restarts an element's motion, and
+`set_reduced_motion(true)` stills every element for accessibility. See
+[motion](docs/motion.md) for layout modes, easing curves and springs, events
+and the allocation-free frame contract.
 
 ## Compiled VML
 
@@ -503,8 +476,8 @@ banner := ui2.view('banner', ui2.rect(0, 0, w, 120), ui2.BoxStyle{
 - `shadow` draws a drop shadow beneath the box: `color`, `opacity`, `blur`,
   offset `x`/`y` and `spread`, as in CSS `box-shadow`.
 
-All three are animatable through `animation_number_property('box.opacity', ...)`
-and the like.
+A shadow animates with [motion](docs/motion.md), as do the element's opacity and
+fill color.
 
 ## Backend capabilities
 
@@ -657,9 +630,8 @@ toast := ui2.after(4, fn [mut app] () {
 ui2.cancel_timer(toast) // call it off, e.g. when the user dismisses it first
 ```
 
-Callbacks run where widget animation callbacks do, between building the
-declared tree and rendering it, and a refresh is requested so whatever they
-change is drawn next. `timer_pending(id)` reports whether a callback has yet to
+Callbacks run on the UI thread just before the window's next build, so
+whatever they change is in the tree that build declares. `timer_pending(id)` reports whether a callback has yet to
 run. A negative or non-finite delay runs at the next build.
 
 ## Clipboard

@@ -14,14 +14,14 @@ pub enum LoadingSpinnerKind {
 // named loading_spinner because ui2's spinner is a selection control.
 pub struct LoadingSpinnerConfig {
 pub:
-	id    string // Required: the animation runs on its parts.
+	id    string // Required: the motion runs on its parts.
 	frame Rect
 	kind  LoadingSpinnerKind
 	// diameter is centered in frame and limited to it. Zero uses the size
 	// preset: small 14, medium 16, large 24 (GPUI's xsmall is diameter: 12).
 	diameter f64
 	duration f64 = 0.8 // Seconds per revolution; the head eases in and out like GPUI's.
-	// reduce_motion draws the spinner at rest without starting an animation.
+	// reduce_motion draws the spinner at rest without playing a timeline.
 	reduce_motion bool
 	tone          ComponentTone = .neutral
 	color         ?u32 // Defaults to the tone's color; neutral is the muted text color.
@@ -108,48 +108,38 @@ pub fn loading_spinner(config LoadingSpinnerConfig) !Element {
 	background := config.background or { config.theme.background }
 	track := config.track_color or { feedback_track_color(color, background) }
 	period := math.max(config.duration, 0.001)
-	animate := !config.reduce_motion && diameter > 0
-	// Dots fade between colors, so a new color restarts them; the ring only moves
-	// its cells, which take a new color as they are.
-	signature := feedback_signature([diameter, period, f64(int(config.kind))], if config.kind == .dots {
-		[color, track]
-	} else {
-		[]u32{}
-	})
-	if !animate {
-		feedback_clear_parts(config.id, 'spin')
-	}
+	animate := feedback_animates(config.reduce_motion) && diameter > 0
 	mut parts := []Element{}
 	match config.kind {
 		.dots {
-			start := animate && feedback_should_start(config.id, 'spin', component_part_id(config.id,
-				'spin:${signature}:0'), false)
 			dot := math.min(math.max(2.0, diameter * 0.2), diameter)
 			ring := (diameter - dot) / 2
 			for i in 0 .. spinner_dot_count {
 				turn := f64(i) / f64(spinner_dot_count)
 				part := if animate {
-					component_part_id(config.id, 'spin:${signature}:${i}')
+					component_part_id(config.id, 'spin:${i}')
 				} else {
 					''
 				}
-				if start {
-					component_keep_animating(part, feedback_level_loop(period, spinner_dot_keys(turn),
-						track, color, .background, true))
-				}
-				parts << view(part, feedback_ring_cell(diameter / 2, diameter / 2, ring, dot,
+				cell := view(part, feedback_ring_cell(diameter / 2, diameter / 2, ring, dot,
 					turn), BoxStyle{
 					bg:     interpolate_color(track, color, spinner_dot_level(-turn))
 					radius: dot / 2
 				}, []Element{})
+				parts << if animate {
+					feedback_motion(cell, feedback_level_loop(period, spinner_dot_keys(turn),
+						track, color, .background, true))
+				} else {
+					cell
+				}
 			}
 		}
 		.ring {
 			stroke := math.min(math.max(1.5, diameter * 0.12), diameter / 2)
 			parts << feedback_ring_track(diameter, stroke, track, background)
 			if animate {
-				parts << feedback_ring_loop(config.id, 'spin', signature, diameter, stroke, color,
-					period, .spinner)
+				parts << feedback_ring_loop(config.id, 'spin', diameter, stroke, color, period,
+					.spinner)
 			} else {
 				// At rest the arc runs from three o'clock round to twelve.
 				ring := (diameter - stroke) / 2

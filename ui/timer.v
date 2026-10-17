@@ -82,7 +82,7 @@ fn timer_wake_after(delay i64) {
 	if delay > 0 {
 		time.sleep(delay * time.millisecond)
 	}
-	request_animation_refresh(false)
+	wake_window(.build)
 }
 
 // run_due_timers runs, in deadline order, every callback whose time has come

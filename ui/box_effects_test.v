@@ -48,27 +48,6 @@ fn test_box_effects_defaults_change_nothing() {
 	assert box_has_shadow(BoxStyle{ shadow: box_shadow(0, 0.3, 8, 2) })
 }
 
-fn test_box_effects_numbers_are_animatable() {
-	assert is_animatable_property('box.opacity', .number)
-	assert is_animatable_property('box.shadow.opacity', .number)
-	assert is_animatable_property('box.shadow.blur', .number)
-	assert is_animatable_property('box.shadow.color', .color)
-}
-
-fn test_box_effects_animate_through_the_generic_api() {
-	el := view('fade', rect(0, 0, 10, 10), BoxStyle{
-		opacity: 1
-		shadow:  box_shadow(0x000000, 0, 0, 0)
-	}, []Element{})
-	faded := set_number_animation_property(el, 'box.opacity', 0.25)
-	assert faded.box.opacity == 0.25
-	lifted := set_number_animation_property(el, 'box.shadow.blur', 16)
-	assert lifted.box.shadow.blur == 16
-	assert animation_number_property_value(lifted, 'box.shadow.blur') == 16
-	tinted := set_color_animation_property(el, 'box.shadow.color', 0x2563eb)
-	assert animation_color_property_value(tinted, 'box.shadow.color') == 0x2563eb
-}
-
 fn test_zero_lines_reach_the_renderers_as_unlimited() {
 	assert text_line_budget(TextStyle{ lines: 0 }.lines) == text_lines_unlimited
 	assert text_line_budget(TextStyle{}.lines) == 1

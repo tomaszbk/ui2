@@ -40,30 +40,65 @@ fn feedback_test_has_color(el Element, color u32) bool {
 	return false
 }
 
-fn feedback_test_started_at(id string) i64 {
-	runtime := g_animation_runtime
-	runtime.mutex.lock()
-	defer {
-		runtime.mutex.unlock()
+// feedback_test_timeline is the timeline an animated part plays.
+fn feedback_test_timeline(part Element) MotionTimeline {
+	config := part.motion or { panic('${part.id} has no motion') }
+	assert !config.timeline.is_empty(), part.id
+	return config.timeline
+}
+
+// feedback_test_values is what part presents ms milliseconds into its timeline.
+fn feedback_test_values(part Element, ms f64) MotionValues {
+	program := compile_motion_timeline(feedback_test_timeline(part)) or { panic(err) }
+	position := program.locate(ms / 1000)
+	mut channels := motion_channels(element_motion_values(part))
+	program.apply(mut channels, position.time)
+	return channels.values()
+}
+
+// feedback_test_span is the x and width of the box part presents ms
+// milliseconds into its timeline.
+fn feedback_test_span(part Element, ms f64) (f64, f64) {
+	values := feedback_test_values(part, ms)
+	return part.frame.x + values.transform.translate_x, part.frame.width * values.box_scale_x
+}
+
+fn feedback_test_part(root Element, id string) Element {
+	return feedback_test_find(root, id) or { panic('missing part ${id}') }
+}
+
+@[heap]
+struct FeedbackTestClock {
+mut:
+	now f64
+}
+
+// feedback_test_clocked drives part's motion from clock, so a test can mount
+// it on an ElementMotionState and step its time.
+fn feedback_test_clocked(part Element, clock MotionClock) Element {
+	config := part.motion or { panic('${part.id} has no motion') }
+	return Element{
+		...part
+		motion: MotionConfig{
+			...config
+			clock: clock
+		}
 	}
-	tween := runtime.runs[id] or { return -1 }
-	return tween.started_at
 }
 
-// feedback_test_at applies the running animations to root as they stand ms
-// milliseconds after id's animation started.
-fn feedback_test_at(root Element, id string, ms f64) Element {
-	return apply_widget_animations_at(screen(0xffffff, [root]), feedback_test_started_at(id) +
-		i64(ms))
+fn feedback_test_mount(part Element) &ElementMotionState {
+	mut state := new_element_motion_state(part) or { panic(err) }
+	state.mount() or { panic(err) }
+	return state
 }
 
-// Children stay inside their parent, except parts a loop has moved out of sight.
+// Children stay inside their parent and every motion is valid.
 fn feedback_assert_local_geometry(el Element) {
 	component_validate_frame(el.frame) or { panic(err) }
+	if config := el.motion {
+		config.validate() or { panic('${el.id}: ${err}') }
+	}
 	for child in el.children {
-		if child.frame.x <= feedback_hidden_x / 2 {
-			continue
-		}
 		assert child.frame.x >= -1e-6 && child.frame.y >= -1e-6, '${child.id} ${child.frame}'
 		assert child.frame.x + child.frame.width <= el.frame.width + 1e-6, '${child.id} ${child.frame} in ${el.frame}'
 		assert child.frame.y + child.frame.height <= el.frame.height + 1e-6, '${child.id} ${child.frame} in ${el.frame}'
@@ -148,30 +183,63 @@ fn test_linear_progress_geometry_and_accessibility() {
 }
 
 fn test_linear_progress_value_change_eases_from_the_shown_width() {
-	reset_widget_animations()
 	part := component_part_id('upload', 'indicator')
-	first := linear_progress(id: 'upload', frame: rect(0, 0, 200, 8), value: 40) or { panic(err) }
-	assert (feedback_width_target(part) or { -1.0 }) == 80
-	shown := feedback_test_at(first, part, 0)
-	assert (feedback_test_find(shown, part) or { panic('missing part') }).frame.width == 80
-	second := linear_progress(id: 'upload', frame: rect(0, 0, 200, 8), value: 90) or { panic(err) }
-	assert (feedback_width_target(part) or { -1.0 }) == 180
-	start := (feedback_test_find(feedback_test_at(second, part, 0), part) or { panic('missing part') }).frame.width
-	assert math.abs(start - 80) < 1e-6
-	middle := (feedback_test_find(feedback_test_at(second, part, 125), part) or { panic('missing part') }).frame.width
-	assert middle > 80 && middle < 180
-	end := (feedback_test_find(feedback_test_at(second, part, 1000), part) or { panic('missing part') }).frame.width
-	assert end == 180
-	// The same value again leaves the transition alone.
-	started := feedback_test_started_at(part)
-	_ := linear_progress(id: 'upload', frame: rect(0, 0, 200, 8), value: 90) or { panic(err) }
-	assert feedback_test_started_at(part) == started
-	// Without a transition the declared width is used again.
-	_ := linear_progress(id: 'upload', frame: rect(0, 0, 200, 8), value: 10, transition: 0) or {
+	first := feedback_test_part(linear_progress(id: 'upload', frame: rect(0, 0, 200, 8), value: 40) or {
 		panic(err)
+	}, part)
+	assert first.frame.width == 80
+	if !backend_supports_motion {
+		assert first.motion == none
+		return
 	}
-	assert feedback_width_target(part) == none
-	assert animation_info(part).status == .idle
+	config := first.motion or { panic('the indicator has no motion') }
+	assert config.layout == .box
+	assert config.transition.duration == 0.25
+	assert config.transition.easing == .out_cubic
+	assert config.timeline.is_empty()
+	// Layout gives the indicator its new width at once; its box grows from the
+	// width on screen.
+	mut clock := &FeedbackTestClock{}
+	tick := fn [clock] () f64 {
+		return clock.now
+	}
+	mut state := feedback_test_mount(feedback_test_clocked(first, tick))
+	state.observe_layout(first.frame, true)
+	second := feedback_test_part(linear_progress(id: 'upload', frame: rect(0, 0, 200, 8), value: 90) or {
+		panic(err)
+	}, part)
+	assert second.frame.width == 180
+	state.update(feedback_test_clocked(second, tick)) or { panic(err) }
+	state.observe_layout(second.frame, true)
+	assert math.abs(second.frame.width + state.current.layout_offset.width - 80) < 1e-6
+	clock.now = 0.125
+	state.sample() or { panic(err) }
+	middle := second.frame.width + state.current.layout_offset.width
+	assert middle > 80 && middle < 180
+	clock.now = 1
+	state.sample() or { panic(err) }
+	assert state.current.layout_offset == Rect{}
+	assert !state.current.running
+	// The same value again leaves the indicator where it is.
+	state.update(feedback_test_clocked(second, tick)) or { panic(err) }
+	state.observe_layout(second.frame, true)
+	assert !state.current.running
+	// Without a transition the width changes at once.
+	for settings in [LinearProgressConfig{
+		id:         'upload'
+		frame:      rect(0, 0, 200, 8)
+		value:      10
+		transition: 0
+	}, LinearProgressConfig{
+		id:            'upload'
+		frame:         rect(0, 0, 200, 8)
+		value:         10
+		reduce_motion: true
+	}] {
+		plain := feedback_test_part(linear_progress(settings) or { panic(err) }, part)
+		assert plain.frame.width == 20
+		assert plain.motion == none
+	}
 }
 
 fn test_linear_progress_loading_follows_gpui_curve() {
@@ -181,24 +249,6 @@ fn test_linear_progress_loading_follows_gpui_curve() {
 	assert left_half == 0 && right_half == 0.5
 	left1, right1 := linear_progress_loading_span(1)
 	assert left1 == 1 && right1 == 1
-	reset_widget_animations()
-	el := linear_progress(id: 'busy', frame: rect(0, 0, 200, 8), loading: true) or { panic(err) }
-	assert el.accessibility_value == ''
-	parts := feedback_test_ids(el, component_part_id('busy', 'loading:'))
-	assert parts.len == 1
-	info := animation_info(parts[0])
-	assert info.status == .running
-	assert info.repeat
-	assert math.abs(info.duration - 1.0) < 1e-9
-	for ms in [250, 500, 750] {
-		bar := feedback_test_find(feedback_test_at(el, parts[0], ms), parts[0]) or { panic('missing part') }
-		left, right := linear_progress_loading_span(f64(ms) / 1000)
-		assert math.abs(bar.frame.x - left * 200) < 2, '${ms}: ${bar.frame}'
-		assert math.abs(bar.frame.width - (right - left) * 200) < 2, '${ms}: ${bar.frame}'
-	}
-	// Leaving the loading state clears the loop, so nothing keeps redrawing.
-	_ := linear_progress(id: 'busy', frame: rect(0, 0, 200, 8), value: 20) or { panic(err) }
-	assert animation_info(parts[0]).status == .idle
 	still := linear_progress(
 		id:            'busy'
 		frame:         rect(0, 0, 200, 8)
@@ -209,6 +259,37 @@ fn test_linear_progress_loading_follows_gpui_curve() {
 	}
 	assert still.children[0].children[0].frame == rect(65, 0, 70, 8)
 	assert still.children[0].children[0].id == ''
+	assert still.children[0].children[0].motion == none
+	if !backend_supports_motion {
+		return
+	}
+	el := linear_progress(id: 'busy', frame: rect(0, 0, 200, 8), loading: true) or { panic(err) }
+	assert el.accessibility_value == ''
+	parts := feedback_test_ids(el, component_part_id('busy', 'loading'))
+	assert parts.len == 1
+	bar := feedback_test_part(el, parts[0])
+	// The bar is laid out across the track once; its loop moves and sizes its box.
+	assert bar.frame == rect(0, 0, 200, 8)
+	timeline := feedback_test_timeline(bar)
+	assert timeline.repeat == motion_forever
+	assert math.abs(timeline.duration - 1.0) < 1e-9
+	for ms in [250, 500, 750] {
+		x, width := feedback_test_span(bar, ms)
+		left, right := linear_progress_loading_span(f64(ms) / 1000)
+		assert math.abs(x - left * 200) < 2, '${ms}: ${x} ${width}'
+		assert math.abs(width - (right - left) * 200) < 2, '${ms}: ${x} ${width}'
+	}
+	// Leaving the loading state removes the loop, so nothing keeps redrawing.
+	done := linear_progress(id: 'busy', frame: rect(0, 0, 200, 8), value: 20) or { panic(err) }
+	assert feedback_test_ids(done, parts[0]).len == 0
+	// The application's reduced motion preference stills it too.
+	set_reduced_motion(true)
+	reduced := linear_progress(id: 'busy', frame: rect(0, 0, 200, 8), loading: true) or {
+		panic(err)
+	}
+	set_reduced_motion(false)
+	assert reduced.children[0].children[0].frame == rect(65, 0, 70, 8)
+	assert reduced.children[0].children[0].motion == none
 }
 
 fn test_ring_cells_and_strips_cover_the_ring() {
@@ -332,27 +413,6 @@ fn test_progress_circle_loading_runs_the_gpui_arc() {
 	on, off := progress_circle_sector_window(0.5)
 	assert math.abs(on - 0.5) < 1e-9
 	assert math.abs(off - 0.75) < 1e-9
-	reset_widget_animations()
-	el := progress_circle(id: 'spin', frame: rect(0, 0, 32, 32), diameter: 32, loading: true) or {
-		panic(err)
-	}
-	assert el.accessibility_value == ''
-	parts := feedback_test_ids(el, component_part_id('spin', 'loading:'))
-	assert parts.len > 12
-	for part in parts {
-		assert animation_info(part).status == .running
-		assert animation_info(part).repeat
-	}
-	// Halfway through the cycle the arc covers the first half of the ring.
-	shown := feedback_test_at(el, parts[0], 500)
-	mut visible := 0
-	for part in parts {
-		piece := feedback_test_find(shown, part) or { panic('missing part') }
-		if piece.frame.x > feedback_hidden_x / 2 {
-			visible++
-		}
-	}
-	assert visible > 0 && visible < parts.len
 	still := progress_circle(
 		id:            'spin'
 		frame:         rect(0, 0, 32, 32)
@@ -362,18 +422,35 @@ fn test_progress_circle_loading_runs_the_gpui_arc() {
 	) or {
 		panic(err)
 	}
-	for part in parts {
-		assert animation_info(part).status == .idle
-	}
 	assert feedback_test_ids(still, component_part_id('spin', '')).len == 0
 	assert still.children[0].children.len > 2
+	if !backend_supports_motion {
+		return
+	}
+	el := progress_circle(id: 'spin', frame: rect(0, 0, 32, 32), diameter: 32, loading: true) or {
+		panic(err)
+	}
+	assert el.accessibility_value == ''
+	parts := feedback_test_ids(el, component_part_id('spin', 'loading:'))
+	assert parts.len > 12
+	// Halfway through the cycle the arc covers the first half of the ring.
+	mut visible := 0
+	for id in parts {
+		part := feedback_test_part(el, id)
+		assert feedback_test_timeline(part).repeat == motion_forever
+		opacity := feedback_test_values(part, 500).opacity
+		assert opacity == 0 || opacity == 1
+		if opacity == 1 {
+			visible++
+		}
+	}
+	assert visible > 0 && visible < parts.len
 }
 
 fn test_loading_spinner_kinds_sizes_and_colors() {
 	theme := component_theme(false)
 	assert loading_spinner_diameter(.small) == 14
 	assert loading_spinner_diameter(.large) == 24
-	reset_widget_animations()
 	dots := loading_spinner(id: 'dots', frame: rect(0, 0, 30, 20), theme: theme) or { panic(err) }
 	assert dots.accessibility_role == 'progressbar'
 	assert dots.accessibility_label == 'Loading'
@@ -384,13 +461,14 @@ fn test_loading_spinner_kinds_sizes_and_colors() {
 	assert box.children[0].box.bg == theme.muted_foreground
 	assert math.abs(box.children[0].frame.y) < 1e-9
 	assert box.children[1].box.bg != theme.muted_foreground
-	for dot in box.children {
-		assert animation_info(dot.id).status == .running
+	if backend_supports_motion {
+		for dot in box.children {
+			assert feedback_test_timeline(dot).repeat == motion_forever
+		}
+		// Halfway round, the dot opposite twelve o'clock is the head.
+		assert feedback_test_values(box.children[4], 400).paint.background == theme.muted_foreground
+		assert feedback_test_values(box.children[0], 400).paint.background != theme.muted_foreground
 	}
-	head := feedback_test_at(dots, box.children[0].id, 400)
-	// Halfway round, the dot opposite twelve o'clock is the head.
-	opposite := feedback_test_find(head, box.children[4].id) or { panic('missing part') }
-	assert opposite.box.bg == theme.muted_foreground
 	ring := loading_spinner(
 		id:         'ring'
 		frame:      rect(0, 0, 24, 24)
@@ -404,10 +482,12 @@ fn test_loading_spinner_kinds_sizes_and_colors() {
 	assert ring_box.frame.width == 24
 	assert ring_box.children[0].box.bg == feedback_track_color(theme.primary, 0x000000)
 	assert ring_box.children[1].box.bg == 0x000000
-	ring_parts := feedback_test_ids(ring, component_part_id('ring', 'spin:'))
-	assert ring_parts.len > 0
-	for part in ring_parts {
-		assert animation_info(part).status == .running
+	if backend_supports_motion {
+		ring_parts := feedback_test_ids(ring, component_part_id('ring', 'spin:'))
+		assert ring_parts.len > 0
+		for part in ring_parts {
+			assert feedback_test_timeline(feedback_test_part(ring, part)).repeat == motion_forever
+		}
 	}
 	for config in [LoadingSpinnerConfig{}, LoadingSpinnerConfig{
 		id:       's'
@@ -441,35 +521,54 @@ fn test_spinner_windows_follow_the_eased_head() {
 	}
 }
 
-fn test_feedback_loops_restart_on_new_settings_and_stop_on_request() {
-	reset_widget_animations()
+fn test_feedback_loops_restart_on_new_settings() {
+	still := loading_spinner(id: 'busy', frame: rect(0, 0, 16, 16), reduce_motion: true) or {
+		panic(err)
+	}
+	assert feedback_test_ids(still, component_part_id('busy', '')).len == 0
+	if !backend_supports_motion {
+		return
+	}
 	first := loading_spinner(id: 'busy', frame: rect(0, 0, 16, 16)) or { panic(err) }
-	old_parts := feedback_test_ids(first, component_part_id('busy', 'spin:'))
-	assert old_parts.len == spinner_dot_count
+	parts := feedback_test_ids(first, component_part_id('busy', 'spin:'))
+	assert parts.len == spinner_dot_count
 	recolored := loading_spinner(id: 'busy', frame: rect(0, 0, 16, 16), color: 0xff0000) or {
 		panic(err)
 	}
-	new_parts := feedback_test_ids(recolored, component_part_id('busy', 'spin:'))
-	assert new_parts.len == spinner_dot_count
-	assert new_parts[0] != old_parts[0]
-	for part in old_parts {
-		assert animation_info(part).status == .idle
+	again := loading_spinner(id: 'busy', frame: rect(0, 0, 16, 16), color: 0xff0000) or {
+		panic(err)
 	}
-	for part in new_parts {
-		assert animation_info(part).status == .running
+	// Parts keep their ids; a new color is a new timeline, which starts over.
+	assert feedback_test_ids(recolored, component_part_id('busy', 'spin:')) == parts
+	mut clock := &FeedbackTestClock{}
+	tick := fn [clock] () f64 {
+		return clock.now
 	}
-	// Rebuilding with the same settings keeps the running loops.
-	started := feedback_test_started_at(new_parts[0])
-	_ := loading_spinner(id: 'busy', frame: rect(0, 0, 16, 16), color: 0xff0000) or { panic(err) }
-	assert feedback_test_started_at(new_parts[0]) == started
-	// A ring only moves its cells, so a new color keeps its loops running.
+	mut state := feedback_test_mount(feedback_test_clocked(feedback_test_part(first, parts[0]),
+		tick))
+	assert state.timeline_on && state.timeline_start == 0
+	clock.now = 0.3
+	state.update(feedback_test_clocked(feedback_test_part(recolored, parts[0]), tick)) or {
+		panic(err)
+	}
+	assert state.timeline_on && state.timeline_start == 0.3
+	// Rebuilding with the same settings keeps the running loop.
+	clock.now = 0.5
+	state.update(feedback_test_clocked(feedback_test_part(again, parts[0]), tick)) or {
+		panic(err)
+	}
+	assert state.timeline_on && state.timeline_start == 0.3
+	// A ring only shows and hides its cells, so a new color keeps its loops.
 	ring := loading_spinner(id: 'arc', kind: .ring, frame: rect(0, 0, 16, 16)) or { panic(err) }
 	ring_parts := feedback_test_ids(ring, component_part_id('arc', 'spin:'))
 	red_ring := loading_spinner(id: 'arc', kind: .ring, frame: rect(0, 0, 16, 16), color: 0xff0000) or {
 		panic(err)
 	}
 	assert feedback_test_ids(red_ring, component_part_id('arc', 'spin:')) == ring_parts
-	assert animation_info(ring_parts[0]).status == .running
+	for id in ring_parts {
+		assert feedback_test_timeline(feedback_test_part(red_ring, id)) == feedback_test_timeline(feedback_test_part(ring,
+			id))
+	}
 	assert feedback_test_has_color(red_ring, 0xff0000)
 	// Moving a shimmer shape restarts its sweep.
 	sheen := shimmer(
@@ -484,44 +583,48 @@ fn test_feedback_loops_restart_on_new_settings_and_stop_on_request() {
 		shapes: shimmer_paragraph(10, 0,
 			80, 1, 10, 0)
 	) or { panic(err) }
-	assert sheen.children[0].children[0].id != moved.children[0].children[0].id
-	assert animation_info(sheen.children[0].children[0].id).status == .idle
-	stop_feedback_animations('busy')
-	stop_feedback_animations('arc')
-	stop_feedback_animations('sheen')
-	for part in new_parts {
-		assert animation_info(part).status == .idle
-	}
-	assert animation_info(ring_parts[0]).status == .idle
-	still := loading_spinner(id: 'busy', frame: rect(0, 0, 16, 16), reduce_motion: true) or {
-		panic(err)
-	}
-	assert feedback_test_ids(still, component_part_id('busy', '')).len == 0
-	stop_feedback_animations('')
+	band := sheen.children[0].children[0]
+	moved_band := moved.children[0].children[0]
+	assert band.id == moved_band.id
+	assert feedback_test_timeline(band) != feedback_test_timeline(moved_band)
+	// The application's reduced motion preference stills every loop.
+	set_reduced_motion(true)
+	reduced := loading_spinner(id: 'busy', frame: rect(0, 0, 16, 16)) or { panic(err) }
+	set_reduced_motion(false)
+	assert feedback_test_ids(reduced, component_part_id('busy', '')).len == 0
 }
 
 fn test_feedback_toggle_and_level_loops() {
-	toggle := feedback_toggle_loop(2, 0.25, 0.5, 7)
+	toggle := feedback_toggle_loop(2, 0.25, 0.5)
 	assert math.abs(toggle.duration - 2) < 1e-9
-	assert toggle.repeat
+	assert toggle.repeat == motion_forever
 	start := view('part', rect(0, 0, 4, 4), BoxStyle{}, []Element{})
-	assert evaluate_animation(toggle, start, 0.1).frame.x == feedback_hidden_x
-	assert evaluate_animation(toggle, start, 0.75).frame.x == 7
-	assert evaluate_animation(toggle, start, 1.5).frame.x == feedback_hidden_x
-	wrapped := feedback_toggle_loop(1, 0.75, 0.25, 3)
-	assert evaluate_animation(wrapped, start, 0.1).frame.x == 3
-	assert evaluate_animation(wrapped, start, 0.5).frame.x == feedback_hidden_x
-	assert evaluate_animation(wrapped, start, 0.9).frame.x == 3
+	shown := feedback_motion(start, toggle)
+	assert feedback_test_values(shown, 100).opacity == 0
+	assert feedback_test_values(shown, 750).opacity == 1
+	assert feedback_test_values(shown, 1500).opacity == 0
+	wrapped := feedback_motion(start, feedback_toggle_loop(1, 0.75, 0.25))
+	assert feedback_test_values(wrapped, 100).opacity == 1
+	assert feedback_test_values(wrapped, 500).opacity == 0
+	assert feedback_test_values(wrapped, 900).opacity == 1
 	keys := feedback_compact_keys([FeedbackKey{0, 0}, FeedbackKey{0.25, 0.5}, FeedbackKey{0.5, 1},
 		FeedbackKey{0.75, 1}, FeedbackKey{1, 1}])
 	assert keys == [FeedbackKey{0, 0}, FeedbackKey{0.5, 1}, FeedbackKey{1, 1}]
-	level := feedback_level_loop(1, keys, 0x000000, 0xffffff, .background, true)
-	assert evaluate_animation(level, start, 0.25).box.bg == 0x808080
-	assert evaluate_animation(level, start, 0.75).box.bg == 0xffffff
-	text := feedback_level_loop(1, keys, 0x000000, 0xffffff, .text_color, false)
-	assert !text.repeat
-	assert evaluate_animation(text, start, 0.25).text_style.color == 0x808080
+	level := feedback_motion(start, feedback_level_loop(1, keys, 0x000000, 0xffffff, .background,
+		true))
+	assert feedback_test_values(level, 250).paint.background == 0x808080
+	assert feedback_test_values(level, 750).paint.background == 0xffffff
+	text_loop := feedback_level_loop(1, keys, 0x000000, 0xffffff, .text_color, false)
+	// A loop played once keeps its final values.
+	assert text_loop.repeat == 0 && text_loop.hold
+	text := feedback_motion(start, text_loop)
+	assert feedback_test_values(text, 250).paint.text_color == 0x808080
 	assert feedback_times(4, [0.3, 0.3, 2.0, math.nan()]) == [0.0, 0.25, 0.3, 0.5, 0.75, 1.0]
+	// Spans move and scale a box laid out once.
+	span := feedback_motion(view('bar', rect(10, 0, 100, 4), BoxStyle{}, []Element{}),
+		feedback_span_loop(1, [FeedbackSpan{0, 10, 0}, FeedbackSpan{1, 60, 50}], 10, 100, true))
+	x, width := feedback_test_span(span, 500)
+	assert math.abs(x - 35) < 1e-9 && math.abs(width - 25) < 1e-9
 }
 
 fn test_shimmer_spread_and_band_follow_gpui() {
@@ -564,7 +667,6 @@ fn test_shimmer_spread_and_band_follow_gpui() {
 }
 
 fn test_shimmer_shapes_bands_and_once() {
-	reset_widget_animations()
 	theme := component_theme(false)
 	mut shapes := [ShimmerShape{
 		frame:  rect(0, 0, 40, 40)
@@ -582,23 +684,26 @@ fn test_shimmer_shapes_bands_and_once() {
 	base := shimmer_base_color(theme)
 	assert el.children[0].children[0].box.bg == base
 	assert el.children[0].children[0].id.starts_with(component_part_id('card', 'sheen:'))
-	for line in el.children[1..] {
-		assert line.box.bg == base
-		assert line.children.len == shimmer_layer_count
-		for band in line.children {
-			assert band.frame.width == 0
-			assert animation_info(band.id).status == .running
-		}
-	}
-	feedback_assert_local_geometry(el)
-	part := el.children[1].children[0].id
-	mid := feedback_test_find(feedback_test_at(el, part, 1000), part) or { panic('missing part') }
-	assert mid.frame.width > 0
 	still := shimmer(id: 'card', frame: rect(0, 0, 260, 60), shapes: shapes, reduce_motion: true) or {
 		panic(err)
 	}
 	assert still.children[1].children.len == 0
-	assert animation_info(part).status == .idle
+	feedback_assert_local_geometry(el)
+	if !backend_supports_motion {
+		return
+	}
+	for line in el.children[1..] {
+		assert line.box.bg == base
+		assert line.children.len == shimmer_layer_count
+		for band in line.children {
+			// A band is laid out across its shape and starts out of sight.
+			_, width := feedback_test_span(band, 0)
+			assert width == 0
+			assert feedback_test_timeline(band).repeat == motion_forever
+		}
+	}
+	_, mid := feedback_test_span(el.children[1].children[0], 1000)
+	assert mid > 0
 	once := shimmer(
 		id:       'once'
 		frame:    rect(0, 0, 100, 10)
@@ -607,11 +712,14 @@ fn test_shimmer_shapes_bands_and_once() {
 		once:     true
 		duration: 0.5
 	) or { panic(err) }
-	first := once.children[0].children[0].id
-	assert !animation_info(first).repeat
-	_ := feedback_test_at(once, first, 600)
-	assert animation_info(first).status == .completed
-	_ := shimmer(
+	first := once.children[0].children[0]
+	timeline := feedback_test_timeline(first)
+	assert timeline.repeat == 0 && timeline.hold
+	// After its sweep the band stays out of sight.
+	_, rest := feedback_test_span(first, 600)
+	assert rest == 0
+	// Building it again keeps the sweep that already played.
+	again := shimmer(
 		id:       'once'
 		frame:    rect(0, 0, 100, 10)
 		shapes:   shimmer_paragraph(0, 0, 100, 1,
@@ -619,7 +727,7 @@ fn test_shimmer_shapes_bands_and_once() {
 		once:     true
 		duration: 0.5
 	) or { panic(err) }
-	assert animation_info(first).status == .completed
+	assert feedback_test_timeline(again.children[0].children[0]) == timeline
 	if _ := shimmer(id: 'x', duration: math.nan()) {
 		assert false, 'non-finite duration accepted'
 	}
@@ -632,8 +740,6 @@ fn test_shimmer_shapes_bands_and_once() {
 	) {
 		assert false, 'negative radius accepted'
 	}
-	stop_feedback_animations('card')
-	stop_feedback_animations('once')
 }
 
 fn test_shimmer_colors_follow_the_theme() {
@@ -655,7 +761,6 @@ fn test_shimmer_colors_follow_the_theme() {
 }
 
 fn test_shimmer_text_pulses_its_label() {
-	reset_widget_animations()
 	theme := component_theme(false)
 	el := shimmer_text(
 		id:    'thinking'
@@ -671,9 +776,11 @@ fn test_shimmer_text_pulses_its_label() {
 	assert text_label.accessibility_label == 'Thinking…'
 	assert text_label.text_style.color == theme.foreground
 	assert text_label.text_style.size == 14
-	assert animation_info(text_label.id).status == .running
-	peak := feedback_test_find(feedback_test_at(el, text_label.id, 1000), text_label.id) or { panic('missing part') }
-	assert peak.text_style.color == shimmer_text_highlight(theme.foreground, theme)
+	if backend_supports_motion {
+		assert feedback_test_timeline(text_label).repeat == motion_forever
+		peak := feedback_test_values(text_label, 1000)
+		assert peak.paint.text_color == shimmer_text_highlight(theme.foreground, theme)
+	}
 	plain := shimmer_text(
 		id:            'thinking'
 		frame:         rect(0, 0, 120, 20)
@@ -683,7 +790,7 @@ fn test_shimmer_text_pulses_its_label() {
 		panic(err)
 	}
 	assert plain.children[0].id == ''
-	assert animation_info(text_label.id).status == .idle
+	assert plain.children[0].motion == none
 	if _ := shimmer_text(id: 'x', font_size: -1) {
 		assert false, 'negative font size accepted'
 	}
@@ -745,7 +852,6 @@ fn test_named_icon_geometry_tint_and_accessibility() {
 }
 
 fn test_feedback_components_handle_tiny_frames() {
-	reset_widget_animations()
 	for extent in [0.0, 0.5, 1.0, 8.0, 32.0, 200.0] {
 		frame := rect(10, 20, extent, extent / 2)
 		elements := [
@@ -774,9 +880,4 @@ fn test_feedback_components_handle_tiny_frames() {
 		}
 		named_icon(frame: frame, name: .plus) or { panic(err) }
 	}
-	for id in ['bar', 'busy', 'ring', 'wait', 'dots', 'arc', 'sheen', 'text'] {
-		stop_feedback_animations(id)
-	}
-	runtime := g_animation_runtime
-	assert runtime.runs.len == 0
 }

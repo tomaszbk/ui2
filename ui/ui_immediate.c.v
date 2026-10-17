@@ -412,7 +412,7 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 			g_gg_app = &GgApp{}
 		}
 		g_build_screen = build_fn
-		configure_animation_driver(refresh_animation_frame, false)
+		set_window_wake(backend_invalidate)
 		publish_menu_context(title, unsafe { nil })
 		// Pick the bundled font before constructing either drawing adapter.
 		font_regular, font_bold := font_paths()
@@ -936,8 +936,7 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 		state.overlay_triggers.clear()
 		state.editable_fields.clear()
 		state.motion_tree.dispose()
-		configure_animation_driver(unsafe { nil }, false)
-		reset_widget_animations()
+		set_window_wake(unsafe { nil })
 		g_tooltip = TooltipState{}
 		g_touch = TouchState{}
 		g_focus_navigation = &FocusManager{}
@@ -999,20 +998,20 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 	fn resolve_custom_layout_snapshot(mut app GgApp, work FrameWork, measure LayoutTextMeasureFn, patches []LayoutPatch, input bool) !Element {
 		dispatch := custom_input_dispatch(&app)
 		ctx := app.ctx
-		mut animated := if input { app.declared_root } else { apply_custom_widget_animations(app.declared_root) }
+		mut declared := app.declared_root
 		if !dispatch.valid() || voidptr(app.ctx) != voidptr(ctx) || (ctx != unsafe { nil } && !custom_layout_owner_current(dispatch,ctx,input)) {
 			return error('layout frame canceled')
 		}
 		if work.build || app.declaration_pending || app.layout_tree.root.len == 0 {
-			animated = app.motion_tree.prepare(animated)!
-			app.declared_root = animated
-			app.layout_tree.replace(animated)!
+			declared = app.motion_tree.prepare(declared)!
+			app.declared_root = declared
+			app.layout_tree.replace(declared)!
 			app.declaration_pending = false
 		}
 		for patch in patches {
 			// A compiled declaration already contains this or a newer state.
 			if patch.document && patch.serial <= app.declared_patch_serial { continue }
-			element := if input { patch.element } else { apply_custom_widget_animations(patch.element) }
+			element := patch.element
 			if !dispatch.valid() || voidptr(app.ctx) != voidptr(ctx) || (ctx != unsafe { nil } && !custom_layout_owner_current(dispatch,ctx,input)) {
 				return error('layout frame canceled')
 			}
@@ -1034,6 +1033,8 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 			if app.motion_tree.geometry_changed { g_focus_navigation.motion_serial++ }
 			app.presentation_revision++
 		}
+		// Motion handlers ran after this frame's build; show what they changed.
+		if !input && app.motion_tree.dispatched { app.scheduler.invalidate(.motion_follow_up) }
 		// A target setter can finish an exit before the host samples it. Pending
 		// retirement still has to run when that next sample is unchanged.
 		if !input && app.motion_tree.prune_pending {
@@ -1048,7 +1049,13 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 		if !dispatch.valid() || (ctx != unsafe { nil } && !custom_layout_owner_current(dispatch, ctx, input)) { return error('motion frame canceled') }
 		resolved := app.layout_tree.resolve(LayoutConstraints{}, measure, app.layout_environment)!
 		app.motion_tree.previous = resolved
-		return resolve_custom_overlays(mut app, resolved, measure)!
+		presented := resolve_custom_overlays(mut app, resolved, measure)!
+		// Layout transitions start from the frame shown before this layout. A
+		// window resize lays everything out again and shows it at once.
+		if !input {
+			app.motion_tree.observe_layout(presented, !work.reasons.has(.surface))
+		}
+		return presented
 	}
 
 	fn custom_layout_owner_current(dispatch CustomInputDispatch, ctx &DrawContext, input bool) bool {
@@ -1112,7 +1119,7 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 	}
 
 	// Update input from the same resolved LayoutTree and mounted affine producer
-	// before release or pointer dispatch, without a surface, tasks or animation.
+	// before release or pointer dispatch, without a surface, tasks or motion.
 	fn sync_custom_input_geometry(dispatch CustomInputDispatch) bool {
 		if !dispatch.valid() || (dispatch.app.ctx!=unsafe { nil } && (dispatch.app.ctx.destroyed || dispatch.app.ctx.destroying)) { return false }
 		mut app := dispatch.app
@@ -1120,7 +1127,7 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 		stats := app.scheduler.stats()
 		if stats.suspended || app.suspended || app.iconified || app.building_declaration { return false }
 		if stats.in_flight { return dispatch.valid() }
-		if stats.generation!=app.declaration_generation && stats.pending_reasons.has(.build | .worker | .animation_follow_up) {
+		if stats.generation!=app.declaration_generation && stats.pending_reasons.has(.build | .worker | .motion_follow_up) {
 			if !build_custom_declaration(mut app,true) { return false }
 		}
 		if !app.has_root { return dispatch.valid() }
@@ -1196,7 +1203,7 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 		scheduler := app.scheduler
 		work := scheduler.begin_frame(now) or { return }
 		defer { scheduler.finish_frame(work) }
-		// The builder, animation and focus callbacks may enqueue patches. Take
+		// The builder, motion and focus callbacks may enqueue patches. Take
 		// only the batch that existed when this scheduler generation started.
 		patches := take_custom_layout_patches(mut app)
 		mut patches_resolved := false
@@ -1223,7 +1230,7 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 		}
 		root := resolve_custom_layout(mut app, work, measure_layout_text, patches) or { eprintln('ui2 layout: ${err}'); return }
 		patches_resolved = true
-		// Animation callbacks are user code and may close or suspend the window.
+		// Motion event handlers are user code and may close or suspend the window.
 		if !custom_frame_current(dispatch, ctx) {
 			return
 		}
@@ -1337,7 +1344,6 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 		app.visual_geometry_serial = g_focus_navigation.presentation_serial
 		app.last_frame = renderer_now_ms()
 		app.scheduler.set_deadline(custom_visual_deadline())
-		app.scheduler.set_animation_active(custom_animations_need_frame(app.declared_root))
 		app.scheduler.set_motion_active(motion_tree_needs_frame(app.declared_root))
 		// Content can move under a pointer that stays put.
 		update_hover()
@@ -2934,7 +2940,7 @@ fn page_focused_text_area(direction int) {
 		inert := ctx.overlay_inert
 		parent_clip := ctx.retained_clip(base, clip, outer)
 		area := element_area(ctx, declared_el, off_x, off_y)
-		visual := declared_el.visual_transform().matrix(area) or { return }
+		visual := declared_el.presented_matrix(area) or { return }
 		inv := visual.inverted() or { return }
 		local_clip := inv.project(clip)
 		unsafe {
@@ -2980,7 +2986,7 @@ fn page_focused_text_area(direction int) {
 		sync_mounted_control(Element{ ...declared_el, enabled: declared_el.enabled && !ctx.overlay_inert })
 		apply_clip(ctx, clip)
 		area := element_area(ctx, declared_el, off_x, off_y)
-		el := resolve_custom_visual_style(declared_el, area, clip, ctx.content_transform)
+		el := resolve_custom_visual_style(declared_el.with_motion_paint(), area, clip, ctx.content_transform)
 		if el.box.outline_width > 0 {
 			outline_frame, outline_box := box_outline_geometry(area, el.box)
 			draw_box_borders(ctx, outline_frame.x, outline_frame.y, outline_frame.width, outline_frame.height, outline_box)
@@ -3021,8 +3027,9 @@ fn page_focused_text_area(direction int) {
 			.view {
 				x := el.frame.x + off_x
 				y := el.frame.y + off_y
-				draw_box_fill(ctx, x, y, el.frame.width, el.frame.height, el.box)
-				draw_box_borders(ctx, x, y, el.frame.width, el.frame.height, el.box)
+				box_w, box_h := el.presented_box_size(el.frame.width, el.frame.height)
+				draw_box_fill(ctx, x, y, box_w, box_h, el.box)
+				draw_box_borders(ctx, x, y, box_w, box_h, el.box)
 				if el.vector_shapes.len > 0 {
 					region := ctx.clip_region
 					apply_clip(ctx, intersect_rect(area, clip))
@@ -3113,10 +3120,11 @@ fn page_focused_text_area(direction int) {
 			.label {
 				x := el.frame.x + off_x
 				y := el.frame.y + off_y
+				box_w, box_h := el.presented_box_size(el.frame.width, el.frame.height)
 				if box_draws_fill(el.box) {
-					draw_rect(ctx, x, y, el.frame.width, el.frame.height, el.box.bg, el.box.radius)
+					draw_rect(ctx, x, y, box_w, box_h, el.box.bg, el.box.radius)
 				}
-				draw_box_borders(ctx, x, y, el.frame.width, el.frame.height, el.box)
+				draw_box_borders(ctx, x, y, box_w, box_h, el.box)
 				shortened := draw_rich_label_text(ctx, el, x, y, clip)
 				add_full_text_tooltip(el, area, clip, el.text, shortened)
 			}

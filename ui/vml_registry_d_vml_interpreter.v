@@ -283,6 +283,8 @@ const vml_builtin_widgets = {
 	'MenuOverlay':   vml_widget[MenuOverlayProps]()
 	'ContextMenu':   vml_widget[ContextMenuProps]()
 	'Tooltip':       vml_widget[TooltipProps]()
+	'Timeline':      vml_widget[TimelineProps]()
+	'Keyframe':      vml_widget[KeyframeProps]()
 }
 
 @[heap]

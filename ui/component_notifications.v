@@ -125,9 +125,8 @@ pub enum NotificationTimerKind {
 }
 
 pub enum NotificationTimerOp {
-	start   // Call fire(timer) once `seconds` have passed.
-	cancel  // Call off the timer started for `token`.
-	release // The entry is gone: release the animation state of its elements.
+	start  // Call fire(timer) once `seconds` have passed.
+	cancel // Call off the timer started for `token`.
 }
 
 // NotificationTimer is a request a list change makes of the application. schedule()
@@ -355,10 +354,6 @@ fn (mut list NotificationList) remove_at(index int) []NotificationTimer {
 	mut timers := list.stop_timer(index)
 	removed := list.items[index]
 	list.items.delete(index)
-	timers << NotificationTimer{
-		op:  .release
-		seq: removed.seq
-	}
 	timers << list.release_hover(removed.placement)
 	return timers
 }
@@ -382,10 +377,6 @@ pub fn (mut list NotificationList) push(n Notification) []NotificationTimer {
 				// Its stack keeps its hover until the replacement has joined it.
 				replaced = item.placement
 				timers << list.stop_timer(index)
-				timers << NotificationTimer{
-					op:  .release
-					seq: item.seq
-				}
 				list.items.delete(index)
 				break
 			}
@@ -527,16 +518,16 @@ pub fn (mut list NotificationList) fire(timer NotificationTimer) []NotificationT
 }
 
 // schedule carries out timer requests: it starts each `.start` timer with
-// `after` and feeds it back to fire() when due, cancels `.cancel` ones, and
-// releases the animation state of entries that are gone. id is the one passed
-// to notification_stacks. Call it from a callback, never from a build.
-pub fn (mut list NotificationList) schedule(id string, timers []NotificationTimer) {
+// `after` and feeds it back to fire() when due, and cancels `.cancel` ones.
+// The cards and slots move with their own motion, which ends with their
+// elements. Call it from a callback, never from a build.
+pub fn (mut list NotificationList) schedule(timers []NotificationTimer) {
 	for timer in timers {
 		match timer.op {
 			.start {
-				list.timer_ids[timer.token] = after(timer.seconds, fn [mut list, id, timer] () {
+				list.timer_ids[timer.token] = after(timer.seconds, fn [mut list, timer] () {
 					list.timer_ids.delete(timer.token)
-					list.schedule(id, list.fire(timer))
+					list.schedule(list.fire(timer))
 				})
 			}
 			.cancel {
@@ -544,10 +535,6 @@ pub fn (mut list NotificationList) schedule(id string, timers []NotificationTime
 					cancel_timer(timer_id)
 					list.timer_ids.delete(timer.token)
 				}
-			}
-			.release {
-				clear_animation(notification_slot_id(id, timer.seq))
-				clear_animation(notification_card_id(id, timer.seq))
 			}
 		}
 	}

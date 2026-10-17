@@ -24,7 +24,7 @@ fn test_builtin_tags_cover_every_props_type() {
 	expected.sort()
 	mut builtins := vml_builtin_widgets.keys()
 	builtins.sort()
-	assert expected.len == 45
+	assert expected.len == 47
 	assert builtins == expected
 	mut common := []VmlPropInfo{}
 	vml_collect_props(CommonProps{}, [], mut common)
@@ -48,7 +48,8 @@ fn test_builtin_tags_cover_every_props_type() {
 		}
 	}
 	parts.sort()
-	assert parts == ['Menu', 'MenuBar', 'MenuItem', 'MenuSeparator', 'Option', 'Run']
+	assert parts == ['Keyframe', 'Menu', 'MenuBar', 'MenuItem', 'MenuSeparator', 'Option', 'Run',
+		'Timeline']
 	assert vml_widget_tags() == builtins
 }
 

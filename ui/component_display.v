@@ -214,8 +214,8 @@ pub:
 	theme  ComponentTheme
 }
 
-// skeleton is a static placeholder; applications can animate its color with
-// UI2's animation API. It does not create timers or global animation state.
+// skeleton is a static placeholder; applications can animate its color with a
+// MotionConfig timeline (shimmer does). It creates no timers or global state.
 pub fn skeleton(config SkeletonConfig) !Element {
 	component_validate_frame(config.frame)!
 	if !component_finite(config.radius) || config.radius < 0 {
