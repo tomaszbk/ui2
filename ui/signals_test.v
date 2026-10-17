@@ -210,7 +210,9 @@ fn test_signals_reentrant_writes_new_effects_and_feedback_are_bounded() ! {
 		value := source.get()!
 		if value > 10 { source.set(value + 1)! }
 	})!
-	source.set(11) or {
+	if _ := source.set(11) {
+		assert false, 'unbounded feedback must fail'
+	} else {
 		assert err.msg().contains('feedback limit')
 		assert err.msg().contains('unbounded feedback')
 		assert feedback.is_disposed()
@@ -244,7 +246,9 @@ fn test_signals_memo_cycle_error_restores_context_and_can_recover() ! {
 	refs.right = new_memo(mut scope, fn [mut refs] () !int { return refs.left.get()! },
 		name: 'right'
 	)!
-	refs.left.get() or {
+	if _ := refs.left.get() {
+		assert false, 'a memo cycle must fail'
+	} else {
 		assert err.msg().contains('left -> right -> left')
 		assert runtime.current == unsafe { nil }
 		assert runtime.stack.len == 0
@@ -274,7 +278,11 @@ fn test_signals_callback_errors_batch_errors_and_recovery() ! {
 	scope.effect('independent', fn [mut source, mut fixture] () ! {
 		fixture.words << '${source.get()!}'
 	})!
-	source.set(1) or { assert err.msg().contains('unavailable') }
+	if _ := source.set(1) {
+		assert false, 'a failing memo read must fail the write'
+	} else {
+		assert err.msg().contains('unavailable')
+	}
 	assert runtime.current == unsafe { nil }
 	assert runtime.stack.len == 0
 	assert runtime.execution_depth == 0 && !runtime.flushing
@@ -283,17 +291,23 @@ fn test_signals_callback_errors_batch_errors_and_recovery() ! {
 	assert fixture.values == [0, 20]
 	effect.retry()!
 	assert fixture.values == [0, 20, 20]
-	runtime.batch(fn [mut runtime, mut source] () ! {
+	if _ := runtime.batch(fn [mut runtime, mut source] () ! {
 		runtime.untracked(fn [mut source] () ! {
 			source.get()!
 			return error('action error')
 		})!
-	}) or { assert err.msg().contains('action error') }
+	}) {
+		assert false, 'the action error must propagate'
+	} else {
+		assert err.msg().contains('action error')
+	}
 	assert runtime.batch_depth == 0 && runtime.untracked_depth == 0
-	runtime.batch(fn [mut source] () ! {
+	if _ := runtime.batch(fn [mut source] () ! {
 		source.set(3)!
 		return error('after write')
-	}) or {
+	}) {
+		assert false, 'the batch error must propagate'
+	} else {
 		assert err.msg().contains('after write')
 	}
 	assert fixture.values == [0, 20, 20, 30]
@@ -346,7 +360,11 @@ fn test_signals_memos_reject_writes_and_restore_tracking() ! {
 	},
 		name: 'impure'
 	)!
-	bad.get() or { assert err.msg().contains('must be pure') }
+	if _ := bad.get() {
+		assert false, 'a memo write must fail'
+	} else {
+		assert err.msg().contains('must be pure')
+	}
 	assert source.peek()! == 0
 	assert runtime.stack.len == 0 && runtime.current == unsafe { nil }
 	mut fixture := &SignalsFixture{}
@@ -436,14 +454,22 @@ fn test_signals_failed_new_dependency_recovers_and_initial_error_cleans_resource
 	scope.effect('new failing branch', fn [mut switch, mut memo, mut fixture] () ! {
 		if switch.get()! { fixture.values << memo.get()! }
 	})!
-	switch.set(true) or { assert err.msg().contains('not ready') }
+	if _ := switch.set(true) {
+		assert false, 'the failing branch must fail the write'
+	} else {
+		assert err.msg().contains('not ready')
+	}
 	source.set(7)!
 	assert fixture.values == [7]
 	baseline := runtime.stats()
-	scope.effect('initial failure', fn [mut runtime, mut fixture] () ! {
+	if _ := scope.effect('initial failure', fn [mut runtime, mut fixture] () ! {
 		runtime.on_effect_cleanup(fn [mut fixture] () { fixture.a++ })!
 		return error('initial failure')
-	}) or { assert err.msg().contains('initial failure') }
+	}) {
+		assert false, 'a failing first run must fail effect creation'
+	} else {
+		assert err.msg().contains('initial failure')
+	}
 	assert fixture.a == 1
 	assert runtime.stats() == baseline
 	scope.dispose()!
@@ -456,16 +482,24 @@ fn test_signals_depth_limit_and_total_feedback_budget_restore_context() ! {
 	mut a := new_memo(mut scope, fn () !int { return 1 }, name: 'a')!
 	mut b := new_memo(mut scope, fn [mut a] () !int { return a.get()! + 1 }, name: 'b')!
 	mut c := new_memo(mut scope, fn [mut b] () !int { return b.get()! + 1 }, name: 'c')!
-	c.get() or { assert err.msg().contains('evaluation depth exceeded: c -> b -> a') }
+	if _ := c.get() {
+		assert false, 'the depth limit must fail the read'
+	} else {
+		assert err.msg().contains('evaluation depth exceeded: c -> b -> a')
+	}
 	assert runtime.stack.len == 0 && runtime.current == unsafe { nil }
 	assert b.get()! == 2
 	assert c.get()! == 3 // cached ancestors avoid exceeding depth
 	mut fixture := &SignalsFixture{}
-	runtime.batch(fn [mut scope, mut fixture] () ! {
+	if _ := runtime.batch(fn [mut scope, mut fixture] () ! {
 		for i in 0 .. 5 {
 			scope.effect('budget-${i}', fn [mut fixture] () ! { fixture.a++ })!
 		}
-	}) or { assert err.msg().contains('feedback limit') }
+	}) {
+		assert false, 'the run budget must fail the batch'
+	} else {
+		assert err.msg().contains('feedback limit')
+	}
 	assert fixture.a == 3
 	assert runtime.stats().effects == 3
 	assert runtime.stats().pending == 0
@@ -503,10 +537,18 @@ fn test_signals_disposed_source_diagnoses_surviving_consumer() ! {
 	observers.effect('survivor', fn [mut source, mut fixture] () ! {
 		fixture.values << source.get()!
 	})!
-	sources.dispose() or { assert err.msg().contains('short lived` is disposed') }
+	if _ := sources.dispose() {
+		assert false, 'disposing a read source must report the surviving consumer'
+	} else {
+		assert err.msg().contains('short lived` is disposed')
+	}
 	assert runtime.current == unsafe { nil } && runtime.stack.len == 0
 	assert runtime.stats().subscriptions == 0
-	source.get() or { assert err.msg().contains('disposed') }
+	if _ := source.get() {
+		assert false, 'a disposed signal must fail reads'
+	} else {
+		assert err.msg().contains('disposed')
+	}
 	observers.dispose()!
 	assert runtime.stats() == SignalStats{}
 }
@@ -518,7 +560,11 @@ fn test_signals_custom_equality_is_untracked_and_cannot_write() ! {
 	mut value := new_signal(mut scope, 0,
 		equals: fn [mut incidental] (a int, b int) bool {
 			incidental.get() or { panic(err) }
-			incidental.set(1) or { assert err.msg().contains('equality callbacks must be pure') }
+			if _ := incidental.set(1) {
+				assert false, 'an equality callback must not write'
+			} else {
+				assert err.msg().contains('equality callbacks must be pure')
+			}
 			return a == b
 		}
 	)!
@@ -621,10 +667,13 @@ fn test_signals_batch_reports_empty_error_and_both_action_and_effect_failure() !
 	mut reported := false
 	runtime.batch(fn () ! { return error('') }) or { reported = true }
 	assert reported
-	runtime.batch(fn [mut source] () ! {
+	if _ := runtime.batch(fn [mut source] () ! {
 		source.set(1)!
 		return error('action failure')
-	}) or {
+	})
+	{
+		assert false, 'a failed batch action must be reported'
+	} else {
 		assert err.msg().contains('action failure') && err.msg().contains('effect failure')
 	}
 	assert source.peek()! == 1
@@ -651,6 +700,80 @@ fn test_signals_handled_memo_errors_stay_reactive_without_forcing_effect_errors(
 	assert fixture.values == [-1, -1]
 	source.set(2)!
 	assert fixture.values == [-1, -1, 2]
+	scope.dispose()!
+	assert runtime.stats() == SignalStats{}
+}
+
+fn test_signals_released_subscriptions_keep_invalidation_order_and_indices() ! {
+	mut runtime := new_signal_runtime()
+	mut scope := runtime.scope()!
+	mut source := new_signal(mut scope, 0)!
+	mut fixture := &SignalsFixture{}
+	mut effects := []&SignalEffect{}
+	for index in 0 .. 40 {
+		effects << scope.effect('observer', fn [mut source, mut fixture, index] () ! {
+			if source.get()! > 0 { fixture.values << index }
+		})!
+	}
+	// Releasing most observers compacts the source's subscriber slots and the
+	// scope's member list; survivors keep their relative registration order.
+	for index in 0 .. 40 {
+		if index % 4 != 1 {
+			mut effect := effects[index]
+			effect.dispose()!
+		}
+	}
+	assert runtime.stats().effects == 10 && runtime.stats().subscriptions == 10
+	source.set(1)!
+	// Invalidation visits subscribers in reverse registration order.
+	assert fixture.values == [37, 33, 29, 25, 21, 17, 13, 9, 5, 1]
+	scope.dispose()!
+	assert runtime.stats() == SignalStats{}
+}
+
+fn test_signals_disposed_source_shifts_surviving_dependencies() ! {
+	mut runtime := new_signal_runtime()
+	mut scope := runtime.scope()!
+	mut transient := scope.child()!
+	mut first := new_signal(mut scope, 1)!
+	mut middle := new_signal(mut transient, 10)!
+	mut last := new_signal(mut scope, 100)!
+	mut fixture := &SignalsFixture{}
+	scope.effect('reader', fn [mut first, mut middle, mut last, mut fixture] () ! {
+		total := first.get()! + (middle.get() or { 0 }) + last.get()!
+		fixture.values << total
+	})!
+	assert fixture.values == [111]
+	transient.dispose()!
+	// The reader re-runs once its disposed dependency is reported, and its later
+	// dependency stays addressable after the earlier one is removed.
+	last.set(200)!
+	assert fixture.values.last() == 201
+	first.set(2)!
+	assert fixture.values.last() == 202
+	assert runtime.stats().subscriptions == 2
+	scope.dispose()!
+	assert runtime.stats() == SignalStats{}
+}
+
+fn test_signals_nested_memo_reads_do_not_duplicate_dependencies() ! {
+	mut runtime := new_signal_runtime()
+	mut scope := runtime.scope()!
+	mut source := new_signal(mut scope, 1)!
+	mut doubled := new_memo(mut scope, fn [mut source] () !int { return source.get()! * 2 })!
+	mut fixture := &SignalsFixture{}
+	mut effect := scope.effect('interleaved', fn [mut source, mut doubled, mut fixture] () ! {
+		first := source.get()!
+		// The memo's own run tracks the same source in between.
+		middle := doubled.get()!
+		fixture.values << first + middle + source.get()!
+	})!
+	assert fixture.values == [4]
+	assert effect.node.dependencies.len == 2
+	source.set(2)!
+	assert fixture.values == [4, 8]
+	assert effect.node.dependencies.len == 2
+	assert runtime.stats().subscriptions == 3
 	scope.dispose()!
 	assert runtime.stats() == SignalStats{}
 }

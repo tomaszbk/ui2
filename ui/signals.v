@@ -40,6 +40,15 @@ mut:
 	flush_serial     u64
 	invalidation     u64
 	counts           SignalStats
+	// Reused traversal and wave buffers keep steady-state notification free of
+	// temporary arrays. Each is owned by exactly one non-reentrant operation.
+	invalidation_work []&SignalNode
+	queue_spare       []&SignalNode
+	run_serial        u64
+	// A consumer that coalesces its own derived state (compiled VML child
+	// projections) settles it at a flush boundary, before effects observe it.
+	settle         fn () ! = unsafe { nil }
+	settle_pending bool
 }
 
 enum SignalNodeKind {
@@ -51,6 +60,18 @@ enum SignalNodeKind {
 struct SignalDependency {
 	node    &SignalNode
 	version u64
+mut:
+	// Index of the observer's entry in node.subscribers.
+	slot int
+}
+
+// A released subscription leaves an empty slot, so the remaining subscribers
+// keep their registration order (invalidation order is observable) while
+// unsubscription stays O(1). Slots are compacted once most are empty.
+struct SignalSubscriber {
+mut:
+	node       &SignalNode = unsafe { nil }
+	dependency int // index of this edge in node.dependencies
 }
 
 @[heap]
@@ -71,11 +92,20 @@ mut:
 	flush_serial u64
 	flush_runs   int
 	dependencies []SignalDependency
-	subscribers  []&SignalNode
+	subscribers  []SignalSubscriber
+	released     int // empty subscriber slots
 	cleanups     []fn ()
 	run          fn () ! = unsafe { nil }
 	// Lifetime success is separate from cache validity, which retry/errors reset.
 	has_succeeded bool
+	scope_slot    int // index in scope.nodes
+	// The last observer run that tracked this source. While that run has not
+	// been interleaved with a nested run, a matching stamp proves the edge
+	// exists and a mismatch proves it does not, without scanning dependencies.
+	track_observer &SignalNode = unsafe { nil }
+	track_serial   u64
+	run_serial     u64
+	interleaved    bool
 }
 
 // Scopes own nodes and child scopes. Disposal releases graph edges and owned cleanup
@@ -86,8 +116,13 @@ mut:
 	runtime  &SignalRuntime
 	parent   &SignalScope = unsafe { nil }
 	alive    bool         = true
-	nodes    []&SignalNode
-	children []&SignalScope
+	// Disposed members leave nil slots (compacted lazily), so removal is O(1)
+	// and teardown keeps reverse creation order.
+	nodes          []&SignalNode
+	released_nodes int
+	children       []&SignalScope
+	released_children int
+	parent_slot    int
 	cleanups []fn ()
 }
 
@@ -163,7 +198,7 @@ pub fn (mut runtime SignalRuntime) scope() !&SignalScope {
 pub fn (mut scope SignalScope) child() !&SignalScope {
 	scope.require_alive()!
 	scope.runtime.require_create()!
-	child := &SignalScope{ runtime: scope.runtime, parent: &scope }
+	child := &SignalScope{ runtime: scope.runtime, parent: &scope, parent_slot: scope.children.len }
 	scope.children << child
 	scope.runtime.counts.scopes++
 	return child
@@ -184,6 +219,7 @@ fn (mut scope SignalScope) new_node(kind SignalNodeKind, name string) !&SignalNo
 		kind:    kind
 		runtime: scope.runtime
 		scope:   &scope
+		scope_slot: scope.nodes.len
 	}
 	scope.nodes << node
 	match kind {
@@ -313,26 +349,53 @@ fn (node &SignalNode) require_alive() ! {
 fn (mut runtime SignalRuntime) track(mut source SignalNode) {
 	mut observer := runtime.current
 	if runtime.untracked_depth > 0 || observer == unsafe { nil } || !observer.alive { return }
-	for dependency in observer.dependencies {
-		if dependency.node == &source { return }
+	if source.track_observer == observer && source.track_serial == observer.run_serial { return }
+	if observer.interleaved {
+		for dependency in observer.dependencies {
+			if dependency.node == &source { return }
+		}
 	}
-	observer.dependencies << SignalDependency{ node: &source, version: source.version }
-	source.subscribers << observer
+	source.track_observer = observer
+	source.track_serial = observer.run_serial
+	observer.dependencies << SignalDependency{ node: &source, version: source.version, slot: source.subscribers.len }
+	source.subscribers << SignalSubscriber{ node: observer, dependency: observer.dependencies.len - 1 }
 	runtime.counts.subscriptions++
+}
+
+fn (mut source SignalNode) release_subscriber(slot int) {
+	source.subscribers[slot] = SignalSubscriber{}
+	source.released++
+	if source.released == source.subscribers.len {
+		source.subscribers.clear()
+		source.released = 0
+	} else if source.released >= 16 && source.released * 2 > source.subscribers.len {
+		source.compact_subscribers()
+	}
+}
+
+fn (mut source SignalNode) compact_subscribers() {
+	mut write := 0
+	for read in 0 .. source.subscribers.len {
+		entry := source.subscribers[read]
+		if entry.node == unsafe { nil } { continue }
+		if write != read {
+			source.subscribers[write] = entry
+			mut observer := entry.node
+			observer.dependencies[entry.dependency].slot = write
+		}
+		write++
+	}
+	source.subscribers.trim(write)
+	source.released = 0
 }
 
 fn (mut node SignalNode) detach_dependencies() {
 	for dependency in node.dependencies {
 		mut source := dependency.node
-		for i, subscriber in source.subscribers {
-			if subscriber == &node {
-				source.subscribers.delete(i)
-				node.runtime.counts.subscriptions--
-				break
-			}
-		}
+		source.release_subscriber(dependency.slot)
+		node.runtime.counts.subscriptions--
 	}
-	node.dependencies.delete_many(0, node.dependencies.len)
+	node.dependencies.clear()
 }
 
 fn (mut runtime SignalRuntime) enqueue(mut node SignalNode) {
@@ -347,14 +410,19 @@ fn (mut runtime SignalRuntime) enqueue(mut node SignalNode) {
 // is iterative and visits each node once, including diamonds and feedback.
 fn (mut runtime SignalRuntime) invalidate(source &SignalNode) {
 	runtime.invalidation++
-	mut work := source.subscribers.clone()
-	for work.len > 0 {
-		mut node := work.pop()
+	runtime.invalidation_work.clear()
+	for entry in source.subscribers {
+		if entry.node != unsafe { nil } { runtime.invalidation_work << entry.node }
+	}
+	for runtime.invalidation_work.len > 0 {
+		mut node := runtime.invalidation_work.pop()
 		if !node.alive || node.marked == runtime.invalidation { continue }
 		node.marked = runtime.invalidation
 		node.stale = true
 		if node.kind == .effect { runtime.enqueue(mut node) }
-		work << node.subscribers
+		for entry in node.subscribers {
+			if entry.node != unsafe { nil } { runtime.invalidation_work << entry.node }
+		}
 	}
 }
 
@@ -414,8 +482,12 @@ fn (mut node SignalNode) refresh() ! {
 	node.detach_dependencies()
 	node.run_cleanups()
 	if !node.alive { return }
-	previous := node.runtime.current
+	mut previous := node.runtime.current
 	previous_untracked := node.runtime.untracked_depth
+	if previous != unsafe { nil } { previous.interleaved = true }
+	node.runtime.run_serial++
+	node.run_serial = node.runtime.run_serial
+	node.interleaved = false
 	node.runtime.current = &node
 	node.runtime.untracked_depth = 0
 	node.runtime.execution_depth++
@@ -444,6 +516,8 @@ fn (mut runtime SignalRuntime) flush_if_ready() ! {
 
 // Drain detached waves; writes during a callback queue another wave rather than
 // recurse. A feedback offender is disposed, and unrelated effects still run.
+// Deferred consumer state settles before each wave, so the effects it notifies
+// run in the next wave exactly as if it had been updated eagerly.
 pub fn (mut runtime SignalRuntime) flush() ! {
 	runtime.require_action()!
 	if runtime.batch_depth > 0 || runtime.execution_depth > 0 || runtime.flushing { return }
@@ -452,9 +526,22 @@ pub fn (mut runtime SignalRuntime) flush() ! {
 	defer { runtime.flushing = false }
 	mut first_error := ''
 	mut runs := 0
-	for runtime.queue.len > 0 && !runtime.closed {
-		mut wave := runtime.queue.clone()
-		runtime.queue.delete_many(0, runtime.queue.len)
+	for !runtime.closed {
+		if runtime.settle_pending {
+			runtime.settle_pending = false
+			if runtime.settle != unsafe { nil } {
+				runtime.settle() or {
+					if first_error == '' { first_error = err.msg() }
+				}
+			}
+			continue
+		}
+		if runtime.queue.len == 0 { break }
+		// Swap the two queue buffers: callbacks append the next wave to the
+		// other one, and neither is reallocated once it has grown.
+		mut wave := unsafe { runtime.queue }
+		runtime.queue = unsafe { runtime.queue_spare }
+		runtime.queue.clear()
 		for mut node in wave {
 			if node.queued { runtime.counts.pending-- }
 			node.queued = false
@@ -481,6 +568,8 @@ pub fn (mut runtime SignalRuntime) flush() ! {
 				if !node.has_succeeded { node.dispose_node() }
 			}
 		}
+		wave.clear()
+		runtime.queue_spare = unsafe { wave }
 	}
 	if first_error != '' { return error(first_error) }
 }
@@ -493,17 +582,22 @@ fn (mut node SignalNode) dispose_node() {
 	node.detach_dependencies()
 	// A surviving consumer will report a disposed dependency on its next pull.
 	node.runtime.invalidate(&node)
-	for mut subscriber in node.subscribers.clone() {
-		for i, dependency in subscriber.dependencies {
-			if dependency.node == &node {
-				subscriber.dependencies.delete(i)
-				subscriber.initialized = false
-				node.runtime.counts.subscriptions--
-				break
-			}
+	for entry in node.subscribers {
+		if entry.node == unsafe { nil } { continue }
+		mut subscriber := entry.node
+		index := entry.dependency
+		subscriber.dependencies.delete(index)
+		// Later edges shift down; their sources address them by index.
+		for j in index .. subscriber.dependencies.len {
+			dependency := subscriber.dependencies[j]
+			mut source := dependency.node
+			source.subscribers[dependency.slot].dependency = j
 		}
+		subscriber.initialized = false
+		node.runtime.counts.subscriptions--
 	}
-	node.subscribers.delete_many(0, node.subscribers.len)
+	node.subscribers.clear()
+	node.released = 0
 	node.run_cleanups()
 	node.run = unsafe { nil }
 	match node.kind {
@@ -511,11 +605,47 @@ fn (mut node SignalNode) dispose_node() {
 		.memo { node.runtime.counts.memos-- }
 		.effect { node.runtime.counts.effects-- }
 	}
-	for i, owned in node.scope.nodes {
-		if owned == &node {
-			node.scope.nodes.delete(i)
-			break
+	// A scope being disposed releases its whole member list at once.
+	if node.scope.alive { node.scope.release_node(node.scope_slot) }
+}
+
+fn (mut scope SignalScope) release_node(slot int) {
+	scope.nodes[slot] = unsafe { nil }
+	scope.released_nodes++
+	if scope.released_nodes == scope.nodes.len {
+		scope.nodes.clear()
+		scope.released_nodes = 0
+	} else if scope.released_nodes >= 16 && scope.released_nodes * 2 > scope.nodes.len {
+		mut write := 0
+		for read in 0 .. scope.nodes.len {
+			mut member := scope.nodes[read]
+			if member == unsafe { nil } { continue }
+			scope.nodes[write] = member
+			member.scope_slot = write
+			write++
 		}
+		scope.nodes.trim(write)
+		scope.released_nodes = 0
+	}
+}
+
+fn (mut scope SignalScope) release_child(slot int) {
+	scope.children[slot] = unsafe { nil }
+	scope.released_children++
+	if scope.released_children == scope.children.len {
+		scope.children.clear()
+		scope.released_children = 0
+	} else if scope.released_children >= 16 && scope.released_children * 2 > scope.children.len {
+		mut write := 0
+		for read in 0 .. scope.children.len {
+			mut child := scope.children[read]
+			if child == unsafe { nil } { continue }
+			scope.children[write] = child
+			child.parent_slot = write
+			write++
+		}
+		scope.children.trim(write)
+		scope.released_children = 0
 	}
 }
 
@@ -531,30 +661,29 @@ pub fn (mut scope SignalScope) dispose() ! {
 fn (mut scope SignalScope) dispose_scope() {
 	if !scope.alive { return }
 	scope.alive = false
-	children := scope.children.clone()
-	for i := children.len - 1; i >= 0; i-- {
-		mut child := children[i]
-		child.dispose_scope()
+	// Members of a closed scope do not unlink themselves, so these lists stay
+	// stable while they are torn down and are released together afterwards.
+	for i := scope.children.len - 1; i >= 0; i-- {
+		mut child := scope.children[i]
+		if child != unsafe { nil } { child.dispose_scope() }
 	}
+	scope.children.clear()
+	scope.released_children = 0
 	cleanups := scope.cleanups.clone()
 	scope.cleanups.delete_many(0, scope.cleanups.len)
 	scope.runtime.counts.cleanups -= cleanups.len
 	scope.runtime.untracked_depth++
 	for i := cleanups.len - 1; i >= 0; i-- { cleanups[i]() }
 	scope.runtime.untracked_depth--
-	nodes := scope.nodes.clone()
-	for i := nodes.len - 1; i >= 0; i-- {
-		mut node := nodes[i]
-		node.dispose_node()
+	for i := scope.nodes.len - 1; i >= 0; i-- {
+		mut node := scope.nodes[i]
+		if node != unsafe { nil } { node.dispose_node() }
 	}
+	scope.nodes.clear()
+	scope.released_nodes = 0
 	scope.runtime.counts.scopes--
 	if scope.parent != unsafe { nil } {
-		for i, child in scope.parent.children {
-			if child == &scope {
-				scope.parent.children.delete(i)
-				break
-			}
-		}
+		if scope.parent.alive { scope.parent.release_child(scope.parent_slot) }
 	} else {
 		for i, root in scope.runtime.roots {
 			if root == &scope {
