@@ -16,7 +16,7 @@ $if macos && ui2_custom_rendering ? && !ui2_headless ? {
 		paint_drag_accepts++
 		if paint_drag_stage == 'accept' && paint_drag_accepts == 3 {
 			paint_drag_changed = true
-			refresh()
+			request_refresh()
 		}
 		return .move
 	}
@@ -27,7 +27,7 @@ $if macos && ui2_custom_rendering ? && !ui2_headless ? {
 		if (paint_drag_stage == 'enter' && event.kind == .drag_enter)
 			|| (paint_drag_stage == 'over' && event.kind == .drag_over) {
 			paint_drag_changed = true
-			refresh()
+			request_refresh()
 		}
 	}
 	fn paint_drag_build() Element {
@@ -149,7 +149,7 @@ $if macos && ui2_custom_rendering ? && !ui2_headless ? {
 	}
 	fn test_paint_unchanged_refresh_still_drops_before_frame() {
 		mount_paint_drag('', '', false)
-		refresh()
+		request_refresh()
 		handle_touch_down(20, 30)
 		handle_touch_up(120, 30)
 		assert paint_drag_events.filter(it.kind == .drop).len == 1

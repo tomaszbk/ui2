@@ -415,7 +415,7 @@ fn build() ui2.Element {
 			if event.kind == .click {
 				mut app := unsafe { demo }
 				app.show_pin = !app.show_pin
-				ui2.refresh()
+				ui2.request_refresh()
 			}
 		}
 	}
@@ -577,10 +577,10 @@ fn handle_group(config_of fn (&InputsDemo) ui2.InputGroupConfig, event ui2.Input
 	refresh_and_settle(mut app)
 }
 
-// refresh_and_settle rebuilds, then does what has to wait for the new tree:
-// putting a field's text back and moving focus.
+// refresh_and_settle asks for a rebuild, puts a field's text back and moves
+// focus. Both fields exist already, so neither has to wait for the rebuild.
 fn refresh_and_settle(mut app InputsDemo) {
-	ui2.refresh()
+	ui2.request_refresh()
 	if app.sync_id.len > 0 {
 		if ui2.text(app.sync_id) != app.sync_text {
 			ui2.set_text(app.sync_id, app.sync_text)

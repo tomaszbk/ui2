@@ -125,7 +125,7 @@ void ui2_add_option(ui2_node *node, const char *text);
 
 /* Mounted controls: call on the UI thread, usually from event. Rebuilds
  * preserve local edits when their declared value has not changed. */
-void ui2_refresh(void);
+void ui2_request_refresh(void);
 void ui2_quit(void);
 void ui2_bounds(double *width, double *height);
 /* Copies UTF-8 into caller-owned memory, always NUL-terminating if capacity

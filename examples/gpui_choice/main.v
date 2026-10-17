@@ -49,7 +49,7 @@ fn app() &Gallery {
 fn update(change fn (mut g Gallery)) {
 	mut g := app()
 	change(mut g)
-	ui2.refresh()
+	ui2.request_refresh()
 }
 
 fn theme_of(g &Gallery) ui2.ComponentTheme {
@@ -886,7 +886,7 @@ fn on_key(event ui2.KeyEvent) {
 		return
 	}
 	ui2.consume_key()
-	ui2.refresh()
+	ui2.request_refresh()
 }
 
 fn main() {

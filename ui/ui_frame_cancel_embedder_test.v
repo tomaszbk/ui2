@@ -41,7 +41,7 @@ $if macos && ui2_custom_rendering ? && ui2_embedder ? && !ui2_headless ? {
 		frame_cancel_gpu_frame = gfx.query_frame_stats().frame_index
 		frame_cancel_phase = 2
 		match frame_cancel_mode {
-			0 { refresh() }
+			0 { request_refresh() }
 			1 {
 				temporary := new_custom_window_state()
 				previous := activate_custom_window_state(temporary)
@@ -157,7 +157,7 @@ $if macos && ui2_custom_rendering ? && ui2_embedder ? && !ui2_headless ? {
 			})
 			assert C.ui2_test_pump(window.app, embedder_pump) == -1
 		}
-		assert guard.update(fn () { refresh() })
+		assert guard.update(fn () { request_refresh() })
 		assert C.ui2_test_pump(guard.app, embedder_pump) == -1
 		assert guard.app.scheduler.stats().draws == 2
 		assert gfx.query_frame_stats().num_draw > 0

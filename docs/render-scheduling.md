@@ -5,7 +5,7 @@ application work invalidates the window. A static window reuses its retained tre
 Input, model actions, resize, worker deliveries and animations request the work
 they need. Requests raised during a frame are kept for the next frame.
 
-Call `ui2.refresh()` or `ui2.request_refresh()` after changing model data outside
+Call `ui2.request_refresh()` after changing model data outside
 an input or animation callback. Control setters such as `set_text` request a paint
 and preserve other controls' current editing state.
 

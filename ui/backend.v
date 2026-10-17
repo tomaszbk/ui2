@@ -89,8 +89,10 @@ module ui2
 //   pub fn safe_area_top() f64
 //
 // Rebuilds and layout:
-//   pub fn refresh()
-//   pub fn request_refresh()
+//   pub fn request_refresh(): schedules a rebuild on the UI thread; the only
+//     way application code asks for one. It returns at once. An offset that
+//     scroll_to_offset or scroll_to_horizontal_offset asks for past the current
+//     range while a rebuild is pending is taken up again after its layout.
 //   pub fn refresh_element(id string, element Element)
 //   fn refresh_compiled_element(id string, node &CompiledVmlNode, element Element)
 //   fn begin_compiled_snapshot()

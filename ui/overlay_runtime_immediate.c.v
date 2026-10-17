@@ -42,7 +42,7 @@ $if (linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ?
 			|| voidptr(current.config.on_dismiss) != voidptr(callback) { return }
 		revision := g_gg_app.presentation_revision
 		callback(ElementEvent{ kind: .dismiss, id: layer.element.id, dismiss_reason: reason })
-		if dispatch.valid() && revision == g_gg_app.presentation_revision { refresh() }
+		if dispatch.valid() && revision == g_gg_app.presentation_revision { request_refresh() }
 	}
 
 	fn request_overlay_open(layer OverlayLayer, x f64, y f64) {
@@ -52,7 +52,7 @@ $if (linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ?
 		if !dispatch.valid() { return }
 		revision := g_gg_app.presentation_revision
 		callback(ElementEvent{ kind: .open, id: layer.element.id, x: x, y: y })
-		if dispatch.valid() && revision == g_gg_app.presentation_revision { refresh() }
+		if dispatch.valid() && revision == g_gg_app.presentation_revision { request_refresh() }
 	}
 
 	fn overlay_context_press(app &GgApp, x f64, y f64) {

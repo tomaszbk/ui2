@@ -28,7 +28,7 @@ atlas. Element ids may be identical in different windows. Windows share the Meta
 device; the Sokol renderer resources shut down after the final drawing context closes.
 
 Builders, events and worker callbacks execute with their own window active.
-Existing APIs such as `bounds`, `text`, `focus`, `refresh` and animation helpers
+Existing APIs such as `bounds`, `text`, `focus`, `request_refresh` and animation helpers
 address that window. On the main thread, `window.update(fn () { ... })` scopes a
 callback to a chosen window, restoring the caller's context even with nested
 callbacks. It requests an update and returns false for a closed window or a

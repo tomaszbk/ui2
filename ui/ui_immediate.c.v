@@ -453,11 +453,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		return UiDispatcher{coordinator: g_gg_app.scheduler}
 	}
 
-	pub fn refresh() {
-		g_gg_app.scheduler.invalidate(.build)
-	}
-
-	// Custom refresh remains asynchronous; native refresh semantics are unchanged.
+	// request_refresh schedules a rebuild for the next frame.
 	pub fn request_refresh() {
 		g_gg_app.scheduler.invalidate(.build)
 	}
@@ -734,7 +730,9 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	// scroll_to_offset puts a Scroll element at the given vertical offset. Before the
 	// element has been laid out its range is not known yet, so the offset is stored as
 	// asked and register_scroll_view_in_parent clamps it to the real range on the next frame.
-	// That is what lets a screen open where it was last left.
+	// That is what lets a screen open where it was last left. An offset past the
+	// current range, asked for while a rebuild is pending, is also taken up again on
+	// the next frame, so it can reach content that rebuild adds.
 	pub fn scroll_to_offset(id string, offset f64) {
 		if id.len == 0 {
 			return
@@ -742,7 +740,13 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		state_id := named_scroll_state_id(id)
 		wanted := if offset < 0 { 0.0 } else { offset }
 		if state_id in g_scroll_viewports {
-			set_scroll_offset(state_id, wanted, scroll_maximum(state_id))
+			maximum := scroll_maximum(state_id)
+			if wanted > maximum && g_gg_app.scheduler.build_pending() {
+				g_pending_scroll[state_id] = wanted
+			} else {
+				g_pending_scroll.delete(state_id)
+			}
+			set_scroll_offset(state_id, wanted, maximum)
 			return
 		}
 		// The view does not exist yet, so its range is unknown and the offset cannot be
@@ -758,14 +762,20 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		return scroll_state_offset_x(named_scroll_state_id(id))
 	}
 
-	// A request for an unmounted pane waits for its first layout, like the
-	// vertical API. Refresh the tree before scrolling to newly added content.
+	// A request for an unmounted pane waits for its first layout, and one past the
+	// range while a rebuild is pending is taken up again, like the vertical API.
 	pub fn scroll_to_horizontal_offset(id string, offset f64) {
 		if id.len == 0 { return }
 		state_id := named_scroll_state_id(id)
 		wanted := if offset < 0 { 0.0 } else { offset }
 		if state_id in g_scroll_viewports {
-			set_scroll_offset_x(state_id, wanted, scroll_maximum_x(state_id))
+			maximum := scroll_maximum_x(state_id)
+			if wanted > maximum && g_gg_app.scheduler.build_pending() {
+				g_pending_scroll_x[state_id] = wanted
+			} else {
+				g_pending_scroll_x.delete(state_id)
+			}
+			set_scroll_offset_x(state_id, wanted, maximum)
 			return
 		}
 		g_pending_scroll_x[state_id] = wanted
@@ -1880,8 +1890,8 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 				if owner := menu_owner { request_overlay_dismiss(owner, .selection) }
 			}
 			// A presentation setter already requested a paint; pure visual callbacks
-			// do not rebuild their retained layout. Mixed model changes call refresh().
-			if dispatch.valid() && revision == g_gg_app.presentation_revision { refresh() }
+			// do not rebuild their retained layout. Mixed model changes rebuild.
+			if dispatch.valid() && revision == g_gg_app.presentation_revision { request_refresh() }
 		}
 	}
 

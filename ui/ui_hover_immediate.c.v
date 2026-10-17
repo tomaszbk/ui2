@@ -151,7 +151,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			pending.fire()
 		}
 		if dispatch.valid() {
-			refresh()
+			request_refresh()
 		}
 	}
 }

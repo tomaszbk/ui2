@@ -51,7 +51,7 @@ fn window_frame() ui2.Rect {
 fn with_app(change fn (mut app Gallery)) {
 	mut app := unsafe { gallery }
 	change(mut app)
-	ui2.refresh()
+	ui2.request_refresh()
 }
 
 fn theme_of(app &Gallery) ui2.ComponentTheme {
@@ -603,7 +603,7 @@ fn handle_key_event(event ui2.KeyEvent) {
 	}
 	if handled {
 		ui2.consume_key()
-		ui2.refresh()
+		ui2.request_refresh()
 		return
 	}
 	if backwards := ui2.focus_trap_direction(event) {

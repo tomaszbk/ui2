@@ -62,7 +62,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	fn backend_set_menu_bar(_menus []Menu) {
 		// Rebuild bounds and paint after replacing the menu declaration.
 		close_menu_bar()
-		refresh()
+		request_refresh()
 	}
 
 	fn backend_set_tray(_cfg TrayConfig) {}

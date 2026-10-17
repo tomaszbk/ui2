@@ -145,8 +145,11 @@ mut:
 	scroll_callbacks          map[u64]AppkitCallbackBinding // NSClipView pointer -> Scroll callback
 	pointer_callbacks         map[u64]AppkitCallbackBinding // NSView pointer -> typed callback
 	hover_callbacks     map[u64]HoverTarget // NSView pointer -> hoverable element
-	rendering           bool // refresh is building or applying the tree
-	refresh_pending     bool // a refresh was asked for while one was rendering
+	rendering           bool // rebuild_now is building or applying the tree
+	refresh_pending     bool // a rebuild was asked for while one was rendering
+	// request_refresh posted a rebuild that has not rendered yet. A background
+	// thread may set it; the main thread clears it when the rebuild starts.
+	rebuild_queued      bool
 	image_symbols       map[u64]string // NSImageView pointer -> the symbol and tint it shows
 	hovered             []HoverTarget  // hovered elements, outermost first
 	hover_window_point  macos.Point    // last pointer location, window coordinates
@@ -269,7 +272,8 @@ fn run_window_with_min_size(title string, width int, height int, min_width int, 
 	native_run_app()
 }
 
-pub fn refresh() {
+// rebuild_now builds and renders the window's tree on the main thread.
+fn rebuild_now() {
 	mut st := state()
 	if native_is_nil(st.root_view) || voidptr(st.build_screen) == unsafe { nil } {
 		return
@@ -283,6 +287,7 @@ pub fn refresh() {
 		return
 	}
 	st.rendering = true
+	st.rebuild_queued = false
 	// `after` callbacks run on the UI thread before the build, so it declares
 	// what they changed.
 	run_due_timers_now()
@@ -341,14 +346,12 @@ pub fn set_window_title(title string) {
 	}
 }
 
-fn refresh_on_main() {
-	refresh()
-}
-
 // request_refresh schedules a rebuild on the main thread; safe to call from
 // background threads (sync loops, network fetches).
 pub fn request_refresh() {
-	cb := refresh_on_main
+	mut st := state()
+	st.rebuild_queued = true
+	cb := rebuild_now
 	native_dispatch_main(cb)
 }
 
@@ -411,7 +414,7 @@ pub fn scroll_to_offset(id string, offset f64) {
 		return
 	}
 	st.pending_scroll[id] = offset
-	apply_scroll_offset(mut st, id)
+	apply_scroll_offset(mut st, id, true)
 }
 
 // scroll_to_horizontal_offset is scroll_to_offset for the sideways axis, with the same
@@ -422,10 +425,13 @@ pub fn scroll_to_horizontal_offset(id string, offset f64) {
 		return
 	}
 	st.pending_scroll_x[id] = offset
-	apply_scroll_offset(mut st, id)
+	apply_scroll_offset(mut st, id, true)
 }
 
-fn apply_scroll_offset(mut st RuntimeState, id string) {
+// apply_scroll_offset takes up the offsets asked for an existing Scroll element.
+// With `requested`, an offset past the current range, asked for while a rebuild is
+// queued, stays pending so that rebuild's render can reach the content it adds.
+fn apply_scroll_offset(mut st RuntimeState, id string, requested bool) {
 	if id !in st.pending_scroll && id !in st.pending_scroll_x {
 		return
 	}
@@ -444,6 +450,12 @@ fn apply_scroll_offset(mut st RuntimeState, id string) {
 	x := if scroll_view_has_axis(scrollv, true) { st.pending_scroll_x[id] or { visible.x } } else { 0.0 }
 	y := if scroll_view_has_axis(scrollv, false) { st.pending_scroll[id] or { visible.y } } else { 0.0 }
 	macos.msg_void_rect(doc, 'scrollRectToVisible:', macos.rect(x, y, visible.width, visible.height))
+	if requested && st.rebuild_queued {
+		reached := macos.msg_rect(clip, 'bounds')
+		if reached.x == x { st.pending_scroll_x.delete(id) }
+		if reached.y == y { st.pending_scroll.delete(id) }
+		return
+	}
 	st.pending_scroll.delete(id)
 	st.pending_scroll_x.delete(id)
 }
@@ -1307,7 +1319,7 @@ fn render_element(parent NativeView, el Element, key string, mut active map[stri
 		if el.kind == .scroll {
 			// The element exists now, so a position asked for before it did can finally
 			// be taken up.
-			apply_scroll_offset(mut st, el.id)
+			apply_scroll_offset(mut st, el.id, false)
 		}
 	}
 	st.node_declared_text[key] = el.text
@@ -3056,7 +3068,7 @@ fn ui2_app_did_finish_launching(_self voidptr, _cmd voidptr, _notification voidp
 	}
 	native_make_key_and_order_front(st.window)
 	native_activate()
-	refresh()
+	rebuild_now()
 }
 
 fn fire_pointer_event(native NativeView, phase ElementEventKind, event voidptr) {
@@ -3521,7 +3533,7 @@ fn scroll_view_move(scroll NativeView, horizontal bool, distance f64) {
 
 @[export: 'ui2_window_did_resize']
 fn ui2_window_did_resize(_self voidptr, _cmd voidptr, _notification voidptr) {
-	refresh()
+	rebuild_now()
 }
 
 @[export: 'ui2_window_key_down']

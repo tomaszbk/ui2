@@ -97,7 +97,7 @@ $if ui2_headless ? && !ui2_document_library ? {
 	// next frame would. It reports whether it built.
 	pub fn headless_frame() bool {
 		if !g_headless.refresh_pending { return false }
-		refresh()
+		headless_rebuild()
 		return true
 	}
 
@@ -156,7 +156,7 @@ $if ui2_headless ? && !ui2_document_library ? {
 		configure_animation_driver(refresh_animation_frame, false)
 		publish_menu_context(title, unsafe { nil })
 		install_declared_menus()
-		refresh()
+		headless_rebuild()
 	}
 
 	pub fn quit() { g_headless.quit_requested = true }
@@ -165,9 +165,9 @@ $if ui2_headless ? && !ui2_document_library ? {
 
 	pub fn safe_area_top() f64 { return g_headless.safe_area_top }
 
-	// refresh rebuilds now. A refresh asked for while one builds waits for the
-	// next headless_frame.
-	pub fn refresh() {
+	// headless_rebuild builds and renders now. A rebuild asked for while one
+	// builds waits for the next headless_frame.
+	fn headless_rebuild() {
 		mut h := g_headless
 		if voidptr(h.build) == unsafe { nil } { return }
 		if h.rendering {
@@ -183,6 +183,7 @@ $if ui2_headless ? && !ui2_document_library ? {
 		h.rendering = false
 	}
 
+	// request_refresh schedules a rebuild for the next headless_frame.
 	pub fn request_refresh() {
 		mut h := g_headless
 		h.refresh_requests++

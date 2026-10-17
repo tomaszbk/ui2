@@ -51,7 +51,7 @@ fn gallery() &Gallery {
 fn with_app(change fn (mut app Gallery)) {
 	mut app := gallery()
 	change(mut app)
-	ui2.refresh()
+	ui2.request_refresh()
 }
 
 // on_click is the callback of an element that applies change when clicked.
@@ -587,7 +587,7 @@ fn apply_card(which string, step ui2.HoverCardStep) {
 			apply_card(which, current.timer_fired(generation))
 		})
 	}
-	ui2.refresh()
+	ui2.request_refresh()
 }
 
 fn (mut app Gallery) chose(item ui2.DropdownMenuItem) {
@@ -633,7 +633,7 @@ fn on_key(event ui2.KeyEvent) {
 		return
 	}
 	ui2.consume_key()
-	ui2.refresh()
+	ui2.request_refresh()
 }
 
 fn main() {

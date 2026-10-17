@@ -10,7 +10,7 @@ $if ( linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headl
 	fn transform_explicit_build_event(event ElementEvent) {
 		transform_callback_events << event
 		set_visual_transform('tile', VisualTransform{rotation: 30}) or { panic(err) }
-		refresh()
+		request_refresh()
 	}
 	fn transform_presentation_event(event ElementEvent) {
 		transform_callback_events << event

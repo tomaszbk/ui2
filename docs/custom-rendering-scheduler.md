@@ -19,7 +19,7 @@ conservan sus contratos de actualización. Para usar el custom en macOS/Windows,
 ## Migración y propiedad del estado
 
 Las acciones y bindings de los runners VML solicitan refresh después de
-actualizar el modelo. Código que modifica el modelo por otra vía debe llamar a `refresh()` o `request_refresh()`. Leer el reloj, archivos
+actualizar el modelo. Código que modifica el modelo por otra vía debe llamar a `request_refresh()`. Leer el reloj, archivos
 o variables externas dentro de `build` no suscribe la vista a sus cambios.
 Usar deadlines o timers para cambios periódicos y solicitar actualización
 cuando vence cada plazo. Una lectura dentro de `build` por sí sola no despierta
@@ -61,7 +61,7 @@ desde un worker para buscar una ventana que podría haber sido reemplazada.
 | --- | --- | --- |
 | Primer montaje | Build y pintura completa | Primer frame visible |
 | Resize, escala/DPI, restauración de superficie | Build y pintura completa con tamaño actual | Resize y restauración sin zonas vacías |
-| `refresh`, `request_refresh`, `refresh_element` | Invalidación amplia, agrupada por generación | Ráfaga y solicitud dentro de build |
+| `request_refresh`, `refresh_element` | Invalidación amplia, agrupada por generación | Ráfaga y solicitud dentro de build |
 | Binding/acción VML | Efectos por propiedad y reconciliación por key, conservando nodos y scopes | Counter doble, contratos, listas anidadas y lifecycle |
 | Worker | Encolar callback, aplicarlo en UI e invalidar | Cambio visible sin mover el mouse |
 | Hover, press, drag, scroll, dropdown y menú | Conservar interacción y actualizar imagen | Ejemplos y tests de captura/scroll |

@@ -150,7 +150,7 @@ fn handle_tray_icon_event(event string) {
 	} else {
 		ui2.remove_tray()
 	}
-	ui2.refresh()
+	ui2.request_refresh()
 }
 
 fn main() {

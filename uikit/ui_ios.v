@@ -159,7 +159,8 @@ pub fn run(build_screen BuildFn) {
 	}
 }
 
-pub fn refresh() {
+// rebuild_now builds and renders the window's tree on the main thread.
+fn rebuild_now() {
 	if g_root_view == unsafe { nil } || voidptr(g_build_screen) == unsafe { nil } {
 		return
 	}
@@ -1634,7 +1635,7 @@ fn vui_app_did_finish_launching(self voidptr, _cmd voidptr, _application voidptr
 	macos.msg_void1(g_window, 'setRootViewController:', g_root_vc)
 	macos.msg_void(g_window, 'makeKeyAndVisible')
 	macos.set_associated_object(View(self), assoc_window_key(), g_window, macos.assoc_retain_nonatomic)
-	refresh()
+	rebuild_now()
 	return true
 }
 
@@ -1840,7 +1841,7 @@ fn vui_button_behavior_accessibility_activate(self voidptr, _cmd voidptr) bool {
 
 @[export: 'vui_request_refresh']
 fn vui_request_refresh(_self voidptr, _cmd voidptr, _sender voidptr) {
-	refresh()
+	rebuild_now()
 }
 
 @[export: 'vui_text_field_changed']

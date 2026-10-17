@@ -61,25 +61,25 @@ fn custom_window_callbacks() map[string]ui2.ElementCallback {
 		'increment':   fn (_event ui2.ElementEvent) {
 			mut state := unsafe { custom_window_state }
 			state.add_completed()
-			ui2.refresh()
+			ui2.request_refresh()
 		}
 		'decrement':   fn (_event ui2.ElementEvent) {
 			mut state := unsafe { custom_window_state }
 			state.remove_completed()
-			ui2.refresh()
+			ui2.request_refresh()
 		}
 		'reset':       fn (_event ui2.ElementEvent) {
 			mut state := unsafe { custom_window_state }
 			state.reset()
-			ui2.refresh()
+			ui2.request_refresh()
 		}
 		'close':       fn (_event ui2.ElementEvent) {
 			ui2.quit()
-			ui2.refresh()
+			ui2.request_refresh()
 		}
 		'window_drag': fn (event ui2.ElementEvent) {
 			if event.kind == .pointer_down { drag_custom_window() }
-			ui2.refresh()
+			ui2.request_refresh()
 		}
 	}
 }
