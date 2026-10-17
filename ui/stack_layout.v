@@ -127,6 +127,23 @@ pub fn stack(config StackConfig) !Element {
 	for index, child in config.children {
 		children << Element{ ...layout_declared(child.element), frame: frames[index] }
 	}
+	return stack_view(config, children, rules)
+}
+
+// stack_with_rules lays out children whose rules the caller already holds,
+// one per child, without wrapping each child in a StackChild.
+fn stack_with_rules(config StackConfig, children []Element, rules []StackRule) !Element {
+	mut sizes := []Rect{cap: children.len}
+	for child in children { sizes << child.frame }
+	frames := stack_layout_frames(config, rules, sizes)!
+	mut laid := []Element{cap: children.len}
+	for index, child in children {
+		laid << Element{ ...layout_declared(child), frame: frames[index] }
+	}
+	return stack_view(config, laid, rules)
+}
+
+fn stack_view(config StackConfig, children []Element, rules []StackRule) Element {
 	return Element{
 		...view(config.id, config.frame, config.box, children)
 		layout_input: config.frame

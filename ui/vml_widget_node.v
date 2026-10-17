@@ -687,7 +687,7 @@ fn (mut c VmlNodeCore) build_element(input Rect, placement VmlPlacement) !&Compi
 	// Children follow their own layout item under a Flex, Grid or Stack.
 	for index, mut child_node in nodes {
 		if rule := vml_child_rule_for(declaration.layout.kind, layouts[index]) {
-			child_node.set_child_layout(rule)!
+			child_node.set_child_rule(rule)!
 		}
 	}
 	inherited := placement in [.normal, .inherited_preferred]
@@ -804,25 +804,25 @@ fn (mut c VmlNodeCore) update_child_layout() ! {
 	}
 	if parent == unsafe { nil } { return }
 	if rule := vml_child_rule_for(parent.declaration.layout.kind, c.typed().vml_layout_item()) {
-		node.set_child_layout(rule)!
+		node.set_child_rule(rule)!
 	}
 }
 
-fn vml_child_rule_for(kind LayoutKind, item VmlLayoutItem) ?VmlChildLayout {
+fn vml_child_rule_for(kind LayoutKind, item VmlLayoutItem) ?VmlChildRule {
 	return match kind {
 		.flex {
-			VmlChildLayout{
-				flex: item.flex_child(Element{})
+			VmlChildRule{
+				flex: item.flex_rule()
 			}
 		}
 		.grid {
-			VmlChildLayout{
+			VmlChildRule{
 				grid: item.grid_span()
 			}
 		}
 		.stack {
-			VmlChildLayout{
-				stack: item.stack_child(Element{})
+			VmlChildRule{
+				stack: item.stack_rule()
 			}
 		}
 		else { none }

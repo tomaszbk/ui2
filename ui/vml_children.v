@@ -21,6 +21,25 @@ fn vml_child_rule(layout VmlChildLayout) VmlChildRule {
 	return VmlChildRule{ flex: flex_rule(layout.flex), grid: layout.grid, stack: stack_rule(layout.stack) }
 }
 
+// The generic runtime reads a child's attached layout properties as rules
+// directly; only generated code goes through FlexChild and StackChild.
+fn (item VmlLayoutItem) flex_rule() FlexRule {
+	return FlexRule{
+		basis:          item.flex_basis
+		grow:           item.flex_grow
+		shrink:         item.flex_shrink
+		minimum_width:  item.min_width
+		minimum_height: item.min_height
+		maximum_width:  item.max_width
+		maximum_height: item.max_height
+		align_self:     item.align_self
+	}
+}
+
+fn (item VmlLayoutItem) stack_rule() StackRule {
+	return StackRule{ align_x: item.align_self_x, align_y: item.align_self_y }
+}
+
 pub fn (node &CompiledVmlNode) child_rule() VmlChildLayout {
 	return VmlChildLayout{
 		flex:  node.child_layout.flex.flex_child()
@@ -56,12 +75,15 @@ fn (mut node CompiledVmlNode) inherit_child_layout(layout LayoutSpec, index int)
 }
 
 pub fn (mut node CompiledVmlNode) set_child_layout(rule VmlChildLayout) ! {
+	node.set_child_rule(vml_child_rule(rule))!
+}
+
+fn (mut node CompiledVmlNode) set_child_rule(rule VmlChildRule) ! {
 	node.component.require_alive()!
-	stripped := vml_child_rule(rule)
-	if node.child_layout_set && node.child_layout == stripped { return }
+	if node.child_layout_set && node.child_layout == rule { return }
 	previous := node.child_layout
 	was_set := node.child_layout_set
-	node.child_layout = stripped
+	node.child_layout = rule
 	node.child_layout_set = true
 	if node.parent != unsafe { nil } {
 		mut parent := node.parent

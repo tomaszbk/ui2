@@ -451,6 +451,28 @@ pub fn flex(config FlexConfig) !Element {
 			frame: frames[index]
 		}
 	}
+	return flex_view(config, children, rules)
+}
+
+// flex_with_rules lays out children whose rules the caller already holds,
+// one per child, without wrapping each child in a FlexChild.
+fn flex_with_rules(config FlexConfig, children []Element, rules []FlexRule) !Element {
+	mut sizes := []Rect{cap: children.len}
+	for child in children {
+		sizes << child.frame
+	}
+	frames := flex_layout_frames(config, rules, sizes)!
+	mut laid := []Element{cap: children.len}
+	for index, child in children {
+		laid << Element{
+			...layout_declared(child)
+			frame: frames[index]
+		}
+	}
+	return flex_view(config, laid, rules)
+}
+
+fn flex_view(config FlexConfig, children []Element, rules []FlexRule) Element {
 	return Element{
 		...view(config.id, config.frame, config.box, children)
 		layout_input: config.frame
