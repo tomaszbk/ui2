@@ -54,29 +54,39 @@ fn consume_and_dispose(root ui2.Element) int {
 fn main() {
 	iterations := if os.args.len > 1 { os.args[1].int() } else { default_iterations }
 	rows := if os.args.len > 2 { os.args[2].int() } else { default_rows }
-	if iterations <= 0 || rows <= 0 {
-		eprintln('usage: ${os.args[0]} [positive iteration count] [positive row count]')
+	mode := if os.args.len > 3 { os.args[3] } else { 'compiled' }
+	if iterations <= 0 || rows <= 0 || mode !in ['compiled', 'generic', 'both'] {
+		eprintln('usage: ${os.args[0]} [positive iteration count] [positive row count] [compiled|generic|both]')
 		exit(1)
 	}
 	mut app := benchmark_model(rows)
 	frame := ui2.rect(0, 0, 800, 600)
+	println('iterations: ${iterations}')
+	println('keys:       ${app.keys.len}')
+	if mode in ['compiled', 'both'] {
+		measure('compiled', build_compiled, mut app, frame, iterations)
+	}
+	if mode in ['generic', 'both'] {
+		measure('generic', build_generic, mut app, frame, iterations)
+	}
+}
+
+fn measure(name string, build fn (mut Calculator, ui2.Rect) ui2.Element, mut app Calculator, frame ui2.Rect, iterations int) {
 	first_before := ui2.gc_allocation_snapshot() or { panic(err) }
-	_ = consume_and_dispose(build_compiled(mut app, frame))
+	_ = consume_and_dispose(build(mut app, frame))
 	first := ui2.gc_allocation_snapshot() or { panic(err) }
 	first_delta := first.delta_since(first_before)
 	mut checksum := 0
 	mut watch := time.new_stopwatch()
 	before := ui2.gc_allocation_snapshot() or { panic(err) }
 	for _ in 0 .. iterations {
-		checksum += consume_and_dispose(build_compiled(mut app, frame))
+		checksum += consume_and_dispose(build(mut app, frame))
 	}
 	after := ui2.gc_allocation_snapshot() or { panic(err) }
 	elapsed := watch.elapsed()
 	delta := after.delta_since(before)
-	println('iterations: ${iterations}')
-	println('keys:       ${app.keys.len}')
-	println('first build/dispose: ${first_delta.allocated_bytes} bytes; ${first_delta.collections} GC collections')
-	println('compiled build/dispose: ${f64(elapsed) / f64(time.millisecond):.3f} ms')
+	println('${name} first build/dispose: ${first_delta.allocated_bytes} bytes; ${first_delta.collections} GC collections')
+	println('${name} build/dispose: ${f64(elapsed) / f64(time.millisecond):.3f} ms')
 	println('per build:    ${f64(elapsed) / f64(time.microsecond) / iterations:.3f} us')
 	println('bytes:        ${delta.allocated_bytes}')
 	println('bytes/build:  ${f64(delta.allocated_bytes) / iterations:.1f}')
