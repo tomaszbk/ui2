@@ -172,6 +172,9 @@ jobs:
       - name: Test overlay geometry, focus and retained projections
         run: v ${{ matrix.compiler_flags }} test ui2/ui/overlay_test.v ui2/ui/overlay_tree_test.v ui2/ui/overlay_focus_test.v ui2/ui/overlay_availability_test.v ui2/ui/overlay_layout_test.v ui2/ui/overlay_retained_test.v ui2/ui/overlay_scroll_allocation_test.v
 
+      - name: Test backend contract and headless backend
+        run: v ${{ matrix.compiler_flags }} test ui2/ui/backend_guard_test.v ui2/ui/backend_headless_test.v
+
       - name: Test compiled overlays and custom input
         if: runner.os == 'Linux' || matrix.custom
         run: |

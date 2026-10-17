@@ -30,6 +30,7 @@ step "styles" "$V $F test ui2/ui/style_test.v && $V $F test ui2/ui/style_immedia
 step "motion controllers" "$V $F test ui2/ui/motion_test.v ui2/ui/frame_scheduler_test.v"
 step "motion presence" "$V $F test ui2/ui/vml_presence_test.v ui2/ui/motion_runtime_immediate_test.v"
 step "overlay geometry" "$V $F test ui2/ui/overlay_test.v ui2/ui/overlay_tree_test.v ui2/ui/overlay_focus_test.v ui2/ui/overlay_availability_test.v ui2/ui/overlay_layout_test.v ui2/ui/overlay_retained_test.v ui2/ui/overlay_scroll_allocation_test.v"
+step "backend contract" "$V $F test ui2/ui/backend_guard_test.v ui2/ui/backend_headless_test.v"
 step "compiled overlays" "$V $F test ui2/ui/vml_overlay_compiled_test.v ui2/ui/overlay_geometry_runtime_test.v ui2/ui/overlay_runtime_immediate_test.v ui2/ui/overlay_trigger_identity_test.v ui2/ui/shortcut_character_input_test.v && $V $F test ui2/examples/dialog ui2/examples/profile_dialog ui2/examples/overlays"
 step "scrolling" "$V $F test ui2/ui/ui_scroll_immediate_test.v && $V $F test ui2/examples/scrollview ui2/examples/horizontal_scroll && $V $F -gc boehm -d no_gc_thread_local_alloc test ui2/ui/horizontal_scroll_retained_test.v ui2/ui/incremental_scroll_axes_test.v"
 step "text" "$V $F test ui2/ui/text_backend_vglyph_test.v && $V $F test ui2/thirdparty/vglyph/ui2_context_test.v && $V $F test ui2/thirdparty/vglyph/ui2_host_ime_test.v"
