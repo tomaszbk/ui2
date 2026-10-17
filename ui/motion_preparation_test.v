@@ -54,7 +54,9 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			assert prepared.children[1] == root.children[1]
 		}
 		delta := gc_allocation_snapshot()!.delta_since(before)
-		assert delta.allocated_bytes <= u64(20 * 128 * 1024)
+		// Linux measures about 11 KB per preparation: the changed root and its
+		// motion child. Copying the static group would cost over 1 MB each time.
+		assert delta.allocated_bytes <= u64(20 * 24 * 1024)
 	}
 
 	fn test_motion_can_be_added_then_removed_after_static_preparation() ! {
