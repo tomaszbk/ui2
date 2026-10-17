@@ -353,9 +353,19 @@ pub fn (n &VmlWidgetNode[P]) geometry() !Rect {
 	return signal.get()!
 }
 
+// geometry_signal creates the frame signal on the first read. That read may
+// come from a memo (a component input such as `width: card.width`), which may
+// not create signals. The signal belongs to the node's owner and is created
+// once, whichever computation reads it first, so it is created outside the
+// running computations.
 fn (mut c VmlNodeCore) geometry_signal() !&Signal[Rect] {
 	if c.frame_signal == unsafe { nil } {
-		c.frame_signal = c.owner.geometry(c.local_identity(), c.estimated_frame())!
+		mut runtime := c.owner.runtime
+		running := runtime.stack
+		runtime.stack = []&SignalNode{}
+		signal := c.owner.geometry(c.local_identity(), c.estimated_frame())
+		runtime.stack = running
+		c.frame_signal = signal!
 	}
 	return c.frame_signal
 }
@@ -977,25 +987,30 @@ fn vml_project_fast(el Element, p CommonProps) Element {
 // ---------------------------------------------------------------- helpers
 
 // vml_assign converts a widget value for a binding write-back to the type of
-// the bound target (replaces vml_binding_number).
+// the bound target (replaces vml_binding_number). A mismatch is named by the
+// widget value: a text binding needs a string target, whatever it is.
 pub fn vml_assign[T, V](current T, value V) T {
 	_ = current
-	$if T is string {
-		$if V is string {
+	$if V is string {
+		$if T is string {
 			return value
-		} $else $if V is DisplayText {
+		} $else {
+			$compile_error('VML text binding must target a string')
+		}
+	} $else $if V is DisplayText {
+		$if T is string {
 			return value.str()
 		} $else {
 			$compile_error('VML text binding must target a string')
 		}
-	} $else $if T is bool {
-		$if V is bool {
+	} $else $if V is bool {
+		$if T is bool {
 			return value
 		} $else {
 			$compile_error('VML checked binding must target bool')
 		}
-	} $else $if T is $int || T is $float {
-		$if V is $int || V is $float {
+	} $else $if V is $int || V is $float {
+		$if T is $int || T is $float {
 			return T(value)
 		} $else {
 			$compile_error('VML value binding must target a number')

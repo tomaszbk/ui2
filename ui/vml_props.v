@@ -49,7 +49,8 @@ pub:
 // VmlPart is a child that is not an element: rich-text runs, dropdown options
 // (MenuEntry), menu rows (MenuItem), menus, message box actions, motion
 // timelines and their keyframes, and the typed records composite parents read
-// from their children.
+// from their children. Part tags defined outside ui2 give their parent a
+// VmlRecordPart.
 pub type VmlPart = AccordionItem
 	| ManagedScreen
 	| Menu
@@ -59,8 +60,19 @@ pub type VmlPart = AccordionItem
 	| TabbedPanelTab
 	| TreeViewNode
 	| VmlKeyframe
+	| VmlRecordPart
 	| VmlRun
 	| VmlTimeline
+
+// VmlPartRecord is any record a part tag defined outside ui2 gives its parent.
+pub interface VmlPartRecord {}
+
+// VmlRecordPart carries such a record. The parent reads the records of its
+// own type with `ctx.records[T]()`.
+pub struct VmlRecordPart {
+pub:
+	record VmlPartRecord
+}
 
 // Capability markers. They are method-only interfaces, checked with
 // `$if P is VmlContainer` by generic code.
@@ -180,6 +192,20 @@ fn vml_is_control_id(id string) bool {
 		if !((c >= `0` && c <= `9`) || (c >= `a` && c <= `f`)) { return false }
 	}
 	return true
+}
+
+// records are the part records of type T, in declaration order.
+pub fn (ctx VmlBuildContext) records[T]() []T {
+	mut result := []T{}
+	for part in ctx.parts {
+		if part is VmlRecordPart {
+			record := part.record
+			if record is T {
+				result << record
+			}
+		}
+	}
+	return result
 }
 
 pub fn (ctx VmlBuildContext) runs() []VmlRun {

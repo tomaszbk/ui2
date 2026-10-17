@@ -1,6 +1,8 @@
 // vtest vflags: -d vml_interpreter
 module ui2
 
+import os
+
 // The VML interpreter: documents built from source against a live model,
 // with V semantics for the expression subset and load-time errors for
 // everything else.
@@ -303,6 +305,56 @@ Column {
 	assert interp_find(root.element(), 'mixed')?.box.radius > 0
 	assert interp_find(root.element(), 'text')?.text_style.color == 0xff0000
 	root.dispose_document()!
+}
+
+@[heap]
+pub struct InterpMotionApp {
+pub mut:
+	duration f64 = 0.4
+	ready    bool
+	entering MotionStyle = MotionStyle{
+		translate_x: -24
+	}
+}
+
+fn interp_motion(root &CompiledVmlNode, id string) ?MotionConfig {
+	return interp_find(root.element(), id)?.motion
+}
+
+// tests/compiled_vml/motion_helpers_test.v builds the same document compiled.
+fn test_motion_helper_lists_and_timeline_parts() ! {
+	mut app := &InterpMotionApp{}
+	element := vml_interpret(os.read_file(os.join_path(@DIR, '..', 'tests', 'compiled_vml',
+		'motion_helpers.vml'))!, app, frame: rect(0, 0, 300, 200))!
+	mut root := element.compiled_node
+	root.mount()!
+	card := interp_motion(root, 'card')?
+	expected := compose_motion([motion_fade(0.2), motion_slide_y(8), motion_easing(.out_cubic),
+		motion_spring(170, 26), motion_duration(0.4)])
+	assert card.enter == expected.enter && card.exit == expected.exit
+	assert card.enter_transition == expected.enter_transition
+	assert card.transition == expected.transition
+	assert card.transition.duration == 0.4 && card.transition.easing == .out_cubic
+	single := interp_motion(root, 'single')?
+	assert single.enter == compose_motion([motion_fade(0.3)]).enter
+	assert single.enter_transition.duration == 0.3
+	entering := interp_motion(root, 'entering')?
+	assert entering.enter.translate_x? == -24 && entering.layout == .box
+	timeline := interp_motion(root, 'pulse')?.timeline
+	assert timeline.duration == 1.2 && timeline.repeat == motion_forever
+	assert timeline.keyframes.len == 2
+	assert timeline.keyframes[0].at == 0.5 && timeline.keyframes[0].style.opacity? == 0.4
+	assert timeline.keyframes[0].style.scale_x? == 1.1
+	assert timeline.keyframes[0].easing == .in_out_sine
+	app.duration = 0.6
+	app.ready = true
+	root.component.invalidate_app()!
+	assert interp_motion(root, 'card')?.transition.duration == 0.6
+	assert interp_motion(root, 'entering')?.layout == .position
+	root.dispose_document()!
+	assert interp_error('View(motion: [fade(0.2), wobble(1)])').contains('wobble')
+	assert interp_error('View(motion: spring(170))').contains('spring')
+	assert interp_error('View(motion: [on(app.add)])').contains('compiled VML')
 }
 
 fn test_load_errors_name_the_construct() {

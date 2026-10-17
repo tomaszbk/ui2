@@ -170,17 +170,18 @@ fn props_common_tree(mut app PropsApp) PNode {
 				text:                'C'
 				accessibility_role:  'switch'
 				accessibility_value: 'on'
-			}, id: 'common_check'),
-			pn(ButtonProps{
-				x:         320
-				y:         60
-				width:     80
-				height:    20
-				text:      app.name
-				on_change: fn [mut app] (e ElementEvent) {
+				checked:             app.agree
+				on_change:           fn [mut app] (e ElementEvent) {
 					app.agree = e.checked
 				}
-			}, bind: true),
+			}, id: 'common_check', bind: true),
+			pn(ButtonProps{
+				x:      320
+				y:      60
+				width:  80
+				height: 20
+				text:   app.name
+			}),
 			pn(ScrollProps{
 				x:         320
 				y:         90

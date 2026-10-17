@@ -197,7 +197,7 @@ fn props_example_menus(mut app PropsApp) []Menu {
 	callback_export_pdf := props_hit(mut app, 'export_pdf')
 	callback_export_png := props_hit(mut app, 'export_png')
 	callback_word_wrap := props_hit(mut app, 'word_wrap')
-	return $vml('../examples/vml_menu/menus.vml')
+	return menus($vml('../examples/vml_menu/menus.vml')) or { panic(err) }
 }
 
 fn test_props_menus_match_compiled_vml() {
@@ -247,7 +247,7 @@ fn test_props_menus_match_compiled_vml() {
 }
 
 fn props_solo_menu(mut app PropsApp) []Menu {
-	return $vml('fixtures/props_menu.vml')
+	return menus($vml('fixtures/props_menu.vml')) or { panic(err) }
 }
 
 fn test_props_single_menu_document_matches_compiled_vml() {

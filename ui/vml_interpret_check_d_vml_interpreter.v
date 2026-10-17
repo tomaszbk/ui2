@@ -38,6 +38,7 @@ enum VmlIKind {
 	emit        // depth, slot: a component event; args
 	ref_call    // depth, slot: a ref; name: its method; args
 	style_call  // name: a style helper; args[0]
+	motion_call // name: a motion helper; args
 	style_state // name: hover, focus, pressed or disabled; args: patches
 	// Handler references: a callable value.
 	app_method // name: `on_x: app.method`
@@ -165,7 +166,10 @@ struct VmlIProp {
 	uses_app bool
 	// A style property: lists and nested style names compose into one patch.
 	style bool
-	src   VmlSourceLocation
+	// A motion property: helper patches and lists of them compose into one
+	// MotionConfig.
+	motion bool
+	src    VmlSourceLocation
 }
 
 struct VmlIEvent {
@@ -364,6 +368,34 @@ const vml_box_style_helpers = ['background', 'radius', 'transparent', 'border_co
 	'border_right_color', 'border_bottom_color', 'border_pattern', 'dash_length', 'dash_gap',
 	'outline_color', 'outline_width', 'outline_offset', 'padding_left', 'padding_top', 'padding_right',
 	'padding_bottom', 'padding', 'border_width', 'foreground']
+
+// The motion helpers of ui/motion_patch.v and the kinds of their arguments.
+// A `motion` value composes the patches they return, as compiled VML's
+// `ui2.motion_compose` does. enter and exit take a MotionStyle, timeline and
+// target a MotionTimeline: model values.
+const vml_motion_helpers = {
+	'fade':           [VmlValueKind.number]
+	'slide_x':        [VmlValueKind.number]
+	'slide_y':        [VmlValueKind.number]
+	'scale':          [VmlValueKind.number]
+	'rotate':         [VmlValueKind.number]
+	'duration':       [VmlValueKind.number]
+	'enter_duration': [VmlValueKind.number]
+	'exit_duration':  [VmlValueKind.number]
+	'transition':     [VmlValueKind.number]
+	'spring':         [VmlValueKind.number, .number]
+	'easing':         [VmlValueKind.enumeration]
+	'layout':         [VmlValueKind.enumeration]
+	'reduced':        [VmlValueKind.boolean]
+	'enter':          [VmlValueKind.object]
+	'exit':           [VmlValueKind.object]
+	'timeline':       [VmlValueKind.object]
+	'target':         [VmlValueKind.string, .object]
+}
+
+// The motion helpers that take a V callback or handle, which a document
+// cannot write.
+const vml_compiled_motion_helpers = ['on', 'handle', 'clock']
 
 // The control kind a `ref name Type` declaration names.
 fn vml_ref_kind_of(tag string) ?Kind {
@@ -626,6 +658,9 @@ fn (mut c VmlChecker) prop(n &vml.Node, widget VmlWidgetType, property vml.Prope
 	if property.name == 'style' {
 		c.check_style(n, property.expr, false)!
 	}
+	if property.name == 'motion' {
+		c.check_motion(property.expr)!
+	}
 	// A bare name is an enum value only where the property takes one.
 	if property.expr.kind == .path && !property.expr.value.contains('.')
 		&& !property.expr.value.starts_with('#') && info.kind != .enumeration {
@@ -640,6 +675,7 @@ fn (mut c VmlChecker) prop(n &vml.Node, widget VmlWidgetType, property vml.Prope
 		reactive: vml_ir_reactive(expr)
 		uses_app: vml_ir_uses_app(expr)
 		style:    info.kind == .style
+		motion:   property.name == 'motion'
 		src:      src
 	}
 }
@@ -945,6 +981,9 @@ fn (mut c VmlChecker) component(n &vml.Node, path string, mut caller VmlScope, k
 				c.check_style(n, property.expr, false)!
 				c.expr(property.expr, caller, true)!
 			} else {
+				if input.typ.trim_left('?') == 'ui2.MotionConfig' {
+					c.check_motion(property.expr)!
+				}
 				c.expr(property.expr, caller, true)!
 			}
 			slot := scope.add(input.name, VmlBinding{
@@ -1525,6 +1564,23 @@ fn (mut c VmlChecker) call(e &vml.Expr, scope &VmlScope) !&VmlIExpr {
 				src:  src
 			}
 		}
+		if kinds := vml_motion_helpers[value] {
+			if e.args.len != kinds.len {
+				return src.error('`${value}` takes ${kinds.len} argument(s), not ${e.args.len}')
+			}
+			for arg in e.args {
+				args << c.expr(arg, scope, true)!
+			}
+			return &VmlIExpr{
+				kind: .motion_call
+				name: value
+				args: args
+				src:  src
+			}
+		}
+		if value in vml_compiled_motion_helpers {
+			return src.error('the motion helper `${value}` takes a V callback or handle; use compiled VML')
+		}
 		return src.error('unknown function `${value}`')
 	}
 	return src.error('the interpreter does not support the call `${value}(...)`; it calls app methods, component functions and events, ref methods, style helpers and `.str()`; use compiled VML for other V calls')
@@ -1566,6 +1622,33 @@ fn (mut c VmlChecker) check_style(n &vml.Node, e &vml.Expr, state bool) ! {
 		}
 		else {
 			return src.error('style requires a list, typed style value or conditional style')
+		}
+	}
+}
+
+// check_motion validates a motion value: a motion helper call, a list of
+// them, a conditional, or a model value.
+fn (mut c VmlChecker) check_motion(e &vml.Expr) ! {
+	src := vml_expr_src(e)
+	match e.kind {
+		.array {
+			for arg in e.args {
+				c.check_motion(arg)!
+			}
+		}
+		.conditional {
+			c.check_motion(e.right)!
+			c.check_motion(e.third)!
+		}
+		.path {}
+		.call {
+			if e.value.contains('.') { return }
+			if e.value !in vml_motion_helpers && e.value !in vml_compiled_motion_helpers {
+				return src.error('unknown motion helper `${e.value}`')
+			}
+		}
+		else {
+			return src.error('motion requires a motion helper, a list of them, a typed motion value or a conditional')
 		}
 	}
 }

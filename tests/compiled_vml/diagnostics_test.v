@@ -72,7 +72,6 @@ fn test_compiled_vml_diagnoses_removed_syntax_and_invalid_types_at_source() {
 		'TextInput(on_text_validate: app.action)',
 		'TextInput(editable: false)',
 		'TextInput(emit_change: true)',
-		'TextInput { Run(text: "rich") }',
 		'Checkbox(bind.checked: app.name)',
 		'Slider(bind.value: app.name)',
 		'Button(on_click: app.unknown())',
@@ -83,7 +82,6 @@ fn test_compiled_vml_diagnoses_removed_syntax_and_invalid_types_at_source() {
 		'Button(on_click: true)',
 		'Label(text: app.unknown)',
 		'Label(style: [font_size(true)])',
-		'View(scale_x: 0)',
 		'View(translate_x: "12")',
 		'View(translate_y: true)',
 		'View(translate_x: app.name)',
@@ -100,13 +98,37 @@ fn test_compiled_vml_diagnoses_removed_syntax_and_invalid_types_at_source() {
 		'Stack { View(x: 1) }',
 		'Grid(columns: 1) { View(y: 2) }',
 		'Column { Repeater(model: app.rows) { View(x: 2) } }',
-		'Screen(id: "root") { View(width: root.width - 32) }',
-		'Column(id: "panel") { View(height: panel.height / 2) }',
-		'Column(id: "root", gap: root.width / 10) { View() }',
-		'Grid(id: "root", columns: 2, style: [padding(root.height / 20)]) { View() }',
-		'Row(id: "root") { View(min_width: root.width / 2) }',
 	] {
 		compiled_diagnostic(source, index)!
+	}
+}
+
+// Each tag is a props type of ui2, so V checks element names, property names
+// and value types; positions are checked against the parent, the document
+// included. Literal ranges, part placement, layout reads of an ancestor's
+// geometry and properties inside interaction patches are not compile-time
+// checks of the generic lowering.
+fn test_compiled_vml_checks_props_types_at_source() {
+	for index, source in [
+		'Label(tracking: 2)',
+		'Label(style: [tabular_figures(false ? true : 1)])',
+		'Label(text: true)',
+		'TextInput(placeholder: 123)',
+		'View(opacity: "0.5")',
+		'View(opacity: true)',
+		'Dialog(open: 1)',
+		'Dialog(owner: 1)',
+		'Popover(anchor: true)',
+		'Dialog(dismiss_on_escape: "yes")',
+		'Dialog(tooltip_delay: "slow")',
+		'Dialog(placement: "top")',
+		'Dialog(placement: .top)',
+		'Popup {}',
+		'ModalView {}',
+		'Label(overlay: 1)',
+		'Column { Label { View() } }',
+	] {
+		compiled_diagnostic(source, 300 + index)!
 	}
 }
 
@@ -152,9 +174,6 @@ fn test_style_contract_rejects_aliases_cycles_collisions_and_wrong_value_types()
 		'Label(style: [weight("bold")])',
 		'Label(style: [foreground(app.name)])',
 		'View(style: [app.name])',
-		'View(style: [hover([padding(12)])])',
-		'View(style: [focus([font_size(16)])])',
-		'View(style: [pressed([hover([background(#ffffff)])])])',
 		'style first = [second] style second = [first] View(style: [first])',
 		'style card = [radius(8)] style card = [radius(4)] View(style: [card])',
 		'style card = [radius(8)] View(id: "card", style: [card])',

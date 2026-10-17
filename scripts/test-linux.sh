@@ -27,6 +27,7 @@ step "other targets" "cd ui2 && $V $F -enable-globals -shared -os ios -check . &
 step "menubar" "$V $F test ui2/examples/menubar"
 step "counter" "$V $F test ui2/examples/counter"
 step "compiled vml contracts" "$V $F test ui2/tests/compiled_vml"
+step "compiled vml examples" "$V $F test ui2/tests/vml_examples/vml_component_aliases ui2/tests/vml_examples/vml_computed_app ui2/tests/vml_examples/vml_initializers ui2/tests/vml_examples/vml_key_locations ui2/tests/vml_examples/vml_motion ui2/tests/vml_examples/vml_run_styles ui2/tests/vml_examples/vml_switch_events ui2/tests/vml_examples/vml_visual/visual_test.v ui2/tests/vml_examples/vml_visual/combined_callbacks_test.v ui2/tests/vml_examples/vml_visual/final_composition_test.v ui2/tests/vml_examples/vml_visual/diagnostics_test.v"
 step "styles" "$V $F test ui2/ui/style_test.v && $V $F test ui2/ui/style_immediate_test.v"
 step "motion controllers" "$V $F test ui2/ui/motion_test.v ui2/ui/motion_timeline_test.v ui2/ui/frame_scheduler_test.v"
 step "motion presence" "$V $F test ui2/ui/vml_presence_test.v ui2/ui/motion_runtime_immediate_test.v ui2/ui/motion_tree_test.v"

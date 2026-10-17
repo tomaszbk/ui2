@@ -29,8 +29,8 @@ Screen(id: "root") {
             Button(text: "OK", on_click: app.hit("common ok"))
         }
         Image(id: "common_image", x: 320, y: 0, width: 20, height: 20, source: "a.png", accessibility_label: "Img", draggable: true)
-        Checkbox(id: "common_check", x: 320, y: 30, width: 80, height: 20, text: "C", accessibility_role: "switch", accessibility_value: "on")
-        Button(x: 320, y: 60, width: 80, height: 20, text: app.name, bind.checked: app.agree)
+        Checkbox(id: "common_check", x: 320, y: 30, width: 80, height: 20, text: "C", accessibility_role: "switch", accessibility_value: "on", bind.checked: app.agree)
+        Button(x: 320, y: 60, width: 80, height: 20, text: app.name)
         Scroll(id: "common_scroll", x: 320, y: 90, width: 80, height: 40, on_scroll: app.hit("scrolled"), opacity: 0.5) {
             View(width: 10, height: 100)
         }
