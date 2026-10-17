@@ -22,7 +22,7 @@ import math
 // * `VmlPropInfo` adds `type_name` and `optional` (an unset optional field
 //   keeps the constructor default); `VmlWidgetType` adds `type_name`.
 // * `VmlValueKind` is defined here: number, integer, color, boolean, string,
-//   display_text, enumeration, style, callback, object, other.
+//   display_text, enumeration, style, callback, object, string_list, other.
 // * `VmlObject.get` returns an option. `VmlReflect` is not generic: with a
 //   generic implementor (`VmlReflect[T]`) V generates C that does not compile
 //   for `==` on VmlValue and prints it as an unknown interface value, so
@@ -154,6 +154,7 @@ pub enum VmlValueKind {
 	style        // StylePatch: a style or an array of styles
 	callback     // ElementCallback: a VmlCallable
 	object       // a struct: a VmlReflect holding that struct
+	string_list  // []string: an array of strings
 	other        // not settable by the interpreter
 }
 
@@ -469,6 +470,8 @@ fn vml_collect_props[T](value T, bindable []string, mut out []VmlPropInfo) {
 				kind = .style
 			} $else $if field.typ is ElementCallback {
 				kind = .callback
+			} $else $if field.typ is []string {
+				kind = .string_list
 			} $else $if field.typ is ?MotionConfig {
 				kind = .object
 				optional = true
@@ -522,27 +525,49 @@ fn vml_enum_name[E](value E) string {
 	return int(value).str()
 }
 
-// The fields `apply_event` writes for a change event.
+// The fields `apply_event` writes for the events a widget emits for its value:
+// a change carrying text, a fraction and checked, a change carrying a whole
+// number (int fields), and an open (popups' `open`).
 fn vml_bindable_fields[P]() []string {
 	mut names := []string{}
 	$if P is VmlEventProps {
-		before := P{}
-		mut probe := P{}
-		probe.apply_event(ElementEvent{
-			kind:    .change
-			text:    '\u0001'
-			value:   0.123456789
-			checked: true
-		})
-		$for field in P.fields {
-			$if field.typ is string {
-				if probe.$(field.name) != before.$(field.name) { names << field.name }
-			} $else $if field.typ is DisplayText {
-				if probe.$(field.name) != before.$(field.name) { names << field.name }
-			} $else $if field.typ is f64 {
-				if probe.$(field.name) != before.$(field.name) { names << field.name }
-			} $else $if field.typ is bool {
-				if probe.$(field.name) != before.$(field.name) { names << field.name }
+		probes := [
+			ElementEvent{
+				kind:    .change
+				text:    '\u0001'
+				value:   0.123456789
+				checked: true
+			},
+			ElementEvent{
+				kind:  .change
+				value: 7
+			},
+			ElementEvent{
+				kind: .open
+			},
+		]
+		for event in probes {
+			before := P{}
+			mut probe := P{}
+			probe.apply_event(event)
+			$for field in P.fields {
+				mut changed := false
+				$if field.typ is string {
+					changed = probe.$(field.name) != before.$(field.name)
+				} $else $if field.typ is DisplayText {
+					changed = probe.$(field.name) != before.$(field.name)
+				} $else $if field.typ is f64 {
+					changed = probe.$(field.name) != before.$(field.name)
+				} $else $if field.typ is int {
+					changed = probe.$(field.name) != before.$(field.name)
+				} $else $if field.typ is bool {
+					changed = probe.$(field.name) != before.$(field.name)
+				} $else $if field.typ is []string {
+					changed = probe.$(field.name) != before.$(field.name)
+				}
+				if changed && field.name !in names {
+					names << field.name
+				}
 			}
 		}
 	}
@@ -661,6 +686,21 @@ fn (s VmlSetter) display(value VmlValue) !DisplayText {
 	}
 }
 
+fn (s VmlSetter) strings(value VmlValue) ![]string {
+	if value is []VmlValue {
+		mut items := []string{cap: value.len}
+		for item in value {
+			if item is string {
+				items << item
+			} else {
+				return s.mismatch('an array of strings', item)
+			}
+		}
+		return items
+	}
+	return s.mismatch('an array of strings', value)
+}
+
 fn (s VmlSetter) style(value VmlValue) !StylePatch {
 	match value {
 		StylePatch {
@@ -759,6 +799,8 @@ fn vml_set_field[T](mut target T, name string, value VmlValue, s VmlSetter) !boo
 					target.$(field.name) = s.style(value)!
 				} $else $if field.typ is ElementCallback {
 					target.$(field.name) = s.callback(value)!
+				} $else $if field.typ is []string {
+					target.$(field.name) = s.strings(value)!
 				} $else $if field.typ is ?MotionConfig {
 					target.$(field.name) = vml_native[MotionConfig](value, s)!
 				} $else $if field.typ is ?OverlayConfig {
@@ -857,6 +899,8 @@ fn vml_field_value[T](value T, name string) ?VmlValue {
 							}
 						})
 					}
+				} $else $if field.typ is []string {
+					return VmlValue(value.$(field.name).map(VmlValue(it)))
 				} $else $if field.typ is ?MotionConfig {
 					if v := value.$(field.name) { return vml_reflect_value[MotionConfig](v) }
 				} $else $if field.typ is ?OverlayConfig {

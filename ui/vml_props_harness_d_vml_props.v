@@ -180,6 +180,7 @@ fn props_metadata(el Element) string {
 	if node := metadata.tree { parts << 'tree ${props_tree_node(node)}' }
 	if screen := metadata.screen { parts << 'screen ${screen.name}' }
 	if metadata.menu_document { parts << 'menus ${metadata.menus.len}' }
+	for record in metadata.records { parts << 'record ${vml_record_text(record)}' }
 	// A record holding only the style reset box (style_default_box) is the
 	// compiled lowering's style base, not authored metadata.
 	return if parts.len == 0 { 'none' } else { parts.join(' ') }

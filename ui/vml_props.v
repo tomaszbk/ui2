@@ -258,6 +258,15 @@ pub fn (ctx VmlBuildContext) records[T]() []T {
 	return result
 }
 
+// child_record is the record of type T that the element child at index
+// carries (with_record), or none.
+pub fn (ctx VmlBuildContext) child_record[T](index int) ?T {
+	if index < 0 || index >= ctx.children.len {
+		return none
+	}
+	return element_record[T](ctx.children[index])
+}
+
 pub fn (ctx VmlBuildContext) runs() []VmlRun {
 	mut runs := []VmlRun{}
 	for part in ctx.parts {
@@ -374,6 +383,15 @@ pub mut:
 	on_long_press   ElementCallback = unsafe { nil }
 	on_swipe_left   ElementCallback = unsafe { nil }
 	on_link         ElementCallback = unsafe { nil }
+	on_submit       ElementCallback = unsafe { nil }
+	// on_key receives the key_down events of `keys`; on_pointer_enter and
+	// on_pointer_leave make the element hoverable (with_hover).
+	on_key           ElementCallback = unsafe { nil }
+	on_pointer_enter ElementCallback = unsafe { nil }
+	on_pointer_leave ElementCallback = unsafe { nil }
+	// keys are key names (key_event_name) the element takes while it or a
+	// descendant has focus, besides the keys the widget itself declares.
+	keys []string
 }
 
 pub fn (p CommonProps) common_props() CommonProps {
@@ -458,7 +476,21 @@ pub fn (p CommonProps) project_common(el Element, ctx VmlBuildContext) Element {
 		accessibility_value: p.accessibility_value or { el.accessibility_value }
 		native_style:        p.native or { el.native_style }
 		autocorrect:         p.autocorrect or { el.autocorrect }
+		hoverable:           el.hoverable || p.on_pointer_enter != unsafe { nil }
+			|| p.on_pointer_leave != unsafe { nil }
+		keys:                vml_merge_keys(el.keys, p.keys)
 	}
+}
+
+// vml_merge_keys adds the authored keys to the keys a widget declares.
+fn vml_merge_keys(declared []string, authored []string) []string {
+	if authored.len == 0 { return declared }
+	if declared.len == 0 { return authored }
+	mut keys := declared.clone()
+	for key in authored {
+		if key !in keys { keys << key }
+	}
+	return keys
 }
 
 // apply_event lets a widget update its own value from the event it emitted,
@@ -505,34 +537,41 @@ pub fn (p CommonProps) element_callback() ElementCallback {
 
 fn (p CommonProps) event_handlers() VmlEventHandlers {
 	return VmlEventHandlers{
-		on_click:        p.on_click
-		on_change:       p.on_change
-		on_scroll:       p.on_scroll
-		on_open:         p.on_open
-		on_dismiss:      p.on_dismiss
-		on_pointer_down: p.on_pointer_down
-		on_pointer_drag: p.on_pointer_drag
-		on_pointer_up:   p.on_pointer_up
-		on_long_press:   p.on_long_press
-		on_swipe_left:   p.on_swipe_left
-		on_link:         p.on_link
+		on_click:         p.on_click
+		on_change:        p.on_change
+		on_scroll:        p.on_scroll
+		on_open:          p.on_open
+		on_dismiss:       p.on_dismiss
+		on_pointer_down:  p.on_pointer_down
+		on_pointer_drag:  p.on_pointer_drag
+		on_pointer_up:    p.on_pointer_up
+		on_long_press:    p.on_long_press
+		on_swipe_left:    p.on_swipe_left
+		on_link:          p.on_link
+		on_submit:        p.on_submit
+		on_key:           p.on_key
+		on_pointer_enter: p.on_pointer_enter
+		on_pointer_leave: p.on_pointer_leave
 	}
 }
 
 struct VmlEventHandlers {
-	on_click        ElementCallback = unsafe { nil }
-	on_active       ElementCallback = unsafe { nil }
-	on_change       ElementCallback = unsafe { nil }
-	on_submit       ElementCallback = unsafe { nil }
-	on_scroll       ElementCallback = unsafe { nil }
-	on_open         ElementCallback = unsafe { nil }
-	on_dismiss      ElementCallback = unsafe { nil }
-	on_pointer_down ElementCallback = unsafe { nil }
-	on_pointer_drag ElementCallback = unsafe { nil }
-	on_pointer_up   ElementCallback = unsafe { nil }
-	on_long_press   ElementCallback = unsafe { nil }
-	on_swipe_left   ElementCallback = unsafe { nil }
-	on_link         ElementCallback = unsafe { nil }
+	on_click         ElementCallback = unsafe { nil }
+	on_active        ElementCallback = unsafe { nil }
+	on_change        ElementCallback = unsafe { nil }
+	on_submit        ElementCallback = unsafe { nil }
+	on_scroll        ElementCallback = unsafe { nil }
+	on_open          ElementCallback = unsafe { nil }
+	on_dismiss       ElementCallback = unsafe { nil }
+	on_pointer_down  ElementCallback = unsafe { nil }
+	on_pointer_drag  ElementCallback = unsafe { nil }
+	on_pointer_up    ElementCallback = unsafe { nil }
+	on_long_press    ElementCallback = unsafe { nil }
+	on_swipe_left    ElementCallback = unsafe { nil }
+	on_link          ElementCallback = unsafe { nil }
+	on_key           ElementCallback = unsafe { nil }
+	on_pointer_enter ElementCallback = unsafe { nil }
+	on_pointer_leave ElementCallback = unsafe { nil }
 }
 
 fn (h VmlEventHandlers) empty() bool {
@@ -542,7 +581,8 @@ fn (h VmlEventHandlers) empty() bool {
 		&& h.on_dismiss == unsafe { nil } && h.on_pointer_down == unsafe { nil }
 		&& h.on_pointer_drag == unsafe { nil } && h.on_pointer_up == unsafe { nil }
 		&& h.on_long_press == unsafe { nil } && h.on_swipe_left == unsafe { nil }
-		&& h.on_link == unsafe { nil }
+		&& h.on_link == unsafe { nil } && h.on_key == unsafe { nil }
+		&& h.on_pointer_enter == unsafe { nil } && h.on_pointer_leave == unsafe { nil }
 }
 
 fn vml_dispatch(callback ElementCallback, event ElementEvent) {
@@ -590,6 +630,15 @@ fn (h VmlEventHandlers) callback() ElementCallback {
 			}
 			.link {
 				vml_dispatch(h.on_link, event)
+			}
+			.key_down {
+				vml_dispatch(h.on_key, event)
+			}
+			.pointer_enter {
+				vml_dispatch(h.on_pointer_enter, event)
+			}
+			.pointer_leave {
+				vml_dispatch(h.on_pointer_leave, event)
 			}
 			else {}
 		}

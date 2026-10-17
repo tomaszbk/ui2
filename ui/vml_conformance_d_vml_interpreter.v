@@ -301,6 +301,7 @@ fn vml_conformance_metadata(el Element) string {
 	if metadata.menu_document {
 		parts << 'menus ${vml_conformance_menus(metadata.menus).join(' ')}'
 	}
+	for record in metadata.records { parts << 'record ${vml_record_text(record)}' }
 	return parts.join(' ')
 }
 

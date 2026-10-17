@@ -44,17 +44,12 @@ pub mut:
 	password    bool
 	readonly    bool
 	keyboard    TextKeyboard
-	on_submit   ElementCallback = unsafe { nil }
 }
 
 pub fn (p TextInputProps) build(ctx VmlBuildContext) !Element {
-	handlers := p.event_handlers()
 	return vml_keyed(text_input(TextInputConfig{
 		id:          ctx.id
-		on_event:    VmlEventHandlers{
-			...handlers
-			on_submit: p.on_submit
-		}.callback()
+		on_event:    p.element_callback()
 		frame:       ctx.frame
 		text:        p.text.str()
 		placeholder: p.placeholder

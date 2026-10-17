@@ -28,7 +28,7 @@ fn test_builtin_tags_cover_every_props_type() {
 	assert builtins == expected
 	mut common := []VmlPropInfo{}
 	vml_collect_props(CommonProps{}, [], mut common)
-	assert common.len == 52
+	assert common.len == 57
 	mut parts := []string{}
 	for tag, t in vml_builtin_widgets {
 		assert t.name == tag
@@ -84,6 +84,9 @@ fn w_sample(info VmlPropInfo) VmlValue {
 				run:  fn (event ElementEvent) ! {}
 			})
 		}
+		.string_list {
+			VmlValue([VmlValue('left'), VmlValue('cmd+s')])
+		}
 		.object {
 			match info.type_name.trim_left('?').all_after_last('.') {
 				'BoxStyle' { vml_reflect_value(BoxStyle{ bg: 0x123456 }) }
@@ -125,6 +128,9 @@ fn w_read_back(info VmlPropInfo, value VmlValue) bool {
 		}
 		.callback {
 			value is VmlCallable
+		}
+		.string_list {
+			'${value}' == '${VmlValue([VmlValue('left'), VmlValue('cmd+s')])}'
 		}
 		.object {
 			if value is VmlObject {

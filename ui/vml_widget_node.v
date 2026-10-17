@@ -880,7 +880,8 @@ fn vml_common_change(before CommonProps, after CommonProps) u8 {
 		|| before.height != after.height || before.style != after.style
 		|| before.enabled != after.enabled || before.hidden != after.hidden
 		|| before.native != after.native || before.autocorrect != after.autocorrect
-		|| before.secure != after.secure || !vml_same_handlers(before, after) {
+		|| before.secure != after.secure || before.keys != after.keys
+		|| !vml_same_handlers(before, after) {
 		return vml_change_rebuild
 	}
 	mut change := u8(0)
@@ -899,6 +900,8 @@ fn vml_same_handlers(a CommonProps, b CommonProps) bool {
 		&& a.on_pointer_down == b.on_pointer_down && a.on_pointer_drag == b.on_pointer_drag
 		&& a.on_pointer_up == b.on_pointer_up && a.on_long_press == b.on_long_press
 		&& a.on_swipe_left == b.on_swipe_left && a.on_link == b.on_link
+		&& a.on_submit == b.on_submit && a.on_key == b.on_key
+		&& a.on_pointer_enter == b.on_pointer_enter && a.on_pointer_leave == b.on_pointer_leave
 }
 
 // The fields projected verbatim onto the element that no build reads.
@@ -1029,8 +1032,14 @@ pub fn vml_assign[T, V](current T, value V) T {
 		} $else {
 			$compile_error('VML value binding must target a number')
 		}
+	} $else $if V is []string {
+		$if T is []string {
+			return value.clone()
+		} $else {
+			$compile_error('VML values binding must target a []string')
+		}
 	} $else {
-		$compile_error('VML binding target must be a string, bool or number')
+		$compile_error('VML binding target must be a string, bool, number or []string')
 	}
 }
 
