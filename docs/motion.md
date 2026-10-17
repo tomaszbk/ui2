@@ -207,9 +207,13 @@ Column(gap: 12) {
 ```
 
 `app.card_motion()` returns `ui2.MotionConfig`; the other methods return numeric
-presentation targets. Once the compiler lowers helper lists for typed
-properties, the helpers can be written in place, as styles are:
-`motion: [fade(0.2), slide_y(12), spring(170, 26)]`.
+presentation targets. The helpers can also be written in place, as styles are:
+`motion: [fade(0.2), slide_y(12), spring(170, 26)]` is
+`ui2.motion_compose(ui2.motion_fade(0.2), ui2.motion_slide_y(12),
+ui2.motion_spring(170, 26))`, and a single `motion: fade(0.2)` is composed the
+same way. Interpreted VML supports the helpers whose arguments are numbers,
+names, booleans or model values; `on`, `handle` and `clock` take V callbacks
+and handles, so they need compiled VML.
 
 `Timeline` and `Keyframe` parts declare a timeline in the document. A Timeline
 under an element plays on that element; its keyframes animate the element

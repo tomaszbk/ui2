@@ -4,8 +4,8 @@ module ui2
 // compose_motion, as StylePatch pieces compose by compose_styles. Each
 // motion_<name> helper returns one piece, so a VML property such as
 // `motion: [fade(0.2), slide_y(12), spring(170, 26)]` lowers to
-// `ui2.compose_motion([ui2.motion_fade(0.2), ui2.motion_slide_y(12),
-// ui2.motion_spring(170, 26)])`. An absent field keeps the value composed
+// `ui2.motion_compose(ui2.motion_fade(0.2), ui2.motion_slide_y(12),
+// ui2.motion_spring(170, 26))`. An absent field keeps the value composed
 // before it; enter and exit merge channel by channel.
 pub struct MotionPatch {
 pub:
@@ -30,6 +30,13 @@ pub:
 	easing    ?MotionEasing
 	easing_fn MotionEasingFn = unsafe { nil }
 	spring    ?MotionSpring
+}
+
+// motion_compose is the compose function of the `motion` helper namespace:
+// VML lowers `motion: [a, b]` and `motion: a` to `ui2.motion_compose(a, b)`
+// and `ui2.motion_compose(a)`, so V checks each entry where it is written.
+pub fn motion_compose(patches ...MotionPatch) MotionConfig {
+	return compose_motion(patches)
 }
 
 // compose_motion combines pieces into the configuration a `motion` property

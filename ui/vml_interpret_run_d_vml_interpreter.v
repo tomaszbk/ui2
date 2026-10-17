@@ -368,6 +368,14 @@ fn (f &VmlFrame) eval(e &VmlIExpr) !VmlValue {
 				return e.src.error(err.msg())
 			})
 		}
+		.motion_call {
+			mut args := []VmlValue{cap: e.args.len}
+			for arg in e.args {
+				args << f.eval(arg)!
+			}
+			patch := vml_motion_call(e.name, args) or { return e.src.error(err.msg()) }
+			return VmlValue(VmlObject(vml_motion_patch_object(patch)))
+		}
 		.style_state {
 			mut patches := []StylePatch{cap: e.args.len}
 			for arg in e.args {
@@ -694,6 +702,83 @@ fn vml_style_call(name string, arg VmlValue) !StylePatch {
 	}
 }
 
+// vml_motion_call calls a motion helper of ui/motion_patch.v with its
+// arguments converted to the kinds vml_motion_helpers lists.
+fn vml_motion_call(name string, args []VmlValue) !MotionPatch {
+	s := VmlSetter{
+		element: 'motion'
+		prop:    name
+	}
+	return match name {
+		'fade' { motion_fade(s.number(args[0])!) }
+		'slide_x' { motion_slide_x(s.number(args[0])!) }
+		'slide_y' { motion_slide_y(s.number(args[0])!) }
+		'scale' { motion_scale(s.number(args[0])!) }
+		'rotate' { motion_rotate(s.number(args[0])!) }
+		'duration' { motion_duration(s.number(args[0])!) }
+		'enter_duration' { motion_enter_duration(s.number(args[0])!) }
+		'exit_duration' { motion_exit_duration(s.number(args[0])!) }
+		'transition' { motion_transition(s.number(args[0])!) }
+		'spring' { motion_spring(s.number(args[0])!, s.number(args[1])!) }
+		'easing' { motion_easing(vml_enum_from(MotionEasing.linear, args[0], s)!) }
+		'layout' { motion_layout(vml_enum_from(MotionLayoutMode.none, args[0], s)!) }
+		'reduced' { motion_reduced(s.boolean(args[0])!) }
+		'enter' { motion_enter(vml_native[MotionStyle](args[0], s)!) }
+		'exit' { motion_exit(vml_native[MotionStyle](args[0], s)!) }
+		'timeline' { motion_timeline(vml_native[MotionTimeline](args[0], s)!) }
+		'target' { motion_target(s.text(args[0])!, vml_native[MotionTimeline](args[1], s)!) }
+		else { error('unknown motion helper `${name}`') }
+	}
+}
+
+// vml_motion_value composes a motion helper's patch, or a list of them (nested
+// lists flatten), into a MotionConfig, as compiled VML's `ui2.motion_compose`
+// does. Any other value is left for the property to convert.
+fn vml_motion_value(value VmlValue) !VmlValue {
+	if value !is []VmlValue && vml_motion_patch(value) == none {
+		return value
+	}
+	mut patches := []MotionPatch{}
+	vml_motion_patches(value, mut patches)!
+	return VmlValue(VmlObject(vml_model_object[MotionConfig](compose_motion(patches))))
+}
+
+// vml_motion_patch_object holds a motion helper's patch until a `motion`
+// value composes it. Documents cannot read its fields: reflecting them would
+// instantiate field readers for its optional enums, which V cannot generate.
+fn vml_motion_patch_object(patch MotionPatch) VmlReflect {
+	return VmlReflect{
+		type_name: typeof[MotionPatch]().name
+		type_idx:  typeof[MotionPatch]().idx
+		data:      voidptr(&VmlReflectBox[MotionPatch]{
+			value: patch
+		})
+		text:      vml_reflect_text[MotionPatch]
+	}
+}
+
+fn vml_motion_patch(value VmlValue) ?MotionPatch {
+	if value is VmlObject {
+		object := value
+		if object is VmlReflect {
+			return vml_reflected[MotionPatch](object)
+		}
+	}
+	return none
+}
+
+fn vml_motion_patches(value VmlValue, mut patches []MotionPatch) ! {
+	if value is []VmlValue {
+		for item in value {
+			vml_motion_patches(item, mut patches)!
+		}
+		return
+	}
+	patches << vml_motion_patch(value) or {
+		return error('a motion list expects motion helpers, not ${vml_value_description(value)}')
+	}
+}
+
 // --------------------------------------------------------------------- refs
 
 // VmlDynRef is an interpreted `ref name Type`: bound to the node of its
@@ -938,6 +1023,9 @@ fn (f &VmlFrame) prop_value(p VmlIProp) !VmlValue {
 	value := f.eval(p.expr)!
 	if p.style && value is []VmlValue {
 		return VmlValue(vml_style_value(value) or { return p.src.error(err.msg()) })
+	}
+	if p.motion {
+		return vml_motion_value(value) or { return p.src.error(err.msg()) }
 	}
 	return value
 }

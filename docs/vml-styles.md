@@ -9,7 +9,7 @@ The compiler knows no helper names. A `style` value uses the `style` helper
 namespace: `font_size(18)` is `ui2.style_font_size(18)` and a list is
 `ui2.style_compose(...)`, so a helper added here needs no compiler change. Any
 other props field holding a helper-built type works the same way through its
-own namespace (`motion` would be `ui2.motion_*` and `ui2.motion_compose`).
+own namespace (`motion` is `ui2.motion_*` and `ui2.motion_compose`).
 
 ## Inline and reusable styles
 
