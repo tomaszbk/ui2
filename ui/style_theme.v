@@ -11,42 +11,124 @@ pub:
 	font_sizes map[string]f64
 }
 
+// default_theme is the light theme. Besides the general tokens it holds the
+// kit's: surface and popover colors, the `on_*` text colors of filled tones,
+// the interaction and control colors, and the control metrics (kit_tokens.v).
 pub fn default_theme() Theme {
 	return Theme{
 		colors:     {
-			'surface': u32(0xffffff)
-			'accent':  u32(0x2563eb)
-			'text':    u32(0x111111)
-			'muted':   u32(0x64748b)
-			'border':  u32(0xcbd5e1)
-			'success': u32(0x22c55e)
-			'danger':  u32(0xdc2626)
-			'warning': u32(0xf59e0b)
-			'black':   u32(0)
-			'white':   u32(0xffffff)
-			'red':     u32(0xdc2626)
-			'green':   u32(0x22c55e)
-			'blue':    u32(0x2563eb)
+			'surface':       u32(0xffffff)
+			'surface_muted': u32(0xf1f5f9)
+			'popover':       u32(0xffffff)
+			'accent':        u32(0x2563eb)
+			'on_accent':     u32(0xffffff)
+			'text':          u32(0x172033)
+			'muted':         u32(0x64748b)
+			'border':        u32(0xcbd5e1)
+			'input':         u32(0xffffff)
+			'input_border':  u32(0xcbd5e1)
+			'success':       u32(0x15803d)
+			'on_success':    u32(0xffffff)
+			'warning':       u32(0xfbbf24)
+			'on_warning':    u32(0x172033)
+			'danger':        u32(0xb91c1c)
+			'on_danger':     u32(0xffffff)
+			'info':          u32(0x0369a1)
+			'on_info':       u32(0xffffff)
+			'focus_ring':    u32(0x2563eb)
+			'hover':         u32(0xe4e8ed)
+			'pressed':       u32(0xd7dbe1)
+			'selection':     u32(0xdbeafe)
+			'track':         u32(0xe2e8f0)
+			'disabled_text': u32(0x94a3b8)
+			'tooltip':       u32(0x172033)
+			'on_tooltip':    u32(0xf8fafc)
+			'backdrop':      u32(0x0f172a)
+			'shadow':        u32(0)
+			'black':         u32(0)
+			'white':         u32(0xffffff)
+			'red':           u32(0xdc2626)
+			'green':         u32(0x22c55e)
+			'blue':          u32(0x2563eb)
 		}
 		spacing:    {
-			'none':   f64(0)
-			'small':  f64(8)
-			'medium': f64(12)
-			'large':  f64(24)
+			'none':                  f64(0)
+			'xsmall':                f64(4)
+			'small':                 f64(8)
+			'medium':                f64(12)
+			'large':                 f64(24)
+			'control_small':         f64(6)
+			'control_medium':        f64(8)
+			'control_large':         f64(12)
+			'gap_small':             f64(4)
+			'gap_medium':            f64(6)
+			'gap_large':             f64(8)
+			'control_height_small':  f64(24)
+			'control_height_medium': f64(32)
+			'control_height_large':  f64(40)
 		}
 		radii:      {
-			'none':   f64(0)
-			'small':  f64(4)
-			'medium': f64(8)
-			'large':  f64(12)
-			'full':   f64(9999)
+			'none':           f64(0)
+			'small':          f64(4)
+			'medium':         f64(8)
+			'large':          f64(12)
+			'full':           f64(9999)
+			'control_small':  f64(4)
+			'control_medium': f64(6)
+			'control_large':  f64(8)
+			'popover':        f64(8)
+			'dialog':         f64(12)
 		}
 		font_sizes: {
-			'caption': f64(12)
-			'body':    f64(15)
-			'title':   f64(24)
-			'heading': f64(32)
+			'caption':        f64(12)
+			'body':           f64(15)
+			'title':          f64(24)
+			'heading':        f64(32)
+			'control_small':  f64(12)
+			'control_medium': f64(14)
+			'control_large':  f64(16)
 		}
+	}
+}
+
+// dark_theme is default_theme with the dark palette.
+pub fn dark_theme() Theme {
+	light := default_theme()
+	mut colors := light.colors.clone()
+	for name, value in {
+		'surface':       u32(0x172033)
+		'surface_muted': u32(0x263449)
+		'popover':       u32(0x1e293b)
+		'accent':        u32(0x93c5fd)
+		'on_accent':     u32(0x172033)
+		'text':          u32(0xf8fafc)
+		'muted':         u32(0xb4c0d0)
+		'border':        u32(0x475569)
+		'input':         u32(0x0f172a)
+		'input_border':  u32(0x475569)
+		'success':       u32(0x86efac)
+		'on_success':    u32(0x172033)
+		'warning':       u32(0xfbbf24)
+		'on_warning':    u32(0x172033)
+		'danger':        u32(0xfca5a5)
+		'on_danger':     u32(0x172033)
+		'info':          u32(0x7dd3fc)
+		'on_info':       u32(0x172033)
+		'focus_ring':    u32(0x93c5fd)
+		'hover':         u32(0x334054)
+		'pressed':       u32(0x3f4c5e)
+		'selection':     u32(0x1e3a8a)
+		'track':         u32(0x334155)
+		'disabled_text': u32(0x64748b)
+		'tooltip':       u32(0xf8fafc)
+		'on_tooltip':    u32(0x172033)
+		'backdrop':      u32(0)
+	} {
+		colors[name] = value
+	}
+	return Theme{
+		...light
+		colors: colors
 	}
 }
 
@@ -164,6 +246,12 @@ pub fn (mut component CompiledVmlComponent) font_size_token(name string) !f64 {
 }
 
 fn (mut component CompiledVmlComponent) update_theme_tokens() ! {
+	// Themed widgets read the kit tokens through the cache and rebuild on the
+	// revision, in the same batch as the token signals.
+	component.kit_tokens_cache = unsafe { nil }
+	if component.theme_revision != unsafe { nil } {
+		component.theme_revision.set(component.theme_revision.peek()! + 1)!
+	}
 	for name, mut signal in component.theme_colors {
 		signal.set(component.resolved_color_token(name)!)!
 	}

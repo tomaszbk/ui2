@@ -290,6 +290,16 @@ fn vml_new_node[P](mut owner CompiledVmlComponent, props P, o VmlNodeOptions, pa
 	node.path = o.path
 	node.src = o.src
 	node.impl = VmlAnyNode(node)
+	$if P is VmlThemed {
+		// A theme change rebuilds the widget and reads its layout floor again.
+		mut themed := node
+		mut revision := owner.theme_revision_signal() or { return o.src.wrap_error(err) }
+		owner.scope.effect_now('@theme', fn [mut themed, mut revision] [P]() ! {
+			revision.get()!
+			if themed.VmlNodeCore.node == unsafe { nil } && !themed.consumed { return }
+			themed.VmlNodeCore.changed(vml_change_rebuild | vml_change_layout)
+		}) or { return o.src.wrap_error(err) }
+	}
 	return node
 }
 
@@ -476,6 +486,17 @@ fn (n &VmlWidgetNode[P]) vml_child_placement(placement VmlPlacement) VmlPlacemen
 
 fn (n &VmlWidgetNode[P]) vml_layout_item() VmlLayoutItem {
 	$if P is VmlCommonProps {
+		$if P is VmlSizedControl {
+			if n.props.height == none {
+				mut owner := n.owner
+				item := n.props.layout_item()
+				height := owner.kit_tokens().metrics(n.props.control_size()).height
+				return VmlLayoutItem{
+					...item
+					min_height: if item.min_height > height { item.min_height } else { height }
+				}
+			}
+		}
 		return n.props.layout_item()
 	} $else {
 		return VmlLayoutItem{}

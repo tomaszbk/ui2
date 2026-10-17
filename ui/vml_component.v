@@ -39,6 +39,11 @@ mut:
 	theme_spacing    map[string]&Signal[f64]
 	theme_radii      map[string]&Signal[f64]
 	theme_font_sizes map[string]&Signal[f64]
+	// theme_revision advances when this component's resolved theme changes,
+	// and kit_tokens_cache holds its resolved kit tokens until then. Both are
+	// created by the first themed widget (kit_tokens.v).
+	theme_revision   &Signal[u64] = unsafe { nil }
+	kit_tokens_cache &KitTokens   = unsafe { nil }
 	// Shared by every component of a document, like its signal runtime.
 	projections &VmlProjections
 	// The generic document whose root this owner declares (vml_widget_node.v).
