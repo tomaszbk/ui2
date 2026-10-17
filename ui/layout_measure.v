@@ -84,9 +84,9 @@ fn layout_constrain_axis(value f64, minimum f64, maximum f64) f64 {
 	return if maximum < 0 { bounded } else { math.min(maximum, bounded) }
 }
 
-// measure_layout_text uses the active backend's metrics: AppKit's, vglyph's on
-// the desktop custom renderer, and Fontstash's on Android, Win32, UIKit,
-// headless and document-library builds. Sizes are logical em units. Like
+// measure_layout_text uses the active backend's metrics: vglyph's on the
+// desktop renderer, and Fontstash's on Android, UIKit, headless and
+// document-library builds. Sizes are logical em units. Like
 // layout/build, call this on the UI thread while a window is mounted.
 pub fn measure_layout_text(text string, style TextStyle, max_width f64) !LayoutSize {
 	layout_validate_text_measurement(style, max_width)!
@@ -231,20 +231,6 @@ fn custom_renderer_insets(element Element) ?LayoutPadding {
 		top:    8
 		bottom: 8
 	}
-}
-
-// appkit_insets are AppKit's control insets. Borderless NSTextField still
-// reserves two points at each horizontal edge. NSAttributedString measures
-// glyphs only; include the cell's existing margins so an intrinsic label does
-// not truncate itself.
-fn appkit_insets(element Element) ?LayoutPadding {
-	if element.kind == .label {
-		return LayoutPadding{
-			left:  2
-			right: 2
-		}
-	}
-	return none
 }
 
 fn layout_validate_text_measurement(style TextStyle, max_width f64) ! {

@@ -250,9 +250,8 @@ struct OtpInputMetrics {
 	group_gap f64
 }
 
-// otp_input_metrics sizes a cell for one character. AppKit insets field text
-// by about ten points and ignores alignment, so a cell about twenty points
-// wider than a digit keeps the character centered there as well.
+// otp_input_metrics sizes a cell for one character, about twenty points wider
+// than a digit.
 fn otp_input_metrics(size ComponentSize) OtpInputMetrics {
 	return match size {
 		.small { OtpInputMetrics{30, 32, 14, 4, 16} }

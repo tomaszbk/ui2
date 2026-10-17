@@ -1,12 +1,10 @@
 // vfmt off
-// MessageBoxW needs nothing from the Win32 view backend, so unlike
-// windows/ui_windows.v this file stays outside the ui2_custom_rendering
-// switch: custom-rendered Windows apps get the same system alert.
+// The Windows host's message box (platform.v): MessageBoxW.
 module ui2
 
 #flag windows -luser32
 
-#insert "@VMODROOT/windows/message_box_windows.h"
+#insert "@VMODROOT/ui/message_box_windows.h"
 
 fn C.ui2_win_message_box(title &u16, text &u16, flags u32) int
 

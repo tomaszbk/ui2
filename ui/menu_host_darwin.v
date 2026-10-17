@@ -1,15 +1,18 @@
 // vfmt off
-// The AppKit menu bar and status area item. Like the NSAlert in
-// ui/message_box_darwin.v these are Objective-C runtime objects rather than
-// views, so they only need the bridge. A custom-rendered macOS build draws its
-// own bar instead (ui/menu_custom.c.v).
+// The macOS host's menu bar and status item (platform.v). The window's
+// content is drawn, but the menu bar is the system's global one: NSMenu and
+// NSStatusItem are Objective-C runtime objects rather than views, so the
+// bridge is all they need, whichever host variant owns the window.
 module ui2
-
-$if macos && !ui2_custom_rendering ? && !ui2_headless ? && !ui2_document_library ? {
 
 import macos
 
 #flag darwin -framework AppKit
+
+// AppKit shows the menu bar outside the window and runs its key equivalents
+// itself, before the key reaches the window.
+const host_menu_bar = HostMenuBar.native
+const host_menu_key_equivalents = true
 
 // NSEventModifierFlags, the subset a menu accelerator can carry.
 const ns_event_modifier_shift = u64(1) << 17
@@ -31,18 +34,14 @@ struct MacosMenuCallback {
 	on_event ElementCallback = unsafe { nil }
 }
 
-fn macos_emit_menu_callback(binding MacosMenuCallback) {
-	emit_menu_callback(binding.on_event, binding.id)
-}
-
 @[heap]
 struct MacosMenuState {
 mut:
 	handler     macos.Id
 	status_item macos.Id
 	// bar_ids and tray_ids map an NSMenuItem — or the status item's button — to
-	// the typed callback it invokes. The menu owns the item, so the pointer identifies it for
-	// as long as it can be chosen.
+	// the typed callback it invokes. The menu owns the item, so the pointer
+	// identifies it for as long as it can be chosen.
 	bar_ids  map[u64]MacosMenuCallback
 	tray_ids map[u64]MacosMenuCallback
 }
@@ -56,16 +55,13 @@ fn macos_menu_state() &MacosMenuState {
 	return unsafe { macos_menu_state_singleton }
 }
 
-// Menu hooks of the backend contract (ui/backend.v).
-fn backend_menu_bar_supported() bool { return true }
+fn host_set_menu_bar(menus []Menu) { macos_install_menu_bar(menu_app_name(), menus) }
 
-fn backend_tray_supported() bool { return true }
+fn host_tray_supported() bool { return true }
 
-fn backend_set_menu_bar(menus []Menu) { macos_install_menu_bar(menu_app_name(), menus) }
+fn host_set_tray(cfg TrayConfig) { macos_install_status_item(cfg) }
 
-fn backend_set_tray(cfg TrayConfig) { macos_install_status_item(cfg) }
-
-fn backend_remove_tray() { macos_remove_status_item() }
+fn host_remove_tray() { macos_remove_status_item() }
 
 // macos_install_menu_bar rebuilds the whole main menu. The application menu
 // with its "Quit <app>" item always comes first — macOS reads the first
@@ -89,6 +85,9 @@ fn macos_install_menu_bar(app_name string, menus []Menu) {
 	macos.msg_void1(app_menu_item, 'setSubmenu:', app_menu)
 	macos.release(app_menu)
 	macos.release(app_menu_item)
+	if backend_embedder {
+		macos_add_edit_menu(main_menu)
+	}
 
 	for m in menus {
 		title := macos.msg_id3(macos.alloc('NSMenuItem'), 'initWithTitle:action:keyEquivalent:', macos.nsstring(m.title), macos.Id(unsafe { nil }), macos.nsstring(''))
@@ -103,6 +102,23 @@ fn macos_install_menu_bar(app_name string, menus []Menu) {
 	macos.release(main_menu)
 	mut st := macos_menu_state()
 	st.bar_ids = ids.move()
+}
+
+// macos_add_edit_menu adds the standard Edit menu. The embedder's view takes
+// copy:, cut:, paste: and selectAll: from it, the way AppKit text views do;
+// a sokol window handles those keys itself and must not lose them to a menu.
+fn macos_add_edit_menu(main_menu macos.Id) {
+	edit_item := macos.msg_id3(macos.alloc('NSMenuItem'), 'initWithTitle:action:keyEquivalent:', macos.nsstring('Edit'), macos.Id(unsafe { nil }), macos.nsstring(''))
+	edit_menu := macos.msg_id1(macos.alloc('NSMenu'), 'initWithTitle:', macos.nsstring('Edit'))
+	for row in [['Cut', 'cut:', 'x'], ['Copy', 'copy:', 'c'], ['Paste', 'paste:', 'v'], ['Select All', 'selectAll:', 'a']] {
+		item := macos.msg_id3(macos.alloc('NSMenuItem'), 'initWithTitle:action:keyEquivalent:', macos.nsstring(row[0]), macos.Id(voidptr(macos.sel(row[1]))), macos.nsstring(row[2]))
+		macos.msg_void1(edit_menu, 'addItem:', item)
+		macos.release(item)
+	}
+	macos.msg_void1(edit_item, 'setSubmenu:', edit_menu)
+	macos.release(edit_menu)
+	macos.msg_void1(main_menu, 'addItem:', edit_item)
+	macos.release(edit_item)
 }
 
 fn macos_install_status_item(cfg TrayConfig) {
@@ -301,7 +317,6 @@ fn macos_menu_handler() macos.Id {
 fn ui2_menu_item_chosen(_self voidptr, _cmd voidptr, sender voidptr) {
 	st := macos_menu_state()
 	pointer := u64(sender)
-	macos_emit_menu_callback(st.bar_ids[pointer] or { st.tray_ids[pointer] or { return } })
-}
-
+	binding := st.bar_ids[pointer] or { st.tray_ids[pointer] or { return } }
+	emit_menu_callback(binding.on_event, binding.id)
 }

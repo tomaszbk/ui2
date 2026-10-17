@@ -78,9 +78,8 @@ presentation immediately and completes any pending structural exit.
 
 Motion requests paint frames while a transition runs and returns the custom
 scheduler to idle after completion. Pointer hit testing, tooltips, focus
-geometry and painting use the same sampled transform. Native rendering rejects
-motion and nondefault opacity with a diagnostic. On macOS and Windows, enable
-custom rendering with `-d ui2_custom_rendering`.
+geometry and painting use the same sampled transform. UIKit and Android reject
+motion and nondefault opacity with a diagnostic.
 
 ## Reduced motion
 

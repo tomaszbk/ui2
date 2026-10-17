@@ -3,7 +3,7 @@
 @[has_globals]
 module ui2
 
-$if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? && !ui2_document_library ? {
+$if (android || linux || macos || windows) && !ui2_headless ? && !ui2_document_library ? {
 	// HoverEntry is one hoverable element painted this frame, with the index of
 	// the hoverable element it sits in, so a region names its whole chain with
 	// one index and no frame allocates a chain per element.

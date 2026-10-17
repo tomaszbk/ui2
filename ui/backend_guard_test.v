@@ -5,18 +5,16 @@ import os
 // The backend contract (backend.v) keeps the flags that select a backend out
 // of shared code. This test reads the sources and enforces it.
 
-const backend_flags = ['ui2_custom_rendering', 'ui2_headless', 'ui2_embedder', 'ui2_document_library']
+const backend_flags = ['ui2_headless', 'ui2_embedder', 'ui2_document_library']
 
 const backend_guards = {
 	'document':       r'$if ui2_document_library ? {'
 	'headless':       r'$if ui2_headless ? && !ui2_document_library ? {'
 	'uikit':          r'$if ios && !ui2_headless ? && !ui2_document_library ? {'
-	'appkit':         r'$if macos && !ui2_custom_rendering ? && !ui2_headless ? && !ui2_document_library ? {'
-	'win32':          r'$if windows && !ui2_custom_rendering ? && !ui2_headless ? && !ui2_document_library ? {'
-	'custom':         r'$if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? && !ui2_document_library ? {'
-	'custom desktop': r'$if (linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? && !ui2_document_library ? {'
+	'custom':         r'$if (android || linux || macos || windows) && !ui2_headless ? && !ui2_document_library ? {'
+	'custom desktop': r'$if (linux || macos || windows) && !ui2_headless ? && !ui2_document_library ? {'
 	'custom android': r'$if android && !ui2_headless ? && !ui2_document_library ? {'
-	'embedder':       r'$if macos && ui2_custom_rendering ? && ui2_embedder ? && !ui2_headless ? && !ui2_document_library ? {'
+	'embedder':       r'$if macos && ui2_embedder ? && !ui2_headless ? && !ui2_document_library ? {'
 }
 
 // Branches a backend may take inside its own files, by file.
@@ -28,29 +26,25 @@ const backend_branch_exceptions = {
 		r'pub const backend_embedder = $if ui2_embedder ? { true } $else { false }',
 	]
 	'ui/backend_document.v': [
-		r'const document_host_custom = $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? { true } $else { false }',
-		r'const document_host_appkit = $if macos && !ui2_custom_rendering ? && !ui2_headless ? { true } $else { false }',
+		r'const document_host_custom = $if ui2_headless ? { false } $else { true }',
 	]
 	'ui/embedder_options.v': [
 		r'$if ui2_embedder ? {',
-		r'$if !ui2_custom_rendering ? {',
 		r'$if ui2_headless ? {',
 	]
 }
 
-// The custom renderer selects its owned Metal surface with this branch.
+// The custom renderer selects its embedder host with this branch.
 const embedder_surface_branch = r'$if macos && ui2_embedder ? {'
 
 const backend_directories = {
-	'appkit':  'appkit'
-	'uikit':   'uikit'
-	'windows': 'win32'
+	'uikit': 'uikit'
 }
 
 fn backend_source_files() []string {
 	root := os.dir(@DIR)
 	mut files := []string{}
-	for dir in ['ui', 'appkit', 'uikit', 'windows'] {
+	for dir in ['ui', 'uikit'] {
 		for name in os.ls(os.join_path(root, dir)) or { panic(err) } {
 			if name.ends_with('.v') && !name.ends_with('_test.v') {
 				files << '${dir}/${name}'
@@ -128,5 +122,5 @@ fn test_every_backend_defines_its_name() {
 			}
 		}
 	}
-	assert names.keys().sorted() == ['appkit', 'custom', 'document', 'headless', 'uikit', 'win32']
+	assert names.keys().sorted() == ['custom', 'document', 'headless', 'uikit']
 }

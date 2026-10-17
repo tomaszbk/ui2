@@ -42,24 +42,19 @@ handling, and `ui/component_inputs_test.v` covers the logic.
 
 ### How the frame is drawn
 
-A native field always draws its own frame: AppKit gives it a bezel and the
-custom renderer an outline, and neither can be turned off. The number input
+A field always draws its own outline, which cannot be turned off. The number input
 and the input group therefore do not hide a borderless field inside a box.
 Their field spans the full height of a shared frame (border, corner radius and
 a muted background for the addons) and keeps a one-pixel border in the theme's
 border color, which reads as the divider between the field and the parts
-beside it. OTP cells stand alone and keep the backend's own field frame.
+beside it. OTP cells stand alone and keep the field's own outline.
 
 ### Which keys reach `on_key_event` while a field has focus
 
 | Backend | Delivered first, so the helper can consume them |
 | --- | --- |
-| Custom renderer | Every key; typed characters arrive separately as text. |
-| AppKit | Keys AppKit routes through `performKeyEquivalent:`: function keys such as the arrows, Home, End and forward Delete, and Command shortcuts. **Not** Backspace, Return, Escape or typed characters, which the field editor takes. |
-| Win32, UIKit | Not verified. |
-
-The AppKit row was measured with a probe that sent real key events to a key
-window. The consequence is spelled out under OTP input below.
+| Renderer | Every key; typed characters arrive separately as text. |
+| UIKit | Not verified. |
 
 ## Number input
 
@@ -143,9 +138,9 @@ outside the range is kept while typing; show it with `invalid` (see
 | Clamp on blur | ui2 reports no blur, so the clamp is `number_input_commit`, called on Return or before the value is used. |
 | `controls_right` | `controls: .trailing` |
 | Sizes, disabled, read-only | Implemented |
-| Centered text | `align`; the default is `.left` because AppKit fields ignore alignment today (see Requested backend changes). |
+| Centered text | `align` (default `.left`). |
 | `prefix` / `suffix` elements, `appearance(false)` | Omitted: use an input group for units and adornments; the frame is part of the component. |
-| `spinbutton` role | The field carries `accessibility_role: 'spinbutton'`; AppKit keeps its native text-field role for that name. |
+| `spinbutton` role | The field carries `accessibility_role: 'spinbutton'`. |
 
 ## OTP input
 
@@ -228,15 +223,14 @@ single field behind drawn boxes:
   fields, so the code is never exposed as plain text.
 
 The cost is the key handling above. Backspace in an empty cell has no text to
-delete, so the field reports no change; only `on_key_event` can move back, and
-on AppKit Backspace does not reach it while a field is being edited.
+delete, so the field reports no change; only `on_key_event` can move back.
 Backspace in a filled cell works everywhere (the field reports the emptied
 cell), as do the arrows, Home, End and Delete.
 
 | GPUI Kit | ui2 |
 | --- | --- |
 | Length, digits only, full-width digits | Implemented, plus `.alphanumeric` |
-| Auto-advance, Backspace back, paste a whole code, arrows | Implemented (see the AppKit Backspace gap) |
+| Auto-advance, Backspace back, paste a whole code, arrows | Implemented |
 | Masked | Native secure entry instead of asterisk icons |
 | `groups(n)` | Implemented, with an optional `separator` |
 | Disabled, sizes | Implemented; `with_size(px)` is replaced by the frame, which shrinks the cells to fit |
@@ -308,27 +302,11 @@ have callbacks while they can act.
 | Button `loading`, dropdown menus, popover triggers | Omitted: they need the loading and menu components of later batches. |
 | Context menu, paste hook, inline tokens, `Styled` overrides | Omitted: outside what ui2's native fields expose. |
 
-## Requested backend changes
-
-- **AppKit**: `native_update_text_field` ignores `TextStyle.align` and
-  `Element.padding_left`; the custom renderer and Win32 honor both. Applying
-  `setAlignment:` (the label path already maps `Align`) would let number inputs
-  center their text as GPUI Kit does.
-- **AppKit**: while a field is being edited, Backspace, Return, Escape and
-  typed characters never reach `on_key_event`. Forwarding the field editor's
-  commands (`deleteBackward:` and friends) from
-  `control:textView:doCommandBySelector:` to the typed key handler, honoring
-  `consume_key`, would make Backspace in an empty OTP cell move back.
-- **Accessibility**: number fields use the ARIA role `spinbutton`, which the
-  AppKit mapper leaves as the native text field.
-
 ## Verification
 
 Run from the directory that contains the `ui2` checkout:
 
 ```sh
 v test ui2/ui/component_inputs_test.v
-v -d ui2_custom_rendering test ui2/ui/component_inputs_test.v
 v run ui2/examples/gpui_inputs/main.v
-v -d ui2_custom_rendering run ui2/examples/gpui_inputs/main.v
 ```

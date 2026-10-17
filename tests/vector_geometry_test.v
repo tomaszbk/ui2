@@ -236,7 +236,7 @@ fn test_native_profile_rejects_vector_presentation() {
 	shape := line_shape(.butt)
 	for shapes in [[shape], []ui2.VectorShape{}] {
 		el := ui2.vector_canvas(id: 'shape', frame: ui2.rect(0, 0, 40, 40), shapes: shapes)!
-		$if !( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headless ? {
+		$if !(android || linux || macos || windows) && !ui2_headless ? {
 			if _ := ui2.validate_element_tree(el) {
 				assert false
 			} else {

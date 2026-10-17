@@ -1,8 +1,7 @@
 // An X11 or Wayland clipboard belongs to a client that has to stay around to
 // hand its contents over. The standard command-line clients — wl-copy, xclip and
-// xsel — do exactly that from the background, so driving them gives custom-
-// rendered Linux windows a real system clipboard without taking over the event
-// loop sokol owns.
+// xsel — do exactly that from the background, so driving them gives the Linux
+// host a real system clipboard without taking over the event loop sokol owns.
 module ui2
 
 import os

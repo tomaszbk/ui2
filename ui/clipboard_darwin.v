@@ -1,5 +1,5 @@
-// NSPasteboard only needs the Objective-C runtime bridge, so this file serves
-// custom-rendered macOS windows as well as the AppKit backend.
+// The macOS host's clipboard (platform.v): NSPasteboard through the
+// Objective-C runtime bridge.
 module ui2
 
 import macos

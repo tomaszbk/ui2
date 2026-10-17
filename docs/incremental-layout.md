@@ -25,10 +25,10 @@ ui2.refresh_element('description', ui2.label('description', new_text,
 
 This replaces a mounted declaration without calling the screen builder. Its id
 must remain `description`; duplicate ids anywhere in the tree and duplicate
-sibling keys are rejected before mutation. Custom rendering queues/coalesces work
-for the next frame. Native backends reconcile the resolved tree immediately so
-siblings whose frames moved are updated too. Call on the UI thread; custom
-workers deliver changes with `UiDispatcher.post`.
+sibling keys are rejected before mutation. The renderer queues/coalesces work
+for the next frame; UIKit reconciles the resolved tree immediately so siblings
+whose frames moved are updated too. Call on the UI thread; workers deliver
+changes with `UiDispatcher.post`.
 
 Color, fill, border, outline, hover and other paint properties reuse geometry.
 Text, metric typography, wrapping width, control insets, layout rules, order,
@@ -131,13 +131,12 @@ requests. `measure_hits`, `text_hits` and `layout_hits` count cache reuse
 separately. `output_visits` and `authored_visits` count recreated resolved and
 standalone declaration projections. Unchanged snapshot reads add neither count.
 These counters exclude tree validation, painting, shaping performed by the
-renderer itself, and native control reconciliation. The desktop custom text
+renderer itself, and UIKit control reconciliation. The desktop text
 engine separately retains shaping geometry (two generations of up to 1,024 blocks per context), keys font/environment
 revisions and exact text constraints, and applies foreground paint without
 reshaping, including rich runs and synthetic ellipsis ownership. Each shaped
 block retains up to eight foreground palettes for warmed interaction states. Link metadata
-also reuses shaping; decoration attributes remain shaping dependencies. Native
-AppKit measurement consults its actual cell for the required text height.
+also reuses shaping; decoration attributes remain shaping dependencies.
 Cached layout does not imply
 zero allocations, partial painting or avoided declarative builds. The
 [retained-frame allocation fixture](../benchmarks/steady_state/README.md) measures
@@ -146,12 +145,12 @@ actual GC allocation traffic and enforces idle, hover and property-tick budgets.
 Run the maintained example:
 
 ```sh
-v -d ui2_custom_rendering run examples/incremental_layout
-v -d ui2_custom_rendering run examples/incremental_layout --long
-v -d ui2_custom_rendering run examples/incremental_layout --measure
+v run examples/incremental_layout
+v run examples/incremental_layout --long
+v run examples/incremental_layout --measure
 ```
 
-Omit the custom define for native controls. Type accented text, select it, change
+Type accented text, select it, change
 color/text and resize. The editor keeps its local edit, while text changes can
 move its frame. `--measure` uses the same 612-unit scene for 20 alternating color
 or text updates under three policies: uncached reconstruction, retained full

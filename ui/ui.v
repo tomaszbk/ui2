@@ -478,7 +478,7 @@ pub:
 	vector_shapes     []VectorShape    // custom: retained local geometry, clipped to the view frame
 	vector_hit_mode   VectorHitMode
 	text_style        TextStyle
-	native_style      bool // button: let the platform own bezel and interaction styling
+	native_style      bool // button: draw the standard bezel unless a fill is declared
 	text_runs                 []TextRun // label/text_area: optional rich text style runs
 	keyboard                  int
 	long_press                bool
@@ -722,9 +722,6 @@ fn validate_element_properties(el Element, path string) ! {
 	if el.image_asset != ImageAsset{} || el.image_style != ImageStyle{} {
 		if el.kind !in [.image,.button] { return error('image assets/styles require an Image or raster Button at ${path}') }
 		if el.image_path.starts_with('symbol:') { return error('symbol buttons use text_style, not raster image assets/styles at ${path}') }
-	}
-	if backend_native_controls {
-		validate_native_image(el)!
 	}
 	if el.content_size.width != 0 || el.content_size.height != 0 {
 		if el.kind != .view { return error('scaled content must be a view at ${path}') }
@@ -1020,8 +1017,8 @@ pub fn button(id string, title string, frame Rect, box_ BoxStyle, style TextStyl
 	}
 }
 
-// with_native_style lets the platform render a button's standard bezel and
-// interaction states. Declared styles remain available to custom renderers.
+// with_native_style draws a button's standard bezel and interaction states
+// while it has no declared fill; a declared fill still wins.
 pub fn with_native_style(el Element) Element {
 	return Element{
 		...el

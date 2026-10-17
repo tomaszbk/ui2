@@ -42,18 +42,6 @@ fn test_root_revision_advances_only_when_a_different_root_is_published() {
 	assert manager.root_revision == first + 2
 }
 
-fn test_consumed_key_character_keeps_unrelated_and_ime_text_while_navigation_is_held() {
-	// Tab and Space are held; A and scan-less IME text must still reach editors.
-	suppressed := {u32(0x09): u32(0x0f), u32(0x20): u32(0x39), u32(0x0d): u32(0x11c)}
-	assert consumed_key_character(0x0f, suppressed)
-	assert consumed_key_character(0x39, suppressed)
-	assert consumed_key_character(0x11c, suppressed)
-	assert !consumed_key_character(0x1e, suppressed)
-	assert !consumed_key_character(0x1c, suppressed) // Main Enter differs from keypad Enter.
-	assert !consumed_key_character(0, suppressed)
-	assert !consumed_key_character(0x0f, map[u32]u32{})
-}
-
 fn focus_fixture(id string, x f64, y f64) Element {
 	return Element{ kind: .button, id: id, frame: rect(x, y, 40, 30) }
 }

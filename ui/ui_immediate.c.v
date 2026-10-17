@@ -1,10 +1,10 @@
 // vfmt off
-// Keep the imports inside the platform block. Hoisting gg imports makes the
-// AppKit backend compile Sokol's ARC sources together with Objective-C MRC.
+// Keep the imports inside the backend block, so the builds without the
+// renderer (headless, document library) never compile gg and sokol.
 @[has_globals]
 module ui2
 
-$if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? && !ui2_document_library ? {
+$if (android || linux || macos || windows) && !ui2_headless ? && !ui2_document_library ? {
 	import gg
 	import math
 	import sokol.sapp
@@ -871,6 +871,18 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		mut ctx := app.ctx
 		ctx.sync_gg()
 		configure_custom_presentation(app, gfx.query_backend())
+		// The window exists now: hand its native handle to the host services
+		// and install the menus declared before it did (platform.v).
+		publish_menu_context('', custom_native_window())
+		install_declared_menus()
+	}
+
+	// custom_native_window is the platform handle of sokol's window that the
+	// host's menu bar attaches to: an NSWindow, an HWND, or nil.
+	fn custom_native_window() voidptr {
+		$if macos { return sapp.macos_get_window() }
+		$if windows { return sapp.win32_get_hwnd() }
+		return unsafe { nil }
 	}
 
 	fn on_cleanup(app &GgApp) {
@@ -3885,12 +3897,10 @@ fn page_focused_text_area(direction int) {
 	const unstyled_box_bg = u32(0xffffff)
 	const button_bezel_radius = f64(6)
 
-	// A button that asked for the platform's styling gets its bezel from
-	// AppKit or Win32 on the native backends. The immediate renderer is the
-	// platform in its own window, so it draws one itself; without it a
-	// `native` button that was never painted is a bare caption, invisible on a
-	// white card. A button the application did colour keeps that colour, since
-	// the styling it asked the platform for stops where its own begins.
+	// A `native` button that was never painted gets the standard bezel;
+	// without it the button is a bare caption, invisible on a white card. A
+	// button the application did colour keeps that colour, since the standard
+	// styling stops where its own begins.
 	fn draw_button_bezel(ctx &DrawContext, x f64, y f64, w f64, h f64, radius f64, enabled bool) {
 		mut fill := u32(0xeef2f7)
 		mut border := u32(0xb4bfcd)
@@ -3962,9 +3972,9 @@ fn page_focused_text_area(direction int) {
 
 	// draw_text draws text that belongs to a box, shortening it when it does
 	// not fit, and reports whether it had to. A control draws its text down the
-	// middle of the box whatever the style says, because a label is the only
-	// thing the native backends let place its text, and a style shared with one
-	// must not move a button.
+	// middle of the box whatever the style says: only a label places its text
+	// by its style (draw_label_text), so a style shared with one does not move
+	// a button.
 	fn draw_text(ctx &DrawContext, t string, x f64, y f64, w f64, h f64, style TextStyle) bool {
 		return draw_text_in_box(ctx, t, x, y, w, h, centered_text_style(style), true, Rect{})
 	}
@@ -4114,8 +4124,8 @@ fn page_focused_text_area(direction int) {
 			block_h := f64(parts.len) * line_h
 			// A block with more lines than its box has room for is anchored at the top of
 			// the box and would run on out of the bottom of it, over whatever is drawn
-			// below. A native control draws only inside itself, so the lines that do not
-			// fit are cut off at the box rather than drawn past it.
+			// below, so the lines that do not fit are cut off at the box rather than
+			// drawn past it.
 			bounded := block_h > h && clip.width > 0 && clip.height > 0
 			if bounded {
 				inside := intersect_rect(Rect{

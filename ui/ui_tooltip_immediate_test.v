@@ -1,9 +1,8 @@
-// vtest vflags: -d ui2_custom_rendering
 // vfmt off
 @[has_globals]
 module ui2
 
-$if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
+$if (android || linux || macos || windows) && !ui2_headless ? {
 	import gg
 
 	fn reset_tooltip_test() {

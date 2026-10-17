@@ -1,15 +1,14 @@
 # Keyboard focus and semantic hooks
 
-Desktop native and custom windows share sequential navigation, explicit focus
-scopes, button activation and geometric directional navigation. Run
-`v run examples/focus_navigation` for native controls, or
-`v -d ui2_custom_rendering run examples/focus_navigation` for custom rendering.
+Desktop windows have sequential navigation, explicit focus scopes, button
+activation and geometric directional navigation. Run
+`v run examples/focus_navigation` to try them.
 
 A keyboard target needs a unique `Element.id`. Buttons, composed views with
 `button_behavior`, checkboxes, switches, toggles, sliders, dropdowns and text
 inputs are focusable automatically. A clickable View does not become a button.
 Set `focus_policy: .focusable` to opt another element into focus, or
-`focus_policy: .unfocusable` to exclude it. Native Views accept explicit focus;
+`focus_policy: .unfocusable` to exclude it. Views accept explicit focus;
 using a semantic Button remains the appropriate choice for an action.
 
 `tab_index: 0` follows declaration order. Positive indices come first, sorted
@@ -68,8 +67,8 @@ Enter and Space activate semantic buttons and composed `button_behavior` Views
 once per physical press; autorepeated activation events are consumed. Checkboxes,
 toggles and switches use their existing change actions. Pointer activation keeps
 its captured callback and release eligibility checks. Tab/arrow repetition moves
-once per delivered event. Windows consumes shared Tab handling before the native
-control fallback; it has one traversal implementation.
+once per delivered event. Every desktop OS shares one traversal
+implementation.
 
 Application key callbacks run before focus handling and may call `consume_key()`
 (or `consume_text_key()` for text-area commands). Open custom menus/dropdowns
@@ -79,10 +78,10 @@ editing/submit meanings, and the existing native IME command paths remain in use
 Changing focus through these APIs does not move an existing editor selection to
 its end. Unrelated declarations keep current focus, local text, selection and
 scroll. Unchanged declared text preserves edits; a changed declaration or
-`set_text(id, value)` replaces the edit buffer intentionally. Custom `set_text`
-keeps its existing selection clamping behavior. Custom IME composition stays attached
+`set_text(id, value)` replaces the edit buffer intentionally. `set_text`
+keeps its existing selection clamping behavior. IME composition stays attached
 to its editor across unrelated updates and is discarded when that editor loses
-focus, is removed, hidden, disabled, or becomes readonly. Native controls keep
+focus, is removed, hidden, disabled, or becomes readonly. UIKit controls keep
 their platform IME behavior. This does not add
 advanced grapheme/bidi editing.
 
@@ -107,12 +106,10 @@ ui.perform_semantic_action('volume', .increment)
 Actions are checked against the current declaration, ancestor availability and
 scope before dispatch. They use the same live control state and callbacks as
 input. Semantic metadata updates with reconciliation and snapshots do not
-require an extra paint. These hooks do **not** establish a verified OS
-accessibility bridge. Existing native controls and press bridges are preserved;
-VoiceOver/UIA/AT-SPI support is not newly claimed.
+require an extra paint. These hooks do **not** establish an OS accessibility
+bridge: the renderer does not publish the tree to VoiceOver, UIA or AT-SPI.
 
-macOS native and custom keyboard behavior is exercised by the example and
-backend fixtures. Windows and Linux backend checks are distinct from runtime
+macOS keyboard behavior is exercised by the example and backend fixtures. Windows and Linux backend checks are distinct from runtime
 acceptance on those operating systems. UIKit keeps its existing responder/IME
 bridges and exposes the shared programmatic hooks where its controls accept
 first responder; this change does not introduce a mobile hardware-key host.

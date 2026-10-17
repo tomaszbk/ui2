@@ -184,7 +184,7 @@ fn font_tag(data []u8, offset int) string {
 
 // parse_font_metrics walks a font's table directory for `head` and `hhea`.
 // Those two tables are all stb_truetype uses to scale a glyph, so they are all
-// the renderer has to read to size text the way the native backends do.
+// the renderer has to read to size text the way Fontstash draws it.
 fn parse_font_metrics(data []u8) !FontMetrics {
 	// A collection keeps its own header up front and the first font's table
 	// directory further in.
@@ -306,18 +306,6 @@ fn font_bundle_dirs() []string {
 		os.join_path(exe_dir, 'assets', 'fonts'),
 		os.join_path(@VMODROOT, 'assets', 'fonts'),
 	]
-}
-
-// font_bundle_file returns the path of a font file shipped with the application
-// or with ui2 itself, or '' when none of the bundle directories has it.
-fn font_bundle_file(file_name string) string {
-	for dir in font_bundle_dirs() {
-		path := os.join_path(dir, file_name)
-		if os.is_file(path) {
-			return path
-		}
-	}
-	return ''
 }
 
 // font_system_dirs are the font trees the platform installs into.

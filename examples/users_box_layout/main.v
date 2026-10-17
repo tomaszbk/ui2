@@ -180,10 +180,6 @@ pub fn (mut app UsersBoxLayoutDemo) about() {
 }
 
 fn main() {
-	$if windows && !ui2_custom_rendering ? {
-		eprintln('Users Box Layout requires -d ui2_custom_rendering on Windows for proportional image fitting.')
-		return
-	}
 	mut app := users_box_demo()
 	ui2.run_compiled_vml[UsersBoxLayoutDemo](
 		build:  build_users_box_layout

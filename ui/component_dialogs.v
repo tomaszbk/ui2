@@ -17,12 +17,9 @@ import math
 // window shrinks the dialog rather than letting it run past the edges.
 pub const dialog_window_margin = 16.0
 
-// Scroll elements keep this much blank space below their content on AppKit, UIKit
-// and the custom renderer, so a body gets it as its bottom padding.
+// Scroll elements keep this much blank space below their content, so a body
+// gets it as its bottom padding.
 const dialog_scroll_inset = 16.0
-// A native multi-line label lays its lines out a little taller than the custom
-// renderer spaces them, so wrapped text gets this much more room.
-const dialog_wrap_slack = 4.0
 const dialog_entrance_travel = 48.0
 const dialog_entrance_duration = 0.2
 const dialog_text_line_limit = 1000
@@ -237,11 +234,7 @@ fn dialog_text_height(lines int, font_size f64) f64 {
 	if lines <= 0 {
 		return 0
 	}
-	return f64(lines) * font_line_height(font_size) + if lines > 1 {
-		dialog_wrap_slack
-	} else {
-		0.0
-	}
+	return f64(lines) * font_line_height(font_size)
 }
 
 // dialog_children_height is how far the visible children reach downwards.

@@ -4,7 +4,7 @@ Custom images use fractional logical frames, a shared image atlas per drawing
 context, and explicit density variants. Run the fixture with:
 
 ```sh
-v -d ui2_custom_rendering run examples/image_assets
+v run examples/image_assets
 make screenshot EXAMPLE=image_assets
 ```
 
@@ -103,20 +103,17 @@ variant selection when its sampling footprint changes.
 
 `ui2.image_resource_stats()` reports actual decodes, cache hits, page uploads,
 created/destroyed pages and currently retained entries/textures/samplers for the
-active custom window. Native/closed windows return zero. It does not request a
+active window. Closed windows and UIKit return zero. It does not request a
 frame. The resource tests exercise real GPU submission and normal teardown;
 capture termination alone does not establish teardown or idle behavior.
 
-Native AppKit/UIKit support the simple centered proportional static image.
-All native profiles reject image rotation and interaction (callbacks, pointer
-flags, cursor, menu or tooltip), because the visible-quad input contract requires
-custom rendering. Configure rotation and interaction through Element fields; the old
+UIKit supports the simple centered proportional static image. It rejects
+image rotation and interaction (callbacks, pointer flags, cursor, menu or
+tooltip), because the visible-quad input contract requires the renderer, and
+custom fit/source/tint/alignment and DPI assets. Configure rotation and
+interaction through Element fields; the old
 `transformed_image`/`transformed_image_with_cursor` factories are removed.
-Native profiles also reject custom fit/source/tint/alignment and DPI assets.
-Windows native accepts BMP Image with explicit `ImageStyle{fit: .fill}`, zero
-rotation and no asset configuration. Its bitmap control rejects the default
-proportional fit, crops, tint and DPI variants; use custom rendering for those. Backend
-cross-checks are typechecks, not native runtime acceptance on those hosts.
+Backend cross-checks are typechecks, not runtime acceptance on those hosts.
 
 This work does not package or distribute embedded assets. General affine
 transforms and exact transformed ancestor clips are owned by PR 20; this branch

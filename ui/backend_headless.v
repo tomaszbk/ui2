@@ -21,11 +21,9 @@ $if ui2_headless ? && !ui2_document_library ? {
 	pub const backend_supports_visual_transforms = true
 	pub const backend_supports_vector_canvas = true
 	pub const backend_supports_drag_drop = true
-	pub const backend_native_controls = false
 	pub const backend_embedder = false
 	pub const backend_needs_host = false
 	const backend_feedback_strips = false
-	const backend_clips_rounded_children = false
 
 	// HeadlessControl is the live state of one mounted control with an id. As on
 	// the custom renderer, a declared value replaces the live one only when the

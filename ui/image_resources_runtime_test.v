@@ -1,8 +1,7 @@
-// vtest vflags: -d ui2_custom_rendering
 @[has_globals]
 module ui2
 
-$if ( linux || macos || windows ) && !ui2_headless ?&& ( linux || ui2_custom_rendering ?) && !ui2_embedder ? {
+$if (linux || macos || windows) && !ui2_headless ?&& !ui2_embedder ? {
 	import os
 	import time
 	import sokol.gfx
@@ -142,7 +141,7 @@ $if ( linux || macos || windows ) && !ui2_headless ?&& ( linux || ui2_custom_ren
 }
 
 fn test_image_resources_submit_release_and_close_in_the_running_backend() {
-	$if ( linux || macos || windows ) && !ui2_headless ?&& ( linux || ui2_custom_rendering ?) && !ui2_embedder ? {
+	$if (linux || macos || windows) && !ui2_headless ?&& !ui2_embedder ? {
 		image_probe_stage = 0
 		image_probe_started = false
 		image_probe_passed = false

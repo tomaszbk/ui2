@@ -1,13 +1,12 @@
 // vfmt off
-// Window chrome needs nothing from the Win32 view backend, so unlike
-// windows/ui_windows.v this file stays outside the ui2_custom_rendering
-// switch: custom-rendered Windows apps get the same title bar control.
+// The Windows host's window chrome (platform.v): the caption of sokol's
+// window.
 module ui2
 
 #flag windows -luser32
 #flag windows -lcomctl32
 
-#insert "@VMODROOT/windows/window_chrome_windows.h"
+#insert "@VMODROOT/ui/window_chrome_windows.h"
 
 fn C.ui2_chrome_set(hidden int) int
 fn C.ui2_chrome_start_drag() int

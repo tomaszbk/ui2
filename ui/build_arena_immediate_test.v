@@ -1,13 +1,13 @@
-// vtest vflags: -gc boehm -d no_gc_thread_local_alloc -d ui2_custom_rendering
+// vtest vflags: -gc boehm -d no_gc_thread_local_alloc
 @[has_globals]
 module ui2
 
-$if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ?&& !ui2_document_library ? {
+$if (android || linux || macos || windows) && !ui2_headless ?&& !ui2_document_library ? {
 	import arena
 }
 
 fn test_build_validation_reuses_arena_and_owns_escaping_diagnostics() ! {
-	$if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ?&& !ui2_document_library ? {
+	$if (android || linux || macos || windows) && !ui2_headless ?&& !ui2_document_library ? {
 		mut app := &GgApp{}
 		defer { app.build_arena.allocator.free() }
 		root := view('root', rect(0, 0, 100, 100), BoxStyle{}, [

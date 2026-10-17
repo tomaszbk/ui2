@@ -71,7 +71,7 @@ Enums stay bare: `text_align(right)` and `border_pattern(dashed)`. Use `weight(7
 for bold text and `weight(400)` for regular text. Insets apply to layout
 containers, `View`, and custom-rendered `Button`/`ToggleButton` content while
 preserving the full button hit area. `TextInput` currently supports
-`padding_left` only. Native button padding is diagnosed as unsupported.
+`padding_left` only.
 Property values follow their ordinary numeric, color, boolean or string types.
 
 For example, a custom button can keep all its appearance inline:
@@ -172,8 +172,8 @@ The namespaces `color`, `spacing`, `radius` and `typography` are reserved.
 
 Style effects patch retained nodes. A paint change requests painting; text
 metrics and insets invalidate measurement and layout. Theme changes preserve
-node identity, focus, local text edits and selection. Native rendering checks
-the properties actually supplied and diagnoses unsupported presentation.
+node identity, focus, local text edits and selection. On iOS, UIKit checks the
+properties actually supplied and diagnoses unsupported presentation.
 
 The visual designer writes canonical inline style lists for its editable literal
 forms. Reusable declarations, tokens, expressions and interaction styles remain

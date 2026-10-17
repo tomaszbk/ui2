@@ -1,5 +1,4 @@
-// NSEvent only needs the Objective-C runtime bridge, so this file serves
-// custom-rendered macOS windows as well as the AppKit backend.
+// The macOS host's key modifiers (platform.v), read from NSEvent.
 module ui2
 
 import macos

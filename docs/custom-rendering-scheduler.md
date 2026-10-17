@@ -12,9 +12,9 @@ ni otra unidad de tipografía.
 ui2.run_window('Mi app', 800, 600, build)
 ```
 
-El renderizado bajo demanda pertenece al renderer custom. Los backends nativos
-conservan sus contratos de actualización. Para usar el custom en macOS/Windows, compilar con
-`-d ui2_custom_rendering`; Linux y Android ya lo usan por defecto.
+El renderizado bajo demanda pertenece al renderer, que dibuja la ventana en
+Linux, macOS, Windows y Android. El backend UIKit de iOS conserva su propio
+contrato de actualización.
 
 ## Migración y propiedad del estado
 
@@ -120,7 +120,7 @@ Compilar y ejecutar la escena bajo demanda con el GC normal. Dejar la ventana
 visible, el mouse quieto fuera de sus controles y no escribir durante el intervalo estático:
 
 ```sh
-v -d ui2_custom_rendering -o /tmp/ui2-render-scheduler tests/render_scheduler
+v -o /tmp/ui2-render-scheduler tests/render_scheduler
 /usr/bin/time -l /tmp/ui2-render-scheduler --seconds 30
 ```
 
@@ -181,7 +181,7 @@ pero no es una solución de producción ni prueba de aceptación con GC normal.
 
 MacBook Air Apple M4, macOS 27.0 (`26A428`), SDK 27.0, Apple clang 21.0.0;
 V 0.5.2 `3005dc3`, Metal predeterminado, GC predeterminado. Mismo binario
-compilado con `v -d ui2_custom_rendering`, ventana de 640 × 480, dos segundos
+compilado con el renderer custom (entonces `-d ui2_custom_rendering`), ventana de 640 × 480, dos segundos
 de calentamiento y treinta segundos estáticos. No hubo interacción durante
 los intervalos. Esta comparación histórica se realizó cuando existían ambas
 políticas. La política continua y su configuración fueron eliminadas; el fixture

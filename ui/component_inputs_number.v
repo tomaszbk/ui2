@@ -42,20 +42,18 @@ pub:
 
 pub struct NumberInputConfig {
 pub:
-	id          string
-	frame       Rect
-	text        string // Controlled: the application stores edits and rebuilds.
-	placeholder string
-	min         ?f64
-	max         ?f64
-	step        f64  = 1
-	precision   int  = -1 // Decimal places; -1 keeps those of the text, step and bounds.
-	enabled     bool = true
-	readonly    bool // Selectable but neither editable nor steppable.
-	invalid     bool // Draw the danger border, e.g. while the text is out of range.
-	controls    NumberInputControls
-	// AppKit fields keep their text on the left whatever the alignment, so
-	// .center and .right only take effect on the other renderers for now.
+	id                  string
+	frame               Rect
+	text                string // Controlled: the application stores edits and rebuilds.
+	placeholder         string
+	min                 ?f64
+	max                 ?f64
+	step                f64  = 1
+	precision           int  = -1 // Decimal places; -1 keeps those of the text, step and bounds.
+	enabled             bool = true
+	readonly            bool // Selectable but neither editable nor steppable.
+	invalid             bool // Draw the danger border, e.g. while the text is out of range.
+	controls            NumberInputControls
 	align               Align
 	accessibility_label string
 	size                ComponentSize = .medium

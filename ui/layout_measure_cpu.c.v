@@ -1,8 +1,8 @@
 @[has_globals]
 module ui2
 
-// CPU measurement for backends without a text adapter of their own: Win32,
-// UIKit, Android, headless and document libraries.
+// CPU measurement for backends without a text adapter of their own: UIKit,
+// Android, headless and document libraries.
 import fontstash
 import os
 import os.font

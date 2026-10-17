@@ -1,7 +1,6 @@
 // vfmt off
-// NSAlert only needs the Objective-C runtime bridge, so unlike the AppKit view
-// backend in macos/ this file stays outside the ui2_custom_rendering switch:
-// custom-rendered macOS windows get the same system alert.
+// The macOS host's message box (platform.v): NSAlert through the Objective-C
+// runtime bridge.
 module ui2
 
 import macos

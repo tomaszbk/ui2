@@ -1,9 +1,9 @@
 // vfmt off
-// Keep gg imports out of the native AppKit/Win32 and headless builds.
+// Keep gg imports out of the headless and document builds.
 @[has_globals]
 module ui2
 
-$if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? && !ui2_document_library ? {
+$if (android || linux || macos || windows) && !ui2_headless ? && !ui2_document_library ? {
 	import math
 
 	const text_area_vertical_padding = 8.0

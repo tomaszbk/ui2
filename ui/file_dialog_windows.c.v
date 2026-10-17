@@ -7,7 +7,7 @@ import os
 #flag windows -lshell32
 #flag windows -lole32
 
-#insert "@VMODROOT/windows/file_dialog_windows.h"
+#insert "@VMODROOT/ui/file_dialog_windows.h"
 
 // The native common dialog uses a maximum 32,768 UTF-16 character result
 // buffer. Multi-select responses retain that compact folder-plus-filenames

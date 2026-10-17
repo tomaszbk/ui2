@@ -192,8 +192,7 @@ pub:
 	// uses the size preset: small 14, medium 16, large 24 (GPUI's xsmall is 12).
 	pixel_size f64
 	color      ?u32 // Defaults to the theme's foreground.
-	// rotation turns the icon clockwise, in degrees. The custom renderer draws
-	// symbols upright, so rotation is honored by AppKit and UIKit only.
+	// rotation turns the icon clockwise, in degrees, as Element.rotation.
 	rotation            f64
 	size                ComponentSize = .medium
 	accessibility_label string // Defaults to the icon's title.

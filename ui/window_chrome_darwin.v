@@ -1,5 +1,5 @@
-// NSWindow only needs the Objective-C runtime bridge, so this file serves
-// custom-rendered macOS windows as well as the AppKit backend.
+// The macOS host's window chrome (platform.v): the main NSWindow, which is
+// sokol's or the embedder's, through the Objective-C runtime bridge.
 module ui2
 
 import macos

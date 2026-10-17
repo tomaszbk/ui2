@@ -24,8 +24,8 @@ pub:
 }
 
 // BoxShadow is a drop shadow drawn beneath a box: offset by x and y, grown by
-// spread, and blurred over `blur` points. AppKit, UIKit and the custom renderer
-// draw it; Win32 child windows cannot, so Windows leaves it out.
+// spread, and blurred over `blur` points. UIKit and the custom renderer draw
+// it.
 pub struct BoxShadow {
 pub:
 	color   u32

@@ -1,9 +1,8 @@
-// vtest vflags: -d ui2_custom_rendering
 // vfmt off
 @[has_globals]
 module ui2
 
-$if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
+$if (android || linux || macos || windows) && !ui2_headless ? {
  __global scaled_callback_events = []ElementEvent{}
  fn capture_scaled_callback_event(event ElementEvent) { scaled_callback_events << event }
  fn test_scaled_hit_clipping_and_inverse_slider() {
@@ -36,7 +35,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
  }
 }
 
-$if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
+$if (android || linux || macos || windows) && !ui2_headless ? {
  struct ScaledFixtureModel {
 pub:
  title string = 'Fixed title'
@@ -53,7 +52,7 @@ pub:
  }
 }
 
-$if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
+$if (android || linux || macos || windows) && !ui2_headless ? {
  fn test_scroll_transform_snapshots_do_not_cross_windows() {
   original := g_gg_app.ctx
   first := new_custom_window_state()
@@ -77,7 +76,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
  }
 }
 
-$if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
+$if (android || linux || macos || windows) && !ui2_headless ? {
  fn test_scaled_visual_states_use_inverse_pointer_and_keep_hit_bounds() {
   previous_tooltip := g_tooltip
   previous_touch := g_touch
@@ -111,14 +110,14 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
  }
 }
 
-$if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
+$if (android || linux || macos || windows) && !ui2_headless ? {
 
 fn compiled_scaled_content_immediate_0(mut app ScaledFixtureModel, frame Rect) Element {
 	return $vml('fixtures/scaled_content_immediate_0.vml', frame)
 }
 }
 
-$if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
+$if (android || linux || macos || windows) && !ui2_headless ? {
 
 fn compiled_scaled_content_immediate_1(mut app ScaledFixtureModel, frame Rect) Element {
 	return $vml('fixtures/scaled_content_immediate_1.vml', frame)

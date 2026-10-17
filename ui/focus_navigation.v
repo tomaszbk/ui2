@@ -496,16 +496,3 @@ fn scroll_content_height(el Element) f64 {
 fn focus_scroll_maximum(el Element) f64 {
 	return math.max(0, scroll_content_height(el) - el.frame.height)
 }
-
-// Windows character messages retain their originating key's scan code. A
-// consumed navigation key may remain held while another key enters text.
-// Scan-less synthesized/IME text does not belong to a consumed physical key.
-// Only the Windows backend calls it; it stays shared so its tests run everywhere.
-@[markused]
-fn consumed_key_character(scan_code u32, suppressed map[u32]u32) bool {
-	if scan_code == 0 { return false }
-	for _, consumed_scan in suppressed {
-		if consumed_scan == scan_code { return true }
-	}
-	return false
-}

@@ -1,9 +1,8 @@
-// vtest vflags: -d ui2_custom_rendering
 // vfmt off
 @[has_globals]
 module ui2
 
-$if macos && ui2_custom_rendering ? && !ui2_headless ? {
+$if macos && !ui2_headless ? {
 import gg
 
 fn test_custom_screen_semantics_read_current_context_before_paint_without_invalidating() {

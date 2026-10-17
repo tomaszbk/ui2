@@ -5,9 +5,8 @@ platform. A font size of 18 means an 18-unit em square. There is no unit
 profile: `UnitProfile`, `TextStyle.units`, `VmlRunConfig.units` and the VML
 `units` property have been removed. An authored `units` property is an error.
 
-Device DPI is a separate, per-window presentation scale. Native Apple controls
-receive the declared logical font size directly; Win32 converts it to a physical
-em height with `size * DPI / 96` and rounds only that final height. Fontstash
+Device DPI is a separate, per-window presentation scale. UIKit controls
+receive the declared logical font size directly. Fontstash
 converts em size to its font's ascender-to-descender height for measurement and
 drawing; this font-metric conversion is independent of platform DPI.
 
@@ -22,7 +21,7 @@ Layout and text measurement remain fractional. Custom rectangle presentation
 and scissor clipping round accumulated physical edges, deriving widths from
 the rounded boundaries. `presentation_rect(rect, device_scale)` exposes that
 conversion for custom geometry; it returns window-logical coordinates and never
-mutates layout. Native controls use their toolkit presentation rules.
+mutates layout. UIKit controls use their toolkit presentation rules.
 
 [ScaledContent](scaled-content.md) applies a composition transform after layout.
 Its scale and device DPI remain independent: changing DPI does not change a

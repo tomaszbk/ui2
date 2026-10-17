@@ -144,9 +144,6 @@ fn (mut app IdeApp) compile_preview() ! {
 	// the designer host and ui2's platform builds.
 	mut command := [@VEXE, '-b', 'c', '-path', module_path]
 	command << ['-d', 'ui2_document_library']
-	$if ui2_custom_rendering ? {
-		command << ['-d', 'ui2_custom_rendering']
-	}
 	$if ui2_headless ? {
 		command << ['-d', 'ui2_headless']
 	}

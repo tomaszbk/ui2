@@ -1,9 +1,9 @@
-# Drag and drop in custom windows
+# Drag and drop
 
 Attach a `DragSource` and a `DropTarget` to `View` or `Image` elements with
 `with_drag_source` / `with_drop_target`. Both require an `on_event` callback.
 Hidden or disabled ancestry excludes a configured surface from hit registration; it cannot fall back to an ordinary tap.
-Native profiles diagnose these declarations as unsupported. This API moves data
+UIKit diagnoses these declarations as unsupported. This API moves data
 inside a UI2 window. Existing external window `DropEvent` handlers are independent.
 
 ```v
@@ -95,7 +95,7 @@ with one ImageResources owner in DrawContext and the common polygon clipper. Res
 on-demand updates only while input, ownership or model state changes; it does
 not create an animation loop or recurring timer.
 
-Run `v -d ui2_custom_rendering run examples/drag_drop`. Edit the text field, drag
+Run `v run examples/drag_drop`. Edit the text field, drag
 the blue card to green/red/background, and verify the counters and preserved
 draft. Set `UI2_DRAG_AUDIT=1` to print a read-only 30-second scheduler comparison
 following each terminal event. Metal can skip idle draws; GL still presents the
@@ -114,7 +114,7 @@ On macOS gg/Sokol with Metal (without `ui2_embedder`), run the opt-in fixture
 on a quiet desktop:
 
 ```sh
-v -d ui2_custom_rendering -d ui2_drag_runtime_probe test ui/drag_drop_runtime_immediate_test.v
+v -d ui2_drag_runtime_probe test ui/drag_drop_runtime_immediate_test.v
 ```
 
 It drives gg pointer events through the existing handler on the UI thread, checks

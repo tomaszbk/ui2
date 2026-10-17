@@ -1,7 +1,7 @@
 // vfmt off
 module ui2
 
-$if (linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? && !ui2_document_library ? {
+$if (linux || macos || windows) && !ui2_headless ? && !ui2_document_library ? {
 	fn resolve_custom_overlays(mut app GgApp, root Element, measure LayoutTextMeasureFn) !Element {
 		mut tree := app.overlay_tree
 		if !tree.initialized || tree.source != root {

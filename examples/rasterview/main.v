@@ -32,10 +32,6 @@ pub fn (mut app RasterviewDemo) toggle_details() {
 }
 
 fn main() {
-	$if windows && !ui2_custom_rendering ? {
-		eprintln('Raster View requires -d ui2_custom_rendering on Windows for proportional image fitting.')
-		return
-	}
 	mut app := initial_rasterview()
 	ui2.run_compiled_vml[RasterviewDemo](
 		build:  build_rasterview

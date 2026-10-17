@@ -1,8 +1,7 @@
-// vtest vflags: -d ui2_custom_rendering
 @[has_globals]
 module ui2
 
-$if ( linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headless ? {
+$if (linux || macos || windows) && !ui2_headless ? {
 	import gg
 	import sokol.gfx
 

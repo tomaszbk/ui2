@@ -1,8 +1,8 @@
-// vtest vflags: -d ui2_custom_rendering -d ui2_embedder -d ui2_geometry_capture
+// vtest vflags: -d ui2_embedder -d ui2_geometry_capture
 @[has_globals]
 module ui2
 
-$if macos && ui2_custom_rendering ?&& ui2_embedder ?&& ui2_geometry_capture ?&& !ui2_headless ? {
+$if macos && ui2_embedder ?&& ui2_geometry_capture ?&& !ui2_headless ? {
 	import gg
 	import math
 	import os
@@ -33,7 +33,7 @@ $if macos && ui2_custom_rendering ?&& ui2_embedder ?&& ui2_geometry_capture ?&& 
 }
 
 fn test_actual_motion_frame_fades_text_images_vectors_retargets_without_build_and_returns_idle() ! {
-	$if macos && ui2_custom_rendering ?&& ui2_embedder ?&& ui2_geometry_capture ?&& !ui2_headless ? {
+	$if macos && ui2_embedder ?&& ui2_geometry_capture ?&& !ui2_headless ? {
 		previous_app := g_gg_app
 		previous_build := g_build_screen
 		previous_state := activate_custom_window_state(new_custom_window_state())

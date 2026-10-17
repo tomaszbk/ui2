@@ -36,7 +36,6 @@ fn test_headless_backend_is_selected_by_its_flag() {
 	assert backend_supports_visual_transforms
 	assert backend_supports_vector_canvas
 	assert backend_supports_drag_drop
-	assert !backend_native_controls
 	assert !backend_needs_host
 	assert control_support(.text_area) == .supported
 }
