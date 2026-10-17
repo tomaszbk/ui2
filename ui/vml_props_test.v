@@ -187,21 +187,7 @@ fn props_fire_menu_items(items []MenuItem, mut app PropsApp) {
 }
 
 fn props_menu_document(root PNode) ![]Menu {
-	mut h := PHarness{
-		owner: new_vml_document('root', VmlDocumentConfig{})!
-	}
-	mut parts := []VmlPart{}
-	for child in root.children {
-		parts << h.part(child)!
-	}
-	el := if root.tag == 'Menu' {
-		MenuProps{
-			text: 'Solo'
-		}.build(VmlBuildContext{ parts: parts })!
-	} else {
-		MenuBarProps{}.build(VmlBuildContext{ parts: parts })!
-	}
-	return menus(el)!
+	return menus(props_document(root, rect(0, 0, 0, 0))!)!
 }
 
 fn props_example_menus(mut app PropsApp) []Menu {

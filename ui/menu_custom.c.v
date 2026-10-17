@@ -132,10 +132,10 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	// list the pointer handlers read. It runs after the element tree so the
 	// panels float above the window's own controls.
 	fn draw_menu_bar(ctx &DrawContext) {
-		menus := menu_bar()
+		bar_menus := menu_bar()
 		g_menu_hits = []MenuBarHit{}
 		g_menu_panels = []Rect{}
-		if menus.len == 0 {
+		if bar_menus.len == 0 {
 			return
 		}
 		window := rect(0, 0, f64(ctx.width), f64(ctx.height))
@@ -145,7 +145,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		style := menu_bar_title_style()
 		mut x := menubar_edge_margin + 4.0
 		mut open_x := x
-		for index, m in menus {
+		for index, m in bar_menus {
 			w := menu_text_width(ctx, m.title, style) + menubar_title_padding * 2
 			if menu_bar_open() && g_menu_open_path[0] == index {
 				draw_rect(ctx, x, 2, w, menubar_height - 5, menubar_highlight, 5)
@@ -169,11 +169,11 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			return
 		}
 		open := g_menu_open_path[0]
-		if open < 0 || open >= menus.len {
+		if open < 0 || open >= bar_menus.len {
 			close_menu_bar()
 			return
 		}
-		draw_menu_panel(ctx, menus[open].items, [open], open_x, menubar_height, window)
+		draw_menu_panel(ctx, bar_menus[open].items, [open], open_x, menubar_height, window)
 	}
 
 	// draw_menu_panel draws one list and, when the open path goes deeper,
@@ -427,15 +427,15 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			close_menu_bar()
 			return true
 		}
-		menus := menu_bar()
-		if menus.len == 0 {
+		bar_menus := menu_bar()
+		if bar_menus.len == 0 {
 			return false
 		}
 		pressed := parse_menu_shortcut(immediate_normalized_key(e))
 		if !menu_shortcut_bindable(pressed) {
 			return false
 		}
-		for m in menus {
+		for m in bar_menus {
 			item := find_menu_shortcut(m.items, pressed) or { continue }
 			close_menu_bar()
 			emit_menu_callback(item.on_select, item.id)

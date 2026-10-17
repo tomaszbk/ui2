@@ -65,6 +65,10 @@ pub fn (p DialogProps) vml_container() {}
 
 pub fn (p DialogProps) vml_custom_renderer() {}
 
+pub fn (p DialogProps) control_id_required() bool {
+	return true
+}
+
 pub fn (p DialogProps) build(ctx VmlBuildContext) !Element {
 	return vml_overlay_surface(p.CommonProps, ctx)
 }
@@ -81,6 +85,10 @@ pub struct PopoverProps {
 pub fn (p PopoverProps) vml_container() {}
 
 pub fn (p PopoverProps) vml_custom_renderer() {}
+
+pub fn (p PopoverProps) control_id_required() bool {
+	return true
+}
 
 pub fn (p PopoverProps) build(ctx VmlBuildContext) !Element {
 	return vml_overlay_surface(p.CommonProps, ctx)
@@ -99,6 +107,10 @@ pub fn (p MenuOverlayProps) vml_container() {}
 
 pub fn (p MenuOverlayProps) vml_custom_renderer() {}
 
+pub fn (p MenuOverlayProps) control_id_required() bool {
+	return true
+}
+
 pub fn (p MenuOverlayProps) build(ctx VmlBuildContext) !Element {
 	return vml_overlay_surface(p.CommonProps, ctx)
 }
@@ -116,6 +128,10 @@ pub fn (p ContextMenuProps) vml_container() {}
 
 pub fn (p ContextMenuProps) vml_custom_renderer() {}
 
+pub fn (p ContextMenuProps) control_id_required() bool {
+	return true
+}
+
 pub fn (p ContextMenuProps) build(ctx VmlBuildContext) !Element {
 	return vml_overlay_surface(p.CommonProps, ctx)
 }
@@ -132,6 +148,10 @@ pub struct TooltipProps {
 pub fn (p TooltipProps) vml_container() {}
 
 pub fn (p TooltipProps) vml_custom_renderer() {}
+
+pub fn (p TooltipProps) control_id_required() bool {
+	return true
+}
 
 pub fn (p TooltipProps) build(ctx VmlBuildContext) !Element {
 	return vml_overlay_surface(p.CommonProps, ctx)
