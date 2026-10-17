@@ -26,9 +26,8 @@ ui2.refresh_element('description', ui2.label('description', new_text,
 This replaces a mounted declaration without calling the screen builder. Its id
 must remain `description`; duplicate ids anywhere in the tree and duplicate
 sibling keys are rejected before mutation. The renderer queues/coalesces work
-for the next frame; UIKit reconciles the resolved tree immediately so siblings
-whose frames moved are updated too. Call on the UI thread; workers deliver
-changes with `UiDispatcher.post`.
+for the next frame. Call on the UI thread; workers deliver changes with
+`UiDispatcher.post`.
 
 Color, fill, border, outline, hover and other paint properties reuse geometry.
 Text, metric typography, wrapping width, control insets, layout rules, order,
@@ -131,7 +130,7 @@ requests. `measure_hits`, `text_hits` and `layout_hits` count cache reuse
 separately. `output_visits` and `authored_visits` count recreated resolved and
 standalone declaration projections. Unchanged snapshot reads add neither count.
 These counters exclude tree validation, painting, shaping performed by the
-renderer itself, and UIKit control reconciliation. The desktop text
+renderer itself. The desktop text
 engine separately retains shaping geometry (two generations of up to 1,024 blocks per context), keys font/environment
 revisions and exact text constraints, and applies foreground paint without
 reshaping, including rich runs and synthetic ellipsis ownership. Each shaped

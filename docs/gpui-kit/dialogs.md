@@ -28,8 +28,8 @@ therefore the overlay layer's. A dialog with `backdrop: .none` becomes a
 `.popover` overlay at the place `dialog_layout` gives it, so the rest of the
 window keeps working. `alert_dialog` is a `modal_dialog` with an alert's
 defaults, the way GPUI Kit's `AlertDialog` is built on its `Dialog`. Because
-`component_finish` validates the tree, building a dialog on the UIKit or
-Android backend returns an error.
+`component_finish` validates the tree, building a dialog on Android or iOS,
+where the renderer has no overlays, returns an error.
 
 `sheet` is an ordinary element, so it works on every renderer and can slide
 with an animation: a backdrop button over the frame, then a panel against one

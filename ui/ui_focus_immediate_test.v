@@ -1,7 +1,7 @@
 @[has_globals]
 module ui2
 
-$if (android || linux || macos || windows) && !ui2_headless ? {
+$if (android || ios || linux || macos || windows) && !ui2_headless ? {
 	import gg
 	import sokol.sapp
 
@@ -460,7 +460,7 @@ $if (android || linux || macos || windows) && !ui2_headless ? {
 	}
 }
 
-$if (android || linux || macos || windows) && !ui2_headless ? {
+$if (android || ios || linux || macos || windows) && !ui2_headless ? {
 	fn test_custom_dropdown_tab_and_slider_keys_keep_control_meanings() {
 		previous_app := g_gg_app
 		previous := activate_custom_window_state(new_custom_window_state())
@@ -536,7 +536,7 @@ $if (android || linux || macos || windows) && !ui2_headless ? {
 	}
 }
 
-$if (android || linux || macos || windows) && !ui2_headless ? {
+$if (android || ios || linux || macos || windows) && !ui2_headless ? {
 	fn test_custom_hidden_mounted_inputs_retain_edits_but_cannot_take_focus() {
 		previous_app := g_gg_app
 		previous := activate_custom_window_state(new_custom_window_state())
@@ -559,7 +559,7 @@ $if (android || linux || macos || windows) && !ui2_headless ? {
 	}
 }
 
-$if (android || linux || macos || windows) && !ui2_headless ? {
+$if (android || ios || linux || macos || windows) && !ui2_headless ? {
 	fn test_custom_tab_with_only_programmatic_targets_is_consumed_without_moving() {
 		previous_app := g_gg_app
 		previous := activate_custom_window_state(new_custom_window_state())

@@ -2,11 +2,10 @@ module ui2
 
 import math
 
-// IconName lists GPUI Kit's Lucide icon names that have a counterpart every ui2
-// backend can draw: an SF Symbol on AppKit and UIKit that ui/symbols.v also maps
-// to a Material Icons glyph of the same meaning for the other renderers. The
-// first group is from GPUI's default component set, the second from the wider
-// Lucide catalog. `padlock` is Lucide's Lock, which is a V keyword.
+// IconName lists GPUI Kit's Lucide icon names that have a counterpart the
+// renderer can draw: an SF Symbols name that ui/symbols.v maps to a Material
+// Icons glyph of the same meaning. The first group is from GPUI's default
+// component set, the second from the wider Lucide catalog. `padlock` is Lucide's Lock, which is a V keyword.
 pub enum IconName {
 	a_large_small
 	case_sensitive

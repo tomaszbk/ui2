@@ -2,7 +2,7 @@
 @[has_globals]
 module ui2
 
-$if (android || linux || macos || windows) && !ui2_headless ? {
+$if (android || ios || linux || macos || windows) && !ui2_headless ? {
 	__global scroll_test_events = []string{}
 	__global scroll_test_payloads = []ElementEvent{}
 	__global scroll_test_measurements = 0
@@ -47,7 +47,7 @@ $if (android || linux || macos || windows) && !ui2_headless ? {
 		return HitTarget{ id: id, on_event: scroll_test_changed }
 	}
 
-	$if android {
+	$if android || ios {
 		fn test_text_area_wraps_words_and_preserves_explicit_blank_lines() {
 			reset_scroll_test_state()
 			assert wrap_text_area_lines('one two three', 70, scroll_test_width) == ['one two', 'three']
@@ -70,7 +70,7 @@ $if (android || linux || macos || windows) && !ui2_headless ? {
 		assert scroll_offset('notes') == 240
 	}
 
-	$if android {
+	$if android || ios {
 		fn test_text_area_wraps_long_words_without_splitting_utf8_bytes() {
 			reset_scroll_test_state()
 			assert wrap_text_area_lines('é界🙂abcd', 30, scroll_test_width) == ['é界🙂', 'abc', 'd']
@@ -80,7 +80,7 @@ $if (android || linux || macos || windows) && !ui2_headless ? {
 		}
 	}
 
-	$if android {
+	$if android || ios {
 		fn test_text_area_does_not_limit_content_to_one_thousand_lines() {
 			reset_scroll_test_state()
 			mut lines := []string{}
@@ -91,7 +91,7 @@ $if (android || linux || macos || windows) && !ui2_headless ? {
 		}
 	}
 
-	$if android {
+	$if android || ios {
 		fn test_text_area_wrap_cache_tracks_text_width_and_font_changes() {
 			reset_scroll_test_state()
 			style := TextStyle{}
@@ -110,7 +110,7 @@ $if (android || linux || macos || windows) && !ui2_headless ? {
 	fn test_text_area_content_is_top_aligned_and_clipped_inside_its_pane() {
 		content := text_area_content_rect(rect(20, 100, 200, 216), 12, true)
 		assert content == rect(32, 108, 176, 200)
-		$if android {
+		$if android || ios {
 			first, last := visible_text_area_rows(100, content.y, 20, 0, content)
 			assert first == 0
 			assert last == 10
@@ -738,7 +738,7 @@ $if (android || linux || macos || windows) && !ui2_headless ? {
 }
 
 fn test_text_area_line_ranges_follow_wrapped_source_runes() {
-	$if android && !ui2_headless ? {
+	$if (android || ios) && !ui2_headless ? {
 		lines := ['one two', 'three']
 		assert text_area_line_rune_ranges('one two three', lines) == [
 			TextAreaLineRange{
@@ -754,7 +754,7 @@ fn test_text_area_line_ranges_follow_wrapped_source_runes() {
 }
 
 fn test_text_area_line_ranges_keep_original_crlf_offsets() {
-	$if android && !ui2_headless ? {
+	$if (android || ios) && !ui2_headless ? {
 		assert text_area_line_rune_ranges('a\r\nbc', ['a', 'bc']) == [
 			TextAreaLineRange{
 				start: 0
@@ -769,7 +769,7 @@ fn test_text_area_line_ranges_keep_original_crlf_offsets() {
 }
 
 fn test_text_area_vertical_and_line_boundary_navigation() {
-	$if (android || linux || macos || windows) && !ui2_headless ? {
+	$if (android || ios || linux || macos || windows) && !ui2_headless ? {
 		reset_scroll_test_state()
 		g_focused_field = 'notes'
 		replace_text_area_layout('notes', TextAreaLayout{
@@ -858,7 +858,7 @@ fn test_text_area_utf16_selection_preserves_rune_editor_contract_after_shaping()
 	}
 }
 
-$if (android || linux || macos || windows) && !ui2_headless ? {
+$if (android || ios || linux || macos || windows) && !ui2_headless ? {
 	fn test_registered_scroll_callbacks_keep_source_identity_and_fractional_offsets() {
 		reset_scroll_test_state()
 		mut events := &[]ElementEvent{}
@@ -903,7 +903,7 @@ $if (android || linux || macos || windows) && !ui2_headless ? {
 }
 
 
-$if (android || linux || macos || windows) && !ui2_headless ? {
+$if (android || ios || linux || macos || windows) && !ui2_headless ? {
 	fn test_anonymous_scroll_uses_private_identity_and_keeps_the_event_id_empty() {
 		reset_scroll_test_state()
 		mut events := &[]ElementEvent{}
@@ -939,7 +939,7 @@ $if (android || linux || macos || windows) && !ui2_headless ? {
 	}
 }
 
-$if (android || linux || macos || windows) && !ui2_headless ? {
+$if (android || ios || linux || macos || windows) && !ui2_headless ? {
 	fn test_named_scroll_id_can_equal_an_anonymous_private_key_without_sharing_state() {
 		reset_scroll_test_state()
 		defer { reset_scroll_test_state() }

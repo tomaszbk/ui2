@@ -5,7 +5,6 @@
 model. `vector_canvas` draws prepared shapes, in array order, through the custom
 renderer's existing `DrawContext`. It is a transparent `View`, participates in
 normal identity/reconciliation and has no dedicated textures or GPU resources.
-UIKit tree validation reports `vector canvas requires the custom renderer`.
 
 ```v
 mut path := ui2.VectorPath{}

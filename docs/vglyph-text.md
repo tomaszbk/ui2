@@ -11,8 +11,7 @@ There is no separate `v install vglyph` step.
 | --- | --- |
 | Linux, macOS and Windows | vglyph |
 | macOS with `-d ui2_embedder` | vglyph with the owned Metal context |
-| iOS | UIKit controls and Fontstash CPU measurement |
-| Android and `-d ui2_headless` | Fontstash text and CPU measurement |
+| Android, iOS and `-d ui2_headless` | Fontstash text and CPU measurement |
 
 The iOS, Android and headless paths do not import the vendored runtime and
 do not require its C libraries. The remaining Fontstash helpers serve those

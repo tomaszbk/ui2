@@ -85,7 +85,7 @@ fn layout_constrain_axis(value f64, minimum f64, maximum f64) f64 {
 }
 
 // measure_layout_text uses the active backend's metrics: vglyph's on the
-// desktop renderer, and Fontstash's on Android, UIKit, headless and
+// desktop renderer, and Fontstash's on Android, iOS, headless and
 // document-library builds. Sizes are logical em units. Like
 // layout/build, call this on the UI thread while a window is mounted.
 pub fn measure_layout_text(text string, style TextStyle, max_width f64) !LayoutSize {

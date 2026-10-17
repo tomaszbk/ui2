@@ -8,10 +8,11 @@
 
 `ui2` is a compact declarative UI module for V. It draws every control itself,
 the way a browser engine does: one immediate-mode `gg`/Sokol renderer paints
-and handles the whole window on Linux, macOS, Windows and Android. iOS still
-uses retained UIKit controls. The operating system is only the host: it
+and handles the whole window on Linux, macOS, Windows, Android and iOS. The
+operating system is only the host: it
 provides the window and event loop, input, the clipboard, menus, dialogs, the
-tray, window chrome and key modifiers, as described in
+tray, window chrome, key modifiers and, on iOS, the barcode scanner, as
+described in
 [host services](ui/platform.v). There is no GTK dependency on Linux.
 
 The V API includes responsive Flex and Grid placement with intrinsic text
@@ -71,8 +72,7 @@ export PATH="$HOME/.local/share/ui2-v:$PATH"
 ```
 
 CI builds the same pin through [the shared setup action](.github/actions/setup-v/action.yml).
-The module is split across `ui/` and `uikit/` through the `subdirs` field of
-`v.mod`.
+The module lives in `ui/`, the one entry in the `subdirs` field of `v.mod`.
 
 Build and run ui2 with V's C backend (`v -b c ...`), including the designer
 and its shared preview libraries.
@@ -82,6 +82,11 @@ dependencies. The vglyph runtime is included in the repository. See
 [desktop text setup](docs/vglyph-text.md) for macOS, Linux and Windows
 installation, linking and distribution. Android, iOS and headless builds do
 not need them.
+
+On iOS, sokol_app starts the app through `UIApplicationMain` and draws with
+Metal. The renderer looks for its fonts in `fonts/` or `assets/fonts/` beside
+the executable, so an app bundle has to carry them there. iOS builds are only
+typechecked (`make check-ios`); none has been run on a device yet.
 
 To use `ui2` from a project outside this repository, link the clone into
 `~/.vmodules`:
@@ -464,29 +469,25 @@ banner := ui2.view('banner', ui2.rect(0, 0, w, 120), ui2.BoxStyle{
 ```
 
 - `opacity` (0 to 1) fades the fill and nothing else.
-- `gradient` replaces `bg` on a view with a linear gradient: `angle` in degrees
+- `gradient` replaces `bg` with a linear gradient: `angle` in degrees
   (0 runs left to right, 90 top to bottom) and two or more stops, each with a
   position from 0 to 1 and an optional opacity. Like CSS `linear-gradient`, it
-  spans the box corner to corner along its angle. Buttons keep their solid fill
-  (a native button draws its title beneath any gradient layer); make a gradient
-  button from a view with `button_behavior`.
+  spans the box corner to corner along its angle. Buttons draw it too.
 - `shadow` draws a drop shadow beneath the box: `color`, `opacity`, `blur`,
-  offset `x`/`y` and `spread`, as in CSS `box-shadow`. A box that casts a shadow
-  does not clip its children to its rounded corners on UIKit, since a layer
-  masking to its bounds masks its shadow away too.
+  offset `x`/`y` and `spread`, as in CSS `box-shadow`.
 
 All three are animatable through `animation_number_property('box.opacity', ...)`
-and the like. The renderer draws them itself; UIKit uses CoreAnimation (layer
-shadows and a `CAGradientLayer`).
+and the like.
 
 ## Backend capabilities
 
 Call `control_support(kind)` to query support. The renderer implements every
 shared control kind; dropdowns and text areas are `partial` because the
 dropdown list is drawn by the renderer instead of a native menu and rich
-text-area runs are rendered as plain text. iOS reports images as `partial`,
-because quad interaction and advanced presentation need the renderer, and text
-areas as `partial`, because rich runs are rendered as plain text.
+text-area runs are rendered as plain text. On Android and iOS the renderer
+draws text with Fontstash rather than vglyph, and does not offer overlays,
+motion or visual transforms (`backend_supports_overlays` and its siblings are
+false there).
 
 A button marked `native` gets the standard bezel, including a pressed shade
 while the pointer is held on it, so it does not come out as a bare caption. A
@@ -517,8 +518,7 @@ Shared state includes `hidden`, `enabled`, `accessibility_role`,
 (`button`, `checkbox`, `tab`, `progressbar`, `navigation`, …). The renderer
 keeps them in a semantic tree that `semantic_tree()`, `semantic_node(id)` and
 `perform_semantic_action(id, action)` expose to tests and tools; it does not
-hand that tree to the platform's accessibility API yet. UIKit exposes them
-through UIAccessibility.
+hand that tree to the platform's accessibility API yet.
 `autocorrect` and `padding_left` configure applicable mobile text inputs.
 
 ## Visual IDE
@@ -553,7 +553,8 @@ choice := ui2.message_box(
 `NSAlert` message and informative text, Windows as a `MessageBoxW` caption and
 body, and Linux as the desktop's own `zenity` or `kdialog` dialog — `kdialog`
 first under KDE and Plasma. iOS presents a `UIAlertController` and pumps the run
-loop so the call stays synchronous like the desktop backends. `alert(title,
+loop, with the renderer paused, so the call stays synchronous like the desktop
+hosts. `alert(title,
 text)` and `confirm(title, text)` wrap the two common cases.
 
 Android has no alert this layer can drive without a JVM callback, so
@@ -827,8 +828,7 @@ An offset asked for before
 the element exists is taken up when it is first laid out. To scroll to content
 the event being handled has just added, call `request_refresh()` first: an
 offset past the current range, asked for while a rebuild is pending, is taken up
-again once that rebuild has laid out the new range. The iOS backend scrolls the
-same modes but does not expose these functions.
+again once that rebuild has laid out the new range.
 
 ## Fonts and text sizes
 
@@ -869,7 +869,8 @@ flags; additional weight and variation controls need their own API.
 
 `TextStyle.font_family` names a family. The desktop renderer registers a
 matching file from UI2's font directories or asks Pango/Fontconfig to resolve
-the family; UIKit hands the name to the platform's font manager.
+the family; Android and iOS look for a matching file in UI2's font directories
+and the system's.
 An unavailable family falls back through the default text face before symbol
 fonts.
 
@@ -900,7 +901,7 @@ remaining Fontstash paths:
 UI2_FONT_SYMBOLS=/usr/share/fonts/truetype/ancient-scripts/Symbola.ttf ./treeview
 ```
 
-Android and headless measurement still use Fontstash. Those paths
+Android, iOS and headless measurement use Fontstash. Those paths
 retain UI2's explicit symbol fallback chain, the font's ascender/descender
 conversion and monochrome emoji. Their `stb_truetype` rasterizer does not
 apply variable font axes or render bitmap/layered color emoji, so use static
@@ -1225,10 +1226,6 @@ recorder reads the presented framebuffer back, which only the GL backend
 implements, so the script builds macOS examples against GL instead of Metal.
 Text is a third wider at 96 dpi than it is on macOS, so a layout that only just
 fits in a macOS screenshot still has to be checked on Linux or Windows.
-
-Native objects returned by `alloc` follow a +1 creation contract. Renderers
-release that ownership after a retaining parent/property accepts the object and
-remove observers, delegates, actions, menus, and pointer registries on unmount.
 
 ## License
 

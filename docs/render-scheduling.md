@@ -15,8 +15,8 @@ frame. The handle belongs to that window; after close, `post` returns `false`.
 
 `ui2.render_stats()` reports callbacks, builds, draws, flushes and pending work.
 On Metal, idle callbacks skip both builds and draws. GL, EGL and D3D present after
-each platform callback, so idle callbacks repaint the retained tree. UIKit uses
-its platform refresh mechanism.
+each platform callback, so idle callbacks repaint the retained tree, and so
+does Metal on iOS.
 
 The scheduler suspends painting while the window is iconified or suspended,
 continues to deliver queued business work, and refreshes the surface on restore.

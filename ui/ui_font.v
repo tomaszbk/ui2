@@ -313,6 +313,8 @@ fn font_system_dirs() []string {
 	home := os.home_dir()
 	$if android {
 		return ['/system/fonts', '/data/fonts']
+	} $else $if ios {
+		return ['/System/Library/Fonts']
 	} $else $if linux {
 		return [
 			os.join_path(home, '.local', 'share', 'fonts'),

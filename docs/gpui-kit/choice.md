@@ -137,9 +137,8 @@ filled color from a theme tone (upstream's default is the theme's yellow, here
 empty stay distinct in both themes.
 
 Omitted: hover preview (ui2 has no hover state for composed views) and an
-arbitrary color (pick a `ComponentTone`). Stars are a filled `★` on Apple
-backends and the `star` symbol (a filled Material glyph) elsewhere: SF Symbols'
-`star` is an outline and the custom renderer's ★ is half size.
+arbitrary color (pick a `ComponentTone`). Stars are the `star.fill` symbol, a
+filled Material glyph.
 
 ## Toggle and toggle group
 

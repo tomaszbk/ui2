@@ -2,8 +2,8 @@
 @[has_globals]
 module ui2
 
-$if (android || linux || macos || windows) && !ui2_headless ? && !ui2_document_library ? {
-	$if android {
+$if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_document_library ? {
+	$if android || ios {
 		struct CustomFontState {
 		mut:
 			font_metrics FontMetrics
@@ -218,7 +218,7 @@ $if (android || linux || macos || windows) && !ui2_headless ? && !ui2_document_l
 		state.active_checkboxes = g_active_checkboxes
 		state.active_toggles = g_active_toggles
 		state.active_scrolls = g_active_scrolls
-		$if android {
+		$if android || ios {
 			state.legacy_fonts.font_metrics = g_font_metrics
 			state.legacy_fonts.font_files = g_font_files
 			state.legacy_fonts.font_indexed = g_font_indexed
@@ -296,7 +296,7 @@ $if (android || linux || macos || windows) && !ui2_headless ? && !ui2_document_l
 		g_active_checkboxes = state.active_checkboxes
 		g_active_toggles = state.active_toggles
 		g_active_scrolls = state.active_scrolls
-		$if android {
+		$if android || ios {
 			g_font_metrics = state.legacy_fonts.font_metrics
 			g_font_files = state.legacy_fonts.font_files
 			g_font_indexed = state.legacy_fonts.font_indexed

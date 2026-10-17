@@ -1,7 +1,7 @@
 module ui2
 
 fn test_image_visible_quad_hits_share_fractional_scaled_coordinates_and_clip() {
-	$if (android || linux || macos || windows) && !ui2_headless ? {
+	$if (android || ios || linux || macos || windows) && !ui2_headless ? {
 		previous := g_gg_app.ctx
 		previous_hits := g_hit_targets
 		transform := ContentTransform{xx:0.5,yy:0.5,x:10.25,y:20.75}.compose(

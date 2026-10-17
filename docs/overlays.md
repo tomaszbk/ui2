@@ -4,7 +4,7 @@ Custom desktop windows support Dialog, Popover, MenuOverlay, ContextMenu and
 Tooltip. Each surface is a retained View owned by its declaration or component,
 presented above the window content. Scrolling, clipping and transforms around
 its owner do not clip or transform the surface. The current presented anchor
-frame determines placement. UIKit and Android reject overlays with a
+frame determines placement. Android and iOS reject overlays with a
 diagnostic.
 
 Run the compiled VML example:

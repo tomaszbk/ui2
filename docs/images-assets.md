@@ -44,7 +44,7 @@ photo := ui2.Element{
 
 `image_path` is the 1x base source; variants are explicit files. PNG/JPEG and the
 other formats supported by the pinned stb decoder load through the same manager,
-including button images. SF Symbols remain the existing native/symbol text path.
+including button images. `symbol:` images are glyphs of the bundled Material Icons face (`ui/symbols.v`).
 Image styling is a V API in this compiler revision; VML grammar expansion belongs
 to the compiler lowering work. Use `on_event` together with `clickable` or
 `draggable` for image input.
@@ -103,15 +103,11 @@ variant selection when its sampling footprint changes.
 
 `ui2.image_resource_stats()` reports actual decodes, cache hits, page uploads,
 created/destroyed pages and currently retained entries/textures/samplers for the
-active window. Closed windows and UIKit return zero. It does not request a
+active window. Closed windows return zero. It does not request a
 frame. The resource tests exercise real GPU submission and normal teardown;
 capture termination alone does not establish teardown or idle behavior.
 
-UIKit supports the simple centered proportional static image. It rejects
-image rotation and interaction (callbacks, pointer flags, cursor, menu or
-tooltip), because the visible-quad input contract requires the renderer, and
-custom fit/source/tint/alignment and DPI assets. Configure rotation and
-interaction through Element fields; the old
+Configure rotation and interaction through Element fields; the old
 `transformed_image`/`transformed_image_with_cursor` factories are removed.
 Backend cross-checks are typechecks, not runtime acceptance on those hosts.
 

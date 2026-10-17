@@ -5,15 +5,13 @@
 @[has_globals]
 module ui2
 
-$if (android || linux || macos || windows) && !ui2_headless ? && !ui2_document_library ? {
+$if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_document_library ? {
 	pub const backend_name = 'custom'
-	// Android keeps gg/Fontstash text, which has no layered, faded or
+	// Android and iOS keep gg/Fontstash text, which has no layered, faded or
 	// transformed presentation.
-	pub const backend_supports_overlays = $if android { false } $else { true }
-	pub const backend_supports_motion = $if android { false } $else { true }
-	pub const backend_supports_visual_transforms = $if android { false } $else { true }
-	pub const backend_supports_vector_canvas = true
-	pub const backend_supports_drag_drop = true
+	pub const backend_supports_overlays = $if android || ios { false } $else { true }
+	pub const backend_supports_motion = $if android || ios { false } $else { true }
+	pub const backend_supports_visual_transforms = $if android || ios { false } $else { true }
 	pub const backend_embedder = $if ui2_embedder ? { true } $else { false }
 	pub const backend_needs_host = false
 	// sokol-gl spends some 370 vertices on every rounded rect and has 65,536 a

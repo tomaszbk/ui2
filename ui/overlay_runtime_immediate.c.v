@@ -204,7 +204,7 @@ $if (linux || macos || windows) && !ui2_headless ? && !ui2_document_library ? {
 	}
 }
 
-$if android && !ui2_headless ? && !ui2_document_library ? {
+$if (android || ios) && !ui2_headless ? && !ui2_document_library ? {
 	fn resolve_custom_overlays(mut _app GgApp, root Element, _measure LayoutTextMeasureFn) !Element { return root }
 	fn overlay_pointer_down(_x f64, _y f64) bool { return false }
 	fn overlay_key(_event KeyEvent, _repeated bool) bool { return false }

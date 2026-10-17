@@ -3,7 +3,7 @@ module ui2
 
 import gg
 
-$if (android || linux || macos || windows) && !ui2_headless ? {
+$if (android || ios || linux || macos || windows) && !ui2_headless ? {
 	fn test_shortcut_character_does_not_replace_selection_and_altgr_keeps_unicode() {
 		previous_app := g_gg_app
 		previous_build := g_build_screen

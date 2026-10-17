@@ -29,29 +29,29 @@ module ui2
 // constants of backend_custom.c.v and backend_document.v.
 //
 // OS host services (menus, tray, clipboard, dialogs, window chrome, key
-// modifiers) are not backends: platform.v documents them, and their files
-// keep V's OS suffixes and plain `$if macos`-style checks.
+// modifiers, the safe area and the barcode scanner) are not backends:
+// platform.v documents them, and their files keep V's OS suffixes and plain
+// `$if macos`-style checks.
 //
 // ## Selection
 //
 // The first matching row selects the backend. The guards are mutually
 // exclusive and together cover every combination of flags and target OS.
 //
-// | Flags and target                  | Backend  | Whole-file guard                                                                     |
-// |-----------------------------------|----------|--------------------------------------------------------------------------------------|
-// | -d ui2_document_library           | document | `$if ui2_document_library ? {`                                                       |
-// | -d ui2_headless                   | headless | `$if ui2_headless ? && !ui2_document_library ? {`                                    |
-// | -os ios                           | uikit    | `$if ios && !ui2_headless ? && !ui2_document_library ? {`                            |
-// | linux, android, macos, windows    | custom   | `$if (android || linux || macos || windows) && !ui2_headless ? && !ui2_document_library ? {` |
-// | any other OS                      | none     | compile error from ui/backend_headless.v; build with -d ui2_headless                 |
+// | Flags and target                    | Backend  | Whole-file guard                                                                                    |
+// |-------------------------------------|----------|-----------------------------------------------------------------------------------------------------|
+// | -d ui2_document_library             | document | `$if ui2_document_library ? {`                                                                      |
+// | -d ui2_headless                     | headless | `$if ui2_headless ? && !ui2_document_library ? {`                                                   |
+// | linux, macos, windows, android, ios | custom   | `$if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_document_library ? {` |
+// | any other OS                        | none     | compile error from ui/backend_headless.v; build with -d ui2_headless                                |
 //
 // The custom renderer has parts with narrower guards of their own:
 //
-// | Part                                 | Whole-file guard                                                                    |
-// |--------------------------------------|-------------------------------------------------------------------------------------|
-// | desktop text and overlays (vglyph)   | `$if (linux || macos || windows) && !ui2_headless ? && !ui2_document_library ? {`   |
-// | Android Fontstash text               | `$if android && !ui2_headless ? && !ui2_document_library ? {`                       |
-// | macOS embedder host (-d ui2_embedder) | `$if macos && ui2_embedder ? && !ui2_headless ? && !ui2_document_library ? {`      |
+// | Part                                  | Whole-file guard                                                                  |
+// |---------------------------------------|-----------------------------------------------------------------------------------|
+// | desktop text and overlays (vglyph)    | `$if (linux || macos || windows) && !ui2_headless ? && !ui2_document_library ? {` |
+// | mobile Fontstash text, no overlays    | `$if (android || ios) && !ui2_headless ? && !ui2_document_library ? {`            |
+// | macOS embedder host (-d ui2_embedder) | `$if macos && ui2_embedder ? && !ui2_headless ? && !ui2_document_library ? {`     |
 //
 // The embedder is a host variant of the custom renderer, not a backend of its
 // own: on macOS, -d ui2_embedder replaces the sokol window with AppKit windows
@@ -66,12 +66,12 @@ module ui2
 //   insets follow the host's renderer so the library lays out as it will draw.
 // - headless: ui/backend_headless.v. In-memory window state that tests drive
 //   with headless_state(), headless_frame() and headless_key(); no OS dialogs.
-// - uikit: uikit/ and ui/message_box_ios.v.
 // - custom: ui/backend_custom.c.v, the `*_immediate.c.v` files,
 //   draw_context.c.v, image_resources.c.v, menu_custom.c.v and
 //   linux_idle_linux.c.v; desktop text in text_backend_vglyph.c.v; overlays
-//   in overlay_runtime_immediate.c.v (desktop, with an Android stub); Android
-//   text in ui_text_legacy_android.c.v; the embedder in embedder_*_darwin.c.v.
+//   in overlay_runtime_immediate.c.v (desktop, with a mobile stub); Android
+//   and iOS text in ui_text_fontstash.c.v; the embedder in
+//   embedder_*_darwin.c.v.
 //
 // Motion, visual transform and CPU text measurement code is shared
 // (motion_runtime.c.v, visual_transform_runtime.c.v, layout_measure_cpu.c.v):
@@ -180,14 +180,10 @@ module ui2
 //
 // ## Constants every backend defines
 //
-//   pub const backend_name string: 'document', 'headless', 'uikit' or
-//     'custom'.
+//   pub const backend_name string: 'document', 'headless' or 'custom'.
 //   pub const backend_supports_overlays bool: retained overlays (with_overlay).
 //   pub const backend_supports_motion bool: element opacity and motion.
 //   pub const backend_supports_visual_transforms bool: with_transform.
-//   pub const backend_supports_vector_canvas bool: vector canvases and scaled
-//     content.
-//   pub const backend_supports_drag_drop bool: drag sources and drop targets.
 //   pub const backend_embedder bool: the custom renderer runs in the macOS
 //     embedder host instead of a sokol window.
 //   pub const backend_needs_host bool: there is no window; refreshes, element

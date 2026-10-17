@@ -10,33 +10,38 @@ module ui2
 //
 // Each service is a set of `host_*` functions and constants that every OS
 // defines, in files named after the service with V's OS suffixes
-// (`_darwin.v`, `_windows.c.v`, `_linux.v`, `_default.c.v`, ...). They hold
-// plain `$if macos`-style checks at most, never a backend flag (backend.v),
-// and the headless and document backends compile them too: shared code and
-// tests may call any of them. The custom backend forwards the backend
-// contract's menu, tray and dialog hooks to them.
+// (`_darwin.v`, `_ios.v`, `_windows.c.v`, `_linux.v`, `_default.c.v`, ...).
+// They hold plain `$if macos`-style checks at most, never a backend flag
+// (backend.v), and the headless and document backends compile them too:
+// shared code and tests may call any of them. The custom backend forwards the
+// backend contract's menu, tray, dialog, safe area and scanner hooks to them.
 //
-// | Service            | macOS                    | Windows               | Linux                 | Android     |
-// |--------------------|--------------------------|-----------------------|-----------------------|-------------|
-// | window, event loop | sokol_app (or embedder)  | sokol_app             | sokol_app (X11, EGL)  | sokol_app   |
-// | menu bar           | global NSMenu bar        | window HMENU          | drawn by the renderer | drawn       |
-// | tray               | NSStatusItem             | notification area     | none                  | none        |
-// | clipboard          | NSPasteboard             | Win32 clipboard       | wl-clipboard, xclip   | none        |
-// | message box        | NSAlert                  | MessageBoxW           | zenity, kdialog       | none        |
-// | file dialog        | NSOpenPanel, NSSavePanel | IFileDialog           | zenity, kdialog       | none        |
-// | window chrome      | NSWindow style mask      | caption subclass      | none                  | none        |
-// | key modifiers      | NSEvent                  | GetKeyState           | last renderer event   | last event  |
+// | Service            | macOS                    | Windows           | Linux                 | Android     | iOS                      |
+// |--------------------|--------------------------|-------------------|-----------------------|-------------|--------------------------|
+// | window, event loop | sokol_app (or embedder)  | sokol_app         | sokol_app (X11, EGL)  | sokol_app   | sokol_app (UIKit, Metal) |
+// | menu bar           | global NSMenu bar        | window HMENU      | drawn by the renderer | drawn       | none                     |
+// | tray               | NSStatusItem             | notification area | none                  | none        | none                     |
+// | clipboard          | NSPasteboard             | Win32 clipboard   | wl-clipboard, xclip   | none        | UIPasteboard             |
+// | message box        | NSAlert                  | MessageBoxW       | zenity, kdialog       | none        | UIAlertController        |
+// | file dialog        | NSOpenPanel, NSSavePanel | IFileDialog       | zenity, kdialog       | none        | none                     |
+// | window chrome      | NSWindow style mask      | caption subclass  | none                  | none        | none                     |
+// | key modifiers      | NSEvent                  | GetKeyState       | last renderer event   | last event  | last event               |
+// | safe area          | none                     | none              | none                  | none        | root view safeAreaInsets |
+// | barcode scanner    | none                     | none              | none                  | none        | AVFoundation camera      |
 //
 // ## Window and event loop
 //
 // The renderer opens its window with gg (ui_immediate.c.v run_window), whose
-// sokol_app owns the event loop on every OS. Once the window exists the
-// renderer publishes its native handle (an NSWindow, an HWND, or nil) to
-// menu.v with publish_menu_context and installs the declared menus. The macOS
-// embedder (-d ui2_embedder, embedder_*_darwin.c.v) is a host variant of the
-// same renderer: it owns AppKit windows and their Metal surfaces instead of a
-// sokol window, which gives it several windows and NSTextInputClient text
-// input. Linux waits for events itself while idle (linux_idle_linux.c.v).
+// sokol_app owns the event loop on every OS; on iOS sokol_app runs
+// UIApplicationMain itself, which is why the renderer defines SOKOL_NO_ENTRY
+// there. Once the window exists the renderer publishes its native handle (an
+// NSWindow, an HWND, or nil) to menu.v with publish_menu_context and installs
+// the declared menus. The macOS embedder (-d ui2_embedder,
+// embedder_*_darwin.c.v) is a host variant of the same renderer: it owns
+// AppKit windows and their Metal surfaces instead of a sokol window, which
+// gives it several windows and NSTextInputClient text input. Linux waits for
+// events itself while idle (linux_idle_linux.c.v). On iOS the renderer shows
+// sokol's on-screen keyboard while an editable field has focus.
 //
 // ## Menu bar and tray (menu_host_*)
 //
@@ -76,6 +81,18 @@ module ui2
 // ## Key modifiers (key_modifiers_*)
 //
 //   fn host_key_modifiers() KeyModifiers
+//
+// ## Safe area (safe_area_*)
+//
+//   fn host_safe_area_top() f64: how far system chrome reaches into the top
+//     of a full-screen window, in logical units.
+//
+// ## Barcode scanner (scanner_*)
+//
+//   fn host_start_barcode_scan(on_result ScanCallback): present the camera
+//     and report one ScanResult; hosts without one report an error at once.
+//
+// The iOS services share the Objective-C runtime helpers in objc_ios.v.
 
 // HostMenuBar is where a host shows the application's menu bar.
 enum HostMenuBar {

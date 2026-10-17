@@ -2,9 +2,9 @@
 
 Desktop custom rendering supports translation, nonuniform scale, reflection and
 clockwise rotation on every `Element` and its subtree. Layout frames, wrapping
-constraints, ids and editor state remain logical and unchanged. UIKit rejects
-visual presentation with a diagnostic. Android also rejects it because
-its Fontstash text path does not support full affine glyphs. No new host port or
+constraints, ids and editor state remain logical and unchanged. Android and
+iOS reject visual presentation with a diagnostic, because their Fontstash text
+path does not support full affine glyphs. No new host port or
 animation/presence lifecycle is part of this API.
 
 ```v

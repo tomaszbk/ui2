@@ -1,10 +1,11 @@
 // vfmt off
-// The Android renderer retains gg/Fontstash until its Pango dependencies can be
-// built and packaged. Keep this legacy adapter out of desktop compilation.
+// Android and iOS draw text with gg/Fontstash: neither SDK ships the Pango,
+// HarfBuzz and Fontconfig stack that vglyph needs. Desktop builds never compile
+// this adapter.
 @[has_globals]
 module ui2
 
-$if android && !ui2_headless ? && !ui2_document_library ? {
+$if (android || ios) && !ui2_headless ? && !ui2_document_library ? {
 	import fontstash
 	import gg
 	import math
@@ -135,15 +136,10 @@ $if android && !ui2_headless ? && !ui2_document_library ? {
 		return metrics
 	}
 
-	// text_ellipsis marks a line the renderer had to shorten. AppKit's cells
-	// truncate with this glyph too, and the bundled Roboto always has it.
+	// text_ellipsis marks a line the renderer had to shorten. The bundled Roboto
+	// always has it.
 	const text_ellipsis = '\u2026'
 
-	// fit_text shortens a line that is wider than the box it was given. Both
-	// native backends hand their labels NSLineBreakByTruncatingTail, so a long
-	// string ends in an ellipsis there; the immediate renderer draws straight
-	// into the window and would otherwise run the tail over its neighbours and
-	// off the window edge.
 	// Break text into the lines a multi-line label draws: on its own newlines, and on
 	// spaces wherever a line would outgrow the width. A word wider than the line is
 	// left whole and truncated when it is drawn, rather than split mid-word.
@@ -157,6 +153,9 @@ $if android && !ui2_headless ? && !ui2_document_library ? {
 		})
 	}
 
+	// fit_text shortens a line that is wider than the box it was given, ending it
+	// in text_ellipsis; drawn whole, the tail would run over its neighbours and
+	// off the window edge.
 	fn fit_text(ctx &DrawContext, t string, w f64, cfg gg.TextCfg) string {
 		if w <= 0 {
 			return t
@@ -395,7 +394,7 @@ $if android && !ui2_headless ? && !ui2_document_library ? {
 		return first, last
 	}
 
-	// Android retains this wrapping helper while desktop tooltips use shaped blocks.
+	// Desktop tooltips use shaped blocks instead of this wrapping helper.
 	// tooltip_lines wraps tooltip text to a readable measure and reports the
 	// width of the widest line, so short help gets a snug bubble. The line cap
 	// keeps a long string from filling the window; its last line carries the

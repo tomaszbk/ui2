@@ -172,8 +172,7 @@ The namespaces `color`, `spacing`, `radius` and `typography` are reserved.
 
 Style effects patch retained nodes. A paint change requests painting; text
 metrics and insets invalidate measurement and layout. Theme changes preserve
-node identity, focus, local text edits and selection. On iOS, UIKit checks the
-properties actually supplied and diagnoses unsupported presentation.
+node identity, focus, local text edits and selection.
 
 The visual designer writes canonical inline style lists for its editable literal
 forms. Reusable declarations, tokens, expressions and interaction styles remain

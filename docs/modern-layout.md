@@ -152,7 +152,7 @@ measured result. `measure_layout_element` accepts a text-measurement callback,
 so layout can be tested without a window. `measure_layout_text` supplies actual
 font metrics in logical units: the desktop renderer uses vglyph, also before a
 window opens, and Android, iOS and headless builds use a CPU-only fontstash
-context. On iOS that is not an exact measurement of the UIKit controls.
+context.
 Flex and Grid use content measurement for omitted preferred dimensions.
 Nested Flex and Grid containers measure their content before arrangement.
 Images, sliders and switches still need declared preferred dimensions.

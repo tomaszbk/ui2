@@ -54,7 +54,6 @@ beside it. OTP cells stand alone and keep the field's own outline.
 | Backend | Delivered first, so the helper can consume them |
 | --- | --- |
 | Renderer | Every key; typed characters arrive separately as text. |
-| UIKit | Not verified. |
 
 ## Number input
 

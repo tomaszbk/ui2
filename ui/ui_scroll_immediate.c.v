@@ -3,7 +3,7 @@
 @[has_globals]
 module ui2
 
-$if (android || linux || macos || windows) && !ui2_headless ? && !ui2_document_library ? {
+$if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_document_library ? {
 	import math
 
 	const text_area_vertical_padding = 8.0
@@ -584,13 +584,13 @@ $if (android || linux || macos || windows) && !ui2_headless ? && !ui2_document_l
 	}
 
 	fn draw_text_area_content(ctx &DrawContext, el Element, value string, x f64, y f64, clip Rect, scroll_parent_id string) {
-		$if android {
+		$if android || ios {
 			draw_legacy_text_area_content(ctx, el, value, x, y, clip, scroll_parent_id)
 		} $else {
 			draw_shaped_text_area(ctx, el, value, x, y, clip, scroll_parent_id)
 		}
 	}
-	$if !android {
+	$if !(android || ios) {
 		fn remember_shaped_text_area(id string, shaped ShapedText, width f64, style TextStyle) {
 			if id.len == 0 { return }
 			if previous := g_text_area_layouts[id] {
@@ -612,7 +612,7 @@ $if (android || linux || macos || windows) && !ui2_headless ? && !ui2_document_l
 		}
 	}
 
-	$if !android {
+	$if !(android || ios) {
 		fn draw_shaped_text_area(ctx &DrawContext, el Element, value string, x f64, y f64, clip Rect,
 			scroll_parent_id string) {
 			dispatch := custom_input_dispatch(g_gg_app)

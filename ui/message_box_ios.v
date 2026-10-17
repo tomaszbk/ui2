@@ -1,6 +1,5 @@
+@[has_globals]
 module ui2
-
-$if ios && !ui2_headless ? && !ui2_document_library ? {
 
 import macos
 
@@ -23,7 +22,7 @@ fn C.vui_alert_action(block voidptr, action voidptr)
 fn vui_alert_action(_block voidptr, action voidptr) {
 	// A global block captures nothing, so the button is identified by the
 	// action UIKit passes back. Every button set has distinct titles.
-	title := objc_string(macos.msg_id(View(action), 'title'))
+	title := objc_string(macos.msg_id(macos.Id(action), 'title'))
 	for index, candidate in g_alert_titles {
 		if candidate == title {
 			g_alert_choice = index
@@ -44,7 +43,8 @@ fn host_message_box_supported() bool {
 fn host_message_box(cfg MessageBoxConfig) MessageBoxResult {
 	titles := message_box_button_titles(cfg.buttons)
 	handler := g_alert_block.build(voidptr(C.vui_alert_action), alert_action_signature)
-	if g_root_vc == unsafe { nil } || titles.len == 0 || handler == unsafe { nil } {
+	root := ios_root_view_controller()
+	if objc_is_nil(root) || titles.len == 0 || handler == unsafe { nil } {
 		return message_box_default_result(cfg.buttons)
 	}
 	pool := macos.autorelease_pool_new()
@@ -55,8 +55,9 @@ fn host_message_box(cfg MessageBoxConfig) MessageBoxResult {
 	// as the wording the caller already put in the title and text.
 	// An empty heading or body has to be nil, or the alert reserves a blank
 	// line for it.
-	alert := macos.msg_id3(macos.get_class('UIAlertController'), 'alertControllerWithTitle:message:preferredStyle:', optional_nsstring(cfg.title), optional_nsstring(cfg.text), ui_alert_controller_style_alert)
-	if objc_is_nil(alert) {
+	controller := macos.msg_id3(macos.get_class('UIAlertController'), 'alertControllerWithTitle:message:preferredStyle:',
+		optional_nsstring(cfg.title), optional_nsstring(cfg.text), ui_alert_controller_style_alert)
+	if objc_is_nil(controller) {
 		return message_box_default_result(cfg.buttons)
 	}
 	for index, title in titles {
@@ -68,20 +69,33 @@ fn host_message_box(cfg MessageBoxConfig) MessageBoxResult {
 		} else {
 			ui_alert_action_style_default
 		}
-		action := macos.msg_id3(macos.get_class('UIAlertAction'), 'actionWithTitle:style:handler:', macos.nsstring(title), style, macos.Id(handler))
-		macos.msg_void1(alert, 'addAction:', action)
+		action := macos.msg_id3(macos.get_class('UIAlertAction'), 'actionWithTitle:style:handler:',
+			macos.nsstring(title), style, macos.Id(handler))
+		macos.msg_void1(controller, 'addAction:', action)
 	}
 	g_alert_titles = titles.clone()
 	g_alert_choice = -1
-	macos.msg_void_id_i64_id(top_view_controller(g_root_vc), 'presentViewController:animated:completion:', alert, 1, objc_nil())
-	chosen := wait_for_alert(alert)
+	// The renderer draws from the root view's display link, which the run loop
+	// below would otherwise fire inside the caller's own event handler.
+	content := macos.msg_id(root, 'view')
+	pausable := !objc_is_nil(content) && macos.responds_to(content, 'setPaused:')
+	was_paused := pausable && macos.msg_bool(content, 'isPaused')
+	if pausable {
+		macos.msg_void_bool(content, 'setPaused:', true)
+	}
+	macos.msg_void_id_i64_id(top_view_controller(root), 'presentViewController:animated:completion:',
+		controller, 1, objc_nil())
+	chosen := wait_for_alert(controller)
+	if pausable {
+		macos.msg_void_bool(content, 'setPaused:', was_paused)
+	}
 	g_alert_titles = []string{}
 	return message_box_result_at(cfg.buttons, chosen)
 }
 
 // wait_for_alert pumps the main run loop in place instead of returning to it,
 // which keeps message_box synchronous on iOS like it is on the desktop
-// backends. An alert that goes away without answering — one that never managed
+// hosts. An alert that goes away without answering — one that never managed
 // to present, most of all — ends the wait rather than hanging the app.
 fn wait_for_alert(alert macos.Id) int {
 	loop := macos.msg_id(macos.get_class('NSRunLoop'), 'currentRunLoop')
@@ -101,6 +115,4 @@ fn wait_for_alert(alert macos.Id) int {
 		}
 	}
 	return g_alert_choice
-}
-
 }

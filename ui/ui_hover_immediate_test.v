@@ -10,7 +10,7 @@ fn test_hover_transitions_report_nothing_for_an_unchanged_chain() {
 	assert left.len == 0 && entered.len == 0
 }
 
-$if (android || linux || macos || windows) && !ui2_headless ? && !ui2_document_library ? {
+$if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_document_library ? {
 	@[heap]
 	struct HoverLog {
 	mut:

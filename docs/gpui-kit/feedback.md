@@ -59,8 +59,8 @@ when a ring sits on a card or inside a colored button.
 
 ui2 cannot rotate a view or draw an arc, so rings are built from simple views:
 
-- **UIKit:** overlapping round cells along the ring, half a stroke apart, so an
-  arc gets round, antialiased ends.
+- **Headless:** overlapping round cells along the ring, half a stroke apart, so
+  an arc gets round ends.
 - **Custom renderer:** gg draws a rounded rectangle with about 370 sokol-gl
   vertices and its buffer holds 65,536 a frame, so a few hundred round cells blank
   the whole window. There a ring is scan-converted into horizontal strips half a
@@ -227,13 +227,12 @@ with `text_style.color`, centered in `frame` at `pixel_size` (or the size preset
 small 14, medium 16, large 24; GPUI's xsmall is 12). Its role is `img` and its
 label the icon's title (`IconName.title()`), unless `accessibility_label` is set.
 `symbol` takes any name `symbol_known` accepts instead of an `IconName`; other
-names are rejected because they would draw a question mark off Apple platforms.
+names are rejected because the renderer would draw a question mark for them.
 `icon_names()` lists every `IconName`.
 
-How each backend draws it: the renderer draws the Material Icons glyph from
-`ui/symbols.v` in the text color; UIKit draws the SF Symbol, tinted with
-`tintColor`. `rotation` (degrees clockwise) is the element's visual rotation,
-which Android does not support.
+The renderer draws the Material Icons glyph from `ui/symbols.v` in the text
+color. `rotation` (degrees clockwise) is the element's visual rotation, which
+Android and iOS do not support.
 
 `IconName` has the GPUI names with a counterpart in `ui/symbols.v` that draws the
 same thing in both faces:
@@ -290,8 +289,7 @@ Gaps:
   outlined star, `rectangle.split.1x2` and `rectangle.split.2x1` draw the wrong
   panes, `arrow.right.to.line` draws an indent, the four-way move arrow draws
   diagonal ones), so they are left out until the table has them.
-- SF Symbols are outlines and the bundled Material Icons face is filled, so the
-  same `IconName` looks outlined on Apple platforms and solid elsewhere.
+- The bundled Material Icons glyphs are filled where Lucide's are outlines.
 - SVG paths and bytes (`Icon::path`, `Icon::data`) and custom `IconNamed` types:
   draw files with `image()`.
 - `rotate`/`transform`: use `rotation`, the element's visual rotation.

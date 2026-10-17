@@ -1,7 +1,7 @@
 @[has_globals]
 module ui2
 
-$if (android || linux || macos || windows) && !ui2_headless ? && !ui2_document_library ? {
+$if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_document_library ? {
 	fn set_checkbox_checked(id string, checked bool) {
 		if id !in g_active_checkboxes {
 			return
@@ -680,7 +680,7 @@ $if (android || linux || macos || windows) && !ui2_headless ? && !ui2_document_l
 }
 
 fn test_text_field_selection_text_uses_rune_offsets() {
-	$if android && !ui2_headless ? {
+	$if (android || ios) && !ui2_headless ? {
 		before, selected := text_field_selection_text('a🙂bc', TextSelection{
 			anchor: 4
 			caret:  1
@@ -691,7 +691,7 @@ fn test_text_field_selection_text_uses_rune_offsets() {
 }
 
 fn test_text_field_selection_origin_respects_text_alignment() {
-	$if (android || linux || macos || windows) && !ui2_headless ? {
+	$if (android || ios || linux || macos || windows) && !ui2_headless ? {
 		assert text_field_aligned_text_origin(10, 100, 40, .left) == 10
 		assert text_field_aligned_text_origin(10, 100, 40, .center) == 40
 		assert text_field_aligned_text_origin(10, 100, 40, .right) == 70

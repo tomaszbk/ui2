@@ -335,7 +335,7 @@ driving a menu programmatically.
 ui2 already has three kinds of menu, and the dropdown menu complements them:
 
 - `Element.menu` (`[]MenuEntry`) attaches a right-click menu to an element: a
-  flat list of titles. UIKit shows it; the renderer does not open it yet.
+  flat list of titles, which the renderer does not open yet.
 - `set_menu_bar` and `set_tray` take `MenuItem` rows with shortcuts, check
   marks, disabled rows, separators and submenus, drawn by the system where the
   host has a menu bar (README "Menus and the tray").

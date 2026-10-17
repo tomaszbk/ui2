@@ -78,7 +78,7 @@ presentation immediately and completes any pending structural exit.
 
 Motion requests paint frames while a transition runs and returns the custom
 scheduler to idle after completion. Pointer hit testing, tooltips, focus
-geometry and painting use the same sampled transform. UIKit and Android reject
+geometry and painting use the same sampled transform. Android and iOS reject
 motion and nondefault opacity with a diagnostic.
 
 ## Reduced motion

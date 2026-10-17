@@ -3,7 +3,7 @@
 module ui2
 
 // Desktop custom text owns its Pango context independently of the window/GPU.
-// The Android, native and explicitly headless adapters retain their legacy path.
+// Android, iOS and headless builds use Fontstash instead (ui_text_fontstash.c.v).
 $if (linux || macos || windows) && !ui2_headless ? && !ui2_document_library ? {
 	import gg
 	import hash

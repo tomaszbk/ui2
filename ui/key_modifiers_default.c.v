@@ -1,4 +1,4 @@
-// Linux and Android have no modifier state to ask for, so the renderer
+// Linux, Android and iOS have no modifier state to ask for, so the renderer
 // records the modifiers of every event sokol delivers.
 module ui2
 

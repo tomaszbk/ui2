@@ -81,8 +81,7 @@ scroll. Unchanged declared text preserves edits; a changed declaration or
 `set_text(id, value)` replaces the edit buffer intentionally. `set_text`
 keeps its existing selection clamping behavior. IME composition stays attached
 to its editor across unrelated updates and is discarded when that editor loses
-focus, is removed, hidden, disabled, or becomes readonly. UIKit controls keep
-their platform IME behavior. This does not add
+focus, is removed, hidden, disabled, or becomes readonly. This does not add
 advanced grapheme/bidi editing.
 
 `semantic_tree()` returns portable `SemanticNode` snapshots with id, tree path,
@@ -110,13 +109,6 @@ require an extra paint. These hooks do **not** establish an OS accessibility
 bridge: the renderer does not publish the tree to VoiceOver, UIA or AT-SPI.
 
 macOS keyboard behavior is exercised by the example and backend fixtures. Windows and Linux backend checks are distinct from runtime
-acceptance on those operating systems. UIKit keeps its existing responder/IME
-bridges and exposes the shared programmatic hooks where its controls accept
-first responder; this change does not introduce a mobile hardware-key host.
-UIKit dropdown activation uses the public `UIControl.performPrimaryAction`
-API (iOS 17.4 or later) to present its native menu. On systems without that API,
-the dropdown snapshot omits `.activate` and `perform_semantic_action` returns
-`false` without a change event. Opening the menu does not change its value;
-choosing a native menu command commits the title and emits the optional callback.
-Stateful UIKit semantic actions commit once even without a handler and respect
-toggle groups, while real pointer releases retain their captured callbacks.
+acceptance on those operating systems. On iOS the renderer shows sokol's
+on-screen keyboard while an editable field has focus; a hardware keyboard
+reaches the same key handlers as on the desktop.

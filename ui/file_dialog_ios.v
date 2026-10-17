@@ -6,7 +6,7 @@ fn host_file_dialog_supported() bool {
 	return false
 }
 
-fn host_file_dialog(cfg FileDialogConfig) []string {
+fn host_file_dialog(_cfg FileDialogConfig) []string {
 	eprintln('ui2: native file dialogs are unavailable on iOS')
 	return []string{}
 }

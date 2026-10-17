@@ -13,8 +13,7 @@ ui2.run_window('Mi app', 800, 600, build)
 ```
 
 El renderizado bajo demanda pertenece al renderer, que dibuja la ventana en
-Linux, macOS, Windows y Android. El backend UIKit de iOS conserva su propio
-contrato de actualización.
+Linux, macOS, Windows, Android e iOS.
 
 ## Migración y propiedad del estado
 

@@ -2,12 +2,12 @@
 @[has_globals]
 module ui2
 
-$if (android || linux || macos || windows) && !ui2_headless ?&& !ui2_document_library ? {
+$if (android || ios || linux || macos || windows) && !ui2_headless ?&& !ui2_document_library ? {
 	import arena
 }
 
 fn test_build_validation_reuses_arena_and_owns_escaping_diagnostics() ! {
-	$if (android || linux || macos || windows) && !ui2_headless ?&& !ui2_document_library ? {
+	$if (android || ios || linux || macos || windows) && !ui2_headless ?&& !ui2_document_library ? {
 		mut app := &GgApp{}
 		defer { app.build_arena.allocator.free() }
 		root := view('root', rect(0, 0, 100, 100), BoxStyle{}, [

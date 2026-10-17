@@ -3,7 +3,7 @@
 Attach a `DragSource` and a `DropTarget` to `View` or `Image` elements with
 `with_drag_source` / `with_drop_target`. Both require an `on_event` callback.
 Hidden or disabled ancestry excludes a configured surface from hit registration; it cannot fall back to an ordinary tap.
-UIKit diagnoses these declarations as unsupported. This API moves data
+This API moves data
 inside a UI2 window. Existing external window `DropEvent` handlers are independent.
 
 ```v

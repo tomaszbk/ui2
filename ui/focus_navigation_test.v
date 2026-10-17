@@ -1,6 +1,6 @@
 module ui2
 
-fn test_mounted_root_geometry_preserves_declarations_and_scaled_children() {
+fn test_mounted_root_geometry_preserves_declarations_and_scaled_children() ! {
 	root := Element{kind: .screen, frame: rect(30, 40, 1, 2), children: [
 		scaled_content('composition', rect(0, 0, 400, 300), 200, 100, BoxStyle{}, [
 			Element{kind: .view, id: 'panel', frame: rect(12.5, 9.25, 175, 80), children: [
@@ -8,7 +8,7 @@ fn test_mounted_root_geometry_preserves_declarations_and_scaled_children() {
 			]},
 		]),
 	]}
-	if backend_supports_vector_canvas { validate_element_tree(root)! }
+	validate_element_tree(root)!
 	mut manager := FocusManager{}
 	manager.update_mounted(root, {}, rect(0, 0, 400, 300), ContentTransform{})
 	assert manager.semantics()[0].frame == rect(0, 0, 400, 300)

@@ -8,7 +8,7 @@
 @[has_globals]
 module ui2
 
-$if (android || linux || macos || windows) && !ui2_headless ? && !ui2_document_library ? {
+$if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_document_library ? {
 	import gg
 
 	const menubar_height = 26.0
@@ -113,7 +113,7 @@ $if (android || linux || macos || windows) && !ui2_headless ? && !ui2_document_l
 		if t.len == 0 {
 			return 0.0
 		}
-		$if android {
+		$if android || ios {
 			family := text_font_file(style.font_family, style.bold, style.italic)
 			ensure_family_fallbacks(ctx, family)
 			ctx.set_text_cfg(gg.TextCfg{
