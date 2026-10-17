@@ -96,10 +96,12 @@ $if ui2_headless ? && !ui2_document_library ? {
 		return true
 	}
 
-	// headless_key delivers a key press the way a window does: to on_key_event,
-	// then on_key with its normalized name, then to focus navigation and semantic
-	// activation. It reports whether something handled the key.
+	// headless_key delivers a key press the way a window does: to the focused
+	// element keys, to on_key_event, then on_key with its normalized name, then
+	// to focus navigation and semantic activation. It reports whether something
+	// handled the key.
 	pub fn headless_key(event KeyEvent) bool {
+		if element_key(event, false) { return true }
 		mut h := g_headless
 		if voidptr(h.key_event_handler) != unsafe { nil } {
 			h.key_consumed = false

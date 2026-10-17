@@ -34,6 +34,9 @@ pub enum ElementEventKind {
 	// New kinds go last: the C ABI passes the kind's ordinal.
 	pointer_enter
 	pointer_leave
+	// A key an element lists in Element.keys was pressed while it or a
+	// descendant had focus (element_keys.v). key is its key_event_name.
+	key_down
 }
 
 pub struct ElementEvent {
@@ -49,6 +52,7 @@ pub:
 	value   f64
 	checked bool
 	target  string
+	key     string // key_down: the key's key_event_name
 }
 
 pub enum ScanResultKind {
@@ -521,6 +525,9 @@ pub:
 	switch_style              SwitchStyle
 	toggle                    ?&ToggleSpec // toggle_button: group and pressed presentation
 	scroll_mode               ScrollMode // scroll: the axes the content scrolls along
+	// keys names the keys (key_event_name) the element takes as key_down events
+	// while it or a descendant has focus, before application key handlers.
+	keys                      []string
 }
 
 // BackendSupport is what control_support reports for a control kind. Partial
