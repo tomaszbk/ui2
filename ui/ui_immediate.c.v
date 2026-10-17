@@ -1095,7 +1095,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		stats := app.scheduler.stats()
 		if stats.suspended || app.suspended || app.iconified || app.building_declaration { return false }
 		if stats.in_flight { return dispatch.valid() }
-		if stats.generation!=app.declaration_generation && stats.pending_reasons.any(it in [.build,.worker,.animation_follow_up]) {
+		if stats.generation!=app.declaration_generation && stats.pending_reasons.has(.build | .worker | .animation_follow_up) {
 			if !build_custom_declaration(mut app,true) { return false }
 		}
 		if !app.has_root { return dispatch.valid() }

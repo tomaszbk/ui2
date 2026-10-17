@@ -52,7 +52,7 @@ $if ( linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headl
 		baseline := app.scheduler.stats()
 		for now in 1 .. 4 {
 			idle := app.scheduler.begin_frame(now) or { panic('D3D must repaint its backbuffer') }
-			assert idle.draw && !idle.build && idle.reason_list() == [.presentation]
+			assert idle.draw && !idle.build && idle.reasons == RenderReason.presentation
 			app.scheduler.finish_frame(idle)
 		}
 		assert app.scheduler.stats().requests == baseline.requests
@@ -62,7 +62,7 @@ $if ( linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headl
 		app.scheduler.invalidate(.build)
 		app.scheduler.finish_frame(presenting)
 		changed := app.scheduler.begin_frame(5) or { panic('lost model update') }
-		assert changed.build && changed.reason_list() == [.build]
+		assert changed.build && changed.reasons == RenderReason.build
 		app.scheduler.finish_frame(changed)
 		on_event(&gg.Event{ typ: .iconified }, app)
 		if _ := app.scheduler.begin_frame(6) {
@@ -70,10 +70,10 @@ $if ( linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headl
 		}
 		on_event(&gg.Event{ typ: .restored }, app)
 		restored := app.scheduler.begin_frame(7) or { panic('missing restored surface') }
-		assert restored.build && restored.draw && RenderReason.surface in restored.reason_list()
+		assert restored.build && restored.draw && restored.reasons.has(.surface)
 		app.scheduler.finish_frame(restored)
 		retained := app.scheduler.begin_frame(8) or { panic('lost D3D presentation after restore') }
-		assert retained.draw && !retained.build && retained.reason_list() == [.presentation]
+		assert retained.draw && !retained.build && retained.reasons == RenderReason.presentation
 		app.scheduler.finish_frame(retained)
 		app.scheduler.close()
 		if _ := app.scheduler.begin_frame(9) {

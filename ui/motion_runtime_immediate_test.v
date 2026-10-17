@@ -58,7 +58,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		runtime_motion_frame(mut app, 0)!
 		clock.now = 0.1
 		_, entering := runtime_motion_frame(mut app, 100)!
-		assert !entering.build && entering.reason_list() == [.motion]
+		assert !entering.build && entering.reasons == RenderReason.motion
 		mounted := g_focus_navigation.node('edit') or { panic('missing entering input') }
 		assert math.abs(mounted.transform.x + 20) < 0.00001
 		center := mounted.transform.point(mounted.local_frame.x + 60, mounted.local_frame.y + 20)

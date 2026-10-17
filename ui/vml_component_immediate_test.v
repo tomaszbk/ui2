@@ -48,7 +48,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		value.set('after')!
 		rows.update(['b', 'a'])!
 		work := app.scheduler.begin_frame(1) or { panic('missing retained patch frame') }
-		assert !work.build && work.reason_list() == [.layout]
+		assert !work.build && work.reasons == RenderReason.layout
 		resolved := resolve_custom_layout(mut app, work, vml_retained_measure, take_custom_layout_patches(mut app))!
 		app.scheduler.finish_frame(work)
 		assert resolved.children[1].text == 'after'

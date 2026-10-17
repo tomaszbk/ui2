@@ -105,7 +105,7 @@ $if macos && ui2_custom_rendering ? && !ui2_headless ? {
 			HitTarget{...target, x: 100, y: 20, w: 60, h: 50}]
 		work := g_gg_app.scheduler.begin_frame(0) or { panic('missing mount') }
 		g_gg_app.scheduler.finish_frame(work)
-		assert RenderReason.surface !in g_gg_app.scheduler.stats().pending_reasons
+		assert !g_gg_app.scheduler.stats().pending_reasons.has(.surface)
 	}
 	fn test_paint_highlight_enter_over_and_final_accept_drop_before_next_frame() {
 		for anonymous in [false, true] {
