@@ -1188,7 +1188,7 @@ fn render_element(parent NativeView, el Element, key string, mut active map[stri
 	if el.kind != .screen {
 		register_hover(native, key, el)
 		border_box := if el.kind == .toggle_button && el.checked {
-			el.toggle_down_box
+			el.toggle_down_box()
 		} else {
 			el.box
 		}
@@ -1590,8 +1590,8 @@ fn register_toggle_button(native NativeView, el Element) {
 	register_checkbox(native, appkit_binding(el, .change))
 	mut st := state()
 	pointer := u64(voidptr(native))
-	st.toggle_groups[pointer] = el.toggle_group
-	st.toggle_allow_no_selection[pointer] = el.toggle_allow_no_selection
+	st.toggle_groups[pointer] = el.toggle_group()
+	st.toggle_allow_no_selection[pointer] = el.toggle_allow_no_selection()
 	st.toggle_ids[pointer] = el.id
 	st.toggle_views[pointer] = native
 	if macos.msg_i64(native, 'state') != 0 {
@@ -2475,8 +2475,8 @@ fn native_new_toggle_button(el Element) NativeView {
 }
 
 fn native_update_toggle_button(native NativeView, el Element) {
-	box := if el.checked { el.toggle_down_box } else { el.box }
-	style := if el.checked { el.toggle_down_text_style } else { el.text_style }
+	box := if el.checked { el.toggle_down_box() } else { el.box }
+	style := if el.checked { el.toggle_down_text_style() } else { el.text_style }
 	native_update_button(native, element_rect(el.frame), el.text, box, style.color, style.size,
 		style.bold, style.italic, style.underline, text_line_budget(style.lines), el.image_path,
 		el.native_style)

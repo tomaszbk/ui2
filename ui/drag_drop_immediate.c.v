@@ -96,7 +96,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	fn begin_drag_candidate(target HitTarget) {
 		source := target.drag_source or { return }
 		captured := HitTarget{...target,
-			drag_source: DragSource{...source, allowed: source.allowed.clone()}}
+			drag_source: &DragSource{...source, allowed: source.allowed.clone()}}
 		g_drag_registry.serial++
 		g_touch.drag = DragSession{pending: true, source: captured, token: g_drag_registry.serial,
 			dispatch:custom_input_dispatch(g_gg_app),context:g_gg_app.ctx}

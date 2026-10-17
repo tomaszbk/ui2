@@ -55,7 +55,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		clickable       bool
 		button_behavior bool
 		draggable       bool
-		drag_source ?DragSource
+		drag_source ?&DragSource
 		drop_target ?DropTarget
 		drag_generation u64
 		drag_mount_generation u64
@@ -3157,8 +3157,8 @@ fn page_focused_text_area(direction int) {
 				x := el.frame.x + off_x
 				y := el.frame.y + off_y
 				pressed := g_toggle_values[el.id] or { el.checked }
-				box := if pressed { el.toggle_down_box } else { el.box }
-				style := if pressed { el.toggle_down_text_style } else { el.text_style }
+				box := if pressed { el.toggle_down_box() } else { el.box }
+				style := if pressed { el.toggle_down_text_style() } else { el.text_style }
 				if el.native_style && box.bg == unstyled_box_bg {
 					draw_button_bezel(ctx, x, y, el.frame.width, el.frame.height, box.radius,
 						el.enabled)
@@ -3181,8 +3181,8 @@ fn page_focused_text_area(direction int) {
 						w:                         el.frame.width
 						h:                         el.frame.height
 						toggle_button:             true
-						toggle_group:              el.toggle_group
-						toggle_allow_no_selection: el.toggle_allow_no_selection
+						toggle_group:              el.toggle_group()
+						toggle_allow_no_selection: el.toggle_allow_no_selection()
 					}, clip)
 				}
 			}

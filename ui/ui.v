@@ -489,13 +489,15 @@ pub:
 	secure                    bool // text_field: native password entry
 	clickable                 bool // view/image: emit pointer down/up events
 	button_behavior           bool // view: invoke its callback when released like a button
-	drag_source               ?DragSource
+	// Sparse properties are shared references: an element without them pays
+	// one word each, and copies share the record.
+	drag_source               ?&DragSource
 	drop_target               ?DropTarget
 	draggable                 bool // view/image: emit pointer drag events
 	hoverable                 bool // any element: report pointer enter/leave as the pointer moves over it
 	opacity               f64 = 1 // custom: inherited per-primitive opacity
 	motion                ?MotionConfig
-	overlay               ?OverlayConfig
+	overlay               ?&OverlayConfig
 	rotation                  f64  // custom: clockwise visual rotation, for every element
 	translate_x               f64
 	translate_y               f64
@@ -528,11 +530,8 @@ pub:
 	value_track               bool // slider: color the track between min and value
 	slider_style              SliderStyle
 	switch_style              SwitchStyle
-	toggle_down_box           BoxStyle
-	toggle_down_text_style    TextStyle
-	toggle_group              string
+	toggle                    ?&ToggleSpec // toggle_button: group and pressed presentation
 	scroll_mode               ScrollMode // scroll: the axes the content scrolls along
-	toggle_allow_no_selection bool = true
 }
 
 // BackendSupport is what control_support reports for a control kind. Partial

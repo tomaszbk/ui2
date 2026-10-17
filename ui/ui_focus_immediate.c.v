@@ -113,8 +113,8 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			switch_control:            el.kind == .switch_control
 			switch_state:              el.checked
 			toggle_button:             el.kind == .toggle_button
-			toggle_group:              el.toggle_group
-			toggle_allow_no_selection: el.toggle_allow_no_selection
+			toggle_group:              el.toggle_group()
+			toggle_allow_no_selection: el.toggle_allow_no_selection()
 			dropdown:                  el.kind == .dropdown
 			options:                   options
 			button_behavior:           el.kind == .view && el.button_behavior
@@ -269,8 +269,8 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 				g_active_switches[el.id] = true
 			}
 			.toggle_button {
-				g_toggle_groups[el.id] = el.toggle_group
-				g_toggle_allow_no_selection[el.id] = el.toggle_allow_no_selection
+				g_toggle_groups[el.id] = el.toggle_group()
+				g_toggle_allow_no_selection[el.id] = el.toggle_allow_no_selection()
 				if el.id !in g_toggle_values || (g_toggle_declared[el.id] or { el.checked }) != el.checked {
 					g_toggle_values[el.id] = el.checked
 				}

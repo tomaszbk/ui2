@@ -65,7 +65,7 @@ $if macos && ui2_custom_rendering ? && !ui2_headless ? {
 				'hide_source' { source = Element{...source, hidden: true} }
 				'disable_source' { source = Element{...source, enabled: false} }
 				'withdraw_source' { source = Element{...source, drag_source: none} }
-				'disallow_source' { source = Element{...source, drag_source: DragSource{allowed: [.copy]}} }
+				'disallow_source' { source = Element{...source, drag_source: &DragSource{allowed: [.copy]}} }
 				'replace_accept' { target = Element{...target, drop_target: DropTarget{accept: declaration_drag_reject}} }
 				'move_target' { target = Element{...target, frame: rect(300, 20, 60, 50)} }
 				'replace_source_kind' { source = Element{...source, kind: .image} }

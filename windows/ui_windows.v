@@ -1181,9 +1181,9 @@ fn windows_render_element(parent voidptr, el Element, key string, parent_key str
 	}
 	st.node_parents[key] = parent_key
 	st.node_frames[key] = el.frame
-	visual_box := if el.kind == .toggle_button && el.checked { el.toggle_down_box } else { el.box }
+	visual_box := if el.kind == .toggle_button && el.checked { el.toggle_down_box() } else { el.box }
 	visual_text_style := if el.kind == .toggle_button && el.checked {
-		el.toggle_down_text_style
+		el.toggle_down_text_style()
 	} else {
 		el.text_style
 	}
@@ -1613,8 +1613,8 @@ fn windows_register_bindings(hwnd voidptr, key string, el Element) {
 		st.slider_specs[handle] = slider_spec(el)
 	}
 	if el.kind == .toggle_button {
-		st.toggle_groups[handle] = el.toggle_group
-		st.toggle_allow_no_selection[handle] = el.toggle_allow_no_selection
+		st.toggle_groups[handle] = el.toggle_group()
+		st.toggle_allow_no_selection[handle] = el.toggle_allow_no_selection()
 		st.toggle_ids[handle] = el.id
 		st.toggle_views[handle] = hwnd
 		if C.ui2_win_get_checked(hwnd) != 0 {

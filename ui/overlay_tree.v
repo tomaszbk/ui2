@@ -3,7 +3,7 @@ module ui2
 struct OverlayLayer {
 mut:
 	element      Element
-	config       OverlayConfig
+	config       &OverlayConfig = unsafe { nil }
 	path         string
 	parent       string
 	dependencies []string
@@ -368,7 +368,7 @@ fn (mut tree OverlayTree) place_layer(index int, candidate Element, offsets map[
 			}
 		}
 	}
-	layer.frame = overlay_frame(layer.config, LayoutSize{ width: layer.element.frame.width, height: layer.element.frame.height }, anchor_frame, viewport)!
+	layer.frame = overlay_frame(*layer.config, LayoutSize{ width: layer.element.frame.width, height: layer.element.frame.height }, anchor_frame, viewport)!
 	layer.available = available
 	layer.active = available && layer.config.open && !layer.element.hidden && layer.element.presented_enabled()
 }

@@ -228,7 +228,7 @@ fn props_normal(el Element) Element {
 		on_event:            unsafe { nil }
 		menu:                el.menu.map(MenuEntry{ ...it, on_select: unsafe { nil } })
 		overlay:             if config := el.overlay {
-			?OverlayConfig(OverlayConfig{
+			?&OverlayConfig(&OverlayConfig{
 				...config
 				on_open:    unsafe { nil }
 				on_dismiss: unsafe { nil }

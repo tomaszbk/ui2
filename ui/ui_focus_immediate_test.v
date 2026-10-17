@@ -146,8 +146,8 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 			for has_handler in [true, false] {
 				callback := if has_handler { ElementCallback(focus_input_event) } else { ElementCallback(unsafe { nil }) }
 				root := screen(0xffffff, [
-					Element{ kind: .toggle_button, id: 'a', checked: true, toggle_group: 'group', toggle_allow_no_selection: allow_empty, on_event: callback },
-					Element{ kind: .toggle_button, id: 'b', toggle_group: 'group', toggle_allow_no_selection: allow_empty, on_event: callback },
+					Element{ kind: .toggle_button, id: 'a', checked: true, toggle: &ToggleSpec{ group: 'group', allow_no_selection: allow_empty }, on_event: callback },
+					Element{ kind: .toggle_button, id: 'b', toggle: &ToggleSpec{ group: 'group', allow_no_selection: allow_empty }, on_event: callback },
 				])
 				mount_focus_fixture(root)
 				focus_input_events = []ElementEvent{}

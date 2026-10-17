@@ -258,7 +258,7 @@ $if ui2_headless ? && !ui2_document_library ? {
 		if el.id.len > 0 && el.kind in [.text_field, .text_area, .dropdown, .slider, .checkbox, .switch_control, .toggle_button] {
 			mut h := g_headless
 			previous := h.controls[el.id] or { HeadlessControl{ kind: el.kind, text: el.text, declared_text: el.text, value: el.value, declared_value: el.value, checked: el.checked, declared_checked: el.checked, caret: text_area_utf16_length(el.text) } }
-			mut control := HeadlessControl{ ...previous, kind: el.kind, mounted: true, group: el.toggle_group, allow_no_selection: el.toggle_allow_no_selection }
+			mut control := HeadlessControl{ ...previous, kind: el.kind, mounted: true, group: el.toggle_group(), allow_no_selection: el.toggle_allow_no_selection() }
 			if previous.kind != el.kind || el.text != previous.declared_text {
 				control.text = el.text
 				control.caret = text_area_utf16_length(el.text)
@@ -559,7 +559,7 @@ $if ui2_headless ? && !ui2_document_library ? {
 			}
 			.toggle_button {
 				previous := toggle_button_pressed(id)
-				pressed := if el.toggle_group.len > 0 && previous && !el.toggle_allow_no_selection { true } else { !previous }
+				pressed := if el.toggle_group().len > 0 && previous && !el.toggle_allow_no_selection() { true } else { !previous }
 				set_toggle_button_pressed(id, pressed)
 				headless_emit(el, ElementEvent{ kind: .change, id: id, checked: pressed })
 			}

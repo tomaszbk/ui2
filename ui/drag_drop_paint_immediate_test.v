@@ -63,7 +63,7 @@ $if macos && ui2_custom_rendering ? && !ui2_headless ? {
 				source = Element{...source, on_event: paint_drag_current}
 				target = Element{...target, on_event: paint_drag_current}
 			}
-			if paint_drag_change == 'disallow' { source = Element{...source, drag_source: DragSource{allowed: [.copy]}} }
+			if paint_drag_change == 'disallow' { source = Element{...source, drag_source: &DragSource{allowed: [.copy]}} }
 			if paint_drag_change == 'reject' { target = Element{...target, drop_target: DropTarget{accept: paint_drag_reject}} }
 			if paint_drag_change == 'withdraw' { target = Element{...target, drop_target: none} }
 			if paint_drag_change == 'rotation' { target = Element{...target,rotation:180} }

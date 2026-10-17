@@ -957,8 +957,8 @@ fn new_toggle_button_view(el Element) View {
 }
 
 fn update_toggle_button_view(view View, el Element) {
-	box := if el.checked { el.toggle_down_box } else { el.box }
-	style := if el.checked { el.toggle_down_text_style } else { el.text_style }
+	box := if el.checked { el.toggle_down_box() } else { el.box }
+	style := if el.checked { el.toggle_down_text_style() } else { el.text_style }
 	update_button_view(view, el.frame, el.text, box, style.color, style.size, style.bold, text_line_budget(style.lines))
 	macos.msg_void_bool(view, 'setSelected:', el.checked)
 }
@@ -1403,8 +1403,8 @@ fn register_native_handlers(native View, el Element) {
 	} else if el.kind in [.button, .checkbox, .toggle_button] {
 		remove_control_target_action(native, g_button_handler, 'handleTap:', 64)
 		if el.kind == .toggle_button {
-			g_toggle_groups[pointer] = el.toggle_group
-			g_toggle_allow_no_selection[pointer] = el.toggle_allow_no_selection
+			g_toggle_groups[pointer] = el.toggle_group()
+			g_toggle_allow_no_selection[pointer] = el.toggle_allow_no_selection()
 			g_toggle_ids[pointer] = el.id
 			g_toggle_views[pointer] = native
 			if macos.msg_bool(native, 'isSelected') {
@@ -1499,7 +1499,7 @@ fn render_element(parent View, el Element, key string, mut active map[string]boo
 		native_update_element(native, el, declared_text_changed)
 	}
 	border_box := if el.kind == .toggle_button && el.checked {
-		el.toggle_down_box
+		el.toggle_down_box()
 	} else {
 		el.box
 	}
