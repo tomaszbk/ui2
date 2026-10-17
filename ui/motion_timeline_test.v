@@ -47,7 +47,12 @@ fn timeline_test_key(at f64, style MotionStyle) MotionKeyframe {
 
 // timeline_test_mount mounts element with config driven by the clock's tick.
 fn timeline_test_mount(element Element, config MotionConfig) &ElementMotionState {
-	mut state := new_element_motion_state(with_motion(element, config)) or { panic(err) }
+	return timeline_test_mount_in(unsafe { nil }, element, config)
+}
+
+// timeline_test_mount_in mounts it as an element of window w.
+fn timeline_test_mount_in(w &Window, element Element, config MotionConfig) &ElementMotionState {
+	mut state := new_element_motion_state(with_motion(element, config), w) or { panic(err) }
 	state.mount() or { panic(err) }
 	return state
 }
@@ -629,18 +634,19 @@ fn test_reduced_motion_preference_applies_to_every_element() ! {
 	tick := fn [clock] () f64 {
 		return clock.now
 	}
-	assert !reduced_motion()
-	set_reduced_motion(true)
-	defer {
-		set_reduced_motion(false)
+	mut app := new_app()
+	w := &Window{
+		app: app
 	}
-	assert reduced_motion()
+	assert !app.reduced_motion()
+	app.set_reduced_motion(true)
+	assert app.reduced_motion()
 	tile := view('tile', rect(0, 0, 40, 40), BoxStyle{}, []Element{})
-	mut fading := timeline_test_mount(tile, compose_motion([motion_fade(1), motion_clock(tick)]))
+	mut fading := timeline_test_mount_in(w, tile, compose_motion([motion_fade(1), motion_clock(tick)]))
 	assert fading.current.phase == .present && fading.current.values.opacity == 1
 	// A loop does not play; a held finite timeline shows where it ends.
 	pulse := motion_keyframes(1, timeline_test_key(0.5, MotionStyle{ opacity: 0.5 }))
-	mut looping := timeline_test_mount(tile, compose_motion([
+	mut looping := timeline_test_mount_in(w, tile, compose_motion([
 		motion_timeline(pulse.looped()),
 		motion_clock(tick),
 	]))
@@ -648,14 +654,14 @@ fn test_reduced_motion_preference_applies_to_every_element() ! {
 	assert !timeline_test_sample(mut looping).running
 	assert looping.current.values.opacity == 1
 	slide := motion_keyframes(1, timeline_test_key(1, MotionStyle{ translate_x: 100 }))
-	mut held := timeline_test_mount(tile, compose_motion([
+	mut held := timeline_test_mount_in(w, tile, compose_motion([
 		motion_timeline(MotionTimeline{ ...slide, hold: true }),
 		motion_clock(tick),
 	]))
 	assert held.current.values.transform.translate_x == 100
 	assert !held.current.running
 	// Turning it off lets the loop play again.
-	set_reduced_motion(false)
+	app.set_reduced_motion(false)
 	clock.now = 1.5
 	assert timeline_test_sample(mut looping).running
 	assert timeline_test_close(looping.current.values.opacity, 0.5)
