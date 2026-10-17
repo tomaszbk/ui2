@@ -13,6 +13,10 @@ pub enum LayoutKind {
 // LayoutSpec retains the algorithm and child constraints, never child Elements.
 // Use the container constructors to create it.
 pub struct LayoutSpec {
+	// Flex and Stack child constraints in child order; the configs below keep
+	// no children. A child past the end takes the default rule.
+	flex_rules  []FlexRule
+	stack_rules []StackRule
 pub:
 	kind  LayoutKind
 	flex  FlexConfig
@@ -21,7 +25,7 @@ pub:
 }
 
 fn flex_layout_spec(config FlexConfig) FlexConfig {
-	return FlexConfig{ ...config, id: '', frame: Rect{}, box: BoxStyle{}, children: config.children.map(FlexChild{ ...it, element: Element{} }) }
+	return FlexConfig{ ...config, id: '', frame: Rect{}, box: BoxStyle{}, children: [] }
 }
 
 fn grid_layout_spec(config GridConfig) GridConfig {
@@ -29,7 +33,7 @@ fn grid_layout_spec(config GridConfig) GridConfig {
 }
 
 fn stack_layout_spec(config StackConfig) StackConfig {
-	return StackConfig{ ...config, id: '', frame: Rect{}, box: BoxStyle{}, children: config.children.map(StackChild{ ...it, element: Element{} }) }
+	return StackConfig{ ...config, id: '', frame: Rect{}, box: BoxStyle{}, children: [] }
 }
 
 fn layout_declared(element Element) Element {
@@ -624,38 +628,36 @@ fn (mut tree LayoutTree) container_geometry(node &RetainedLayoutNode, available 
 	mut children := []string{}
 	mut active_sizes := []Rect{}
 	mut indices := []int{}
-	mut flex_rules := []FlexChild{}
-	mut grid_rules := []Element{}
+	layout := node.declaration.layout
+	mut flex_rules := []FlexRule{}
 	mut grid_spans := []GridSpan{}
-	mut stack_rules := []StackChild{}
+	mut stack_rules := []StackRule{}
 	for index, child in node.children {
 		retained := tree.nodes[child] or { return error('missing leaving layout child') }
 		if retained.declaration.presence_exiting() || retained.declaration.overlay != none { continue }
 		children << child
 		active_sizes << sizes[index]
 		indices << index
-		if index < node.declaration.layout.flex.children.len {
-			flex_rules << node.declaration.layout.flex.children[index]
-		}
-		if index < node.declaration.layout.grid.children.len {
-			grid_rules << node.declaration.layout.grid.children[index]
-		}
-		grid_spans << if index < node.declaration.layout.grid.child_spans.len {
-			node.declaration.layout.grid.child_spans[index]
-		} else {
-			GridSpan{}
-		}
-		if index < node.declaration.layout.stack.children.len {
-			stack_rules << node.declaration.layout.stack.children[index]
+		match layout.kind {
+			.flex { flex_rules << flex_rule_at(layout.flex_rules, index) }
+			.grid {
+				grid_spans << if index < layout.grid.child_spans.len {
+					layout.grid.child_spans[index]
+				} else {
+					GridSpan{}
+				}
+			}
+			.stack { stack_rules << stack_rule_at(layout.stack_rules, index) }
+			else {}
 		}
 	}
 	declaration := Element{
 		...node.declaration
 		layout: LayoutSpec{
-			...node.declaration.layout
-			flex:  FlexConfig{ ...node.declaration.layout.flex, children: flex_rules }
-			grid:  GridConfig{ ...node.declaration.layout.grid, children: grid_rules, child_spans: grid_spans }
-			stack: StackConfig{ ...node.declaration.layout.stack, children: stack_rules }
+			...layout
+			flex_rules:  flex_rules
+			grid:        GridConfig{ ...layout.grid, child_spans: grid_spans }
+			stack_rules: stack_rules
 		}
 	}
 	active := RetainedLayoutNode{ ...node, declaration: declaration, children: children }
@@ -702,19 +704,11 @@ fn (mut tree LayoutTree) container_geometry_active(node &RetainedLayoutNode, ava
 	}
 	match node.declaration.layout.kind {
 		.flex {
-			mut items := []FlexChild{cap: sizes.len}
-			for i, size in sizes {
-				rule := if i < node.declaration.layout.flex.children.len {
-					node.declaration.layout.flex.children[i]
-				} else {
-					FlexChild{}
-				}
-				items << FlexChild{ ...rule, element: Element{ frame: size } }
-			}
-			mut config := FlexConfig{ ...node.declaration.layout.flex, frame: available, children: items }
+			rules := node.declaration.layout.flex_rules
+			mut config := FlexConfig{ ...node.declaration.layout.flex, frame: available }
 			// An unconstrained intrinsic height uses natural content. A bounded
 			// height, including a tight zero, determines vertical wrapping first.
-			initial := flex_preferred_size(config)!
+			initial := flex_layout_preferred_size(config, rules, sizes)!
 			if measuring && !layout_authored_height(node.declaration) {
 				config = FlexConfig{
 					...config
@@ -722,13 +716,10 @@ fn (mut tree LayoutTree) container_geometry_active(node &RetainedLayoutNode, ava
 						layout_constrain_axis(initial.height, constraints.min_height, constraints.max_height))
 				}
 			}
-			mut first := flex_frames(config)!
+			mut first := flex_layout_frames(config, rules, sizes)!
 			widths, width_changed := tree.measure_assigned_height_widths(node, first, sizes)!
-			if width_changed {
-				for i, size in widths { items[i] = FlexChild{ ...items[i], element: Element{ frame: size } } }
-				config = FlexConfig{ ...config, children: items }
-				first = flex_frames(config)!
-			}
+			if width_changed { first = flex_layout_frames(config, rules, widths)! }
+			mut items := widths.clone()
 			for i, child in node.children {
 				child_node := tree.nodes[child] or { return error('missing child') }
 				if layout_authored_height(child_node.declaration) { continue }
@@ -736,10 +727,9 @@ fn (mut tree LayoutTree) container_geometry_active(node &RetainedLayoutNode, ava
 				// height is provisional, and must not prevent a wrapper's text from
 				// growing or replace a wrapped column's natural main-axis basis.
 				measured := tree.measure_node(child, LayoutConstraints{ min_width: first[i].width, max_width: first[i].width })!
-				items[i] = FlexChild{ ...items[i], element: Element{ frame: rect(0, 0, items[i].element.frame.width, measured.height) } }
+				items[i] = rect(0, 0, items[i].width, measured.height)
 			}
-			config = FlexConfig{ ...config, children: items }
-			mut natural := flex_preferred_size(config)!
+			mut natural := flex_layout_preferred_size(config, rules, items)!
 			if measuring && !layout_authored_height(node.declaration) {
 				config = FlexConfig{
 					...config
@@ -747,7 +737,7 @@ fn (mut tree LayoutTree) container_geometry_active(node &RetainedLayoutNode, ava
 						layout_constrain_axis(natural.height, constraints.min_height, constraints.max_height))
 				}
 			}
-			frames := flex_frames(config)!
+			frames := flex_layout_frames(config, rules, items)!
 			if config.wrap {
 				// Wrapping adds rows in horizontal Flex and columns in vertical
 				// Flex. Retain the occupied cross extent, including trailing padding.
@@ -793,17 +783,9 @@ fn (mut tree LayoutTree) container_geometry_active(node &RetainedLayoutNode, ava
 			return grid_frames(config, sizes.len)!, natural
 		}
 		.stack {
-			mut children := []StackChild{cap: sizes.len}
-			for i, size in sizes {
-				rule := if i < node.declaration.layout.stack.children.len {
-					node.declaration.layout.stack.children[i]
-				} else {
-					StackChild{}
-				}
-				children << StackChild{ ...rule, element: Element{ frame: size } }
-			}
-			mut config := StackConfig{ ...node.declaration.layout.stack, frame: available, children: children }
-			initial := stack_preferred_size(config)!
+			rules := node.declaration.layout.stack_rules
+			mut config := StackConfig{ ...node.declaration.layout.stack, frame: available }
+			initial := stack_layout_preferred_size(config, sizes)!
 			if measuring && !layout_authored_height(node.declaration) {
 				config = StackConfig{
 					...config
@@ -811,21 +793,17 @@ fn (mut tree LayoutTree) container_geometry_active(node &RetainedLayoutNode, ava
 						layout_constrain_axis(initial.height, constraints.min_height, constraints.max_height))
 				}
 			}
-			mut first := stack_frames(config)!
+			mut first := stack_layout_frames(config, rules, sizes)!
 			preferred, width_changed := tree.measure_assigned_height_widths(node, first, sizes)!
-			if width_changed {
-				for i, size in preferred { children[i] = StackChild{ ...children[i], element: Element{ frame: size } } }
-				config = StackConfig{ ...config, children: children }
-				first = stack_frames(config)!
-			}
+			if width_changed { first = stack_layout_frames(config, rules, preferred)! }
+			mut items := preferred.clone()
 			for i, child in node.children {
 				child_node := tree.nodes[child] or { return error('missing child') }
 				if layout_authored_height(child_node.declaration) { continue }
 				measured := tree.measure_node(child, LayoutConstraints{ min_width: first[i].width, max_width: first[i].width })!
-				children[i] = StackChild{ ...children[i], element: Element{ frame: rect(0, 0, children[i].element.frame.width, measured.height) } }
+				items[i] = rect(0, 0, items[i].width, measured.height)
 			}
-			config = StackConfig{ ...config, children: children }
-			natural := stack_preferred_size(config)!
+			natural := stack_layout_preferred_size(config, items)!
 			if measuring && !layout_authored_height(node.declaration) {
 				config = StackConfig{
 					...config
@@ -833,7 +811,7 @@ fn (mut tree LayoutTree) container_geometry_active(node &RetainedLayoutNode, ava
 						layout_constrain_axis(natural.height, constraints.min_height, constraints.max_height))
 				}
 			}
-			return stack_frames(config)!, natural
+			return stack_layout_frames(config, rules, items)!, natural
 		}
 		else {
 			mut width := 0.0
@@ -997,23 +975,11 @@ fn (mut tree LayoutTree) authored(identity string) Element {
 fn layout_natural_width(node &RetainedLayoutNode, sizes []Rect) !f64 {
 	match node.declaration.layout.kind {
 		.flex {
-			mut items := []FlexChild{}
-			for i, size in sizes {
-				rule := if i < node.declaration.layout.flex.children.len {
-					node.declaration.layout.flex.children[i]
-				} else {
-					FlexChild{}
-				}
-				items << FlexChild{ ...rule, element: Element{ frame: size } }
-			}
-			return flex_preferred_size(FlexConfig{ ...node.declaration.layout.flex, children: items })!.width
+			layout := node.declaration.layout
+			return flex_layout_preferred_size(layout.flex, layout.flex_rules, sizes)!.width
 		}
 		.grid { return grid_preferred_size(node.declaration.layout.grid, sizes)!.width }
-		.stack {
-			mut children := []StackChild{}
-			for size in sizes { children << StackChild{ element: Element{ frame: size } } }
-			return stack_preferred_size(StackConfig{ ...node.declaration.layout.stack, children: children })!.width
-		}
+		.stack { return stack_layout_preferred_size(node.declaration.layout.stack, sizes)!.width }
 		else {
 			mut width := 0.0
 			for size in sizes { width = math.max(width, size.x + size.width) }

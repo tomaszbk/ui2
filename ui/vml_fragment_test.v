@@ -83,8 +83,8 @@ fn test_nested_fragment_lists_flatten_keys_layout_rules_and_source_order() ! {
 	assert parent.children.len == 4 // two logical fragments and the neighbours
 	assert parent.element().children.len == 10
 	assert parent.element().children.all(it.kind != .view)
-	assert parent.element().layout.flex.children.map(it.basis) == [30.0, 20.0, 25.0, 20.0, 20.0,
-		20.0, 25.0, 20.0, 20.0, 50.0]
+	assert parent.element().layout.flex_rules.map(it.basis) == [30.0, 20.0, 25.0, 20.0, 20.0, 20.0,
+		25.0, 20.0, 20.0, 50.0]
 	keys := parent.element().children.map(it.key)
 	mut seen := map[string]bool{}
 	for key in keys {
