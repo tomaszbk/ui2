@@ -329,7 +329,7 @@ fn layout_child_identity(element Element, parent string) string {
 	} else if element.key.len > 0 {
 		parent + '/key:' + element.key.bytes().hex()
 	} else if element.compiled_node != unsafe { nil } {
-		parent + '/compiled:' + element.compiled_node.identity().bytes().hex()
+		parent + '/compiled:' + element.compiled_node.identity_path()
 	} else {
 		''
 	}

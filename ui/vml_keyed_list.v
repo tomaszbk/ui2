@@ -55,7 +55,7 @@ pub fn new_vml_keyed_list[T](mut parent CompiledVmlNode, name string, key fn (T)
 	if key == unsafe { nil } || build == unsafe { nil } {
 		return error('compiled VML keyed list requires key and build callbacks')
 	}
-	owner := parent.component.child('list:' + parent.local_id.bytes().hex() + ':' + name)!
+	owner := parent.component.child('list:' + vml_identity_segment(parent.local_id) + name)!
 	if value := owner.values['@list'] {
 		if owner.value_types['@list'] != 'VmlKeyedList[${T.name}]' {
 			return error('compiled VML list `${name}` changed item type')

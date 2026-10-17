@@ -588,7 +588,7 @@ fn reconciliation_child_key(parent string, index int, el Element) string {
 
 fn authored_child_key(parent string, index int, el Element) string {
 	suffix := if el.key.len > 0 { 'k:' + el.key.bytes().hex() }
-		else if el.compiled_node != unsafe { nil } { 'c:' + el.compiled_node.identity().bytes().hex() }
+		else if el.compiled_node != unsafe { nil } { 'c:' + el.compiled_node.identity_path() }
 		else { 'i:' + index.str() }
 	return if parent.len == 0 { suffix } else { parent + '/' + suffix }
 }

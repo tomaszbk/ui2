@@ -67,10 +67,15 @@ mut:
 	segments_current bool
 	child_layout     VmlChildLayout
 	child_layout_set bool
+
+	// Private identity, computed once for the owner lifetime.
+	identity_value string
+	// Hex form of identity_value used in layout paths, computed on first use.
+	identity_hex string
 }
 
 pub fn new_vml_component(name string) !&CompiledVmlComponent {
-	return new_vml_owner(name, 'vml:' + name.bytes().hex(), Theme{})
+	return new_vml_owner(name, 'vml:' + vml_identity_segment(name), Theme{})
 }
 
 // A document preserves application-facing ids. Reusable components below it
@@ -132,15 +137,18 @@ pub fn (mut component CompiledVmlComponent) child(name string) !&CompiledVmlComp
 		if !existing.is_disposed() { return existing }
 	}
 	scope := component.scope.child()!
+	// Length-prefixed segments keep nested names unambiguous without
+	// re-encoding the already-encoded parent namespace at every level.
+	segment := vml_identity_segment(name)
 	mut child := &CompiledVmlComponent{
 		runtime:            component.runtime
 		scope:              scope
 		namespace:          if component.namespace.len == 0 {
-			'vml:' + name.bytes().hex()
+			'vml:' + segment
 		} else {
-			component.namespace + '/' + name.bytes().hex()
+			component.namespace + '/' + segment
 		}
-		identity_namespace: component.identity_namespace + '/' + name.bytes().hex()
+		identity_namespace: component.identity_namespace + '/' + segment
 		parent:             &component
 		name:               name
 		publish:            component.publish
@@ -260,6 +268,7 @@ fn (mut component CompiledVmlComponent) owned_element(declaration Element, confi
 		inherit_height:    config.inherit_height
 		is_fragment:       fragment
 		relative_key:      declaration.key
+		identity_value:    '/compiled:' + component.identity_namespace + '/' + vml_identity_segment(local_id)
 		fragment_keys_ready: true
 		children_revision: new_signal(mut component.scope, u64(0),
 			name: '@children:' + local_id
