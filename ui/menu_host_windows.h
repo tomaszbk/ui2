@@ -23,15 +23,18 @@
 #include <commctrl.h>
 #include <shellapi.h>
 
-// The window's menu bar and the notification area icon of the Windows host
-// (ui/platform.v). The window is sokol's; a subclass routes the menu and tray
-// messages it would otherwise drop to the V side of menu_host_windows.c.v.
+// The window's menu bar, the notification area icon and the popup menus of the
+// Windows host (ui/platform.v). The window is sokol's; a subclass routes the
+// menu, tray and popup messages it would otherwise drop to the V side of
+// menu_host_windows.c.v.
 
 #define UI2_HOST_WM_TRAY (WM_APP + 78)
+#define UI2_HOST_WM_POPUP (WM_APP + 79)
 #define UI2_HOST_MENU_SUBCLASS_ID 0x7569326d
 
 extern void ui2_host_menu_command(uint32_t command);
 extern void ui2_host_tray_message(uint32_t mouse_message);
+extern void ui2_host_popup_message(void);
 
 static LRESULT CALLBACK ui2_host_menu_proc(HWND hwnd, UINT message, WPARAM wparam,
 		LPARAM lparam, UINT_PTR id, DWORD_PTR data) {
@@ -44,6 +47,10 @@ static LRESULT CALLBACK ui2_host_menu_proc(HWND hwnd, UINT message, WPARAM wpara
 	}
 	if (message == UI2_HOST_WM_TRAY) {
 		ui2_host_tray_message((uint32_t)LOWORD(lparam));
+		return 0;
+	}
+	if (message == UI2_HOST_WM_POPUP) {
+		ui2_host_popup_message();
 		return 0;
 	}
 	return DefSubclassProc(hwnd, message, wparam, lparam);
@@ -151,6 +158,35 @@ static inline unsigned int ui2_host_tray_popup(void *hwnd, void *menu) {
 		NULL);
 	PostMessageW((HWND)hwnd, WM_NULL, 0, 0);
 	return command;
+}
+
+static inline int ui2_host_popup_post(void *hwnd) {
+	if (hwnd == NULL) return 0;
+	return PostMessageW((HWND)hwnd, UI2_HOST_WM_POPUP, 0, 0) ? 1 : 0;
+}
+
+// Opens a popup menu at the bottom-left corner of an anchor given in client
+// pixels and returns the chosen command, or 0. A non-empty anchor (a select)
+// is excluded from the menu's area, so the menu flips above it rather than
+// covering it when there is no room below.
+static inline unsigned int ui2_host_popup_track(void *hwnd, void *menu, int x, int y,
+		int width, int height) {
+	if (hwnd == NULL || menu == NULL) return 0;
+	POINT origin;
+	origin.x = x;
+	origin.y = y;
+	ClientToScreen((HWND)hwnd, &origin);
+	TPMPARAMS params;
+	ZeroMemory(&params, sizeof(params));
+	params.cbSize = sizeof(params);
+	params.rcExclude.left = origin.x;
+	params.rcExclude.top = origin.y;
+	params.rcExclude.right = origin.x + width;
+	params.rcExclude.bottom = origin.y + height;
+	int excluded = width > 0 || height > 0;
+	return (unsigned int)TrackPopupMenuEx((HMENU)menu,
+		TPM_RETURNCMD | TPM_RIGHTBUTTON | TPM_LEFTALIGN | TPM_TOPALIGN | TPM_VERTICAL,
+		origin.x, origin.y + height, (HWND)hwnd, excluded ? &params : NULL);
 }
 
 #endif

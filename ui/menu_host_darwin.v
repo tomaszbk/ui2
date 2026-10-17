@@ -1,8 +1,10 @@
 // vfmt off
-// The macOS host's menu bar and status item (platform.v). The window's
-// content is drawn, but the menu bar is the system's global one: NSMenu and
-// NSStatusItem are Objective-C runtime objects rather than views, so the
-// bridge is all they need, whichever host variant owns the window.
+// The macOS host's menu bar, status item and popup menus (platform.v). The
+// window's content is drawn, but the menu bar is the system's global one:
+// NSMenu and NSStatusItem are Objective-C runtime objects rather than views,
+// so the bridge is all they need, whichever host variant owns the window. A
+// popup menu opens over the content view of the window the renderer
+// published, sokol's or the embedder's.
 module ui2
 
 import macos
@@ -29,9 +31,22 @@ const ns_control_state_off = i64(0)
 // Status area images are drawn at the menu bar's own height.
 const macos_status_image_size = f64(18)
 
+// popUpMenuPositioningItem:atLocation:inView: takes an NSPoint by value, which
+// no bridge function passes, so it goes through objc_msgSend cast to its type.
+type ObjcPopUpMenuMsg = fn (voidptr, voidptr, voidptr, macos.Point, voidptr) bool
+
+fn C.objc_msgSend()
+
 struct MacosMenuCallback {
 	id       string
 	on_event ElementCallback = unsafe { nil }
+}
+
+// MacosPopupMenu is a popup menu from host_show_popup_menu until its answer.
+struct MacosPopupMenu {
+	cfg       PopupMenuConfig
+	on_result PopupMenuCallback = unsafe { nil }
+	window    macos.Id
 }
 
 @[heap]
@@ -44,11 +59,22 @@ mut:
 	// identifies it for as long as it can be chosen.
 	bar_ids  map[u64]MacosMenuCallback
 	tray_ids map[u64]MacosMenuCallback
+	// The popup menu waiting for an answer, if popup_active. popup_rows maps
+	// its NSMenuItems to their rows; popup_choice is the row chosen while it
+	// tracks, when popup_chosen.
+	popup          MacosPopupMenu
+	popup_active   bool
+	popup_tracking bool
+	popup_menu     macos.Id
+	popup_rows     map[u64]MenuItem
+	popup_chosen   bool
+	popup_choice   MenuItem
 }
 
 const macos_menu_state_singleton = &MacosMenuState{
 	bar_ids: map[u64]MacosMenuCallback{}
 	tray_ids: map[u64]MacosMenuCallback{}
+	popup_rows: map[u64]MenuItem{}
 }
 
 fn macos_menu_state() &MacosMenuState {
@@ -62,6 +88,128 @@ fn host_tray_supported() bool { return true }
 fn host_set_tray(cfg TrayConfig) { macos_install_status_item(cfg) }
 
 fn host_remove_tray() { macos_remove_status_item() }
+
+// A popup menu opens over the window the renderer published to menu.v.
+fn host_popup_menu_supported() bool { return menu_state().window != unsafe { nil } }
+
+// The menu tracks in a modal loop of its own. It opens from the run loop once
+// the input callback that asked for it has returned, so that loop never runs
+// inside the renderer's callbacks, and the answer comes from there too.
+fn host_show_popup_menu(cfg PopupMenuConfig, on_result PopupMenuCallback) {
+	mut st := macos_menu_state()
+	window := macos.Id(menu_state().window)
+	if st.popup_active || window == unsafe { nil } || cfg.items.len == 0 {
+		on_result(PopupMenuResult{})
+		return
+	}
+	st.popup = MacosPopupMenu{
+		cfg: cfg
+		on_result: on_result
+		window: window
+	}
+	st.popup_active = true
+	macos.msg_void_sel_id_bool(macos_menu_handler(), 'performSelectorOnMainThread:withObject:waitUntilDone:',
+		macos.sel('showPopupMenu:'), macos.Id(unsafe { nil }), false)
+}
+
+@[export: 'ui2_popup_menu_show']
+fn ui2_popup_menu_show(_self voidptr, _cmd voidptr, _arg voidptr) {
+	mut st := macos_menu_state()
+	if !st.popup_active || st.popup_menu != unsafe { nil } {
+		return
+	}
+	cfg := st.popup.cfg
+	view := macos.msg_id(st.popup.window, 'contentView')
+	if view == unsafe { nil } {
+		macos_finish_popup_menu(PopupMenuResult{})
+		return
+	}
+	mut rows := map[u64]MenuItem{}
+	menu := macos_build_popup_menu(cfg.items, mut rows)
+	macos.msg_void_f64(menu, 'setMinimumWidth:', cfg.anchor.width)
+	st.popup_menu = menu
+	st.popup_rows = rows.move()
+	// A select lays its current value over itself, as NSPopUpButton does. A
+	// menu with no row to line up opens below its anchor.
+	positioning := if cfg.selected >= 0 && cfg.selected < cfg.items.len {
+		macos.msg_id_u64(menu, 'itemAtIndex:', u64(cfg.selected))
+	} else {
+		macos.Id(unsafe { nil })
+	}
+	y := if positioning != unsafe { nil } { cfg.anchor.y } else { cfg.anchor.y + cfg.anchor.height }
+	// The renderer's coordinates run down from the top of the content view.
+	location := if macos.msg_bool(view, 'isFlipped') {
+		macos.point(cfg.anchor.x, y)
+	} else {
+		macos.point(cfg.anchor.x, macos.msg_rect(view, 'bounds').height - y)
+	}
+	pop_up := unsafe { ObjcPopUpMenuMsg(C.objc_msgSend) }
+	st.popup_tracking = true
+	answered := pop_up(menu, macos.sel('popUpMenuPositioningItem:atLocation:inView:'), positioning,
+		location, view)
+	st.popup_tracking = false
+	if st.popup_chosen {
+		macos_finish_popup_menu(PopupMenuResult{ chosen: true, item: st.popup_choice })
+	} else if !answered {
+		macos_finish_popup_menu(PopupMenuResult{})
+	}
+	// Otherwise AppKit sends the chosen row's action once tracking has
+	// unwound, and ui2_popup_menu_item_chosen answers then.
+}
+
+@[export: 'ui2_popup_menu_item_chosen']
+fn ui2_popup_menu_item_chosen(_self voidptr, _cmd voidptr, sender voidptr) {
+	mut st := macos_menu_state()
+	item := st.popup_rows[u64(sender)] or { return }
+	if st.popup_tracking {
+		st.popup_choice = item
+		st.popup_chosen = true
+		return
+	}
+	macos_finish_popup_menu(PopupMenuResult{ chosen: true, item: item })
+}
+
+fn macos_finish_popup_menu(result PopupMenuResult) {
+	mut st := macos_menu_state()
+	on_result := st.popup.on_result
+	if st.popup_menu != unsafe { nil } {
+		macos.release(st.popup_menu)
+	}
+	st.popup = MacosPopupMenu{}
+	st.popup_menu = macos.Id(unsafe { nil })
+	st.popup_rows = map[u64]MenuItem{}
+	st.popup_chosen = false
+	st.popup_choice = MenuItem{}
+	st.popup_active = false
+	if on_result != unsafe { nil } {
+		on_result(result)
+	}
+}
+
+// macos_build_popup_menu builds a popup menu the way macos_build_menu builds a
+// menu bar menu, but its rows answer the waiting popup instead of invoking
+// their callbacks.
+fn macos_build_popup_menu(items []MenuItem, mut rows map[u64]MenuItem) macos.Id {
+	menu := macos.msg_id1(macos.alloc('NSMenu'), 'initWithTitle:', macos.nsstring(''))
+	macos.msg_void_bool(menu, 'setAutoenablesItems:', false)
+	for item in items {
+		if item.separator {
+			macos.msg_void1(menu, 'addItem:', macos.msg_id(macos.get_class('NSMenuItem'), 'separatorItem'))
+			continue
+		}
+		row := if item.items.len > 0 {
+			macos_submenu_row(item, macos_build_popup_menu(item.items, mut rows))
+		} else {
+			macos_menu_row(item, 'handlePopupItem:')
+		}
+		if item.items.len == 0 {
+			rows[u64(voidptr(row))] = item
+		}
+		macos.msg_void1(menu, 'addItem:', row)
+		macos.release(row)
+	}
+	return menu
+}
 
 // macos_install_menu_bar rebuilds the whole main menu. The application menu
 // with its "Quit <app>" item always comes first — macOS reads the first
@@ -227,26 +375,37 @@ fn macos_add_menu_item(menu macos.Id, item MenuItem, mut ids map[u64]MacosMenuCa
 		return
 	}
 	if item.items.len > 0 {
-		parent := macos.msg_id3(macos.alloc('NSMenuItem'), 'initWithTitle:action:keyEquivalent:', macos.nsstring(item.title), macos.Id(unsafe { nil }), macos.nsstring(''))
-		child := macos_build_menu(item.title, item.items, mut ids)
-		macos.msg_void1(parent, 'setSubmenu:', child)
-		macos.release(child)
-		macos.msg_void_bool(parent, 'setEnabled:', item.enabled)
+		parent := macos_submenu_row(item, macos_build_menu(item.title, item.items, mut ids))
 		macos.msg_void1(menu, 'addItem:', parent)
 		macos.release(parent)
 		return
 	}
-	shortcut := parse_menu_shortcut(item.shortcut)
-	row := macos.msg_id3(macos.alloc('NSMenuItem'), 'initWithTitle:action:keyEquivalent:', macos.nsstring(item.title), macos.Id(voidptr(macos.sel('handleMenuItem:'))), macos.nsstring(macos_key_equivalent(shortcut)))
-	macos.msg_void_u64(row, 'setKeyEquivalentModifierMask:', macos_modifier_mask(shortcut))
-	macos.msg_void1(row, 'setTarget:', macos_menu_handler())
-	macos.msg_void_bool(row, 'setEnabled:', item.enabled)
-	macos.msg_void_i64(row, 'setState:', if item.checked { ns_control_state_on } else { ns_control_state_off })
+	row := macos_menu_row(item, 'handleMenuItem:')
 	// Bind by sender pointer rather than by a positional tag, so a retained
 	// item from an earlier declaration can never dispatch through this one.
 	ids[u64(voidptr(row))] = MacosMenuCallback{ id: item.id, on_event: item.on_select }
 	macos.msg_void1(menu, 'addItem:', row)
 	macos.release(row)
+}
+
+// macos_menu_row builds a choosable row that sends `action` to the handler.
+fn macos_menu_row(item MenuItem, action string) macos.Id {
+	shortcut := parse_menu_shortcut(item.shortcut)
+	row := macos.msg_id3(macos.alloc('NSMenuItem'), 'initWithTitle:action:keyEquivalent:', macos.nsstring(item.title), macos.Id(voidptr(macos.sel(action))), macos.nsstring(macos_key_equivalent(shortcut)))
+	macos.msg_void_u64(row, 'setKeyEquivalentModifierMask:', macos_modifier_mask(shortcut))
+	macos.msg_void1(row, 'setTarget:', macos_menu_handler())
+	macos.msg_void_bool(row, 'setEnabled:', item.enabled)
+	macos.msg_void_i64(row, 'setState:', if item.checked { ns_control_state_on } else { ns_control_state_off })
+	return row
+}
+
+// macos_submenu_row builds the row a submenu hangs from, taking over `child`.
+fn macos_submenu_row(item MenuItem, child macos.Id) macos.Id {
+	parent := macos.msg_id3(macos.alloc('NSMenuItem'), 'initWithTitle:action:keyEquivalent:', macos.nsstring(item.title), macos.Id(unsafe { nil }), macos.nsstring(''))
+	macos.msg_void1(parent, 'setSubmenu:', child)
+	macos.release(child)
+	macos.msg_void_bool(parent, 'setEnabled:', item.enabled)
+	return parent
 }
 
 // macos_key_equivalent turns a parsed shortcut into the single-character
@@ -307,6 +466,8 @@ fn macos_menu_handler() macos.Id {
 	if macos.get_class('UI2MenuHandler') == unsafe { nil } {
 		cls := macos.allocate_class_pair(macos.get_class('NSObject'), 'UI2MenuHandler')
 		macos.add_method(cls, 'handleMenuItem:', voidptr(ui2_menu_item_chosen), 'v@:@')
+		macos.add_method(cls, 'handlePopupItem:', voidptr(ui2_popup_menu_item_chosen), 'v@:@')
+		macos.add_method(cls, 'showPopupMenu:', voidptr(ui2_popup_menu_show), 'v@:@')
 		macos.register_class_pair(cls)
 	}
 	st.handler = macos.msg_id(macos.alloc('UI2MenuHandler'), 'init')

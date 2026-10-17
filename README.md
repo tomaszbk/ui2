@@ -785,6 +785,14 @@ nothing outside its window, so `tray_supported()` is `false` there. iOS has
 neither, so both calls are accepted and ignored; check `menu_bar_supported()`
 and `tray_supported()` before offering them in a shared UI.
 
+A secondary click on an element with a `menu` opens it as a popup menu, and a
+`dropdown` opens its options in one. macOS shows an `NSMenu` pop-up, which
+lays a select's current value over the select, and Windows uses
+`TrackPopupMenuEx`. On Linux the renderer draws a context menu as a
+context-menu overlay, keyboard and pointer driven like a native one, and a
+select keeps its drawn list. Android and iOS have no secondary click, and
+their selects keep the drawn list as well.
+
 `validate_menus(...)` rejects an untitled menu, an empty leaf declaration, a
 duplicated id, a submenu with a callback, and a decorated separator, so a
 declaration can be checked in a test without a window.

@@ -156,6 +156,12 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 		pointer_popup_owner string
 		pointer_popup_scroll f64
 		pointer_popup_selected string
+		// The popup menu the renderer draws while one is open, and the select
+		// whose options a native popup menu shows until its result arrives
+		// (popup_menu_immediate.c.v).
+		popup_menu &DrawnPopupMenu = unsafe { nil }
+		popup_menu_serial u64
+		popup_menu_owner string
 		controls_root Element
 		controls_initialized bool
 		controls_prune_pending bool
@@ -920,6 +926,8 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 		state.pointer_popup_owner = ''
 		state.pointer_popup_scroll = 0
 		state.pointer_popup_selected = ''
+		state.popup_menu = unsafe { nil }
+		state.popup_menu_owner = ''
 		state.declaration_pending = false
 		state.layout_tree.clear()
 		if state.build_arena != unsafe { nil } {
@@ -954,7 +962,7 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 	fn custom_visual_deadline() i64 {
 		mut deadline := i64(-1)
 		if g_tooltip.pointer_in && g_tooltip.key.len > 0 && !g_tooltip.dismissed
-			&& !g_tooltip.visible && !g_touch.down && !menu_bar_open() && g_open_dropdown.len == 0 {
+			&& !g_tooltip.visible && !g_touch.down && !menu_bar_open() && !drawn_popup_menu_open() && g_open_dropdown.len == 0 {
 			deadline = g_tooltip.rest_since + tooltip_delay_ms
 		}
 		overlay_at := overlay_deadline()
@@ -1376,7 +1384,7 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 		state.scheduler.invalidate(if e.typ in [.key_down, .key_up, .char, .files_dropped] { RenderReason.build } else { RenderReason.paint })
 		match e.typ {
 			.mouse_down {
-				if e.mouse_button == .right { overlay_context_press(app, f64(e.mouse_x), f64(e.mouse_y)); return }
+				if e.mouse_button == .right { custom_context_press(app, f64(e.mouse_x), f64(e.mouse_y)); return }
 				custom_mouse_down(app, f64(e.mouse_x), f64(e.mouse_y))
 			}
 			.mouse_move {
@@ -1403,7 +1411,7 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 				// The content moves under a pointer that stays put, so whatever
 				// ends up beneath it waits for a fresh rest.
 				g_tooltip.restart(renderer_now_ms())
-				if menu_bar_open() {
+				if menu_bar_open() || drawn_popup_menu_blocks(f64(e.mouse_x), f64(e.mouse_y)) {
 					return
 				}
 				mut delta_x := f64(e.scroll_x)
@@ -1451,6 +1459,7 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 			}
 			.iconified, .suspended {
 				reset_custom_keyboard()
+				dismiss_drawn_popup_menu()
 				if e.typ == .iconified {
 					state.iconified = true
 				} else {
@@ -1474,7 +1483,10 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 				state.scheduler.invalidate(.surface)
 			}
 			.touches_cancelled, .unfocused {
-				if e.typ == .unfocused { reset_custom_keyboard() }
+				if e.typ == .unfocused {
+					reset_custom_keyboard()
+					dismiss_drawn_popup_menu()
+				}
 				g_tooltip.dismiss()
 				if e.typ == .touches_cancelled && (g_touch.drag.pending || g_touch.drag.active) {
 					cancel_drag_session(.cancelled)
@@ -2266,14 +2278,20 @@ fn page_focused_text_area(direction int) {
 
 	// ── Dropdown popup ─────────────────────────────────────────────────
 
-	// A dropdown click opens a floating list of its options. Without an id there
-	// is nowhere to keep the selection, so such a control only reports the tap.
+	// A dropdown click opens its options: in the host's popup menu where it has
+	// one (popup_menu_immediate.c.v), otherwise in a floating list drawn here.
+	// Without an id there is nowhere to keep the selection, so such a control
+	// only reports the tap.
 	fn open_dropdown(target HitTarget) {
 		if target.id.len == 0 || target.options.len == 0 {
 			fire_target_event(target, ElementEvent{ kind: .click, id: target.id })
 			return
 		}
 		close_dropdown()
+		if host_popup_menu_supported() {
+			open_host_dropdown(target)
+			return
+		}
 		g_open_dropdown = target.id
 		focus(target.id)
 	}
@@ -2696,7 +2714,7 @@ fn page_focused_text_area(direction int) {
 	// while a press or a drag is still in progress.
 	fn update_tooltip(now i64) {
 		target := tooltip_target_at(g_tooltip_targets, g_tooltip.pointer_x, g_tooltip.pointer_y)
-		blocked := g_open_dropdown.len > 0 || menu_bar_open() || g_touch.down
+		blocked := g_open_dropdown.len > 0 || menu_bar_open() || drawn_popup_menu_open() || g_touch.down
 		g_tooltip.update(target, blocked, now)
 	}
 
@@ -3275,8 +3293,9 @@ fn page_focused_text_area(direction int) {
 				y := el.frame.y + off_y
 				selected := g_text_values[el.id] or { el.text }
 				list_open := el.enabled && el.id.len > 0 && g_open_dropdown == el.id
+				expanded := list_open || (el.enabled && el.id.len > 0 && g_gg_app.popup_menu_owner == el.id)
 				draw_control_surface(ctx, x, y, el.frame.width, el.frame.height, el.box,
-					list_open, el.enabled)
+					expanded, el.enabled)
 				padding := if el.padding_left > 0 { el.padding_left } else { 12.0 }
 				text_width := if el.frame.width > padding + 32 {
 					el.frame.width - padding - 32
