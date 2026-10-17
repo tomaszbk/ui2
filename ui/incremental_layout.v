@@ -629,9 +629,9 @@ fn (mut tree LayoutTree) container_geometry(node &RetainedLayoutNode, available 
 	mut active_sizes := []Rect{}
 	mut indices := []int{}
 	layout := node.declaration.layout
-	mut flex_rules := []FlexRule{}
-	mut grid_spans := []GridSpan{}
-	mut stack_rules := []StackRule{}
+	mut active_flex := []FlexRule{}
+	mut active_spans := []GridSpan{}
+	mut active_stack := []StackRule{}
 	for index, child in node.children {
 		retained := tree.nodes[child] or { return error('missing leaving layout child') }
 		if retained.declaration.presence_exiting() || retained.declaration.overlay != none { continue }
@@ -639,15 +639,15 @@ fn (mut tree LayoutTree) container_geometry(node &RetainedLayoutNode, available 
 		active_sizes << sizes[index]
 		indices << index
 		match layout.kind {
-			.flex { flex_rules << flex_rule_at(layout.flex_rules, index) }
+			.flex { active_flex << flex_rule_at(layout.flex_rules, index) }
 			.grid {
-				grid_spans << if index < layout.grid.child_spans.len {
+				active_spans << if index < layout.grid.child_spans.len {
 					layout.grid.child_spans[index]
 				} else {
 					GridSpan{}
 				}
 			}
-			.stack { stack_rules << stack_rule_at(layout.stack_rules, index) }
+			.stack { active_stack << stack_rule_at(layout.stack_rules, index) }
 			else {}
 		}
 	}
@@ -655,9 +655,9 @@ fn (mut tree LayoutTree) container_geometry(node &RetainedLayoutNode, available 
 		...node.declaration
 		layout: LayoutSpec{
 			...layout
-			flex_rules:  flex_rules
-			grid:        GridConfig{ ...layout.grid, child_spans: grid_spans }
-			stack_rules: stack_rules
+			flex_rules:  active_flex
+			grid:        GridConfig{ ...layout.grid, child_spans: active_spans }
+			stack_rules: active_stack
 		}
 	}
 	active := RetainedLayoutNode{ ...node, declaration: declaration, children: children }

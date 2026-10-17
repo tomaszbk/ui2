@@ -132,10 +132,6 @@ fn (mount &ElementMount) same_overlay(other &ElementMount) bool {
 		&& mount.overlay_host == other.overlay_host
 }
 
-fn overlay_host_mount() &ElementMount {
-	return &ElementMount{ overlay_host: true }
-}
-
 fn (runtime &ElementRuntime) is_empty() bool {
 	return runtime == unsafe { nil }
 		|| (runtime.motion_state == unsafe { nil } && !runtime.exiting && runtime.source == unsafe { nil })
