@@ -2,7 +2,7 @@
 // Keep Win32 declarations out of opt-in custom-renderer builds.
 module ui2
 
-$if !ui2_custom_rendering ? && !ui2_document_library ? {
+$if windows && !ui2_custom_rendering ? && !ui2_headless ? && !ui2_document_library ? {
 
 #flag windows -luser32
 
@@ -712,7 +712,7 @@ fn run_window_with_min_size(title string, width int, height int, min_width int, 
 	refresh()
 	C.ui2_win_show_main_window(root)
 	C.ui2_win_message_loop()
-	native_remove_tray()
+	menu_win32_remove_tray()
 	windows_dispose_all()
 	C.ui2_win_shutdown_accessibility()
 }

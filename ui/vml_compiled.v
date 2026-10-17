@@ -41,15 +41,11 @@ fn vml_initial_theme() Theme { return compiled_vml_runtime().initial_theme or { 
 
 // Before a native window exists, compile validation uses its configured logical
 // viewport. Ordinary builders and explicit template frames still use bounds().
-$if !ui2_document_library ? {
 pub fn vml_bounds() Rect {
 	if frame := compiled_vml_runtime().initial_bounds { return frame }
 	return bounds()
 }
-}
 
-
-$if !ui2_document_library ? {
 fn compiled_vml_controller_build[T]() Element {
 	runtime := compiled_vml_runtime()
 	mut controller := unsafe { &CompiledVmlController[T](runtime.controller) }
@@ -76,8 +72,6 @@ fn compiled_vml_controller_build[T]() Element {
 	}
 	return controller.node.element()
 }
-}
-
 
 // Backend shutdown drops subscriptions and component-owned captures before
 // native termination. Calling this again after the run loop returns is safe.
@@ -91,7 +85,6 @@ pub fn dispose_compiled_vml() {
 }
 
 // The compiled builder attaches its callbacks while borrowing this live model.
-$if !ui2_document_library ? {
 pub fn run_compiled_vml[T](config CompiledVmlRunConfig[T]) ! {
 	if config.model == unsafe { nil } { return error('compiled VML requires a live model') }
 	if config.build == unsafe { nil } { return error('compiled VML requires a build function') }
@@ -122,5 +115,4 @@ pub fn run_compiled_vml[T](config CompiledVmlRunConfig[T]) ! {
 	} $else {
 		run(compiled_vml_controller_build[T])
 	}
-}
 }

@@ -8,3 +8,5 @@
   `[skip ci]`. Intermediate commits of a larger change may be red.
 - Build with the compiler pinned in `scripts/v-pin.env` (`scripts/setup-v.sh`
   builds it). `scripts/test-linux.sh` runs the Linux CI test steps locally.
+- Platform-specific code goes behind the backend contract in `ui/backend.v`; do
+  not copy compile-time platform conditions into shared code.

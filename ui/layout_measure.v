@@ -84,6 +84,15 @@ fn layout_constrain_axis(value f64, minimum f64, maximum f64) f64 {
 	return if maximum < 0 { bounded } else { math.min(maximum, bounded) }
 }
 
+// measure_layout_text uses the active backend's metrics: AppKit's, vglyph's on
+// the desktop custom renderer, and Fontstash's on Android, Win32, UIKit,
+// headless and document-library builds. Sizes are logical em units. Like
+// layout/build, call this on the UI thread while a window is mounted.
+pub fn measure_layout_text(text string, style TextStyle, max_width f64) !LayoutSize {
+	layout_validate_text_measurement(style, max_width)!
+	return backend_measure_text(text, style, max_width)
+}
+
 // LayoutTextMeasureFn measures rendered text under a maximum logical width.
 // -1 means unbounded. Supplying a callback makes layout independent of a window
 // or GPU and lets an embedder use its own font engine without changing layout.
@@ -140,23 +149,11 @@ pub fn measure_layout_element(element Element, constraints LayoutConstraints, me
 		} else {
 			element.text
 		}
-		measured := $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headless ? && !ui2_document_library ? {
-			// Editors wrap every row, unlike labels with a declared line limit.
-			// Keep external callbacks' original TextStyle contract unchanged.
-			if element.kind == .text_area && voidptr(measure) == voidptr(measure_layout_text) {
-				layout_measure_custom_text_area(content, element.text_style, text_width)!
-			} else {
-				$if !android {
-					if element.kind == .label && element.text_runs.len > 0 && voidptr(measure) == voidptr(measure_layout_text) {
-						layout_measure_vglyph_runs(element.text_runs, element.text_style, text_width)!
-					} else {
-						measure(content, element.text_style, text_width)!
-					}
-				} $else {
-					measure(content, element.text_style, text_width)!
-				}
-			}
-		} $else {
+		// The default measurer lets the backend use its own editor and rich-text
+		// metrics. Keep external callbacks' original TextStyle contract unchanged.
+		measured := if voidptr(measure) == voidptr(measure_layout_text) {
+			backend_measure_element_text(element, content, text_width)!
+		} else {
 			measure(content, element.text_style, text_width)!
 		}
 		preferred = LayoutSize{
@@ -202,25 +199,8 @@ fn layout_measure_control_insets(element Element) LayoutPadding {
 	if padding := element.content_padding {
 		return padding
 	}
-	$if macos && !ui2_custom_rendering ?&& !ui2_headless ? {
-		if element.kind == .label {
-			// Borderless NSTextField still reserves two points at each horizontal
-			// edge. NSAttributedString measures glyphs only; include the cell's
-			// existing margins so an intrinsic label does not truncate itself.
-			return LayoutPadding{ left: 2, right: 2 }
-		}
-	}
-	$if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headless ? {
-		if element.kind == .text_area {
-			// Include the gutter reserved by text_area_content_rect even when no
-			// scrollbar is visible, so measurement and drawing wrap identically.
-			return LayoutPadding{
-				left:   math.max(2.0, element.padding_left)
-				right:  if element.disable_scroll { 8 } else { 12 }
-				top:    8
-				bottom: 8
-			}
-		}
+	if padding := backend_control_insets(element) {
+		return padding
 	}
 	return match element.kind {
 		.button, .toggle_button {
@@ -236,6 +216,35 @@ fn layout_measure_control_insets(element Element) LayoutPadding {
 		.text_area { LayoutPadding{ left: 8, right: 8, top: 8, bottom: 8 } }
 		else { LayoutPadding{} }
 	}
+}
+
+// custom_renderer_insets are the custom renderer's control insets. A text area
+// includes the gutter reserved by text_area_content_rect even when no scrollbar
+// is visible, so measurement and drawing wrap identically.
+fn custom_renderer_insets(element Element) ?LayoutPadding {
+	if element.kind != .text_area {
+		return none
+	}
+	return LayoutPadding{
+		left:   math.max(2.0, element.padding_left)
+		right:  if element.disable_scroll { 8 } else { 12 }
+		top:    8
+		bottom: 8
+	}
+}
+
+// appkit_insets are AppKit's control insets. Borderless NSTextField still
+// reserves two points at each horizontal edge. NSAttributedString measures
+// glyphs only; include the cell's existing margins so an intrinsic label does
+// not truncate itself.
+fn appkit_insets(element Element) ?LayoutPadding {
+	if element.kind == .label {
+		return LayoutPadding{
+			left:  2
+			right: 2
+		}
+	}
+	return none
 }
 
 fn layout_validate_text_measurement(style TextStyle, max_width f64) ! {

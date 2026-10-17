@@ -8,7 +8,7 @@ fn test_mounted_root_geometry_preserves_declarations_and_scaled_children() {
 			]},
 		]),
 	]}
-	$if ui2_custom_rendering ? { validate_element_tree(root)! }
+	if backend_supports_vector_canvas { validate_element_tree(root)! }
 	mut manager := FocusManager{}
 	manager.update_mounted(root, {}, rect(0, 0, 400, 300), ContentTransform{})
 	assert manager.semantics()[0].frame == rect(0, 0, 400, 300)

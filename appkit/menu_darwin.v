@@ -1,12 +1,11 @@
 // vfmt off
-// The macOS menu bar and status area item. Like the NSAlert in
-// message_box_darwin.v these are Objective-C runtime objects rather than
-// views, so this file stays outside the appkit/ backend and only needs the
-// bridge — which also lets a custom-rendered macOS build fall back to the
-// drawn bar without a second copy of the declaration handling.
+// The AppKit menu bar and status area item. Like the NSAlert in
+// ui/message_box_darwin.v these are Objective-C runtime objects rather than
+// views, so they only need the bridge. A custom-rendered macOS build draws its
+// own bar instead (ui/menu_custom.c.v).
 module ui2
 
-$if !ui2_document_library ? {
+$if macos && !ui2_custom_rendering ? && !ui2_headless ? && !ui2_document_library ? {
 
 import macos
 
@@ -57,41 +56,16 @@ fn macos_menu_state() &MacosMenuState {
 	return unsafe { macos_menu_state_singleton }
 }
 
-fn native_menu_bar_supported() bool {
-	return true
-}
+// Menu hooks of the backend contract (ui/backend.v).
+fn backend_menu_bar_supported() bool { return true }
 
-fn native_tray_supported() bool {
-	// The custom renderer draws inside its own window and owns nothing outside
-	// it, so a macOS build using it has no status area to dock into.
-	$if ui2_custom_rendering ? {
-		return false
-	} $else {
-		return true
-	}
-}
+fn backend_tray_supported() bool { return true }
 
-fn native_set_menu_bar(menus []Menu) {
-	$if ui2_custom_rendering ? {
-		// Rebuild bounds and paint after replacing the menu declaration.
-		close_menu_bar()
-		refresh()
-	} $else {
-		macos_install_menu_bar(menu_app_name(), menus)
-	}
-}
+fn backend_set_menu_bar(menus []Menu) { macos_install_menu_bar(menu_app_name(), menus) }
 
-fn native_set_tray(cfg TrayConfig) {
-	$if !ui2_custom_rendering ? {
-		macos_install_status_item(cfg)
-	}
-}
+fn backend_set_tray(cfg TrayConfig) { macos_install_status_item(cfg) }
 
-fn native_remove_tray() {
-	$if !ui2_custom_rendering ? {
-		macos_remove_status_item()
-	}
-}
+fn backend_remove_tray() { macos_remove_status_item() }
 
 // macos_install_menu_bar rebuilds the whole main menu. The application menu
 // with its "Quit <app>" item always comes first — macOS reads the first

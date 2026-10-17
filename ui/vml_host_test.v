@@ -24,7 +24,7 @@ fn test_document_commands_require_a_host_and_relay_existing_and_future_scopes() 
 	}
 	assert rejected
 	root.mount()!
-	$if ui2_document_library ? {
+	if backend_needs_host {
 		rejected = false
 		ref.focus() or {
 			rejected = true

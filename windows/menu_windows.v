@@ -4,7 +4,7 @@
 // rebuilding it is what keeps the declared rows and the HMENU in step.
 module ui2
 
-$if !ui2_custom_rendering ? && !ui2_document_library ? {
+$if windows && !ui2_custom_rendering ? && !ui2_headless ? && !ui2_document_library ? {
 
 fn C.ui2_win_menubar_create() voidptr
 
@@ -242,8 +242,19 @@ fn windows_virtual_key(key string) int {
 	}
 }
 
-}
-
 fn menu_window() voidptr {
 	return menu_state().window
+}
+
+// Menu hooks of the backend contract (ui/backend.v).
+fn backend_menu_bar_supported() bool { return true }
+
+fn backend_tray_supported() bool { return true }
+
+fn backend_set_menu_bar(menus []Menu) { menu_win32_set_menu_bar(menus) }
+
+fn backend_set_tray(cfg TrayConfig) { menu_win32_set_tray(cfg) }
+
+fn backend_remove_tray() { menu_win32_remove_tray() }
+
 }

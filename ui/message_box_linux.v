@@ -4,8 +4,6 @@
 // whole of GTK or Qt into every ui2 binary.
 module ui2
 
-$if !ui2_document_library ? {
-
 import os
 
 // linux_message_box_tool reports the helper this machine can show a dialog
@@ -136,6 +134,4 @@ fn linux_dialog_body(cfg MessageBoxConfig) string {
 		return cfg.title
 	}
 	return '${cfg.title}\n\n${cfg.text}'
-}
-
 }

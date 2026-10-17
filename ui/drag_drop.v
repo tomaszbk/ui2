@@ -132,15 +132,9 @@ fn validate_drag_element(el Element) ! {
 			return error('drop target requires an acceptance query')
 		}
 	}
-	$if !( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headless ? {
+	if !backend_supports_drag_drop {
 		return error('drag-drop requires the custom renderer')
 	}
-}
-
-// cancel_drag is safe when idle. Native profiles reject drag declarations.
-$if !( ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headless ?) {
-	pub fn cancel_drag() {}
-	pub fn drag_active() bool { return false }
 }
 
 fn drag_preview_transform(source ContentTransform, window_x f64, window_y f64) ContentTransform {

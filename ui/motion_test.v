@@ -4,7 +4,7 @@ module ui2
 import math
 
 fn test_native_profile_diagnoses_motion_and_opacity() {
-	$if !(linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? && !ui2_document_library ? {
+	if !backend_supports_motion {
 		for element in [Element{ opacity: 0.5 }, Element{ motion: MotionConfig{} }] {
 			if _ := validate_element_tree(element) {
 				assert false, 'unsupported motion must be diagnosed'

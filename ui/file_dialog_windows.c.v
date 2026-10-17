@@ -1,8 +1,6 @@
 // vfmt off
 module ui2
 
-$if !ui2_document_library ? {
-
 import os
 
 #flag windows -lcomdlg32
@@ -48,6 +46,4 @@ fn native_file_dialog(cfg FileDialogConfig) []string {
 		return paths[1..].map(os.join_path(paths[0], it))
 	}
 	return paths
-}
-
 }
