@@ -4,17 +4,12 @@ import ui2
 
 // ui2 draws the whole window, so the frame is the host's to give up:
 // hidden_titlebar runs the content under macOS's transparent title bar and
-// removes the Windows caption (see ui2.set_window_chrome). Other hosts keep
+// removes the Windows caption (see ui2.Window.set_chrome). Other hosts keep
 // their frame, and the header is only decoration there.
-fn configure_custom_window() bool {
-	if !ui2.window_chrome_supported(.hidden_titlebar) {
-		return true
+fn configure_custom_window(mut window ui2.Window) {
+	if ui2.window_chrome_supported(.hidden_titlebar) {
+		window.set_chrome(.hidden_titlebar)
 	}
-	return ui2.set_window_chrome(.hidden_titlebar)
-}
-
-fn drag_custom_window() {
-	ui2.start_window_drag()
 }
 
 fn custom_window_uses_transparent_screen() bool {

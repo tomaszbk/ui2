@@ -51,7 +51,7 @@ fn toolbar_button(id string, text string, x f64, width f64, theme ui2.ComponentT
 			if event.kind == .click {
 				mut state := unsafe { gallery }
 				change(mut state)
-				ui2.request_refresh()
+				event.window.request_refresh()
 			}
 		}
 	}
@@ -396,7 +396,7 @@ fn icon_section(mut children []ui2.Element, theme ui2.ComponentTheme) {
 		theme)
 }
 
-fn build() ui2.Element {
+fn build(mut w ui2.Window) ui2.Element {
 	state := unsafe { gallery }
 	theme := ui2.component_theme(state.dark)
 	mut children := [

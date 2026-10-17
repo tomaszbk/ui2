@@ -22,6 +22,9 @@ mut:
 	uploading bool
 	clipboard bool   = true // clipboard_supported(), read once at startup.
 	status    string = 'Push a notification, then hover a stack to pause its countdown.'
+	// The window that shows the gallery, which main opens before it pushes
+	// the first notifications.
+	window &ui2.Window = unsafe { nil }
 }
 
 const gallery = &Gallery{
@@ -31,17 +34,17 @@ const gallery = &Gallery{
 }
 
 fn (mut app Gallery) push(n ui2.Notification) {
-	app.notes.schedule(app.notes.push(ui2.Notification{
+	app.notes.schedule(mut app.window, app.notes.push(ui2.Notification{
 		...n
 		placement: if n.placement == .inherit { app.placement } else { n.placement }
 	}))
 }
 
-// with_app applies change to the gallery and rebuilds the window.
+// with_app applies change to the gallery. It runs in element and component
+// callbacks, and the window rebuilds after every event that reaches one.
 fn with_app(change fn (mut app Gallery)) {
 	mut app := unsafe { gallery }
 	change(mut app)
-	ui2.request_refresh()
 }
 
 fn heading(text string, y f64, theme ui2.ComponentTheme) ui2.Element {
@@ -82,7 +85,7 @@ fn demo_button(id string, title string, x f64, y f64, width f64, theme ui2.Compo
 fn copied(id string, value string, message string) fn () {
 	return fn [id, value, message] () {
 		with_app(fn [id, value, message] (mut app Gallery) {
-			if app.clips.copy(id, value) {
+			if app.clips.copy(mut app.window, id, value) {
 				app.push(kind: .success, message: message)
 			}
 		})
@@ -93,10 +96,10 @@ fn placement_title(placement ui2.NotificationPlacement) string {
 	return placement.str().replace('_', ' ')
 }
 
-fn build() ui2.Element {
+fn build(mut w ui2.Window) ui2.Element {
 	app := unsafe { gallery }
 	theme := ui2.component_theme(app.dark)
-	window := ui2.bounds()
+	window := w.bounds()
 	mut children := []ui2.Element{}
 	children << ui2.label('', 'Notifications & clipboard', ui2.rect(24, 18, gallery_column, 30),
 		ui2.TextStyle{
@@ -319,7 +322,7 @@ fn push_demo(mut app Gallery, name string) {
 			app.uploading = !app.uploading
 		}
 		'clear' {
-			app.notes.schedule(app.notes.clear())
+			app.notes.schedule(mut app.window, app.notes.clear())
 		}
 		else {}
 	}
@@ -341,12 +344,19 @@ fn answer_notification(event ui2.NotificationEvent) {
 			}
 			else {}
 		}
-		app.notes.schedule(app.notes.respond(event))
+		app.notes.schedule(mut app.window, app.notes.respond(event))
 	})
 }
 
 fn main() {
+	mut process := ui2.new_app()
 	mut app := unsafe { gallery }
+	app.window = process.new_window(
+		title:  'GPUI Kit notifications'
+		width:  900
+		height: 640
+		build:  build
+	) or { panic(err) }
 	app.clipboard = ui2.clipboard_supported()
 	if !app.clipboard {
 		app.status = 'This platform has no clipboard; the copy buttons cannot copy.'
@@ -378,6 +388,6 @@ fn main() {
 		duration:  8
 		placement: .bottom_right
 	)
-	app.notes.schedule(app.notes.settle())
-	ui2.run_window('GPUI Kit notifications', 900, 640, build)
+	app.notes.schedule(mut app.window, app.notes.settle())
+	process.run()
 }

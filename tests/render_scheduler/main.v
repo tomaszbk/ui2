@@ -36,12 +36,13 @@ struct PlatformSnapshot {
 }
 
 fn main() {
+	mut platform_keys := false
 	for i, arg in os.args {
 		match arg {
 			'--state-file' {
 				g_acceptance_state_file = os.args[i + 1]
 				g_acceptance_interactive = true
-				ui2.on_key_event(platform_key)
+				platform_keys = true
 			}
 			'--interactive' { g_acceptance_interactive = true }
 			'--lifecycle' { g_acceptance_lifecycle = true }
@@ -54,7 +55,7 @@ fn main() {
 			else {}
 		}
 	}
-	ui2.run_window('UI2 renderer scheduler acceptance', 640, 480, build)
+	run_acceptance_window('UI2 renderer scheduler acceptance', platform_keys)
 	if '--reopen' in os.args {
 		// Sokol has destroyed the first GL context. A new run must reconstruct
 		// the renderer resources and paint the whole image on its fresh context.
@@ -63,16 +64,27 @@ fn main() {
 		g_acceptance_completion_built = false
 		g_acceptance_worker_builds = 0
 		g_acceptance_moving_x = 160
-		ui2.run_window('UI2 renderer scheduler acceptance recreated', 640, 480, build)
+		run_acceptance_window('UI2 renderer scheduler acceptance recreated', platform_keys)
 	}
 }
 
-fn build() ui2.Element {
+fn run_acceptance_window(title string, platform_keys bool) {
+	mut app := ui2.new_app()
+	mut window := app.new_window(title: title, width: 640, height: 480, build: build) or {
+		panic(err)
+	}
+	if platform_keys {
+		window.on_key_event(platform_key)
+	}
+	app.run()
+}
+
+fn build(mut w ui2.Window) ui2.Element {
 	if !g_acceptance_started {
 		g_acceptance_started = true
-		g_acceptance_dispatcher = ui2.ui_dispatcher()
+		g_acceptance_dispatcher = w.dispatcher()
 		if !g_acceptance_interactive {
-			spawn acceptance(g_acceptance_dispatcher, g_acceptance_sample_seconds,
+			spawn acceptance(w, g_acceptance_dispatcher, g_acceptance_sample_seconds,
 				g_acceptance_lifecycle)
 		} else {
 			spawn observe(g_acceptance_dispatcher)
@@ -86,7 +98,7 @@ fn build() ui2.Element {
 		if g_acceptance_worker_builds == 1 {
 			// A request issued while the current generation is being built must
 			// survive its acknowledgement and produce one subsequent build.
-			ui2.request_refresh()
+			w.request_refresh()
 		}
 	}
 	style := ui2.TextStyle{ size: 14, color: 0x243247 }
@@ -110,13 +122,13 @@ fn build() ui2.Element {
 			keyboard:    0
 		) or { panic(err) },
 		ui2.with_event(ui2.button('refresh', 'Refresh', ui2.rect(380, 96, 100, 34), box, style), fn (event ui2.ElementEvent) {
-			if event.kind == .click { ui2.request_refresh() }
+			if event.kind == .click { event.window.request_refresh() }
 		}),
 		ui2.with_event(ui2.button('worker', 'Worker', ui2.rect(496, 96, 112, 34), box, style), fn (event ui2.ElementEvent) {
-			if event.kind == .click { spawn delayed_update(ui2.ui_dispatcher()) }
+			if event.kind == .click { spawn delayed_update(event.window.dispatcher()) }
 		}),
 		ui2.with_event(ui2.button('animate', 'Animate', ui2.rect(24, 148, 112, 34), box, style), fn (event ui2.ElementEvent) {
-			if event.kind == .click { start_animation() }
+			if event.kind == .click { start_animation(event.window) }
 		}),
 		// A new x slides the square there from where it was shown.
 		ui2.with_motion(ui2.with_event(ui2.draggable_view('moving', ui2.rect(g_acceptance_moving_x, 148, 36, 34), ui2.BoxStyle{ bg: 0x2563eb, radius: 6 }, []ui2.Element{}), fn (event ui2.ElementEvent) {
@@ -137,35 +149,35 @@ fn platform_key(event ui2.KeyEvent) {
 		os.write_file(g_acceptance_state_file, json2.encode(PlatformSnapshot{
 			serial:              g_acceptance_snapshot_serial
 			message:             g_acceptance_message
-			editor:              ui2.text('editor')
-			caret:               ui2.text_area_caret('editor')
-			selection:           ui2.text_area_selection_length('editor')
-			focused:             ui2.focused_id()
-			scroll:              ui2.scroll_offset('rows')
+			editor:              event.window.text('editor')
+			caret:               event.window.text_area_caret('editor')
+			selection:           event.window.text_area_selection_length('editor')
+			focused:             event.window.focused_id()
+			scroll:              event.window.scroll_offset('rows')
 			drags:               g_acceptance_drags
 			releases:            g_acceptance_releases
 			animation_completed: g_acceptance_completion_built
-			stats:               ui2.render_stats()
+			stats:               event.window.render_stats()
 		},
 			escape_unicode: true
 			time_as_unix:   true
 		)) or { panic(err) }
-		ui2.consume_key()
+		event.window.consume_key()
 	} else if event.code == .f2 {
-		spawn delayed_update(ui2.ui_dispatcher())
-		ui2.consume_key()
+		spawn delayed_update(event.window.dispatcher())
+		event.window.consume_key()
 	} else if event.code == .f3 {
-		start_animation()
-		ui2.consume_key()
+		start_animation(event.window)
+		event.window.consume_key()
 	} else if event.code == .f4 {
-		ui2.quit()
-		ui2.consume_key()
+		event.window.quit()
+		event.window.consume_key()
 	}
 }
 
-fn start_animation() {
+fn start_animation(window &ui2.Window) {
 	g_acceptance_moving_x = if g_acceptance_moving_x == 160 { 280 } else { 160 }
-	ui2.request_refresh()
+	window.request_refresh()
 }
 
 fn moved(event ui2.MotionEvent) {
@@ -196,7 +208,9 @@ fn report(phase string, before ui2.RenderStats, after ui2.RenderStats) {
 	println('${phase}: callbacks=${after.callbacks - before.callbacks} loop_callbacks=${after.loop_callbacks - before.loop_callbacks} waits=${after.waits - before.waits} event_wakeups=${after.event_wakeups - before.event_wakeups} worker_wakeups=${after.worker_wakeups - before.worker_wakeups} deadline_wakeups=${after.deadline_wakeups - before.deadline_wakeups} interrupted_waits=${after.interrupted_waits - before.interrupted_waits} builds=${after.builds - before.builds} draws=${after.draws - before.draws} flushes=${after.flushes - before.flushes} requests=${after.requests - before.requests} coalesced=${after.coalesced - before.coalesced} pending=${after.pending} in_flight=${after.in_flight}')
 }
 
-fn acceptance(dispatcher ui2.UiDispatcher, seconds int, lifecycle bool) {
+// acceptance drives window from a worker thread: it reads the dispatcher's
+// counters, and touches the window only from callbacks posted to its UI thread.
+fn acceptance(window &ui2.Window, dispatcher ui2.UiDispatcher, seconds int, lifecycle bool) {
 	// Observe counters directly from the worker: posting an observer callback
 	// would itself invalidate the scene and contaminate the static sample.
 	time.sleep(2 * time.second)
@@ -238,11 +252,11 @@ fn acceptance(dispatcher ui2.UiDispatcher, seconds int, lifecycle bool) {
 	if !before.presentation_required {
 		assert after.draws == before.draws
 	}
-	assert dispatcher.post(fn () {
+	assert dispatcher.post(fn [window] () {
 		g_acceptance_message = 'Worker delivered on UI thread'
 		g_acceptance_verify_reentrant = true
 		for _ in 0 .. 20 {
-			ui2.request_refresh()
+			window.request_refresh()
 		}
 	})
 	time.sleep(500 * time.millisecond)
@@ -252,11 +266,11 @@ fn acceptance(dispatcher ui2.UiDispatcher, seconds int, lifecycle bool) {
 	if !after.presentation_required {
 		assert worker_after.draws - after.draws == 2
 	}
-	assert dispatcher.post(fn () {
+	assert dispatcher.post(fn [window] () {
 		assert g_acceptance_worker_builds >= 2
 		assert g_acceptance_message == 'Worker delivered on UI thread'
 		g_acceptance_verify_reentrant = false
-		start_animation()
+		start_animation(window)
 	})
 	time.sleep(1500 * time.millisecond)
 	settled := dispatcher.stats()
@@ -276,11 +290,11 @@ fn acceptance(dispatcher ui2.UiDispatcher, seconds int, lifecycle bool) {
 			println('SKIP: native lifecycle helper currently supports macOS only')
 		}
 	}
-	assert dispatcher.post(fn [dispatcher] () {
+	assert dispatcher.post(fn [dispatcher, window] () {
 		assert g_acceptance_message == 'Animation completed'
 		assert g_acceptance_completion_built
 		println('PASS: static, worker, coalescing, reentrant request, animation, return to idle')
-		ui2.quit()
+		window.quit()
 		assert dispatcher.stats().closed
 		assert !dispatcher.post(fn () {
 			assert false, 'closed window must reject a late worker callback'

@@ -10,7 +10,7 @@ fn main() {
 	ui2.run_window('Idle wait', 520, 220, build)
 }
 
-fn build() ui2.Element {
+fn build(mut w ui2.Window) ui2.Element {
 	style := ui2.TextStyle{ size: 16, color: 0x172033 }
 	box := ui2.BoxStyle{ bg: 0xdbeafe, radius: 6 }
 	return ui2.screen(0xf8fafc, [
@@ -31,7 +31,7 @@ fn load(event ui2.ElementEvent) {
 	if event.kind != .click { return }
 	// Capture on UI; the worker only computes and posts. Local editing and
 	// selection survive the unrelated status rebuild.
-	dispatcher := ui2.ui_dispatcher()
+	dispatcher := event.window.dispatcher()
 	spawn load_worker(dispatcher)
 }
 

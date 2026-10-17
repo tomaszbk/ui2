@@ -35,6 +35,8 @@ mut:
 	sync_id   string
 	sync_text string
 	focus_id  string
+	// The window that shows the demo, which main opens.
+	window &ui2.Window = unsafe { nil }
 }
 
 const demo = &InputsDemo{}
@@ -374,7 +376,7 @@ fn otp_status(app &InputsDemo) (string, u32) {
 	return '${entered} of 6 digits. Paste a whole code into any cell.', theme.muted_foreground
 }
 
-fn build() ui2.Element {
+fn build(mut w ui2.Window) ui2.Element {
 	app := unsafe { demo }
 	mut c := []ui2.Element{}
 	c << ui2.label('', 'Inputs', ui2.rect(24, 16, 712, 32), ui2.TextStyle{
@@ -415,7 +417,7 @@ fn build() ui2.Element {
 			if event.kind == .click {
 				mut app := unsafe { demo }
 				app.show_pin = !app.show_pin
-				ui2.request_refresh()
+				event.window.request_refresh()
 			}
 		}
 	}
@@ -580,15 +582,16 @@ fn handle_group(config_of fn (&InputsDemo) ui2.InputGroupConfig, event ui2.Input
 // refresh_and_settle asks for a rebuild, puts a field's text back and moves
 // focus. Both fields exist already, so neither has to wait for the rebuild.
 fn refresh_and_settle(mut app InputsDemo) {
-	ui2.request_refresh()
+	mut w := app.window
+	w.request_refresh()
 	if app.sync_id.len > 0 {
-		if ui2.text(app.sync_id) != app.sync_text {
-			ui2.set_text(app.sync_id, app.sync_text)
+		if w.text(app.sync_id) != app.sync_text {
+			w.set_text(app.sync_id, app.sync_text)
 		}
 		app.sync_id = ''
 	}
 	if app.focus_id.len > 0 {
-		ui2.focus(app.focus_id)
+		w.focus(app.focus_id)
 		app.focus_id = ''
 	}
 }
@@ -597,7 +600,7 @@ fn refresh_and_settle(mut app InputsDemo) {
 // number input, and Backspace, Delete and the arrows move between OTP cells.
 fn handle_key(event ui2.KeyEvent) {
 	mut app := unsafe { demo }
-	focused := ui2.focused_id()
+	focused := event.window.focused_id()
 	if focused.len == 0 {
 		return
 	}
@@ -607,7 +610,7 @@ fn handle_key(event ui2.KeyEvent) {
 			continue
 		}
 		next := ui2.number_input_value_from_key(config, event) or { return }
-		ui2.consume_key()
+		event.window.consume_key()
 		match config.id {
 			'quantity' { app.quantity = next }
 			'price' { app.price = next }
@@ -620,7 +623,7 @@ fn handle_key(event ui2.KeyEvent) {
 	for config in codes {
 		index := ui2.otp_input_cell_from_id(config, focused) or { continue }
 		edit := ui2.otp_input_key(config, index, event) or { return }
-		ui2.consume_key()
+		event.window.consume_key()
 		apply_otp(mut app, config, edit.focus, edit)
 		refresh_and_settle(mut app)
 		return
@@ -628,6 +631,15 @@ fn handle_key(event ui2.KeyEvent) {
 }
 
 fn main() {
-	ui2.on_key_event(handle_key)
-	ui2.run_window('GPUI Kit inputs', window_width, window_height, build)
+	mut app := ui2.new_app()
+	mut window := app.new_window(
+		title:  'GPUI Kit inputs'
+		width:  window_width
+		height: window_height
+		build:  build
+	) or { panic(err) }
+	window.on_key_event(handle_key)
+	mut state := unsafe { demo }
+	state.window = window
+	app.run()
 }

@@ -62,7 +62,7 @@ fn handle_drag(event ui2.ElementEvent) {
 			else {}
 		}
 		if event.kind in [.drag_end, .drag_cancel] && os.getenv('UI2_DRAG_AUDIT') == '1' {
-			spawn audit_idle(ui2.ui_dispatcher())
+			spawn audit_idle(event.window.dispatcher())
 		}
 	}
 }
@@ -73,7 +73,7 @@ fn surface(id string, title string, frame ui2.Rect, color u32) ui2.Element {
 	]), handle_drag)
 }
 
-fn build() ui2.Element {
+fn build(mut w ui2.Window) ui2.Element {
 	state := unsafe { demo }
 	return ui2.screen(0xf1f5f9, [
 		ui2.label('', 'Drag-drop · typed card payload', ui2.rect(24, 18, 650, 32), ui2.TextStyle{ size: 24, color: 0x0f172a }),

@@ -10,6 +10,9 @@ pub struct LayoutDemo {
 pub mut:
 	long_text bool
 	blue      bool
+	// The window that shows the demo, which main opens. It is nil while
+	// run_compiled_vml builds the first frame and in the measurements.
+	window &ui2.Window = unsafe { nil }
 }
 
 fn message(model LayoutDemo) ui2.Element {
@@ -28,23 +31,23 @@ fn message(model LayoutDemo) ui2.Element {
 	})
 }
 
-pub fn (mut model LayoutDemo) change_text() {
+pub fn (mut model LayoutDemo) change_text(mut w ui2.Window) {
 	model.long_text = !model.long_text
-	ui2.refresh_element('message', message(model))
+	w.refresh_element('message', message(model))
 }
 
-pub fn (mut model LayoutDemo) change_color() {
+pub fn (mut model LayoutDemo) change_color(mut w ui2.Window) {
 	model.blue = !model.blue
-	ui2.refresh_element('message', message(model))
+	w.refresh_element('message', message(model))
 }
 
 fn control(mut model LayoutDemo, id string, title string, action string) ui2.Element {
 	return ui2.Element{
 		...ui2.button(id, title, ui2.rect(0, 0, 145, 38), ui2.BoxStyle{ bg: 0xe8edf5, radius: 6 }, ui2.TextStyle{})
-		on_event: fn [mut model, action] (_event ui2.ElementEvent) {
+		on_event: fn [mut model, action] (event ui2.ElementEvent) {
 			match action {
-				'change_color' { model.change_color() }
-				'change_text' { model.change_text() }
+				'change_color' { model.change_color(mut event.window) }
+				'change_text' { model.change_text(mut event.window) }
 				else {}
 			}
 		}
@@ -52,7 +55,11 @@ fn control(mut model LayoutDemo, id string, title string, action string) ui2.Ele
 }
 
 fn build(mut model LayoutDemo) ui2.Element {
-	bounds := ui2.bounds()
+	mut bounds := ui2.vml_bounds()
+	if model.window != unsafe { nil } {
+		mut w := model.window
+		bounds = w.bounds()
+	}
 	return build_at(mut model, if bounds.width > 100 { bounds.width - 48 } else { 52.0 })
 }
 
@@ -116,12 +123,16 @@ fn main() {
 		measurements()
 		return
 	}
-	mut app := LayoutDemo{ long_text: '--long' in os.args }
-	ui2.run_compiled_vml[LayoutDemo](
-		model:  &app
+	mut model := &LayoutDemo{
+		long_text: '--long' in os.args
+	}
+	mut app := ui2.new_app()
+	model.window = ui2.open_compiled_vml[LayoutDemo](mut app,
+		model:  model
 		build:  build
 		title:  'Incremental layout'
 		width:  660
 		height: 380
 	) or { panic(err) }
+	app.run()
 }

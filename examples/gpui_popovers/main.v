@@ -39,6 +39,8 @@ mut:
 	more_menu ui2.DropdownMenuState
 	word_wrap bool   = true
 	sort      string = 'name'
+	// The window that shows the gallery, which main opens.
+	window &ui2.Window = unsafe { nil }
 }
 
 const gallery_state = &Gallery{}
@@ -47,11 +49,11 @@ fn gallery() &Gallery {
 	return unsafe { gallery_state }
 }
 
-// with_app applies change to the gallery and rebuilds the window.
+// with_app applies change to the gallery. It runs in element and component
+// callbacks, and the window rebuilds after every event that reaches one.
 fn with_app(change fn (mut app Gallery)) {
 	mut app := gallery()
 	change(mut app)
-	ui2.request_refresh()
 }
 
 // on_click is the callback of an element that applies change when clicked.
@@ -84,8 +86,8 @@ struct Layout {
 	column  f64
 }
 
-fn layout() Layout {
-	win := ui2.bounds()
+fn layout(mut w ui2.Window) Layout {
+	win := w.bounds()
 	column := win.width / 2 - 36
 	return Layout{
 		width:   win.width
@@ -376,10 +378,10 @@ fn fast_card_config(app &Gallery, l Layout, theme ui2.ComponentTheme) ui2.HoverC
 	}
 }
 
-fn build() ui2.Element {
+fn build(mut w ui2.Window) ui2.Element {
 	app := gallery()
 	theme := ui2.component_theme(app.dark)
-	l := layout()
+	l := layout(mut w)
 	win := ui2.rect(0, 0, l.width, l.height)
 	mut children := [
 		ui2.label('', 'Popovers, hover cards and menus', ui2.rect(24, 16, 520, 30),
@@ -572,22 +574,24 @@ fn build() ui2.Element {
 
 // apply_card stores a hover card's next state and runs the timer work it asks
 // for. A firing feeds the card its generation back; a stale one changes nothing.
+// It runs in the card's callbacks and in timers, and the window rebuilds after
+// both.
 fn apply_card(which string, step ui2.HoverCardStep) {
 	mut app := gallery()
+	mut w := app.window
 	mut slot := if which == 'profile' { app.profile } else { app.fast }
 	slot.state = step.state
 	if step.cancel {
-		ui2.cancel_timer(slot.timer)
+		w.cancel_timer(slot.timer)
 	}
 	if step.schedule {
 		generation := step.state.generation
-		slot.timer = ui2.after(step.delay, fn [which, generation] () {
+		slot.timer = w.after(step.delay, fn [which, generation] () {
 			latest := gallery()
 			current := if which == 'profile' { latest.profile.state } else { latest.fast.state }
 			apply_card(which, current.timer_fired(generation))
 		})
 	}
-	ui2.request_refresh()
 }
 
 fn (mut app Gallery) chose(item ui2.DropdownMenuItem) {
@@ -632,11 +636,20 @@ fn on_key(event ui2.KeyEvent) {
 	} else {
 		return
 	}
-	ui2.consume_key()
-	ui2.request_refresh()
+	event.window.consume_key()
+	event.window.request_refresh()
 }
 
 fn main() {
-	ui2.on_key_event(on_key)
-	ui2.run_window('GPUI Kit popovers', 1040, 740, build)
+	mut app := ui2.new_app()
+	mut window := app.new_window(
+		title:  'GPUI Kit popovers'
+		width:  1040
+		height: 740
+		build:  build
+	) or { panic(err) }
+	mut state := gallery()
+	state.window = window
+	window.on_key_event(on_key)
+	app.run()
 }

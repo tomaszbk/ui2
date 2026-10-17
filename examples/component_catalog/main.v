@@ -15,11 +15,11 @@ mut:
 
 const catalog_state = &CatalogState{}
 
-// catalog_update applies change to the state and rebuilds the window.
+// catalog_update applies change to the state. It runs in component callbacks,
+// and the window rebuilds after every event that reaches one.
 fn catalog_update(change fn (mut state CatalogState)) {
 	mut state := unsafe { catalog_state }
 	change(mut state)
-	ui2.request_refresh()
 }
 
 fn catalog_navigate(target string) {
@@ -28,7 +28,7 @@ fn catalog_navigate(target string) {
 	})
 }
 
-fn build_catalog() ui2.Element {
+fn build_catalog(mut w ui2.Window) ui2.Element {
 	state := unsafe { catalog_state }
 	theme := ui2.component_theme(state.dark)
 	mut children := [ui2.label('', 'Portable component catalog', ui2.rect(24, 16, 680, 32),

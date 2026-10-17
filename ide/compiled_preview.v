@@ -42,17 +42,22 @@ fn preview_callback(event ui2.ElementEvent) {
 	mut state := unsafe { ide_state }
 	state.status = 'Preview event: ${event.kind} on ${event.id}'
 	state.log(state.status)
-	ui2.request_refresh()
+	event.window.request_refresh()
 }
 
 fn preview_publish(_id string, _element ui2.Element) {
-	ui2.request_refresh()
+	state := unsafe { ide_state }
+	state.refresh()
 }
 
 fn preview_command(command ui2.VmlHostCommand) ! {
+	state := unsafe { ide_state }
+	if state.window == unsafe { nil } {
+		return
+	}
 	match command.kind {
-		.focus { ui2.focus(command.id) }
-		.set_text { ui2.set_text(command.id, command.text) }
+		.focus { state.window.focus(command.id) }
+		.set_text { state.window.set_text(command.id, command.text) }
 	}
 }
 

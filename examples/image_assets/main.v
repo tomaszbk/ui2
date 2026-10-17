@@ -55,5 +55,8 @@ fn build() ui2.Element {
 }
 
 fn main() {
-	ui2.run_window('UI2 image assets', 760, 570, build)
+	// The tree does not depend on the window, so the test can build it alone.
+	ui2.run_window('UI2 image assets', 760, 570, fn (mut _ ui2.Window) ui2.Element {
+		return build()
+	})
 }

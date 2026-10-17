@@ -45,11 +45,11 @@ fn app() &Gallery {
 	return unsafe { gallery }
 }
 
-// update applies change to the gallery and rebuilds the window.
+// update applies change to the gallery. It runs in component callbacks, and
+// the window rebuilds after every event that reaches one.
 fn update(change fn (mut g Gallery)) {
 	mut g := app()
 	change(mut g)
-	ui2.request_refresh()
 }
 
 fn theme_of(g &Gallery) ui2.ComponentTheme {
@@ -663,7 +663,7 @@ fn caption(text string, x f64, y f64, width f64, theme ui2.ComponentTheme) ui2.E
 	})
 }
 
-fn build() ui2.Element {
+fn build(mut w ui2.Window) ui2.Element {
 	g := app()
 	theme := theme_of(g)
 	mut children := []ui2.Element{}
@@ -885,11 +885,18 @@ fn on_key(event ui2.KeyEvent) {
 	} else {
 		return
 	}
-	ui2.consume_key()
-	ui2.request_refresh()
+	event.window.consume_key()
+	event.window.request_refresh()
 }
 
 fn main() {
-	ui2.on_key_event(on_key)
-	ui2.run_window('ui2 choice components', window_width, window_height, build)
+	mut app := ui2.new_app()
+	mut window := app.new_window(
+		title:  'ui2 choice components'
+		width:  window_width
+		height: window_height
+		build:  build
+	) or { panic(err) }
+	window.on_key_event(on_key)
+	app.run()
 }

@@ -37,20 +37,28 @@ mut:
 	line_numbers   bool   = true
 	accepted_terms bool
 	status         string = 'The profile dialog is open: Tab and Shift+Tab stay in its fields, Escape or Cancel closes it.'
+	// The window that shows the gallery, which main opens.
+	window &ui2.Window = unsafe { nil }
 }
 
 const gallery = &Gallery{}
 
+fn gallery_window() &ui2.Window {
+	app := unsafe { gallery }
+	return app.window
+}
+
 fn window_frame() ui2.Rect {
-	b := ui2.bounds()
+	mut w := gallery_window()
+	b := w.bounds()
 	return ui2.rect(0, 0, b.width, b.height)
 }
 
-// with_app applies change to the gallery and rebuilds the window.
+// with_app applies change to the gallery. It runs in element and dialog
+// callbacks, and the window rebuilds after every event that reaches one.
 fn with_app(change fn (mut app Gallery)) {
 	mut app := unsafe { gallery }
 	change(mut app)
-	ui2.request_refresh()
 }
 
 fn theme_of(app &Gallery) ui2.ComponentTheme {
@@ -441,16 +449,18 @@ fn top_trap(app &Gallery, frame ui2.Rect) ?ui2.FocusTrap {
 fn tab(backwards bool) {
 	app := unsafe { gallery }
 	trap := top_trap(app, window_frame()) or { return }
-	ui2.consume_key()
-	if next := ui2.focus_trap_target([trap], ui2.focused_id(), backwards) {
-		ui2.focus(next)
+	mut w := gallery_window()
+	w.consume_key()
+	if next := ui2.focus_trap_target([trap], w.focused_id(), backwards) {
+		w.focus(next)
 	}
 }
 
 // focus_soon focuses id once the overlay holding it has been rendered.
 fn focus_soon(id string) {
-	ui2.after(0.05, fn [id] () {
-		ui2.focus(id)
+	mut w := gallery_window()
+	w.after(0.05, fn [mut w, id] () {
+		w.focus(id)
 	})
 }
 
@@ -512,11 +522,13 @@ fn answer_profile(mut app Gallery, event ui2.DialogEvent) {
 	app.email = app.saved_email
 	app.username = app.saved_username
 	app.profile_open = false
-	ui2.dismiss_keyboard()
+	mut w := gallery_window()
+	w.dismiss_keyboard()
 }
 
 fn open_alert(mut app Gallery, subject string) {
-	ui2.dismiss_keyboard()
+	mut w := gallery_window()
+	w.dismiss_keyboard()
 	app.alert_subject = subject
 	app.alert_open = true
 	app.status = 'Asking before deleting the ${subject}.'
@@ -541,7 +553,8 @@ fn answer_terms(mut app Gallery, event ui2.DialogEvent) {
 }
 
 fn open_sheet(mut app Gallery, side ui2.SheetSide) {
-	ui2.dismiss_keyboard()
+	mut w := gallery_window()
+	w.dismiss_keyboard()
 	app.sheet_side = side
 	app.sheet_open = true
 	app.status = 'Opened the ${side} sheet.'
@@ -590,8 +603,8 @@ fn handle_key_event(event ui2.KeyEvent) {
 		}
 	}
 	if handled {
-		ui2.consume_key()
-		ui2.request_refresh()
+		event.window.consume_key()
+		event.window.request_refresh()
 		return
 	}
 	if backwards := ui2.focus_trap_direction(event) {
@@ -628,7 +641,7 @@ fn trigger_button(id string, text string, frame ui2.Rect, theme ui2.ComponentThe
 	})
 }
 
-fn build() ui2.Element {
+fn build(mut w ui2.Window) ui2.Element {
 	app := unsafe { gallery }
 	theme := theme_of(app)
 	frame := window_frame()
@@ -728,6 +741,15 @@ fn build() ui2.Element {
 }
 
 fn main() {
-	ui2.on_key_event(handle_key_event)
-	ui2.run_window('GPUI Kit dialogs', window_width, window_height, build)
+	mut app := ui2.new_app()
+	mut window := app.new_window(
+		title:  'GPUI Kit dialogs'
+		width:  window_width
+		height: window_height
+		build:  build
+	) or { panic(err) }
+	window.on_key_event(handle_key_event)
+	mut state := unsafe { gallery }
+	state.window = window
+	app.run()
 }

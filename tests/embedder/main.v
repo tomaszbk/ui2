@@ -35,8 +35,9 @@ struct IdleSample {
 
 __global first_model = WindowModel{ name: 'First' }
 __global second_model = WindowModel{ name: 'Second' }
-__global first_window = ui2.CustomWindow{}
-__global second_window = ui2.CustomWindow{}
+__global fixture_app = &ui2.App(unsafe { nil })
+__global first_window = &ui2.Window(unsafe { nil })
+__global second_window = &ui2.Window(unsafe { nil })
 __global japanese_ime_requested = false
 __global japanese_ime_scheduled = false
 __global japanese_ime_session = voidptr(unsafe { nil })
@@ -68,8 +69,19 @@ fn main() {
 		path := '/System/Library/Fonts/Supplemental/Arial Unicode.ttf'
 		if os.is_file(path) { interactive_font = path }
 	}
-	first_window = ui2.open_window('UI2 embedder acceptance — First', 520, 460, first_build) or { panic(err) }
-	second_window = ui2.open_window('UI2 embedder acceptance — Second', 520, 460, second_build) or { panic(err) }
+	fixture_app = ui2.new_app()
+	first_window = fixture_app.new_window(
+		title:  'UI2 embedder acceptance — First'
+		width:  520
+		height: 460
+		build:  first_build
+	) or { panic(err) }
+	second_window = fixture_app.new_window(
+		title:  'UI2 embedder acceptance — Second'
+		width:  520
+		height: 460
+		build:  second_build
+	) or { panic(err) }
 	assert C.ui2_fixture_place(first_window.native_handle(), 30, 160)
 	assert C.ui2_fixture_place(second_window.native_handle(), 590, 160)
 	first_host := C.ui2_fixture_host_handle(first_window.native_handle())
@@ -82,7 +94,7 @@ fn main() {
 	} else {
 		spawn acceptance(first, second, first_host, second_host, seconds)
 	}
-	ui2.run_windows()
+	fixture_app.run()
 	end_japanese_ime()
 	assert first.stats().closed && second.stats().closed
 	if !interactive {
@@ -90,12 +102,12 @@ fn main() {
 	}
 }
 
-fn first_build() ui2.Element {
+fn first_build(mut _ ui2.Window) ui2.Element {
 	if japanese_ime_requested && !japanese_ime_scheduled {
 		japanese_ime_scheduled = true
 		assert first_window.dispatcher().post(fn () {
-			ui2.focus('input')
-			ui2.set_text('input', '')
+			first_window.focus('input')
+			first_window.set_text('input', '')
 			// Begin after the frame publishes textEnabled to the native client.
 			assert first_window.dispatcher().post(fn () {
 				japanese_ime_session = C.ui2_test_ime_begin(first_window.native_handle())
@@ -115,7 +127,7 @@ fn first_build() ui2.Element {
 	]))
 }
 
-fn second_build() ui2.Element {
+fn second_build(mut _ ui2.Window) ui2.Element {
 	return build_window(second_model, second_change, second_animate, second_close, ui2.compose_motion([
 		ui2.motion_layout(.position),
 		ui2.motion_transition(0.8),
@@ -174,7 +186,7 @@ fn build_window(model WindowModel, on_change ui2.ElementCallback, on_animate ui2
 fn first_close(event ui2.ElementEvent) {
 	if event.kind == .click {
 		end_japanese_ime()
-		first_window.close()
+		first_window.quit()
 	}
 }
 
@@ -196,7 +208,7 @@ fn end_japanese_ime() {
 }
 
 fn second_close(event ui2.ElementEvent) {
-	if event.kind == .click { second_window.close() }
+	if event.kind == .click { second_window.quit() }
 }
 
 fn second_animate(event ui2.ElementEvent) {
@@ -212,24 +224,24 @@ fn second_change(event ui2.ElementEvent) {
 }
 
 fn assert_first_editor() {
-	assert ui2.text('editor') == 'first local draft'
-	assert ui2.focused_id() == 'editor'
-	assert ui2.text_area_caret('editor') == 5
-	assert ui2.text_area_selection_length('editor') == 4
-	assert ui2.scroll_offset('rows') == 70
+	assert first_window.text('editor') == 'first local draft'
+	assert first_window.focused_id() == 'editor'
+	assert first_window.text_area_caret('editor') == 5
+	assert first_window.text_area_selection_length('editor') == 4
+	assert first_window.scroll_offset('rows') == 70
 }
 
 fn assert_second_editor() {
-	assert ui2.text('editor') == 'second local draft'
-	assert ui2.focused_id() == 'editor'
-	assert ui2.text_area_caret('editor') == 5
-	assert ui2.text_area_selection_length('editor') == 3
-	assert ui2.scroll_offset('rows') == 180
+	assert second_window.text('editor') == 'second local draft'
+	assert second_window.focused_id() == 'editor'
+	assert second_window.text_area_caret('editor') == 5
+	assert second_window.text_area_selection_length('editor') == 3
+	assert second_window.scroll_offset('rows') == 180
 }
 
 fn start_first_animation() {
 	first_model.moving_x = if first_model.moving_x == 350 { 440 } else { 350 }
-	ui2.request_refresh()
+	first_window.request_refresh()
 }
 
 // first_moved hears the square's motion. A frame that delivers an event builds
@@ -330,17 +342,17 @@ fn acceptance(first ui2.UiDispatcher, second ui2.UiDispatcher, first_host voidpt
 	time.sleep(2 * time.second)
 	assert first.stats().draws > 0 && second.stats().draws > 0
 	assert first.post(fn () {
-		ui2.set_text('editor', 'first local draft')
-		ui2.focus('editor')
-		ui2.text_area_set_selection('editor', 1, 4)
-		ui2.scroll_to_offset('rows', 70)
+		first_window.set_text('editor', 'first local draft')
+		first_window.focus('editor')
+		first_window.text_area_set_selection('editor', 1, 4)
+		first_window.scroll_to_offset('rows', 70)
 		assert_first_editor()
 	})
 	assert second.post(fn () {
-		ui2.set_text('editor', 'second local draft')
-		ui2.focus('editor')
-		ui2.text_area_set_selection('editor', 2, 3)
-		ui2.scroll_to_offset('rows', 180)
+		second_window.set_text('editor', 'second local draft')
+		second_window.focus('editor')
+		second_window.text_area_set_selection('editor', 2, 3)
+		second_window.scroll_to_offset('rows', 180)
 		assert_second_editor()
 	})
 	sample := sample_idle(first, second, first_host, second_host, seconds)
@@ -353,7 +365,7 @@ fn acceptance(first ui2.UiDispatcher, second ui2.UiDispatcher, first_host voidpt
 		assert_first_editor()
 		first_model.status = 'Worker delivered to first'
 		for _ in 0 .. 20 {
-			ui2.request_refresh()
+			first_window.request_refresh()
 		}
 	})
 	worker := settled(first)
@@ -383,11 +395,10 @@ fn acceptance(first ui2.UiDispatcher, second ui2.UiDispatcher, first_host voidpt
 		assert first_model.status == 'Animation completed'
 		assert first_model.completion_built
 		assert_first_editor()
-		assert second_window.update(fn () {
-			assert_second_editor()
-			assert second_model.moving_x == 350
-			assert second_model.status == 'Static window'
-		})
+		assert_second_editor()
+		assert second_model.moving_x == 350
+		assert second_model.status == 'Static window'
+
 		assert_first_editor()
 	})
 	settled(first)
@@ -399,10 +410,10 @@ fn acceptance(first ui2.UiDispatcher, second ui2.UiDispatcher, first_host voidpt
 	check_gc_lifetime(first)
 
 	assert first.post(fn [first] () {
-		first_window.close()
+		first_window.quit()
 		assert first.stats().closed
 		assert !first.post(fn () { panic('late callback ran on a closed window') })
-		assert !first_window.update(fn () { panic('closed window accepted update') })
+		assert !fixture_owns(first_window)
 	})
 	for _ in 0 .. 100 {
 		if first.stats().closed { break }
@@ -416,16 +427,19 @@ fn acceptance(first ui2.UiDispatcher, second ui2.UiDispatcher, first_host voidpt
 	assert C.ui2_embedder_pump_count(second_host) == peer_pumps
 	assert second.post(fn () {
 		assert_second_editor()
-		second_window.close()
+		second_window.quit()
 	})
 }
 
-// Return only the coordinator-backed dispatcher. No CustomWindow handle or
-// application pointer escapes this helper, so the embedder must own its live
-// callback target while Objective-C retains only opaque userData.
+// Return only the coordinator-backed dispatcher. No Window handle escapes this
+// helper, so the app and the embedder must own the live callback target while
+// Objective-C retains only opaque userData.
 fn dispatcher_only_window(probe &GcLifetimeProbe) ui2.UiDispatcher {
-	window := ui2.open_window('UI2 embedder GC lifetime acceptance', 280, 180,
-		fn [probe] () ui2.Element {
+	mut window := fixture_app.new_window(
+		title:  'UI2 embedder GC lifetime acceptance'
+		width:  280
+		height: 180
+		build:  fn [probe] (mut _ ui2.Window) ui2.Element {
 			mut observed := unsafe { probe }
 			observed.mutex.lock()
 			observed.builds++
@@ -442,8 +456,26 @@ fn dispatcher_only_window(probe &GcLifetimeProbe) ui2.UiDispatcher {
 					keyboard:    0
 				) or { panic(err) },
 			])
-		}) or { panic(err) }
+		}
+	) or { panic(err) }
 	return window.dispatcher()
+}
+
+// fixture_owns reports whether the app still runs window.
+fn fixture_owns(window &ui2.Window) bool {
+	for open in fixture_app.windows() {
+		if voidptr(open) == voidptr(window) {
+			return true
+		}
+	}
+	return false
+}
+
+// third_window finds the window dispatcher_only_window opened through the app
+// that owns it: the last one it opened.
+fn third_window() &ui2.Window {
+	windows := fixture_app.windows()
+	return windows.last()
 }
 
 fn check_gc_lifetime(ui_thread ui2.UiDispatcher) {
@@ -495,9 +527,10 @@ fn check_gc_lifetime(ui_thread ui2.UiDispatcher) {
 	}
 	assert collections == 8
 	assert third.post(fn () {
-		ui2.set_text('gc-editor', 'survived collection')
-		assert ui2.text('gc-editor') == 'survived collection'
-		ui2.request_refresh()
+		mut window := third_window()
+		window.set_text('gc-editor', 'survived collection')
+		assert window.text('gc-editor') == 'survived collection'
+		window.request_refresh()
 	})
 	after := settled(third)
 	assert after.builds > before.builds && after.draws > before.draws
@@ -505,7 +538,10 @@ fn check_gc_lifetime(ui_thread ui2.UiDispatcher) {
 	builds := probe.builds
 	probe.mutex.unlock()
 	assert builds >= 2
-	assert third.post(fn () { ui2.quit() })
+	assert third.post(fn () {
+		mut window := third_window()
+		window.quit()
+	})
 	for _ in 0 .. 100 {
 		if third.stats().closed { break }
 		time.sleep(20 * time.millisecond)
@@ -547,20 +583,19 @@ fn check_tooltip(first ui2.UiDispatcher, second ui2.UiDispatcher, first_host voi
 
 fn check_ime(first ui2.UiDispatcher, second ui2.UiDispatcher) {
 	assert first.post(fn () {
-		ui2.focus('input')
-		ui2.set_text('input', 'A😀Z')
+		first_window.focus('input')
+		first_window.set_text('input', 'A😀Z')
 	})
 	settled(first)
 	assert first.post(fn () {
 		assert C.ui2_fixture_preedit(first_window.native_handle(), c'にほん')
-		assert ui2.text('input') == 'A😀Z'
+		assert first_window.text('input') == 'A😀Z'
 		assert C.ui2_fixture_has_preedit(first_window.native_handle())
-		ui2.request_refresh()
-		assert second_window.update(fn () {
-			assert_second_editor()
-			assert ui2.text('input') == 'A😀Z'
-			assert !C.ui2_fixture_has_preedit(second_window.native_handle())
-		})
+		first_window.request_refresh()
+		assert_second_editor()
+		assert second_window.text('input') == 'A😀Z'
+		assert !C.ui2_fixture_has_preedit(second_window.native_handle())
+
 		assert C.ui2_fixture_has_preedit(first_window.native_handle())
 	})
 	settled(first)
@@ -568,12 +603,12 @@ fn check_ime(first ui2.UiDispatcher, second ui2.UiDispatcher) {
 	assert first.post(fn () {
 		assert C.ui2_fixture_has_preedit(first_window.native_handle())
 		assert C.ui2_fixture_candidate_inside_window(first_window.native_handle())
-		assert ui2.text('input') == 'A😀Z'
+		assert first_window.text('input') == 'A😀Z'
 		assert C.ui2_fixture_commit(first_window.native_handle(), c'日本')
-		assert ui2.text('input') == 'A日本Z'
+		assert first_window.text('input') == 'A日本Z'
 		assert !C.ui2_fixture_has_preedit(first_window.native_handle())
-		ui2.focus('editor')
-		ui2.text_area_set_selection('editor', 1, 4)
+		first_window.focus('editor')
+		first_window.text_area_set_selection('editor', 1, 4)
 		assert_first_editor()
 	})
 	settled(first)
@@ -584,41 +619,41 @@ fn check_text_input_guards(first ui2.UiDispatcher, second ui2.UiDispatcher) {
 	peer := settled(second)
 	for readonly in [true, false] {
 		assert first.post(fn () {
-			ui2.focus('input')
-			ui2.set_text('input', 'A😀Z')
+			first_window.focus('input')
+			first_window.set_text('input', 'A😀Z')
 		})
 		settled(first)
 		assert first.post(fn [readonly] () {
 			assert C.ui2_fixture_preedit(first_window.native_handle(), c'にほん')
 			assert C.ui2_fixture_has_preedit(first_window.native_handle())
-			assert ui2.text('input') == 'A😀Z'
+			assert first_window.text('input') == 'A😀Z'
 			first_model.input_readonly = readonly
 			first_model.input_disabled = !readonly
-			ui2.request_refresh()
+			first_window.request_refresh()
 		})
 		settled(first)
 		assert first.post(fn () {
 			assert !C.ui2_fixture_has_preedit(first_window.native_handle())
-			assert ui2.text('input') == 'A😀Z'
+			assert first_window.text('input') == 'A😀Z'
 			// The disabled native client falls back to character callbacks;
 			// retained focus must not let that fallback edit the committed model.
 			assert C.ui2_fixture_commit(first_window.native_handle(), c'blocked')
-			assert ui2.text('input') == 'A😀Z'
+			assert first_window.text('input') == 'A😀Z'
 			assert C.ui2_fixture_preedit(first_window.native_handle(), c'にほん')
 			assert !C.ui2_fixture_has_preedit(first_window.native_handle())
-			assert ui2.text('input') == 'A😀Z'
+			assert first_window.text('input') == 'A😀Z'
 			first_model.input_readonly = false
 			first_model.input_disabled = false
-			ui2.request_refresh()
+			first_window.request_refresh()
 		})
 		settled(first)
 		assert first.post(fn () {
 			assert !C.ui2_fixture_has_preedit(first_window.native_handle())
-			assert ui2.text('input') == 'A😀Z'
+			assert first_window.text('input') == 'A😀Z'
 			assert C.ui2_fixture_commit(first_window.native_handle(), c'B')
-			assert ui2.text('input') == 'A😀ZB'
-			ui2.focus('editor')
-			ui2.text_area_set_selection('editor', 1, 4)
+			assert first_window.text('input') == 'A😀ZB'
+			first_window.focus('editor')
+			first_window.text_area_set_selection('editor', 1, 4)
 			assert_first_editor()
 		})
 		settled(first)

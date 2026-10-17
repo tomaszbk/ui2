@@ -66,9 +66,9 @@ fn (app &IdeApp) menus() []ui2.Menu {
 	]
 }
 
-fn build_ide_screen() ui2.Element {
+fn build_ide_screen(mut w ui2.Window) ui2.Element {
 	mut state := unsafe { ide_state }
-	return build_ide(ui2.bounds(), mut state)
+	return build_ide(w.bounds(), mut state)
 }
 
 fn event_numeric_suffix(event string, prefix string) ?int {
@@ -143,7 +143,11 @@ fn (mut app IdeApp) apply_source_editor() bool {
 	if app.active_tab != 'source' && !app.source_modified {
 		return true
 	}
-	source := if app.active_tab == 'source' { ui2.text('source_editor') } else { app.source_text }
+	source := if app.active_tab == 'source' {
+		app.field_text('source_editor')
+	} else {
+		app.source_text
+	}
 	app.apply_source(source) or {
 		app.status = 'Source error: ${err}'
 		app.log(app.status)
@@ -153,7 +157,7 @@ fn (mut app IdeApp) apply_source_editor() bool {
 }
 
 fn (mut app IdeApp) save_from_ui() bool {
-	app.path_input = ui2.text('project_path')
+	app.path_input = app.field_text('project_path')
 	app.save_document() or {
 		app.status = 'Save failed: ${err}'
 		app.log(app.status)
@@ -163,7 +167,7 @@ fn (mut app IdeApp) save_from_ui() bool {
 }
 
 fn (mut app IdeApp) open_from_ui() {
-	path := ui2.text('project_path')
+	path := app.field_text('project_path')
 	if !app.confirm_discard() {
 		return
 	}
@@ -290,8 +294,8 @@ fn (mut app IdeApp) perform_action(event string, payload ui2.ElementEvent) {
 		'generate_main' { app.generate_main_from_ui() }
 		'build_project' { app.build_project() }
 		'quit' {
-			if app.confirm_discard() {
-				ui2.quit()
+			if app.confirm_discard() && app.window != unsafe { nil } {
+				app.window.quit()
 			}
 		}
 		'undo' { app.undo() }
@@ -345,14 +349,14 @@ fn (mut app IdeApp) perform_action(event string, payload ui2.ElementEvent) {
 	}
 }
 
-fn handle_ide_key(key string) {
+fn handle_ide_key(mut w ui2.Window, key string) {
 	mut state := unsafe { ide_state }
-	focused := ui2.focused_id()
+	focused := w.focused_id()
 	if key in ['forward_delete', 'backspace', 'left', 'right', 'up', 'down', 'shift+left', 'shift+right',
 		'shift+up', 'shift+down', 'cmd+z', 'cmd+shift+z'] {
 		// Focus also belongs to navigator and component buttons. Only actual
 		// editor semantics reserve these commands for draft editing/selection.
-		if node := ui2.semantic_node(focused) {
+		if node := w.semantic_node(focused) {
 			if node.role == 'textbox' { return }
 		}
 	}
@@ -377,7 +381,7 @@ fn handle_ide_key(key string) {
 				''
 			}
 			if handled {
-				ui2.focus(next)
+				w.focus(next)
 			}
 		}
 		'escape' {
@@ -389,9 +393,9 @@ fn handle_ide_key(key string) {
 		}
 	}
 	if handled {
-		ui2.consume_key()
-		ui2.set_menu_bar(state.menus())
-		ui2.request_refresh()
+		w.consume_key()
+		w.set_menu_bar(state.menus())
+		w.request_refresh()
 	}
 }
 
@@ -407,8 +411,8 @@ fn handle_ide_drop(event ui2.DropEvent) {
 		state.status = 'Drop failed: ${err}'
 		state.log(state.status)
 	}
-	ui2.set_menu_bar(state.menus())
-	ui2.request_refresh()
+	event.window.set_menu_bar(state.menus())
+	event.window.request_refresh()
 }
 
 fn main() {
@@ -423,18 +427,26 @@ fn main() {
 		}
 	}
 	defer { state.dispose_preview() }
-	ui2.on_key(handle_ide_key)
-	ui2.on_drop(handle_ide_drop)
-	ui2.set_menu_bar(state.menus())
-	ui2.run_window('UI2 Studio', ide_width, ide_height, build_ide_screen)
+	mut app := ui2.new_app()
+	mut window := app.new_window(
+		title:  'UI2 Studio'
+		width:  ide_width
+		height: ide_height
+		build:  build_ide_screen
+	) or { panic(err) }
+	state.window = window
+	window.on_key(handle_ide_key)
+	window.on_drop(handle_ide_drop)
+	window.set_menu_bar(state.menus())
+	app.run()
 }
 
 fn ide_action(action string) ui2.ElementCallback {
 	return fn [action] (event ui2.ElementEvent) {
 		mut state := unsafe { ide_state }
 		state.perform_action(action, event)
-		ui2.set_menu_bar(state.menus())
-		ui2.request_refresh()
+		event.window.set_menu_bar(state.menus())
+		event.window.request_refresh()
 	}
 }
 
@@ -450,8 +462,8 @@ fn ide_preview_size_callback(event ui2.ElementEvent) {
 fn palette_callback(kind string) ui2.ElementCallback {
 	return fn [kind] (event ui2.ElementEvent) {
 		mut state := unsafe { ide_state }
-		state.handle_palette_pointer(event.kind, kind, event.x, event.y, ide_layout(ui2.bounds(), state))
-		ui2.request_refresh()
+		state.handle_palette_pointer(event.kind, kind, event.x, event.y, ide_layout(event.window.bounds(), state))
+		event.window.request_refresh()
 	}
 }
 
@@ -470,20 +482,20 @@ fn (mut app IdeApp) handle_component_pointer(component_id int, mode string, even
 fn component_pointer_callback(component_id int, mode string) ui2.ElementCallback {
 	return fn [component_id, mode] (event ui2.ElementEvent) {
 		mut state := unsafe { ide_state }
-		state.handle_component_pointer(component_id, mode, event, ui2.bounds())
-		ui2.request_refresh()
+		state.handle_component_pointer(component_id, mode, event, event.window.bounds())
+		event.window.request_refresh()
 	}
 }
 
 fn form_pointer_callback(event ui2.ElementEvent) {
 	if event.kind != .pointer_up { return }
 	mut state := unsafe { ide_state }
-	layout := ide_layout(ui2.bounds(), state)
+	layout := ide_layout(event.window.bounds(), state)
 	if state.armed_kind.len > 0 {
 		state.add_component(state.armed_kind, (event.x - layout.form.x) / layout.scale, (event.y - layout.form.y) / layout.scale)
 	} else {
 		state.selected_id = 0
 		state.status = '${state.form_name} selected.'
 	}
-	ui2.request_refresh()
+	event.window.request_refresh()
 }

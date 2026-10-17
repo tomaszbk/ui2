@@ -39,14 +39,14 @@ mut:
 
 const timer_refresh = &TimerRefresh{}
 
-fn schedule_timer_refresh() {
+fn schedule_timer_refresh(window &ui2.Window) {
 	mut wake := unsafe { timer_refresh }
 	wake.mutex.lock()
 	wake.generation++
 	wake.active = true
 	generation := wake.generation
 	wake.mutex.unlock()
-	spawn refresh_timer_until_cancelled(generation)
+	spawn refresh_timer_until_cancelled(window, generation)
 }
 
 fn cancel_timer_refresh() {
@@ -133,7 +133,8 @@ fn (mut app TimerDemo) sync_at(now i64) {
 	app.update_labels()
 }
 
-fn refresh_timer_until_cancelled(generation u64) {
+fn refresh_timer_until_cancelled(window &ui2.Window, generation u64) {
+	mut w := window
 	mut wake := unsafe { timer_refresh }
 	for {
 		time.sleep(50 * time.millisecond)
@@ -141,33 +142,33 @@ fn refresh_timer_until_cancelled(generation u64) {
 		active := wake.active && wake.generation == generation
 		wake.mutex.unlock()
 		if !active { return }
-		ui2.request_refresh()
+		w.request_refresh()
 	}
 }
 
 fn timer_callbacks() map[string]ui2.ElementCallback {
 	return {
-		'start':           fn (_event ui2.ElementEvent) {
+		'start':           fn (event ui2.ElementEvent) {
 			mut state := unsafe { timer_state }
 			state.start_at(time.ticks())
-			schedule_timer_refresh()
-			ui2.request_refresh()
+			schedule_timer_refresh(event.window)
+			event.window.request_refresh()
 		}
-		'pause':           fn (_event ui2.ElementEvent) {
+		'pause':           fn (event ui2.ElementEvent) {
 			mut state := unsafe { timer_state }
 			if state.running {
 				state.pause_at(time.ticks())
 				cancel_timer_refresh()
 			} else {
 				state.resume_at(time.ticks())
-				schedule_timer_refresh()
+				schedule_timer_refresh(event.window)
 			}
-			ui2.request_refresh()
+			event.window.request_refresh()
 		}
 		'duration_slider': fn (event ui2.ElementEvent) {
 			mut state := unsafe { timer_state }
 			state.set_duration(event.value)
-			ui2.request_refresh()
+			event.window.request_refresh()
 		}
 	}
 }

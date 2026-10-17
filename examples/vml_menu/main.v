@@ -2,7 +2,7 @@ module main
 
 import ui2
 
-fn build() ui2.Element {
+fn build(mut w ui2.Window) ui2.Element {
 	return ui2.screen(0xffffff, [
 		ui2.label('hint', 'Choose a menu item; its declared action is printed to the terminal.',
 			ui2.rect(20, 20, 460, 80), ui2.TextStyle{
@@ -13,8 +13,15 @@ fn build() ui2.Element {
 
 fn main() {
 	menus := build_menus()
-	ui2.set_menu_bar(menus)
-	ui2.run_window('VML menus', 500, 180, build)
+	mut app := ui2.new_app()
+	mut window := app.new_window(
+		title:  'VML menus'
+		width:  500
+		height: 180
+		build:  build
+	) or { panic(err) }
+	window.set_menu_bar(menus)
+	app.run()
 }
 
 fn menu_action(action string) ui2.ElementCallback {

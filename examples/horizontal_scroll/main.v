@@ -91,8 +91,8 @@ fn browser_screen(browser &ColumnBrowser, bounds ui2.Rect) ui2.Element {
 			pane_height), 0xffffff, column_rows(browser, column))
 		columns << ui2.view('', ui2.rect(x + columns_column_width - 1, 0, 1, pane_height),
 			ui2.BoxStyle{
-			bg: 0xe2e8f0
-		}, [])
+				bg: 0xe2e8f0
+			}, [])
 	}
 	button_box := ui2.BoxStyle{
 		bg:     0xe2e8f0
@@ -108,16 +108,16 @@ fn browser_screen(browser &ColumnBrowser, bounds ui2.Rect) ui2.Element {
 		ui2.with_event(ui2.button('last', 'Last', ui2.rect(84, 10, 64, 28), button_box, button_text), handle_browser_event),
 		ui2.label('path', browser.path(), ui2.rect(164, 0, bounds.width - 176, columns_toolbar_height),
 			ui2.TextStyle{
-			color: 0x475569
-			size:  13
-		}),
+				color: 0x475569
+				size:  13
+			}),
 		ui2.scroll_with_mode('columns', ui2.rect(0, columns_toolbar_height, bounds.width,
 			pane_height), 0xffffff, .horizontal_only, columns),
 	])
 }
 
-fn build_browser() ui2.Element {
-	return browser_screen(column_browser, ui2.bounds())
+fn build_browser(mut w ui2.Window) ui2.Element {
+	return browser_screen(column_browser, w.bounds())
 }
 
 fn handle_browser_event(event ui2.ElementEvent) {
@@ -125,10 +125,10 @@ fn handle_browser_event(event ui2.ElementEvent) {
 	mut browser := unsafe { column_browser }
 	match event.id {
 		'first' {
-			ui2.scroll_to_horizontal_offset('columns', 0)
+			event.window.scroll_to_horizontal_offset('columns', 0)
 		}
 		'last' {
-			ui2.scroll_to_horizontal_offset('columns', browser.content_width())
+			event.window.scroll_to_horizontal_offset('columns', browser.content_width())
 		}
 		else {
 			if !event.id.starts_with('open:') {
@@ -138,14 +138,21 @@ fn handle_browser_event(event ui2.ElementEvent) {
 			browser.open(parts[1].int(), parts[2].int())
 			// The column just opened lies past the old end of the strip, so ask for
 			// the far end once the tree has it.
-			ui2.request_refresh()
-			ui2.scroll_to_horizontal_offset('columns', browser.content_width())
+			event.window.request_refresh()
+			event.window.scroll_to_horizontal_offset('columns', browser.content_width())
 		}
 	}
 }
 
 fn main() {
-	// Asked before the window exists: the strip opens on its deepest column.
-	ui2.scroll_to_horizontal_offset('columns', column_browser.content_width())
-	ui2.run_window('Horizontal Scroll', columns_window_width, columns_window_height, build_browser)
+	mut app := ui2.new_app()
+	mut window := app.new_window(
+		title:  'Horizontal Scroll'
+		width:  columns_window_width
+		height: columns_window_height
+		build:  build_browser
+	) or { panic(err) }
+	// Asked before the window runs: the strip opens on its deepest column.
+	window.scroll_to_horizontal_offset('columns', column_browser.content_width())
+	app.run()
 }
