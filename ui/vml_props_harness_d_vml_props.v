@@ -221,13 +221,8 @@ fn props_document(root PNode, frame Rect) !Element {
 fn props_normal(el Element) Element {
 	return Element{
 		...el
-		mounted_generation:  0
-		mounted_path:        ''
-		mounted_parent_path: ''
-		mounted_scroll_id:   ''
-		mounted_tooltip_key: ''
-		compiled_source:     unsafe { nil }
-		motion_state:        unsafe { nil }
+		mount:               unsafe { nil }
+		runtime:             unsafe { nil }
 		compiled_node:       unsafe { nil }
 		compiled_metadata:   unsafe { nil }
 		on_event:            unsafe { nil }

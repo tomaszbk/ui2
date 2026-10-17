@@ -46,11 +46,11 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		])
 		mut tree := MotionTree{}
 		first := tree.prepare(root)!
-		state := first.children[0].motion_state
+		state := first.children[0].motion_state()
 		before := gc_allocation_snapshot()!
 		for _ in 0 .. 20 {
 			prepared := tree.prepare(root)!
-			assert prepared.children[0].motion_state == state
+			assert prepared.children[0].motion_state() == state
 			assert prepared.children[1] == root.children[1]
 		}
 		delta := gc_allocation_snapshot()!.delta_since(before)
@@ -65,7 +65,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		mut tree := MotionTree{}
 		assert tree.prepare(plain)! == plain
 		animated := Element{ ...plain, children: [preparation_motion(clock, 'card')] }
-		state := tree.prepare(animated)!.children[0].motion_state
+		state := tree.prepare(animated)!.children[0].motion_state()
 		assert state != unsafe { nil } && !state.disposed
 		assert tree.prepare(plain)! == plain
 		assert tree.states.len == 0 && state.disposed
@@ -79,21 +79,21 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		mut tree := MotionTree{}
 		root := view('root', rect(0, 0, 100, 100), BoxStyle{}, [first, caption, second])
 		initial := tree.prepare(root)!
-		first_state := initial.children[0].motion_state
-		second_state := initial.children[2].motion_state
+		first_state := initial.children[0].motion_state()
+		second_state := initial.children[2].motion_state()
 		reordered := tree.prepare(Element{ ...root, children: [second, caption, first] })!
-		assert reordered.children[0].motion_state == second_state
-		assert reordered.children[2].motion_state == first_state
+		assert reordered.children[0].motion_state() == second_state
+		assert reordered.children[2].motion_state() == first_state
 		clock.now = 0.1
 		leaving := tree.prepare(Element{ ...root, children: [second, caption] })!
 		assert leaving.children.len == 3
-		assert leaving.children[2].presence_exiting
-		assert leaving.children[2].motion_state == first_state
-		assert leaving.children[0].motion_state == second_state
+		assert leaving.children[2].presence_exiting()
+		assert leaving.children[2].motion_state() == first_state
+		assert leaving.children[0].motion_state() == second_state
 		clock.now = 0.6
 		tree.sample(leaving)!
 		pruned := tree.prune(leaving)
 		assert pruned.children.len == 2 && first_state.disposed
-		assert pruned.children[0].motion_state == second_state && !second_state.disposed
+		assert pruned.children[0].motion_state() == second_state && !second_state.disposed
 	}
 }

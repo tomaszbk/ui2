@@ -53,7 +53,7 @@ fn test_overlay_motion_and_viewport_projection_reuses_dialog_backdrop_and_focus_
 		...view('dialog', rect(0, 0, 140, 80), BoxStyle{}, [
 			button('inside', 'Inside', rect(8, 8, 100, 24), BoxStyle{}, TextStyle{}),
 		])
-		motion_state: motion
+		runtime: &ElementRuntime{ motion_state: motion }
 	}, OverlayConfig{ kind: .dialog, open: true, backdrop_opacity: 0.4 })!
 	viewport := rect(0, 0, 400, 300)
 	mut layout := LayoutTree{}

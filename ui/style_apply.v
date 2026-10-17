@@ -355,7 +355,11 @@ pub fn (mut node CompiledVmlNode) style(compute fn () !StylePatch) ! {
 	if 'style' in node.effects { return }
 	source := node.source_element()
 	base := &VmlStyleBase{
-		box:               source.style_default_box or { source.box }
+		box:               if source.compiled_metadata == unsafe { nil } {
+			source.box
+		} else {
+			source.compiled_metadata.style_default_box or { source.box }
+		}
 		text_style:        source.text_style
 		interaction_style: source.interaction_style
 		layout:            source.layout

@@ -87,8 +87,9 @@ pub fn (p PanZoom) zoom_at(zoom f64, anchor Point) !PanZoom {
 
 // Canonical Element fields are also the thin VML lowering surface.
 pub fn (el Element) visual_transform() VisualTransform {
-	if el.motion_state != unsafe { nil } && el.motion_state.mounted && !el.motion_state.disposed {
-		return el.motion_state.current.style.transform
+	state := el.motion_state()
+	if state != unsafe { nil } && state.mounted && !state.disposed {
+		return state.current.style.transform
 	}
 	return el.authored_visual_transform()
 }

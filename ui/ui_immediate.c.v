@@ -262,6 +262,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	__global g_toggle_groups = map[string]string{}
 	__global g_toggle_allow_no_selection = map[string]bool{}
 	__global g_focused_field = ''
+	__global g_backend_text_focus = BackendTextFocus{}
 	// Like :focus-visible: a pointer press focuses quietly; keyboard input shows
 	// the focus ring again. Text editors always show their focus.
 	__global g_focus_visible = true
@@ -631,6 +632,17 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 
 	pub fn focus(id string) {
 		set_custom_focus(id,true)
+	}
+
+	// set_backend_text_focus records the focus an input backend in another
+	// process owns, so this renderer paints it; an empty id clears it.
+	pub fn set_backend_text_focus(focus BackendTextFocus) {
+		g_backend_text_focus = focus
+		invalidate_custom_paint()
+	}
+
+	pub fn backend_text_focus() BackendTextFocus {
+		return g_backend_text_focus
 	}
 
 	fn custom_focus_ring_visible(el Element) bool {
@@ -2581,7 +2593,8 @@ fn page_focused_text_area(direction int) {
 	// Mounted targets retain their key across paint and scroll. Unmounted
 	// callers use their explicit id or their supplied drawing area.
 	fn tooltip_key(el Element, area Rect) string {
-		if el.mounted_tooltip_key.len > 0 { return el.mounted_tooltip_key }
+		mounted := el.mounted_tooltip_key()
+		if mounted.len > 0 { return mounted }
 		if el.id.len > 0 {
 			return '${el.kind}#${el.id}'
 		}
@@ -2825,7 +2838,8 @@ fn page_focused_text_area(direction int) {
 		geometry := element_hit_geometry(declared, area, transform, region)
 		inert := g_gg_app.ctx != unsafe { nil } && g_gg_app.ctx.overlay_inert
 		hovered := !inert && g_tooltip.pointer_in && hit_target_contains(geometry,g_tooltip.pointer_x,g_tooltip.pointer_y)
-		focused := !inert && (declared.focused || custom_focus_ring_visible(declared))
+		focused := !inert && ((declared.id.len > 0 && declared.id == g_backend_text_focus.id)
+			|| custom_focus_ring_visible(declared))
 		pressed_style_active := !inert && g_touch.down && declared.id.len > 0
 			&& (declared.id == g_touch.pressed_id || declared.id == g_touch.pointer_target.id)
 			&& (!g_touch.pointer_captured || declared.kind == g_touch.pointer_target.kind)
@@ -2889,7 +2903,7 @@ fn page_focused_text_area(direction int) {
 			ctx.clip_region = parent_clip
 			ctx.interaction_enabled = enabled && declared_el.presented_enabled()
 			ctx.opacity = opacity * declared_el.presented_opacity()
-			ctx.overlay_inert = inert || declared_el.overlay_inert
+			ctx.overlay_inert = inert || declared_el.overlay_inert()
 		}
 		defer { unsafe {
 			ctx.content_transform = outer

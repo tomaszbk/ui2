@@ -77,7 +77,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		app.scheduler.invalidate(.layout)
 		leaving, removal := runtime_motion_frame(mut app, 220)!
 		assert !removal.build && leaving.children.len == 1
-		assert leaving.children[0].presence_exiting && !leaving.children[0].presented_enabled()
+		assert leaving.children[0].presence_exiting() && !leaving.children[0].presented_enabled()
 		assert scroll_content_height(Element{ ...leaving, kind: .scroll }) == 0
 		assert g_focused_field == '' && app.composition.field_id == ''
 		assert !(app.editable_fields['edit'] or { true })
@@ -90,7 +90,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		app.declaration_pending = true
 		app.scheduler.invalidate(.layout)
 		returned, _ := runtime_motion_frame(mut app, 320)!
-		assert returned.children.len == 1 && !returned.children[0].presence_exiting
+		assert returned.children.len == 1 && !returned.children[0].presence_exiting()
 		assert returned.children[0].presented_opacity() == partial
 		assert app.layout_tree.identity('edit') or { panic('editor retired') } == identity
 		assert text('edit') == 'año café ñ'
@@ -132,8 +132,8 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		app.declaration_pending = true
 		app.scheduler.invalidate(.layout)
 		leaving, _ := runtime_motion_frame(mut app, 220)!
-		assert leaving.children.len == 1 && leaving.children[0].presence_exiting
-		state := leaving.children[0].motion_state
+		assert leaving.children.len == 1 && leaving.children[0].presence_exiting()
+		state := leaving.children[0].motion_state()
 		clock.now = 0.7
 		set_visual_transform('card', VisualTransform{ translate_x: 30 })!
 		assert state.current.phase == .absent && !state.disposed
@@ -203,11 +203,11 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			}
 			declared := Element{ kind: .view, children: [parent] }
 			mut root := tree.prepare(declared)!
-			original_child := root.children[0].children[0].motion_state
+			original_child := root.children[0].children[0].motion_state()
 			clock.now = 0.2
 			tree.sample(root)!
 			root = tree.prepare(Element{ kind: .view })!
-			assert root.children.len == 1 && root.children[0].presence_exiting
+			assert root.children.len == 1 && root.children[0].presence_exiting()
 			clock.now = 0.31
 			tree.sample(root)!
 			if parent_motion {
@@ -216,8 +216,8 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			assert motion_tree_needs_frame(root)
 			assert tree.prune(root).children.len == 1
 			root = tree.prepare(declared)!
-			assert !root.children[0].presence_exiting
-			assert root.children[0].children[0].motion_state == original_child
+			assert !root.children[0].presence_exiting()
+			assert root.children[0].children[0].motion_state() == original_child
 			assert original_child.current.phase == .entering
 			clock.now = 0.6
 			tree.sample(root)!
@@ -268,7 +268,8 @@ fn test_outgoing_nodes_keep_frames_and_do_not_reserve_flex_spacing_or_grid_cells
 			...root
 			frame:        rect(0, 0, if kind == .flex { 300.0 } else { 600.0 }, 40)
 			layout_input: none
-			children:     [a, c, Element{ ...b, presence_exiting: true, enabled: false }]
+			children:     [a, c,
+				Element{ ...b, runtime: &ElementRuntime{ exiting: true }, enabled: false }]
 		}
 		tree.replace(changed)!
 		after := tree.resolve(LayoutConstraints{}, measure_layout_text, LayoutEnvironment{})!

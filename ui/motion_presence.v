@@ -194,37 +194,41 @@ fn (state &ElementMotionState) input_enabled() bool {
 		&& state.current.phase != .absent
 }
 
+// The node owns its motion state; its declaration links the node's runtime
+// record so every projection and output of the node presents the same state.
 fn (mut node CompiledVmlNode) update_motion(element Element) !Element {
-	mut motion_state := node.declaration.motion_state
+	mut motion_state := node.motion_state
 	if element.motion == none {
 		if motion_state != unsafe { nil } {
 			// Removing a configuration makes its pending exit immediate. Forced
 			// owner cleanup uses force_cancel instead and drops the callback.
 			completion := motion_state.completion
 			motion_state.force_cancel()
-			motion_state = unsafe { nil }
+			node.motion_state = unsafe { nil }
 			if completion != unsafe { nil } { completion() }
 		}
-		return Element{ ...element, motion_state: unsafe { nil } }
+		return Element{ ...element, runtime: unsafe { nil } }
 	}
 	if motion_state == unsafe { nil } {
 		if _ := element.motion {
 			motion_state = new_element_motion_state(element)!
+			node.motion_state = motion_state
 			node.component.on_cleanup('motion:' + node.local_id, fn [mut node] () {
-				if node.declaration.motion_state != unsafe { nil } {
-					node.declaration.motion_state.force_cancel()
-				}
+				if node.motion_state != unsafe { nil } { node.motion_state.force_cancel() }
 			})!
 			if node.mounted { motion_state.mount()! }
 		}
 	} else {
 		motion_state.update(element)!
 	}
-	return Element{ ...element, motion_state: motion_state }
+	if node.motion_runtime == unsafe { nil } || node.motion_runtime.motion_state != motion_state {
+		node.motion_runtime = &ElementRuntime{ motion_state: motion_state }
+	}
+	return Element{ ...element, runtime: node.motion_runtime }
 }
 
 fn (mut node CompiledVmlNode) prepare_motion_mount() ! {
-	if node.declaration.motion_state != unsafe { nil } { node.declaration.motion_state.mount()! }
+	if node.motion_state != unsafe { nil } { node.motion_state.mount()! }
 	for mut child in node.children { child.prepare_motion_mount()! }
 }
 
@@ -246,8 +250,8 @@ fn (mut pending VmlPresenceExit) complete() {
 }
 
 fn (mut node CompiledVmlNode) begin_presence_exit(mut pending VmlPresenceExit) ! {
-	if node.declaration.motion_state != unsafe { nil } {
-		if node.declaration.motion_state.begin_exit(fn [mut pending] () { pending.complete() })! {
+	if node.motion_state != unsafe { nil } {
+		if node.motion_state.begin_exit(fn [mut pending] () { pending.complete() })! {
 			pending.remaining++
 		}
 	}
@@ -258,8 +262,8 @@ fn (mut node CompiledVmlNode) resume_presence_enter(owner &CompiledVmlComponent)
 	// An inner list's removed item keeps its own exit even when an ancestor
 	// comes back. Its scope, completion and logical removal remain independent.
 	if node.component != owner && node.component.leaving { return }
-	if node.declaration.motion_state != unsafe { nil } {
-		node.declaration.motion_state.resume_enter()!
+	if node.motion_state != unsafe { nil } {
+		node.motion_state.resume_enter()!
 	}
 	for mut child in node.children { child.resume_presence_enter(owner)! }
 }

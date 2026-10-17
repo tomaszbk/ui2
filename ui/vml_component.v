@@ -53,6 +53,10 @@ mut:
 	fragment_keys_ready bool
 	presentation      &VmlPresentation = unsafe { nil }
 	source_snapshot   &VmlSourceSnapshot = unsafe { nil }
+	// The node owns its element's motion state and the runtime record that
+	// links it from the declaration (motion_presence.v).
+	motion_state      &ElementMotionState = unsafe { nil }
+	motion_runtime    &ElementRuntime = unsafe { nil }
 	parent            &CompiledVmlNode = unsafe { nil }
 	children          []&CompiledVmlNode
 	children_revision &Signal[u64]
@@ -292,7 +296,7 @@ fn (mut component CompiledVmlComponent) owned_element(declaration Element, confi
 		)!
 		declaration:       Element{
 			...declaration
-			compiled_source: unsafe { nil }
+			runtime:  unsafe { nil }
 			id:       component.control_id(declaration.id)
 			children: []
 		}
@@ -331,7 +335,7 @@ pub fn (mut node CompiledVmlNode) set_element_children(declarations []Element) !
 pub fn (node &CompiledVmlNode) element() Element {
 	element := vml_present(node.constructor_source_element(), node.presentation)
 	if node.component.is_leaving() {
-		return Element{ ...element, presence_exiting: true, enabled: false }
+		return Element{ ...element, runtime: element.runtime.with_exiting(true), enabled: false }
 	}
 	return element
 }
@@ -422,7 +426,6 @@ fn (mut node CompiledVmlNode) reconcile_structure(replacement Element, publish b
 	}
 	node.declaration = node.update_motion(Element{
 		...replacement
-		compiled_source: unsafe { nil }
 		id:            node.declaration.id
 		key:           node.declaration.key
 		compiled_node: &node
@@ -477,7 +480,7 @@ fn (mut node CompiledVmlNode) replace_property(replacement Element) ! {
 	// Children, id and key are unchanged and were validated when attached,
 	// so only this element's own properties need checking.
 	validate_element_properties(replacement, 'root')!
-	node.declaration = node.update_motion(Element{ ...replacement, compiled_node: node, compiled_source: unsafe { nil } })!
+	node.declaration = node.update_motion(Element{ ...replacement, compiled_node: node })!
 	node.source_snapshot = unsafe { nil }
 	if node.component.is_disposed() { return }
 	node.propagate()

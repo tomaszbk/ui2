@@ -38,7 +38,7 @@ $if (linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ?
 		if index < 0 { return }
 		current := g_gg_app.overlay_tree.layers[index]
 		if current.element.compiled_node != layer.element.compiled_node
-			|| (layer.element.mounted_generation > 0 && current.element.mounted_generation != layer.element.mounted_generation)
+			|| (layer.element.mounted_generation() > 0 && current.element.mounted_generation() != layer.element.mounted_generation())
 			|| voidptr(current.config.on_dismiss) != voidptr(callback) { return }
 		revision := g_gg_app.presentation_revision
 		callback(ElementEvent{ kind: .dismiss, id: layer.element.id, dismiss_reason: reason })
@@ -105,7 +105,7 @@ $if (linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ?
 		}
 		for layer in g_gg_app.overlay_tree.layers {
 			id := layer.element.id
-			owner := OverlayTriggerOwner{ mounted_generation: layer.element.mounted_generation, compiled_node: layer.element.compiled_node }
+			owner := OverlayTriggerOwner{ mounted_generation: layer.element.mounted_generation(), compiled_node: layer.element.compiled_node }
 			if layer.config.open && !layer.available {
 				requested := if previous := g_gg_app.overlay_unavailable[id] { previous == owner } else { false }
 				if !requested {

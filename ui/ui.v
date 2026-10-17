@@ -442,27 +442,15 @@ fn box_border_width(width f64, extent f64) f64 {
 }
 
 pub struct Element {
-	// Produced by the retained layout owner, excluded from authored inputs.
-	mounted_generation u64
-	mounted_path string
-	mounted_parent_path string
-	mounted_scroll_id string
-	mounted_tooltip_key string
-	// Composite constructor refinements retain their unstyled root defaults.
-	style_default_box ?BoxStyle
-	// Constructor projections compare against the snapshot they received, even
-	// when effects have subsequently updated the retained declaration.
-	compiled_source &VmlSourceSnapshot = unsafe { nil }
-	// Presentation state is retained separately from authored binding values.
-	motion_state     &ElementMotionState = unsafe { nil }
-	presence_exiting bool
-	// Portals preserve logical focus ancestry while presenting in the window layer.
-	overlay_scopes []string
-	overlay_inert bool
-	overlay_host bool
+	// Runtime records borrowed from the retained runtime; nil in every authored
+	// declaration (element_runtime.v).
+	mount   &ElementMount   = unsafe { nil }
+	runtime &ElementRuntime = unsafe { nil }
 pub:
 	// Compiled components retain their declaration owner independently of layout.
-	// It is not an authored property or a model/binding value.
+	// It is not an authored property or a model/binding value. The retained
+	// runtime maps a built element back to its owner through it in O(1), and
+	// generated code reads it.
 	compiled_node &CompiledVmlNode = unsafe { nil }
 	compiled_metadata &CompiledVmlMetadata = unsafe { nil }
 	// kind is readable from outside the module so a renderer can live in
@@ -491,10 +479,6 @@ pub:
 	vector_hit_mode   VectorHitMode
 	text_style        TextStyle
 	native_style      bool // button: let the platform own bezel and interaction styling
-	// Transient state supplied by split-process backends so their renderer can
-	// paint the caret and selection owned by the input backend.
-	focused                   bool
-	text_selection            TextSelection
 	text_runs                 []TextRun // label/text_area: optional rich text style runs
 	keyboard                  int
 	long_press                bool
@@ -563,7 +547,9 @@ pub enum BackendSupport {
 // reconciliation_child_key encodes user keys so separators inside a key
 // cannot alias a nested key path.
 fn reconciliation_child_key(parent string, index int, el Element) string {
-	if el.mounted_path.len > 0 && el.mounted_parent_path == parent { return el.mounted_path }
+	if el.mount != unsafe { nil } && el.mount.path.len > 0 && el.mount.parent_path == parent {
+		return el.mount.path
+	}
 	return authored_child_key(parent, index, el)
 }
 

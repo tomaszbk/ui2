@@ -206,8 +206,12 @@ fn vml_declaration_equal(left Element, right Element) bool {
 		if *left.compiled_metadata != *right.compiled_metadata { return false }
 	}
 	if left.children.len != right.children.len { return false }
-	if Element{ ...left, compiled_metadata: unsafe { nil }, compiled_node: unsafe { nil }, compiled_source: unsafe { nil }, children: [] } !=
-		Element{ ...right, compiled_metadata: unsafe { nil }, compiled_node: unsafe { nil }, compiled_source: unsafe { nil }, children: [] } {
+	// Presentation state counts; the provenance of a source snapshot does not.
+	if left.motion_state() != right.motion_state() || left.presence_exiting() != right.presence_exiting() {
+		return false
+	}
+	if Element{ ...left, compiled_metadata: unsafe { nil }, compiled_node: unsafe { nil }, runtime: unsafe { nil }, children: [] } !=
+		Element{ ...right, compiled_metadata: unsafe { nil }, compiled_node: unsafe { nil }, runtime: unsafe { nil }, children: [] } {
 		return false
 	}
 	return vml_same_elements(left.children, right.children)

@@ -50,7 +50,11 @@ pub fn progress_bar(config ProgressBarConfig) Element {
 			bg: config.background
 			radius: config.radius
 		}, [fill])
-		style_default_box: config.style_default_box
+		compiled_metadata: if box := config.style_default_box {
+			&CompiledVmlMetadata{ style_default_box: box }
+		} else {
+			unsafe { nil }
+		}
 		accessibility_role: 'progressbar'
 		accessibility_label: 'Progress'
 		accessibility_value: '${progress_bar_number(clamped_value)} of ${progress_bar_number(maximum)}'

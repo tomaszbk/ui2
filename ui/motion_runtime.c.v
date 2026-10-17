@@ -1,33 +1,32 @@
 module ui2
 
 // These reads use the host's sampled frame, never an independent clock.
-fn (element Element) presented_hidden() bool {
-	if element.motion_state != unsafe { nil } && element.motion_state.mounted {
-		return element.motion_state.disposed || element.motion_state.current.phase == .absent
+fn (element &Element) presented_hidden() bool {
+	state := element.motion_state()
+	if state != unsafe { nil } && state.mounted {
+		return state.disposed || state.current.phase == .absent
 	}
 	return element.hidden
 }
 
-fn (element Element) presented_enabled() bool {
-	return element.enabled && !element.presence_exiting
-		&& (element.motion_state == unsafe { nil } || element.motion_state.input_enabled())
+fn (element &Element) presented_enabled() bool {
+	state := element.motion_state()
+	return element.enabled && !element.presence_exiting()
+		&& (state == unsafe { nil } || state.input_enabled())
 }
 
-fn (element Element) presented_opacity() f64 {
-	return if element.motion_state != unsafe { nil } && element.motion_state.mounted {
-		element.motion_state.current.style.opacity
-	} else {
-		element.opacity
-	}
+fn (element &Element) presented_opacity() f64 {
+	state := element.motion_state()
+	return if state != unsafe { nil } && state.mounted { state.current.style.opacity } else { element.opacity }
 }
 
-fn (element Element) presence_leaving() bool {
-	return element.presence_exiting || (element.motion_state != unsafe { nil }
-		&& element.motion_state.current.phase == .exiting)
+fn (element &Element) presence_leaving() bool {
+	state := element.motion_state()
+	return element.presence_exiting() || (state != unsafe { nil } && state.current.phase == .exiting)
 }
 
-fn (element Element) layout_excluded() bool {
-	return element.hidden || element.presence_exiting || element.overlay != none
+fn (element &Element) layout_excluded() bool {
+	return element.hidden || element.presence_exiting() || element.overlay != none
 }
 
 @[heap]
@@ -65,7 +64,7 @@ fn (mut tree MotionTree) prepare(element Element) !Element {
 
 fn (mut tree MotionTree) mark_states(element Element, path string) {
 	if !motion_subtree_managed(element) { return }
-	if element.motion_state != unsafe { nil } {
+	if element.motion_state() != unsafe { nil } {
 		tree.seen[motion_identity(element, path)] = true
 	}
 	for index, child in element.children {
@@ -97,7 +96,7 @@ fn motion_identity(element Element, path string) string {
 // Static subtrees cannot create, reverse or retain a motion exit. In
 // particular a text patch must not reconcile every unchanged static sibling.
 fn motion_subtree_managed(element Element) bool {
-	if element.motion != none || element.motion_state != unsafe { nil } { return true }
+	if element.motion != none || element.motion_state() != unsafe { nil } { return true }
 	for child in element.children {
 		if motion_subtree_managed(child) { return true }
 	}
@@ -108,7 +107,7 @@ fn (mut tree MotionTree) prepare_node(element Element, previous Element, path st
 	if !motion_subtree_managed(element) && !motion_subtree_managed(previous) { return element }
 	mut result := element
 	identity := motion_identity(element, path)
-	mut state := element.motion_state
+	mut state := element.motion_state()
 	if state == unsafe { nil } {
 		if _ := element.motion {
 			if existing := tree.states[identity] {
@@ -117,17 +116,17 @@ fn (mut tree MotionTree) prepare_node(element Element, previous Element, path st
 			if state == unsafe { nil } { state = new_element_motion_state(element)! }
 		}
 	}
-	if element.motion == none && state != unsafe { nil } && !element.presence_exiting {
+	if element.motion == none && state != unsafe { nil } && !element.presence_exiting() {
 		state.force_cancel()
 		state = unsafe { nil }
-		result = Element{ ...result, motion_state: unsafe { nil } }
+		result = Element{ ...result, runtime: result.runtime.with_motion_state(unsafe { nil }) }
 	}
 	if state != unsafe { nil } {
-		if !element.presence_exiting && state.structural_exit { state.resume_enter()! }
+		if !element.presence_exiting() && state.structural_exit { state.resume_enter()! }
 		state.update(element)!
 		state.mount()!
 		tree.states[identity] = state
-		result = Element{ ...result, motion_state: state }
+		result = Element{ ...result, runtime: result.runtime.with_motion_state(state) }
 	}
 	// Resolve sibling identities once. Nested scans used to allocate identity
 	// strings quadratically even when one small counter was the only patch.
@@ -158,7 +157,7 @@ fn (mut tree MotionTree) prepare_node(element Element, previous Element, path st
 			continue
 		}
 		if begin_motion_subtree_exit(old)! {
-			children << Element{ ...old, presence_exiting: true }
+			children << Element{ ...old, runtime: old.runtime.with_exiting(true) }
 			changed = true
 		}
 	}
@@ -168,8 +167,8 @@ fn (mut tree MotionTree) prepare_node(element Element, previous Element, path st
 
 fn begin_motion_subtree_exit(element Element) !bool {
 	mut pending := false
-	if element.motion_state != unsafe { nil } && !element.motion_state.disposed {
-		mut state := element.motion_state
+	mut state := element.motion_state()
+	if state != unsafe { nil } && !state.disposed {
 		if !state.structural_exit { state.begin_exit(unsafe { nil })! }
 		pending = state.current.phase != .absent
 	}
@@ -180,8 +179,9 @@ fn begin_motion_subtree_exit(element Element) !bool {
 }
 
 fn motion_subtree_exit_pending(element Element) bool {
-	if element.motion_state != unsafe { nil } && !element.motion_state.disposed
-		&& element.motion_state.structural_exit && element.motion_state.current.phase != .absent {
+	state := element.motion_state()
+	if state != unsafe { nil } && !state.disposed && state.structural_exit
+		&& state.current.phase != .absent {
 		return true
 	}
 	for child in element.children {
@@ -191,7 +191,8 @@ fn motion_subtree_exit_pending(element Element) bool {
 }
 
 fn cancel_motion_subtree(element Element) {
-	if element.motion_state != unsafe { nil } { element.motion_state.force_cancel() }
+	mut state := element.motion_state()
+	if state != unsafe { nil } { state.force_cancel() }
 	for child in element.children { cancel_motion_subtree(child) }
 }
 
@@ -204,15 +205,15 @@ fn (mut tree MotionTree) sample(root Element) !bool {
 
 fn (mut tree MotionTree) sample_node(element Element, ancestor_hidden bool) ! {
 	// Hidden ancestors cannot keep an invisible child tween waking the host.
-	if ancestor_hidden && !(element.motion_state != unsafe { nil } && element.motion_state.structural_exit) {
+	mut state := element.motion_state()
+	if ancestor_hidden && !(state != unsafe { nil } && state.structural_exit) {
 		// A disappearing ancestor may finish before a child's exit. Cleanup
 		// still waits for every structural timeline even after paint is hidden.
 		for child in element.children { tree.sample_node(child, true)! }
 		tree.mark_prunable(element)
 		return
 	}
-	if element.motion_state != unsafe { nil } {
-		mut state := element.motion_state
+	if state != unsafe { nil } {
 		previous := state.current
 		state.sample()!
 		if state.current != previous { tree.changed = true }
@@ -227,7 +228,7 @@ fn (mut tree MotionTree) sample_node(element Element, ancestor_hidden bool) ! {
 }
 
 fn (mut tree MotionTree) mark_prunable(element Element) {
-	if element.presence_exiting && element.compiled_node == unsafe { nil }
+	if element.presence_exiting() && element.compiled_node == unsafe { nil }
 		&& !motion_subtree_exit_pending(element) {
 		tree.prune_pending = true
 	}
@@ -239,8 +240,9 @@ fn motion_tree_needs_frame(element Element) bool {
 
 fn motion_subtree_needs_frame(element Element, ancestor_hidden bool) bool {
 	hidden := ancestor_hidden || element.presented_hidden()
-	if element.motion_state != unsafe { nil } && !element.motion_state.disposed
-		&& element.motion_state.current.running && (!hidden || element.motion_state.structural_exit) {
+	state := element.motion_state()
+	if state != unsafe { nil } && !state.disposed && state.current.running
+		&& (!hidden || state.structural_exit) {
 		return true
 	}
 	for child in element.children {
@@ -260,7 +262,7 @@ fn (mut tree MotionTree) prune_node(element Element) Element {
 	mut children := []Element{cap: element.children.len}
 	mut changed := false
 	for child in element.children {
-		if child.presence_exiting && child.compiled_node == unsafe { nil }
+		if child.presence_exiting() && child.compiled_node == unsafe { nil }
 			&& !motion_subtree_exit_pending(child) {
 			cancel_motion_subtree(child)
 			changed = true

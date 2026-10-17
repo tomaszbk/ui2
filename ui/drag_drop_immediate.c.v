@@ -56,7 +56,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		if el.drag_source!=none || el.drop_target!=none {
 			key := drag_owner_key(target)
 			old := g_drag_registry.owners[key] or { HitTarget{} }
-			mount := if el.id.len>0 || el.key.len>0 { el.mounted_generation } else { u64(0) }
+			mount := if el.id.len>0 || el.key.len>0 { el.mounted_generation() } else { u64(0) }
 			if old.drag_generation>0 && old.kind==el.kind && old.drag_mount_generation==mount {
 				target=HitTarget{...target,drag_generation:old.drag_generation,drag_mount_generation:mount}
 			} else {

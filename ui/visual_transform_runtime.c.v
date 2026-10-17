@@ -23,8 +23,9 @@ fn replace_visual_transform(el Element, id string, transform VisualTransform) !(
 	if el.id == id {
 		transform.matrix(el.frame)!
 		replaced := with_transform(el, transform)
-		if replaced.motion_state != unsafe { nil } {
-			replaced.motion_state.update(replaced)!
+		mut state := replaced.motion_state()
+		if state != unsafe { nil } {
+			state.update(replaced)!
 		}
 		return replaced, true
 	}
@@ -43,7 +44,8 @@ fn (mut tree LayoutTree) set_transform(id string, transform VisualTransform) ! {
 	mut node := tree.find_id(id) or { return error('no mounted element `${id}`') }
 	transform.matrix(node.frame)!
 	updated := with_transform(node.declaration, transform)
-	if updated.motion_state != unsafe { nil } { updated.motion_state.update(updated)! }
+	mut state := updated.motion_state()
+	if state != unsafe { nil } { state.update(updated)! }
 	node.declaration = updated
 	mut ancestor := node.identity
 	for ancestor.len > 0 {

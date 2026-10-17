@@ -5,7 +5,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	fn focus_manager() &FocusManager { return g_focus_navigation }
 
 	fn custom_focus_offsets(el Element, path string, mut offsets map[string]f64, mut offsets_x map[string]f64) {
-		current_path := if el.overlay_host { overlay_host_path } else { path }
+		current_path := if el.overlay_host() { overlay_host_path } else { path }
 		if el.kind == .scroll {
 			x, y := scroll_mode_offset(el.scroll_mode, scroll_state_offset_x(scroll_view_state_id(el, path)), scroll_state_offset(scroll_view_state_id(el, path)))
 			offsets[path] = y
@@ -205,11 +205,11 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	}
 
 	fn sync_mounted_focus_controls(el Element, path string) {
-		sync_mounted_focus_control_subtree(el, if el.overlay_host { overlay_host_path } else { path }, true)
+		sync_mounted_focus_control_subtree(el, if el.overlay_host() { overlay_host_path } else { path }, true)
 	}
 
 	fn sync_mounted_focus_control_subtree(el Element, path string, ancestor_enabled bool) {
-		enabled := ancestor_enabled && el.presented_enabled() && !el.presented_hidden() && !el.overlay_inert
+		enabled := ancestor_enabled && el.presented_enabled() && !el.presented_hidden() && !el.overlay_inert()
 		sync_mounted_control(Element{ ...el, enabled: enabled })
 		if el.kind == .scroll {
 			g_active_scrolls[scroll_view_state_id(el, path)] = true

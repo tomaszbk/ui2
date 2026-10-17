@@ -306,7 +306,7 @@ fn layout_metric_flags(element Element) u8 {
 // layout_metrics_equal compares every declaration input, other than the frame,
 // that can change a measured size or child placement. Paint-only fields differ freely.
 fn layout_metrics_equal(a Element, b Element) bool {
-	if a.kind != b.kind || a.hidden != b.hidden || a.presence_exiting != b.presence_exiting || a.text != b.text || a.placeholder != b.placeholder
+	if a.kind != b.kind || a.hidden != b.hidden || a.presence_exiting() != b.presence_exiting() || a.text != b.text || a.placeholder != b.placeholder
 		|| (a.overlay == none) != (b.overlay == none)
 		|| a.content_size != b.content_size || a.padding_left != b.padding_left || a.content_padding != b.content_padding
 		|| a.disable_scroll != b.disable_scroll || a.scroll_mode != b.scroll_mode || a.secure != b.secure || a.image_path != b.image_path
@@ -488,7 +488,7 @@ fn (mut tree LayoutTree) measure_node(identity string, constraints LayoutConstra
 	tree.counters.measure_visits++
 	input := node.input
 	mut preferred := LayoutSize{}
-	if node.declaration.hidden || node.declaration.presence_exiting {
+	if node.declaration.hidden || node.declaration.presence_exiting() {
 		preferred = constraints.constrain(LayoutSize{})!
 	} else if layout_authored_width(node.declaration) && layout_authored_height(node.declaration) {
 		preferred = constraints.constrain(LayoutSize{ width: input.width, height: input.height })!
@@ -612,7 +612,7 @@ fn (mut tree LayoutTree) container_geometry(node &RetainedLayoutNode, available 
 	mut has_exits := false
 	for child in node.children {
 		if retained := tree.nodes[child] {
-			if retained.declaration.presence_exiting || retained.declaration.overlay != none {
+			if retained.declaration.presence_exiting() || retained.declaration.overlay != none {
 				has_exits = true
 				break
 			}
@@ -630,7 +630,7 @@ fn (mut tree LayoutTree) container_geometry(node &RetainedLayoutNode, available 
 	mut stack_rules := []StackChild{}
 	for index, child in node.children {
 		retained := tree.nodes[child] or { return error('missing leaving layout child') }
-		if retained.declaration.presence_exiting || retained.declaration.overlay != none { continue }
+		if retained.declaration.presence_exiting() || retained.declaration.overlay != none { continue }
 		children << child
 		active_sizes << sizes[index]
 		indices << index
@@ -923,33 +923,47 @@ fn (mut tree LayoutTree) place_node(identity string, frame Rect) ! {
 fn (mut tree LayoutTree) output(identity string, parent_enabled bool, path string, parent_path string) Element {
 	mut node := tree.nodes[identity] or { return Element{} }
 	enabled := parent_enabled && node.declaration.enabled
+	previous := if node.output_snapshot == unsafe { nil } { unsafe { &ElementMount(nil) } } else { node.output_snapshot.mount }
 	if !node.output_dirty && node.output_enabled == enabled && node.output_snapshot != unsafe { nil }
-		&& node.output_snapshot.mounted_path == path {
+		&& previous != unsafe { nil } && previous.path == path {
 		return *node.output_snapshot
 	}
 	tree.counters.output_visits++
 	mut children := []Element{cap: node.children.len}
 	for i, child in node.children {
 		mut child_node := tree.nodes[child] or { panic('missing layout child') }
-		child_path := if child_node.output_snapshot != unsafe { nil } && child_node.output_snapshot.mounted_parent_path == path
+		child_mount := if child_node.output_snapshot == unsafe { nil } { unsafe { &ElementMount(nil) } } else { child_node.output_snapshot.mount }
+		child_path := if child_mount != unsafe { nil } && child_mount.parent_path == path
 			&& child_node.output_snapshot.key == child_node.declaration.key
 			&& (child_node.declaration.key.len > 0 || child_node.declaration.compiled_node != unsafe { nil } || child_node.output_index == i) {
-			child_node.output_snapshot.mounted_path
+			child_mount.path
 		} else { authored_child_key(path, i, child_node.declaration) }
 		children << tree.output(child, enabled, child_path, path)
 		child_node.output_index = i
 	}
-	scroll_id := if node.output_snapshot != unsafe { nil } && node.output_snapshot.kind == node.declaration.kind
+	scroll_id := if previous != unsafe { nil } && node.output_snapshot.kind == node.declaration.kind
 		&& node.output_snapshot.id == node.declaration.id && node.output_snapshot.key == node.declaration.key
-		&& node.output_snapshot.mounted_path == path {
-		node.output_snapshot.mounted_scroll_id
+		&& previous.path == path {
+		previous.scroll_id
 	} else { authored_scroll_state_id(node.declaration, path) }
-	cached_tooltip_key := if node.output_snapshot != unsafe { nil } && node.output_snapshot.kind == node.declaration.kind
+	cached_tooltip_key := if previous != unsafe { nil } && node.output_snapshot.kind == node.declaration.kind
 		&& node.output_snapshot.id == node.declaration.id
-		&& (node.declaration.id.len > 0 || node.output_snapshot.mounted_path == path) {
-		node.output_snapshot.mounted_tooltip_key
+		&& (node.declaration.id.len > 0 || previous.path == path) {
+		previous.tooltip_key
 	} else { authored_tooltip_key(node.declaration, path) }
-	node.output_snapshot = &Element{ ...node.declaration, frame: node.frame, children: children, enabled: enabled, mounted_generation: node.generation, mounted_path: path, mounted_parent_path: parent_path, mounted_scroll_id: scroll_id, mounted_tooltip_key: cached_tooltip_key }
+	// A declaration that was itself an output (a portal surface) keeps its
+	// overlay presentation; the layout tree owns only the mount identity.
+	declared := node.declaration.mount
+	mount := if previous != unsafe { nil } && previous.generation == node.generation && previous.path == path
+		&& previous.parent_path == parent_path && previous.scroll_id == scroll_id
+		&& previous.tooltip_key == cached_tooltip_key && previous.same_overlay(declared) {
+		previous
+	} else if declared == unsafe { nil } {
+		&ElementMount{ generation: node.generation, path: path, parent_path: parent_path, scroll_id: scroll_id, tooltip_key: cached_tooltip_key }
+	} else {
+		&ElementMount{ ...*declared, generation: node.generation, path: path, parent_path: parent_path, scroll_id: scroll_id, tooltip_key: cached_tooltip_key }
+	}
+	node.output_snapshot = &Element{ ...node.declaration, frame: node.frame, children: children, enabled: enabled, mount: mount }
 	node.output_enabled = enabled
 	node.output_dirty = false
 	return *node.output_snapshot
