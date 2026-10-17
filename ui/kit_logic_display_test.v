@@ -15,6 +15,18 @@ fn kit_loop_values(part Element, timeline MotionTimeline, ms f64) MotionValues {
 	return channels.values()
 }
 
+// kit_key_level is the level keys give at t, linear between them.
+fn kit_key_level(keys []FeedbackKey, t f64) f64 {
+	for i in 1 .. keys.len {
+		if t <= keys[i].at {
+			span := keys[i].at - keys[i - 1].at
+			ratio := if span <= 0 { 1.0 } else { (t - keys[i - 1].at) / span }
+			return keys[i - 1].level + (keys[i].level - keys[i - 1].level) * ratio
+		}
+	}
+	return keys[keys.len - 1].level
+}
+
 // ── Progress ────────────────────────────────────────────────────────
 
 fn test_progress_percent_and_value_text() {
@@ -37,52 +49,55 @@ fn test_progress_sizes_follow_gpui() {
 	assert loading_spinner_diameter(.large) == 24
 }
 
-fn test_feedback_ease_and_inverse_round_trip() {
+fn test_feedback_ease_eases_in_and_out() {
 	assert feedback_ease(0) == 0
+	assert feedback_ease(0.25) == 0.125
 	assert feedback_ease(0.5) == 0.5
+	assert feedback_ease(0.75) == 0.875
 	assert feedback_ease(1) == 1
-	for i in 0 .. 21 {
-		t := f64(i) / 20
-		assert math.abs(feedback_ease_inverse(feedback_ease(t)) - t) < 1e-9
-	}
 }
 
-fn test_progress_loading_curves_follow_gpui() {
+fn test_progress_loading_curve_follows_gpui() {
 	left0, right0 := linear_progress_loading_span(0)
 	assert left0 == 0 && right0 == 0
 	left_half, right_half := linear_progress_loading_span(0.5)
 	assert left_half == 0 && right_half == 0.5
 	left1, right1 := linear_progress_loading_span(1)
 	assert left1 == 1 && right1 == 1
-	start, end := progress_circle_loading_arc(0.75)
-	assert start == 0.5 && end == feedback_ease(0.75)
-	assert loading_spinner_head(0.25) == 0.125
+	// The left edge waits for the second half: one key holds it at zero.
+	left, right := linear_progress_loading_keys()
+	assert left[0] == FeedbackKey{0, 0}
+	assert left[1] == FeedbackKey{0.5, 0}
+	assert left[left.len - 1] == FeedbackKey{1, 1}
+	assert right.len > 2 && right[right.len - 1] == FeedbackKey{1, 1}
+	for key in right {
+		_, end := linear_progress_loading_span(key.at)
+		assert key.level == end
+	}
 }
 
 // ── Feedback loops ──────────────────────────────────────────────────
 
-fn test_feedback_level_and_span_loops() {
+fn test_feedback_scale_and_pulse_loops() {
 	keys := feedback_compact_keys([FeedbackKey{0, 0}, FeedbackKey{0.25, 0.5}, FeedbackKey{0.5, 1},
 		FeedbackKey{0.75, 1}, FeedbackKey{1, 1}])
 	assert keys == [FeedbackKey{0, 0}, FeedbackKey{0.5, 1}, FeedbackKey{1, 1}]
-	start := view('part', rect(0, 0, 4, 4), BoxStyle{}, []Element{})
-	level := feedback_level_loop(1, keys, 0x000000, 0xffffff, .background, true)
-	assert level.repeat == motion_forever
-	assert kit_loop_values(start, level, 250).paint.background == 0x808080
-	assert kit_loop_values(start, level, 750).paint.background == 0xffffff
-	text := feedback_level_loop(1, keys, 0x000000, 0xffffff, .text_color, false)
-	// A loop played once keeps its final values.
-	assert text.repeat == 0 && text.hold
-	assert kit_loop_values(start, text, 250).paint.text_color == 0x808080
 	assert feedback_times(4, [0.3, 0.3, 2.0, math.nan()]) == [0.0, 0.25, 0.3, 0.5, 0.75, 1.0]
-	// Spans move and scale a box laid out once.
-	bar := view('bar', rect(10, 0, 100, 4), BoxStyle{}, []Element{})
-	spans := feedback_compact_spans([FeedbackSpan{0, 10, 0}, FeedbackSpan{0.5, 35, 25},
-		FeedbackSpan{1, 60, 50}])
-	assert spans == [FeedbackSpan{0, 10, 0}, FeedbackSpan{1, 60, 50}]
-	values := kit_loop_values(bar, feedback_span_loop(1, spans, 10, 100, true), 500)
-	assert math.abs(bar.frame.x + values.transform.translate_x - 35) < 1e-9
-	assert math.abs(bar.frame.width * values.box_scale_x - 25) < 1e-9
+	// A scaled part is declared transparent and shown by the loop.
+	bar := Element{
+		...view('bar', rect(10, 0, 100, 4), BoxStyle{}, []Element{})
+		opacity: 0
+	}
+	scale := feedback_scale_loop(1, keys)
+	assert scale.repeat == motion_forever
+	quarter := kit_loop_values(bar, scale, 250)
+	assert quarter.opacity == 1
+	assert math.abs(quarter.box_scale_x - 0.5) < 1e-9
+	assert kit_loop_values(bar, scale, 750).box_scale_x == 1
+	pulse := feedback_pulse_loop(2, 0.5)
+	assert pulse.repeat == motion_forever
+	assert kit_loop_values(bar, pulse, 1000).opacity == 0.5
+	assert kit_loop_values(bar, pulse, 2000).opacity == 1
 }
 
 // ── Shimmer ─────────────────────────────────────────────────────────
@@ -119,13 +134,23 @@ fn test_shimmer_spread_and_band_follow_gpui() {
 		true) - 0.4) < 1e-9
 }
 
-fn test_shimmer_paragraph_shortens_its_last_line() {
-	lines := shimmer_paragraph(4, 8, 200, 3, 10, 6)
-	assert lines.len == 3
-	assert lines[1].frame == rect(4, 24, 200, 10)
-	assert lines[2].frame.width == 120
-	assert lines[2].radius == 5
-	assert shimmer_paragraph(0, 0, 200, 1, 10, 6)[0].frame.width == 200
+fn test_shimmer_band_keys_sweep_across_the_line() {
+	left, right := shimmer_band_keys(0.3, false)
+	// The band starts before the line and ends past it.
+	assert left[0].level == 0 && right[0].level == 0
+	assert left[left.len - 1].level == 1 && right[right.len - 1].level == 1
+	// Between the keys both edges move in straight lines, so the keys hold
+	// the band wherever it is sampled.
+	half := shimmer_half_width(1, 0.3, 0)
+	for i in 0 .. 11 {
+		t := f64(i) / 10
+		offset, width := shimmer_band_span(shimmer_band_center(t, 1, half, false), half,
+			0, 1)
+		assert math.abs(kit_key_level(left, t) - offset) < 1e-6
+		assert math.abs(kit_key_level(right, t) - (offset + width)) < 1e-6
+	}
+	reversed_left, _ := shimmer_band_keys(0.3, true)
+	assert reversed_left[0].level == 1
 }
 
 // ── Badge and avatar ────────────────────────────────────────────────

@@ -2,18 +2,18 @@
 // SPDX-License-Identifier: Apache-2.0
 // Adapted from GPUI Kit: the controlled pagination state and page-window
 // algorithm (crates/base/src/pagination.rs); the progress size presets and
-// both indeterminate curves (crates/component/src/progress/progress.rs and
-// progress_circle.rs); and the shimmer spread clamping, band center and
+// the indeterminate bar's curve (crates/component/src/progress/progress.rs
+// and progress_circle.rs); and the shimmer spread clamping, band center and
 // padding (crates/component/src/shimmer.rs). The rest is new UI2 code. See
 // third_party/gpui-kit.
 module ui2
 
 import math
 
-// Pure logic of the display and feedback controls: progress values and
-// curves, size presets, shimmer bands, badge and avatar text, pagination.
-// The looping keyframes a feedback part plays are built here too, from keys
-// or spans sampled over one cycle.
+// Pure logic of the display, feedback and navigation controls: progress
+// values and curves, size presets, shimmer bands, badge and avatar text,
+// pagination and carousel indexes. The looping keyframes a feedback part
+// plays are built here too, from keys sampled over one cycle.
 
 // ── Progress ────────────────────────────────────────────────────────
 
@@ -66,13 +66,6 @@ pub fn progress_circle_thickness(diameter f64) f64 {
 	return math.min(diameter * 0.15, 5)
 }
 
-// progress_circle_loading_arc is the indeterminate arc at a fraction t of its
-// cycle, as (start, end) fractions of a turn from twelve o'clock: the end eases
-// around the ring over the cycle and the start follows in the second half.
-pub fn progress_circle_loading_arc(t f64) (f64, f64) {
-	return feedback_ease(math.clamp((t - 0.5) * 2, 0, 1)), feedback_ease(t)
-}
-
 // loading_spinner_diameter is GPUI's spinner size for a size.
 pub fn loading_spinner_diameter(size ControlSize) f64 {
 	return match size {
@@ -80,12 +73,6 @@ pub fn loading_spinner_diameter(size ControlSize) f64 {
 		.medium { 16 }
 		.large { 24 }
 	}
-}
-
-// loading_spinner_head is where the spinner's head is, in turns from twelve
-// o'clock, at a fraction t of a revolution.
-pub fn loading_spinner_head(t f64) f64 {
-	return feedback_ease(t)
 }
 
 // ── Feedback curves and loops ───────────────────────────────────────
@@ -100,33 +87,11 @@ fn feedback_ease(t f64) f64 {
 	return 1 - y * y / 2
 }
 
-// feedback_ease_inverse returns the time at which feedback_ease reaches y.
-fn feedback_ease_inverse(y f64) f64 {
-	v := math.clamp(y, 0, 1)
-	if v < 0.5 {
-		return math.sqrt(v / 2)
-	}
-	return 1 - math.sqrt(2 * (1 - v)) / 2
-}
-
-// FeedbackKey is one keyframe of a looping part: at is the fraction of the cycle,
-// level how far the part is between its resting and its lit color.
+// FeedbackKey is one keyframe of a looping part: at is the fraction of the
+// cycle, level the fraction of its width the part covers.
 struct FeedbackKey {
 	at    f64
 	level f64
-}
-
-// FeedbackSpan is one keyframe of a part that moves: its x and width at a
-// fraction of the cycle.
-struct FeedbackSpan {
-	at    f64
-	x     f64
-	width f64
-}
-
-enum FeedbackChannel {
-	background
-	text_color
 }
 
 // feedback_compact_keys drops keyframes that lie on the line through their
@@ -153,28 +118,6 @@ fn feedback_compact_keys(keys []FeedbackKey) []FeedbackKey {
 	return compact
 }
 
-// feedback_compact_spans drops spans that lie on the line through their
-// neighbors in both x and width.
-fn feedback_compact_spans(spans []FeedbackSpan) []FeedbackSpan {
-	if spans.len <= 2 {
-		return spans
-	}
-	mut compact := [spans[0]]
-	for i in 1 .. spans.len - 1 {
-		previous := compact[compact.len - 1]
-		next := spans[i + 1]
-		span := next.at - previous.at
-		ratio := if span <= 0 { 0.0 } else { (spans[i].at - previous.at) / span }
-		x := previous.x + (next.x - previous.x) * ratio
-		width := previous.width + (next.width - previous.width) * ratio
-		if math.abs(x - spans[i].x) > 1e-3 || math.abs(width - spans[i].width) > 1e-3 {
-			compact << spans[i]
-		}
-	}
-	compact << spans[spans.len - 1]
-	return compact
-}
-
 // feedback_times merges evenly spaced samples with the instants at which a
 // level changes slope, sorted and without near duplicates, all within [0, 1].
 fn feedback_times(samples int, critical []f64) []f64 {
@@ -197,84 +140,64 @@ fn feedback_times(samples int, critical []f64) []f64 {
 	return unique
 }
 
-// feedback_cycle loops a timeline, or plays it once and keeps where it ends.
-fn feedback_cycle(timeline MotionTimeline, repeat bool) MotionTimeline {
-	return if repeat {
-		timeline.looped()
-	} else {
-		MotionTimeline{
-			...timeline
-			hold: true
-		}
-	}
-}
-
-// feedback_level_loop animates a color channel between off and on through keys,
-// which run from at = 0 to at = 1 over period seconds.
-fn feedback_level_loop(period f64, keys []FeedbackKey, off u32, on u32, channel FeedbackChannel, repeat bool) MotionTimeline {
+// feedback_scale_loop shows a part from its left edge to the fraction of its
+// width each key's level gives (box_scale_x), over period seconds, until the
+// part leaves. Every keyframe makes the part opaque, so a part declared
+// transparent stays out of sight under reduced motion, which plays no
+// timeline.
+fn feedback_scale_loop(period f64, keys []FeedbackKey) MotionTimeline {
 	mut keyframes := []MotionKeyframe{cap: keys.len}
 	for key in keys {
-		color := interpolate_color(off, on, math.clamp(key.level, 0, 1))
 		keyframes << MotionKeyframe{
 			at:    key.at
-			style: match channel {
-				.background {
-					MotionStyle{
-						background: color
-					}
-				}
-				.text_color {
-					MotionStyle{
-						text_color: color
-					}
-				}
+			style: MotionStyle{
+				opacity:     1
+				box_scale_x: math.clamp(key.level, 0, 1)
 			}
 		}
 	}
-	return feedback_cycle(motion_keyframes(period, ...keyframes), repeat)
+	return motion_keyframes(period, ...keyframes).looped()
 }
 
-// feedback_span_loop moves and sizes a part through spans over period seconds.
-// The part is declared at x and width; each span translates it and scales its
-// box, so the part is laid out once.
-fn feedback_span_loop(period f64, spans []FeedbackSpan, x f64, width f64, repeat bool) MotionTimeline {
-	mut keyframes := []MotionKeyframe{cap: spans.len}
-	for span in spans {
-		keyframes << MotionKeyframe{
-			at:    span.at
-			style: MotionStyle{
-				translate_x: span.x - x
-				box_scale_x: if width > 0 { math.max(span.width, 0) / width } else { 0.0 }
-			}
+// feedback_pulse_loop fades a part to opacity low and back over period
+// seconds, easing in and out, until the part leaves.
+fn feedback_pulse_loop(period f64, low f64) MotionTimeline {
+	return motion_keyframes(period, MotionKeyframe{
+		at:    0
+		style: MotionStyle{
+			opacity: 1
 		}
+	}, MotionKeyframe{
+		at:     0.5
+		style:  MotionStyle{
+			opacity: low
+		}
+		easing: .in_out_sine
+	}, MotionKeyframe{
+		at:     1
+		style:  MotionStyle{
+			opacity: 1
+		}
+		easing: .in_out_sine
+	}).looped()
+}
+
+// linear_progress_loading_keys are the indeterminate indicator's edges over
+// one cycle (linear_progress_loading_span) as keyframe levels: its left edge,
+// then its right edge.
+fn linear_progress_loading_keys() ([]FeedbackKey, []FeedbackKey) {
+	times := feedback_times(24, [0.5])
+	mut left := []FeedbackKey{cap: times.len}
+	mut right := []FeedbackKey{cap: times.len}
+	for t in times {
+		start, end := linear_progress_loading_span(t)
+		left << FeedbackKey{t, start}
+		right << FeedbackKey{t, end}
 	}
-	return feedback_cycle(motion_keyframes(period, ...keyframes), repeat)
+	return feedback_compact_keys(left), feedback_compact_keys(right)
 }
 
 // ── Shimmer ─────────────────────────────────────────────────────────
-
-// ShimmerShape is one skeleton placeholder of a shimmer: a rectangle, or a
-// circle the size of the frame's shorter side centered in it.
-pub struct ShimmerShape {
-pub:
-	frame  Rect
-	circle bool
-	radius f64 = 6 // Corner radius of a rectangular shape, limited to a pill.
-}
-
-// shimmer_paragraph returns line shapes for a placeholder paragraph: lines
-// rows line_height tall with gap between them, the last one shorter.
-pub fn shimmer_paragraph(x f64, y f64, width f64, lines int, line_height f64, gap f64) []ShimmerShape {
-	mut shapes := []ShimmerShape{cap: lines}
-	for i in 0 .. lines {
-		line_width := if i == lines - 1 && lines > 1 { width * 0.6 } else { width }
-		shapes << ShimmerShape{
-			frame:  rect(x, y + f64(i) * (line_height + gap), line_width, line_height)
-			radius: line_height / 2
-		}
-	}
-	return shapes
-}
 
 // shimmer_half_width resolves a sweep's spread to the band's half-width in a
 // frame width wide, following GPUI's rules: an absolute spread_pixels (at
@@ -317,6 +240,28 @@ pub fn shimmer_band_span(center f64, half f64, start f64, extent f64) (f64, f64)
 	left := math.clamp(center - half, start, start + extent)
 	right := math.clamp(center + half, start, start + extent)
 	return left - start, right - left
+}
+
+// shimmer_band_keys are one sweep of a band over a line as keyframe levels,
+// in fractions of the line: the band's left edge, then its right edge. The
+// band moves at a constant speed, so keys where an edge enters or leaves the
+// line are exact; spread is the band's half-width (shimmer_half_width).
+fn shimmer_band_keys(spread f64, reverse bool) ([]FeedbackKey, []FeedbackKey) {
+	half := shimmer_half_width(1, spread, 0)
+	mut critical := []f64{cap: 4}
+	for edge in [-half, half, 1 - half, 1 + half] {
+		critical << shimmer_band_time(edge, 1, half, reverse)
+	}
+	times := feedback_times(1, critical)
+	mut left := []FeedbackKey{cap: times.len}
+	mut right := []FeedbackKey{cap: times.len}
+	for t in times {
+		offset, width := shimmer_band_span(shimmer_band_center(t, 1, half, reverse), half,
+			0, 1)
+		left << FeedbackKey{t, offset}
+		right << FeedbackKey{t, offset + width}
+	}
+	return feedback_compact_keys(left), feedback_compact_keys(right)
 }
 
 // ── Badge and avatar ────────────────────────────────────────────────
