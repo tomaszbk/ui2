@@ -30,7 +30,7 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ?&& !ui2_docu
 				}
 			}
 		}
-		w.navigation.update_mounted_axes(w.navigation.root, w.focus_offsets, w.focus_offsets_x, w.bounds(), ContentTransform{ y: menu_bar_height() })
+		w.navigation.update_mounted_axes(w.navigation.root, w.focus_offsets, w.focus_offsets_x, w.bounds(), ContentTransform{ y: w.menu_bar_height() })
 		w.sync_mounted_scroll_views()
 	}
 
@@ -198,7 +198,7 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ?&& !ui2_docu
 					...node.state
 					checked:  checked
 					selected: el.el.kind == .toggle_button && checked
-					expanded: el.el.kind == .dropdown && (g_open_dropdown == node.id || w.popup_menu_owner == node.id)
+					expanded: el.el.kind == .dropdown && (w.dropdown_id == node.id || w.popup_menu_owner == node.id)
 				}
 			}
 		}
@@ -253,7 +253,7 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ?&& !ui2_docu
 			if w.composition.field_id == el.id {
 				w.composition = TextComposition{}
 			}
-			if g_open_dropdown == el.id { w.close_dropdown() }
+			if w.dropdown_id == el.id { w.close_dropdown() }
 		}
 		if el.kind in [.text_field, .text_area, .dropdown] {
 			previous := w.text_props[el.id] or { el.text }
@@ -262,7 +262,9 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ?&& !ui2_docu
 					w.composition = TextComposition{}
 				}
 				w.replace_text_value(el.id, el.text)
-				if el.kind != .dropdown { w.replace_text_editor(el.id, text_editor(el.text.clone())) }
+				if el.kind != .dropdown {
+					w.replace_text_editor(el.id, text_editor(el.text.clone()))
+				}
 			}
 			if el.id !in w.text_props || el.text != previous { w.replace_text_prop(el.id, el.text) }
 			w.text_kinds[el.id] = el.kind

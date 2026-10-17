@@ -53,7 +53,6 @@ $if macos && ui2_embedder ? && !ui2_headless ? && !ui2_document_library ? {
 		set_window_wake(fn [mut app] (reason RenderReason) {
 			for mut window in app.windows { window.backend_invalidate(reason) }
 		})
-		w.publish_menu_context(config.title, unsafe { nil })
 		font_regular, font_bold := font_paths()
 		device := C.ui2_embedder_metal_device()
 		if device == unsafe { nil } { return error('a main-thread Metal device is required') }
@@ -90,7 +89,7 @@ $if macos && ui2_embedder ? && !ui2_headless ? && !ui2_document_library ? {
 		w.scheduler.set_wakeup(fn [handle] () { C.ui2_embedder_wakeup(handle) })
 		// The embedder has made NSApp and the window by now, so the host can
 		// install the declared menus over the embedder's default ones.
-		w.publish_menu_context('', C.ui2_embedder_native_window(handle))
+		w.os_window = C.ui2_embedder_native_window(handle)
 		w.install_declared_menus()
 		C.ui2_embedder_show(handle)
 		return w
@@ -227,7 +226,7 @@ $if macos && ui2_embedder ? && !ui2_headless ? && !ui2_document_library ? {
 		} else if event.typ == .key_down {
 			w.scheduler.invalidate(.build)
 			if w.drag_owned_escape(event.key_code) { return true }
-			g_tooltip.dismiss()
+			w.tooltip.dismiss()
 			dispatch := w.begin_custom_input_dispatch()
 			if w.custom_key_down(&event, native.skip_dispatch,
 				native.text_input && w.composition.field_id.len > 0, dispatch) {

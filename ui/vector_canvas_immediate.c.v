@@ -23,11 +23,11 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 	}
 
 	fn (mut w Window) add_element_tooltip(key string, text string, el Element, area Rect, clip Rect) {
-		count := g_tooltip_targets.len
+		count := w.tooltip_targets.len
 		w.add_tooltip_target(key, text, area, clip)
-		if (!el.is_vector_canvas && el.vector_shapes.len == 0) || g_tooltip_targets.len == count { return }
-		last := g_tooltip_targets.last()
-		g_tooltip_targets[g_tooltip_targets.len - 1] = TooltipTarget{...last,
+		if (!el.is_vector_canvas && el.vector_shapes.len == 0) || w.tooltip_targets.len == count { return }
+		last := w.tooltip_targets.last()
+		w.tooltip_targets[w.tooltip_targets.len - 1] = TooltipTarget{...last,
 			is_vector_canvas: el.is_vector_canvas,
 			vector_shapes: el.vector_shapes, vector_hit_mode: el.vector_hit_mode,
 			vector_origin: area, content_transform: w.current_content_transform()}

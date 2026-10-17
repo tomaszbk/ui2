@@ -30,16 +30,15 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 		laid_out bool
 	}
 
-	// show_popup_menu opens a popup menu over the current window. on_result runs
-	// once, on the UI thread with the window current: a native menu's result in
-	// the window's next task drain, a drawn menu's in the input event that
-	// closed it.
+	// show_popup_menu opens a popup menu over the window. on_result runs once,
+	// on the UI thread: a native menu's result in the window's next task
+	// drain, a drawn menu's in the input event that closed it.
 	fn (mut w Window) show_popup_menu(cfg PopupMenuConfig, on_result PopupMenuCallback) {
-		if host_popup_menu_supported() {
+		if host_popup_menu_supported(w.os_window) {
 			window := UiDispatcher{
 				coordinator: w.scheduler
 			}
-			host_show_popup_menu(cfg, fn [window, on_result] (result PopupMenuResult) {
+			host_show_popup_menu(w.os_window, cfg, fn [window, on_result] (result PopupMenuResult) {
 				window.post(fn [on_result, result] () {
 					on_result(result)
 				})
@@ -80,7 +79,7 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 				open: true
 				path: path
 			}
-			anchor:    rect(cfg.anchor.x, cfg.anchor.y - menu_bar_height(), cfg.anchor.width,
+			anchor:    rect(cfg.anchor.x, cfg.anchor.y - w.menu_bar_height(), cfg.anchor.width,
 				cfg.anchor.height)
 			on_result: on_result
 		}
@@ -279,15 +278,15 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 		}
 		mut scheduler := w.scheduler
 		scheduler.invalidate(.paint)
-		g_tooltip.dismiss()
+		w.tooltip.dismiss()
 		if !w.sync_custom_input_geometry(dispatch) {
 			return
 		}
-		if menu_bar_open() {
-			close_menu_bar()
+		if w.menu_bar_open() {
+			w.close_menu_bar()
 			return
 		}
-		if g_open_dropdown.len > 0 {
+		if w.dropdown_id.len > 0 {
 			w.close_dropdown()
 			return
 		}

@@ -93,7 +93,7 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 				if !consumed { consumed = w.overlay_key(immediate_key_event(event), event.key_repeat) }
 				if !consumed { consumed = w.menu_bar_handle_key(event) }
 				if !dispatch.valid() { return true }
-				if !consumed && g_open_dropdown.len > 0 {
+				if !consumed && w.dropdown_id.len > 0 {
 					consumed = w.handle_dropdown_key(event.key_code)
 					if !dispatch.valid() { return true }
 				}

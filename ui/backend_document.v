@@ -30,7 +30,10 @@ $if ui2_document_library ? {
 	// Window exists so that shared code compiles; a document library never
 	// opens one.
 	@[heap]
-	pub struct Window {}
+	pub struct Window {
+	mut:
+		menus MenuDeclarations
+	}
 
 	fn (mut app App) open_backend_window(_config WindowConfig) !&Window { document_without_window('new_window') }
 
@@ -170,9 +173,9 @@ $if ui2_document_library ? {
 
 	fn (mut w Window) backend_set_menu_bar(_menus []Menu) {}
 
-	fn backend_set_tray(_cfg TrayConfig) {}
+	fn (mut w Window) backend_set_tray(_cfg TrayConfig) {}
 
-	fn backend_remove_tray() {}
+	fn (mut w Window) backend_remove_tray() {}
 
 	fn backend_file_dialog(_cfg FileDialogConfig) []string { return [] }
 

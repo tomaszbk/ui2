@@ -34,11 +34,11 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 	// Nested public scroll calls then see the same handlers and logical ranges
 	// as the current focus registry, including panes culled by painting.
 	fn (mut w Window) sync_mounted_scroll_views() {
-		selected := w.text_values[g_open_dropdown] or { '' }
+		selected := w.text_values[w.dropdown_id] or { '' }
 		if w.pointer_geometry_serial == w.navigation.geometry_serial
 			&& w.navigation.geometry_serial > 0
-			&& w.pointer_popup_owner == g_open_dropdown
-			&& w.pointer_popup_scroll == g_dropdown_scroll
+			&& w.pointer_popup_owner == w.dropdown_id
+			&& w.pointer_popup_scroll == w.dropdown_scroll
 			&& w.pointer_popup_selected == selected
 			&& w.hit_targets.len >= w.mounted_hit_count { return }
 		// Mounted identities change with declarations, not with sampled motion.
@@ -73,7 +73,7 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 		mut mounted_owners := unsafe { w.drag_registry.owners }
 		w.drag_registry.pointer_publication++
 		mut owner_count := 0
-		g_dropdown_popup.mounted=false
+		w.dropdown_popup.mounted=false
 		for node in w.navigation.nodes {
 			w.publish_mounted_pointer(node,mut mounted_hits,mut mounted_owners)
 			if !node.hidden && node.enabled && (node.el.drag_source!=none || node.el.drop_target!=none)
@@ -81,13 +81,13 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 				&& mounted_owners[node.pointer_owner_identity].pointer_publication==w.drag_registry.pointer_publication {
 				owner_count++
 			}
-			if node.el.kind==.dropdown && node.el.id==g_open_dropdown && !node.hidden && node.enabled {
+			if node.el.kind==.dropdown && node.el.id==w.dropdown_id && !node.hidden && node.enabled {
 				options := node.menu_options_snapshot()
 				ctx := w.ctx
 				window := if ctx!=unsafe { nil } { rect(0,0,f64(ctx.width),f64(ctx.height)) } else { w.bounds() }
 				visible := node.clip.intersect(paint_transformed_clip(node.local_frame,node.transform)).bounds()
 				if options.len>0 && visible.width>0 && visible.height>0 {
-					track_dropdown_popup_for(node.el,node.local_frame,node.transform,options,w.text_values[node.el.id] or { node.el.text },window)
+					w.track_dropdown_popup_for(node.el,node.local_frame,node.transform,options,w.text_values[node.el.id] or { node.el.text },window)
 				}
 			}
 			if node.el.kind != .scroll { continue }
@@ -117,15 +117,15 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 		}
 		unsafe { w.drag_registry.owners=mounted_owners }
 		w.drag_registry.root_revision=w.navigation.root_revision
-		if g_open_dropdown.len>0 && !g_dropdown_popup.mounted { w.close_dropdown() }
+		if w.dropdown_id.len>0 && !w.dropdown_popup.mounted { w.close_dropdown() }
 		// Popup rows are window overlays; all tree targets came from the same
 		// mounted frames/affine/clip above, including offscreen declarations.
-		if g_dropdown_popup.mounted && g_open_dropdown.len>0 {
+		if w.dropdown_popup.mounted && w.dropdown_id.len>0 {
 			ctx := w.ctx
 			window := if ctx!=unsafe { nil } { rect(0,0,f64(ctx.width),f64(ctx.height)) } else { w.bounds() }
-			list := dropdown_list_frame(g_dropdown_popup,window)
-			for i, _ in g_dropdown_popup.options {
-				target := dropdown_row_target(g_dropdown_popup,i,list)
+			list := dropdown_list_frame(w.dropdown_popup,window)
+			for i, _ in w.dropdown_popup.options {
+				target := w.dropdown_row_target(w.dropdown_popup,i,list)
 				if target.w>0 && target.h>0 {
 					mounted_hits << HitTarget{}
 					mounted_hits[mounted_hits.len-1]=target
@@ -135,9 +135,9 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 		unsafe { w.hit_targets=mounted_hits }
 		w.mounted_hit_count = mounted_hits.len
 		w.pointer_geometry_serial = w.navigation.geometry_serial
-		w.pointer_popup_owner = g_open_dropdown
-		w.pointer_popup_scroll = g_dropdown_scroll
-		w.pointer_popup_selected = w.text_values[g_open_dropdown] or { '' }
+		w.pointer_popup_owner = w.dropdown_id
+		w.pointer_popup_scroll = w.dropdown_scroll
+		w.pointer_popup_selected = w.text_values[w.dropdown_id] or { '' }
 	}
 
 	fn (mut w Window) custom_scroll_dispatch_current(dispatch CustomInputDispatch, ctx &DrawContext, root u64) bool {

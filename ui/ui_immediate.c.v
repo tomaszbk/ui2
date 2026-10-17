@@ -151,7 +151,35 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 		dpi_scale f32
 		draining_tasks bool
 		window_state &CustomWindowState = unsafe { nil }
+		// native_window is the embedder's window handle; os_window is the
+		// platform's own window, an NSWindow, an HWND, or nil, that the host
+		// attaches menus and popup menus to.
 		native_window voidptr
+		os_window voidptr
+		// The menu bar and tray the window declared (menu.v), and the drawn
+		// menu bar's state (menu_custom.c.v): menu_open_path holds one element
+		// per open panel, [m] for menu m's own list and [m, r] for the submenu
+		// opened from its row r. A press that only dismissed an open menu
+		// swallows its release, which must not reach the control underneath.
+		menus MenuDeclarations
+		menu_open_path []int
+		menu_hover_path []int
+		menu_hits []MenuBarHit
+		menu_panels []Rect
+		menu_swallow_up bool
+		// The open dropdown list: its owner's id, cached geometry, hovered row
+		// and scroll offset.
+		dropdown_id string
+		dropdown_popup DropdownPopup
+		dropdown_hover int = -1
+		dropdown_scroll f64
+		// The tooltip shown and the targets that declare one. tooltip_owners
+		// counts the elements being rendered that declared a tooltip: theirs
+		// covers their descendants too, so a surface drawn inside one must not
+		// hide it the way an unrelated overlay would.
+		tooltip TooltipState
+		tooltip_targets []TooltipTarget
+		tooltip_owners int
 		last_frame i64 = -1
 		linux_signal &HostWakeSignal = unsafe { nil }
 		frame_interval i64
@@ -349,16 +377,6 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 		__global g_font_symbol_bases = map[int]bool{}
 		__global g_font_symbol_fons = voidptr(unsafe { nil })
 	}
-	__global g_open_dropdown = ''
-	__global g_dropdown_popup = DropdownPopup{}
-	__global g_dropdown_hover = -1
-	__global g_dropdown_scroll = 0.0
-	__global g_tooltip_targets = []TooltipTarget{}
-	__global g_tooltip = TooltipState{}
-	// g_tooltip_owners counts the elements being rendered that declared a
-	// tooltip. Their tooltip covers their descendants too, so a surface drawn
-	// inside one must not hide it the way an unrelated overlay would.
-	__global g_tooltip_owners = 0
 
 	// Map values are copied byte-for-byte when an existing key is replaced.
 	// Unlike keys, their nested strings are not released by map.set. The text
@@ -438,7 +456,7 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 		viewport := w.ctx.logical_viewport(w.native_window)
 		return Rect{
 			width: viewport.width
-			height: viewport.height - menu_bar_height()
+			height: viewport.height - w.menu_bar_height()
 		}
 	}
 
@@ -476,7 +494,6 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 
 	fn (mut w Window) run_sokol() {
 		set_window_wake(fn [mut w] (reason RenderReason) { w.backend_invalidate(reason) })
-		w.publish_menu_context(w.title, unsafe { nil })
 		// Pick the bundled font before constructing either drawing adapter.
 		font_regular, font_bold := font_paths()
 		$if android || ios {
@@ -735,7 +752,7 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 		if !w.navigation.set_focus(id) { return }
 		if w.focused_field != id { w.composition = TextComposition{} }
 		w.focused_field = id
-		if g_open_dropdown.len > 0 && g_open_dropdown != id { w.close_dropdown() }
+		if w.dropdown_id.len > 0 && w.dropdown_id != id { w.close_dropdown() }
 		if reveal { w.reveal_custom_focus(id) }
 		if !dispatch.valid() { return }
 		w.invalidate_custom_paint()
@@ -952,9 +969,9 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 		mut ctx := w.ctx
 		ctx.sync_gg()
 		w.configure_custom_presentation(gfx.query_backend())
-		// The window exists now: hand its native handle to the host services
-		// and install the menus declared before it did (platform.v).
-		w.publish_menu_context('', custom_native_window())
+		// The window exists now: record its native handle for the host
+		// services and install the menus declared before it did (platform.v).
+		w.os_window = custom_native_window()
 		w.install_declared_menus()
 	}
 
@@ -1024,14 +1041,14 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 		w.editable_fields.clear()
 		w.motion_tree.dispose()
 		set_window_wake(unsafe { nil })
-		g_tooltip = TooltipState{}
+		w.tooltip = TooltipState{}
 		w.touch = TouchState{}
 		w.navigation = &FocusManager{}
 		w.focused_field = ''
 		w.reset_custom_keyboard()
 		w.composition = TextComposition{}
 		w.hit_targets = []HitTarget{}
-		g_tooltip_targets = []TooltipTarget{}
+		w.tooltip_targets = []TooltipTarget{}
 		w.hover = HoverState{}
 	}
 
@@ -1039,9 +1056,9 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 	// unmounted target or released pointer therefore cannot leave a live timer.
 	fn (mut w Window) custom_visual_deadline() i64 {
 		mut deadline := i64(-1)
-		if g_tooltip.pointer_in && g_tooltip.key.len > 0 && !g_tooltip.dismissed
-			&& !g_tooltip.visible && !w.touch.down && !menu_bar_open() && !w.drawn_popup_menu_open() && g_open_dropdown.len == 0 {
-			deadline = g_tooltip.rest_since + tooltip_delay_ms
+		if w.tooltip.pointer_in && w.tooltip.key.len > 0 && !w.tooltip.dismissed
+			&& !w.tooltip.visible && !w.touch.down && !w.menu_bar_open() && !w.drawn_popup_menu_open() && w.dropdown_id.len == 0 {
+			deadline = w.tooltip.rest_since + tooltip_delay_ms
 		}
 		overlay_at := w.overlay_deadline()
 		if overlay_at >= 0 && (deadline < 0 || overlay_at < deadline) { deadline = overlay_at }
@@ -1332,8 +1349,8 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 		// Mounted targets survive paint-only frames. Drop only the previous paint
 		// tail (popup/fallback targets), before adding this frame's overlays.
 		w.hit_targets.trim(w.mounted_hit_count)
-		g_tooltip_targets.clear()
-		g_tooltip_owners = 0
+		w.tooltip_targets.clear()
+		w.tooltip_owners = 0
 		w.text_caret = Rect{}
 		w.scroll_order.clear()
 		// Paint-time clamping can also notify user code before another pane is
@@ -1396,13 +1413,13 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 			if custom_frame_current(dispatch, ctx) && w.navigation.root_revision == mounted { ctx.end() } else { ctx.cancel() }
 		}
 		if w.has_root {
-			top := menu_bar_height()
+			top := w.menu_bar_height()
 			w.begin_hover_frame()
 			w.render_element(ctx, root, 0, top, rect(0, top, f64(ctx.width), f64(ctx.height) - top), '', presentation_root_path(root))
 			if !custom_frame_current(dispatch, ctx) || w.navigation.root_revision != mounted { return }
-			if g_open_dropdown.len > 0 {
-				if g_dropdown_popup.mounted {
-					draw_dropdown_popup(ctx)
+			if w.dropdown_id.len > 0 {
+				if w.dropdown_popup.mounted {
+					w.draw_dropdown_popup(ctx)
 				} else {
 					w.close_dropdown()
 				}
@@ -1410,9 +1427,9 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 			w.sync_drag_session()
 			if !custom_frame_current(dispatch,ctx) || w.navigation.root_revision != mounted { return }
 			w.draw_drag_preview(ctx)
-			draw_menu_bar(ctx)
+			w.draw_menu_bar(ctx)
 			w.update_tooltip(now)
-			draw_tooltip(ctx)
+			w.draw_tooltip(ctx)
 			if w.controls_prune_pending {
 				w.prune_unmounted_state()
 				w.controls_prune_pending = false
@@ -1472,17 +1489,17 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 			.mouse_move {
 				// Recorded before any handler below can claim the move, so the
 				// tooltip always knows where the pointer is.
-				g_tooltip.pointer_moved(f64(e.mouse_x), f64(e.mouse_y), renderer_now_ms())
+				w.tooltip.pointer_moved(f64(e.mouse_x), f64(e.mouse_y), renderer_now_ms())
 				w.hover_pointer_moved(f64(e.mouse_x), f64(e.mouse_y))
 				w.update_hover()
 				if w.touch.down && w.touch.pointer_captured {
 					w.handle_touch_move(f64(e.mouse_x), f64(e.mouse_y))
 					return
 				}
-				if menu_bar_handle_move(f64(e.mouse_x), f64(e.mouse_y)) {
+				if w.menu_bar_handle_move(f64(e.mouse_x), f64(e.mouse_y)) {
 					return
 				}
-				if g_open_dropdown.len > 0 {
+				if w.dropdown_id.len > 0 {
 					w.update_dropdown_hover(f64(e.mouse_x), f64(e.mouse_y))
 				}
 				if w.touch.down {
@@ -1492,8 +1509,8 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 			.mouse_scroll {
 				// The content moves under a pointer that stays put, so whatever
 				// ends up beneath it waits for a fresh rest.
-				g_tooltip.restart(renderer_now_ms())
-				if menu_bar_open() || w.drawn_popup_menu_blocks(f64(e.mouse_x), f64(e.mouse_y)) {
+				w.tooltip.restart(renderer_now_ms())
+				if w.menu_bar_open() || w.drawn_popup_menu_blocks(f64(e.mouse_x), f64(e.mouse_y)) {
 					return
 				}
 				mut delta_x := f64(e.scroll_x)
@@ -1507,7 +1524,7 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 				w.handle_mouse_scroll_vector(f64(e.mouse_x), f64(e.mouse_y), delta_x, delta_y)
 			}
 			.mouse_leave {
-				g_tooltip.pointer_left()
+				w.tooltip.pointer_left()
 				w.hover_pointer_left()
 				w.update_hover()
 			}
@@ -1548,7 +1565,7 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 					w.suspended = true
 				}
 				w.scheduler.suspend()
-				g_tooltip.pointer_left()
+				w.tooltip.pointer_left()
 				w.cancel_touch()
 			}
 			.restored, .resumed {
@@ -1569,7 +1586,7 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 					w.reset_custom_keyboard()
 					w.dismiss_drawn_popup_menu()
 				}
-				g_tooltip.dismiss()
+				w.tooltip.dismiss()
 				if e.typ == .touches_cancelled && (w.touch.drag.pending || w.touch.drag.active) {
 					w.cancel_drag_session(.cancelled)
 				} else { w.cancel_touch() }
@@ -1588,7 +1605,7 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 					w.invalidate_custom_paint()
 				}
 				if w.drag_owned_escape(e.key_code) { return }
-				g_tooltip.dismiss()
+				w.tooltip.dismiss()
 				dispatch := w.begin_custom_input_dispatch()
 				if !w.custom_key_down(e, false, w.composition.field_id.len > 0, dispatch) && dispatch.valid() {
 					w.handle_key_down(e.key_code, e.modifiers)
@@ -1616,9 +1633,9 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 		// Pointer bookkeeping is paint-only. Business callbacks request their
 		// build through fire_target_event; explicit refresh remains blocking.
 		w.scheduler.invalidate(.paint)
-		g_tooltip.dismiss()
+		w.tooltip.dismiss()
 		if !w.sync_custom_input_geometry(dispatch) || w.overlay_pointer_down(x, y) || !dispatch.valid() { return dispatch }
-		if menu_bar_handle_down(x, y) || !dispatch.valid() { return dispatch }
+		if w.menu_bar_handle_down(x, y) || !dispatch.valid() { return dispatch }
 		return w.handle_touch_down(x, y)
 	}
 
@@ -1644,7 +1661,7 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 			moved: false
 			long_press_fired: false
 		}
-		if g_open_dropdown.len > 0 {
+		if w.dropdown_id.len > 0 {
 			w.update_dropdown_hover(x, y)
 			return dispatch
 		}
@@ -1730,8 +1747,8 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 	}
 
 	fn (mut w Window) handle_mouse_scroll_vector(x f64, y f64, delta_x f64, delta_y f64) {
-		if g_open_dropdown.len > 0 {
-			g_dropdown_scroll = clamped_dropdown_scroll(g_dropdown_scroll - delta_y * 24)
+		if w.dropdown_id.len > 0 {
+			w.dropdown_scroll = w.clamped_dropdown_scroll(w.dropdown_scroll - delta_y * 24)
 			w.update_dropdown_hover(x, y)
 			return
 		}
@@ -1821,7 +1838,7 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 		if w.touch.long_press_fired || w.touch.scrollbar_drag {
 			return
 		}
-		if g_open_dropdown.len > 0 && !was_captured {
+		if w.dropdown_id.len > 0 && !was_captured {
 			w.handle_dropdown_release(x, y)
 			return
 		}
@@ -2369,19 +2386,19 @@ fn (mut w Window) page_focused_text_area(direction int) {
 			return
 		}
 		w.close_dropdown()
-		if host_popup_menu_supported() {
+		if host_popup_menu_supported(w.os_window) {
 			w.open_host_dropdown(target)
 			return
 		}
-		g_open_dropdown = target.id
+		w.dropdown_id = target.id
 		w.focus(target.id)
 	}
 
 	fn (mut w Window) close_dropdown() {
-		g_open_dropdown = ''
-		g_dropdown_hover = -1
-		g_dropdown_scroll = 0.0
-		g_dropdown_popup = DropdownPopup{}
+		w.dropdown_id = ''
+		w.dropdown_hover = -1
+		w.dropdown_scroll = 0.0
+		w.dropdown_popup = DropdownPopup{}
 		w.hit_targets = w.hit_targets.filter(!it.dropdown_option)
 		w.pointer_geometry_serial = 0
 	}
@@ -2390,7 +2407,7 @@ fn (mut w Window) page_focused_text_area(direction int) {
 	// pointer, or dismiss on any release outside it (including the control).
 	fn (mut w Window) handle_dropdown_release(x f64, y f64) {
 		release := w.hit_test(x, y)
-		if release.dropdown_option && release.id == g_open_dropdown {
+		if release.dropdown_option && release.id == w.dropdown_id {
 			w.select_dropdown_option(release)
 			return
 		}
@@ -2412,11 +2429,11 @@ fn (mut w Window) page_focused_text_area(direction int) {
 	}
 
 	fn (mut w Window) handle_dropdown_key(key gg.KeyCode) bool {
-		dropdown_state := g_dropdown_popup
+		dropdown_state := w.dropdown_popup
 		if dropdown_state.options.len == 0 {
 			return false
 		}
-		highlighted := if g_dropdown_hover >= 0 { g_dropdown_hover } else { dropdown_state.selected }
+		highlighted := if w.dropdown_hover >= 0 { w.dropdown_hover } else { dropdown_state.selected }
 		match key {
 			.escape {
 				w.close_dropdown()
@@ -2430,8 +2447,8 @@ fn (mut w Window) page_focused_text_area(direction int) {
 				} else if next >= dropdown_state.options.len {
 					next = 0
 				}
-				g_dropdown_hover = next
-				reveal_dropdown_row(next)
+				w.dropdown_hover = next
+				w.reveal_dropdown_row(next)
 				return true
 			}
 			.enter, .kp_enter {
@@ -2452,40 +2469,40 @@ fn (mut w Window) page_focused_text_area(direction int) {
 	fn (mut w Window) update_dropdown_hover(x f64, y f64) {
 		mut hover := -1
 		for target in w.hit_targets {
-			if !target.dropdown_option || target.id != g_open_dropdown {
+			if !target.dropdown_option || target.id != w.dropdown_id {
 				continue
 			}
 			if hit_target_contains(target, x, y) {
 				hover = target.option_index
 			}
 		}
-		g_dropdown_hover = hover
+		w.dropdown_hover = hover
 	}
 
-	fn clamped_dropdown_scroll(offset f64) f64 {
+	fn (mut w Window) clamped_dropdown_scroll(offset f64) f64 {
 		if offset < 0 {
 			return 0.0
 		}
-		max_scroll := g_dropdown_popup.max_scroll
+		max_scroll := w.dropdown_popup.max_scroll
 		return if offset > max_scroll { max_scroll } else { offset }
 	}
 
-	fn reveal_dropdown_row(index int) {
-		dropdown_state := g_dropdown_popup
+	fn (mut w Window) reveal_dropdown_row(index int) {
+		dropdown_state := w.dropdown_popup
 		if index < 0 || dropdown_state.max_scroll <= 0 {
-			g_dropdown_scroll = clamped_dropdown_scroll(g_dropdown_scroll)
+			w.dropdown_scroll = w.clamped_dropdown_scroll(w.dropdown_scroll)
 			return
 		}
 		view_height := dropdown_state.height - dropdown_popup_padding * 2
 		row_top := f64(index) * dropdown_state.row_height
 		row_bottom := row_top + dropdown_state.row_height
-		mut offset := g_dropdown_scroll
+		mut offset := w.dropdown_scroll
 		if row_top < offset {
 			offset = row_top
 		} else if row_bottom > offset + view_height {
 			offset = row_bottom - view_height
 		}
-		g_dropdown_scroll = clamped_dropdown_scroll(offset)
+		w.dropdown_scroll = w.clamped_dropdown_scroll(offset)
 	}
 
 	fn dropdown_row_height(style TextStyle) f64 {
@@ -2539,11 +2556,11 @@ fn (mut w Window) page_focused_text_area(direction int) {
 	fn (mut w Window) track_dropdown_popup(el Element, x f64, y f64, options []string, selected string) {
 		ctx := w.ctx
 		if ctx==unsafe { nil } { return }
-		track_dropdown_popup_for(el,rect(x,y,el.frame.width,el.frame.height),ctx.content_transform,
+		w.track_dropdown_popup_for(el,rect(x,y,el.frame.width,el.frame.height),ctx.content_transform,
 			options,selected,rect(0,0,f64(ctx.width),f64(ctx.height)))
 	}
 
-	fn track_dropdown_popup_for(el Element, area Rect, transform ContentTransform, options []string, selected string, window Rect) {
+	fn (mut w Window) track_dropdown_popup_for(el Element, area Rect, transform ContentTransform, options []string, selected string, window Rect) {
 		mut selected_index := -1
 		for index, option in options {
 			if option == selected {
@@ -2556,8 +2573,8 @@ fn (mut w Window) page_focused_text_area(direction int) {
 		frame := dropdown_popup_frame(anchor, options.len, row_height, window)
 		content_height := f64(options.len) * row_height
 		view_height := frame.height - dropdown_popup_padding * 2
-		opening := g_dropdown_popup.id != el.id
-		g_dropdown_popup = DropdownPopup{
+		opening := w.dropdown_popup.id != el.id
+		w.dropdown_popup = DropdownPopup{
 			id:         el.id
 			on_event:   el.on_event
 			x:          frame.x
@@ -2577,11 +2594,11 @@ fn (mut w Window) page_focused_text_area(direction int) {
 			mounted:    true
 		}
 		if opening {
-			g_dropdown_scroll = 0.0
-			g_dropdown_hover = -1
-			reveal_dropdown_row(selected_index)
+			w.dropdown_scroll = 0.0
+			w.dropdown_hover = -1
+			w.reveal_dropdown_row(selected_index)
 		} else {
-			g_dropdown_scroll = clamped_dropdown_scroll(g_dropdown_scroll)
+			w.dropdown_scroll = w.clamped_dropdown_scroll(w.dropdown_scroll)
 		}
 	}
 
@@ -2589,16 +2606,16 @@ fn (mut w Window) page_focused_text_area(direction int) {
 		return intersect_rect(rect(state.x+1,state.y+dropdown_popup_padding,state.width-2,
 			state.height-dropdown_popup_padding*2),window)
 	}
-	fn dropdown_row_target(state DropdownPopup, index int, list Rect) HitTarget {
-		frame := rect(state.x,state.y+dropdown_popup_padding+f64(index)*state.row_height-g_dropdown_scroll,state.width,state.row_height)
+	fn (mut w Window) dropdown_row_target(state DropdownPopup, index int, list Rect) HitTarget {
+		frame := rect(state.x,state.y+dropdown_popup_padding+f64(index)*state.row_height-w.dropdown_scroll,state.width,state.row_height)
 		visible := intersect_rect(frame,list)
 		return HitTarget{kind:.dropdown,id:state.id,on_event:state.on_event,dropdown_option:true,
 			option_index:index,options:state.options,local_frame:frame,has_geometry:true,
 			clip_region:paint_transformed_clip(list,ContentTransform{}),x:visible.x,y:visible.y,w:visible.width,h:visible.height}
 	}
 
-	fn draw_dropdown_popup(ctx &DrawContext) {
-		dropdown_state := g_dropdown_popup
+	fn (mut w Window) draw_dropdown_popup(ctx &DrawContext) {
+		dropdown_state := w.dropdown_popup
 		if dropdown_state.options.len == 0 || dropdown_state.width <= 0
 			|| dropdown_state.height <= 0 {
 			return
@@ -2621,10 +2638,10 @@ fn (mut w Window) page_focused_text_area(direction int) {
 			align: .left
 		}
 		for index, option in dropdown_state.options {
-			row := dropdown_row_target(dropdown_state,index,list)
+			row := w.dropdown_row_target(dropdown_state,index,list)
 			if row.w<=0 || row.h<=0 { continue }
 			row_y := row.local_frame.y
-			if index == g_dropdown_hover {
+			if index == w.dropdown_hover {
 				draw_rect(ctx, dropdown_state.x + 2, row_y, dropdown_state.width - 4,
 					dropdown_state.row_height, 0xdbeafe, 4)
 			} else if index == dropdown_state.selected {
@@ -2642,7 +2659,7 @@ fn (mut w Window) page_focused_text_area(direction int) {
 		}
 		draw_scrollbar(ctx, dropdown_state.x, dropdown_state.y, dropdown_state.width,
 			dropdown_state.height, f64(dropdown_state.options.len) * dropdown_state.row_height +
-			dropdown_popup_padding * 2, g_dropdown_scroll, false)
+			dropdown_popup_padding * 2, w.dropdown_scroll, false)
 		apply_clip(ctx, window)
 	}
 
@@ -2749,7 +2766,7 @@ fn (mut w Window) page_focused_text_area(direction int) {
 		if visible.width <= 0 || visible.height <= 0 {
 			return
 		}
-		g_tooltip_targets << TooltipTarget{
+		w.tooltip_targets << TooltipTarget{
 			key:               key
 			text:              text
 			frame:             visible
@@ -2794,9 +2811,9 @@ fn (mut w Window) page_focused_text_area(direction int) {
 	// Nothing shows while an open dropdown list or menu has the pointer, or
 	// while a press or a drag is still in progress.
 	fn (mut w Window) update_tooltip(now i64) {
-		target := tooltip_target_at(g_tooltip_targets, g_tooltip.pointer_x, g_tooltip.pointer_y)
-		blocked := g_open_dropdown.len > 0 || menu_bar_open() || w.drawn_popup_menu_open() || w.touch.down
-		g_tooltip.update(target, blocked, now)
+		target := tooltip_target_at(w.tooltip_targets, w.tooltip.pointer_x, w.tooltip.pointer_y)
+		blocked := w.dropdown_id.len > 0 || w.menu_bar_open() || w.drawn_popup_menu_open() || w.touch.down
+		w.tooltip.update(target, blocked, now)
 	}
 
 	// tooltip_frame puts a tooltip below and to the right of the pointer, clear
@@ -2822,8 +2839,8 @@ fn (mut w Window) page_focused_text_area(direction int) {
 		return rect(x, y, width, height)
 	}
 
-	fn draw_tooltip(ctx &DrawContext) {
-		if !g_tooltip.visible || g_tooltip.text.len == 0 {
+	fn (mut w Window) draw_tooltip(ctx &DrawContext) {
+		if !w.tooltip.visible || w.tooltip.text.len == 0 {
 			return
 		}
 		style := TextStyle{
@@ -2839,7 +2856,7 @@ fn (mut w Window) page_focused_text_area(direction int) {
 				align: .left
 				vertical_align: .middle
 			})
-			lines, text_width := tooltip_lines(g_tooltip.text, fn [ctx] (line string) f64 {
+			lines, text_width := tooltip_lines(w.tooltip.text, fn [ctx] (line string) f64 {
 				return f64(ctx.text_width_f(line))
 			})
 			if lines.len == 0 {
@@ -2847,7 +2864,7 @@ fn (mut w Window) page_focused_text_area(direction int) {
 			}
 			line_h := font_line_height(style.size)
 			window := rect(0, 0, f64(ctx.width), f64(ctx.height))
-			frame := tooltip_frame(g_tooltip.anchor_x, g_tooltip.anchor_y,
+			frame := tooltip_frame(w.tooltip.anchor_x, w.tooltip.anchor_y,
 				text_width + tooltip_padding * 2, f64(lines.len) * line_h + tooltip_padding * 2, window)
 			apply_clip(ctx, window)
 			draw_rect(ctx, frame.x + 1, frame.y + 2, frame.width, frame.height, tooltip_shadow,
@@ -2861,14 +2878,14 @@ fn (mut w Window) page_focused_text_area(direction int) {
 					frame.y + tooltip_padding + f64(i) * line_h, text_width, line_h, style, true, Rect{})
 			}
 		} $else {
-			shaped := ctx.shape_text(g_tooltip.text.trim_right(' \t\r\n'), style,
+			shaped := ctx.shape_text(w.tooltip.text.trim_right(' \t\r\n'), style,
 				tooltip_max_text_width, tooltip_max_lines, true) or {
 				eprintln('ui2: tooltip text: ${err}')
 				return
 			}
 			text_width := math.min(math.ceil(shaped.size.width), tooltip_max_text_width)
 			window := rect(0, 0, f64(ctx.width), f64(ctx.height))
-			frame := tooltip_frame(g_tooltip.anchor_x, g_tooltip.anchor_y,
+			frame := tooltip_frame(w.tooltip.anchor_x, w.tooltip.anchor_y,
 				text_width + tooltip_padding * 2, shaped.size.height + tooltip_padding * 2, window)
 			apply_clip(ctx, window)
 			draw_rect(ctx, frame.x + 1, frame.y + 2, frame.width, frame.height, tooltip_shadow,
@@ -2976,7 +2993,7 @@ fn (mut w Window) page_focused_text_area(direction int) {
 		region := w.current_clip_region(clip)
 		geometry := w.element_hit_geometry(declared, area, transform, region)
 		inert := w.ctx != unsafe { nil } && w.ctx.overlay_inert
-		hovered := !inert && g_tooltip.pointer_in && hit_target_contains(geometry,g_tooltip.pointer_x,g_tooltip.pointer_y)
+		hovered := !inert && w.tooltip.pointer_in && hit_target_contains(geometry,w.tooltip.pointer_x,w.tooltip.pointer_y)
 		focused := !inert && ((declared.id.len > 0 && declared.id == w.backend_text_focus.id)
 			|| w.custom_focus_ring_visible(declared))
 		pressed_style_active := !inert && w.touch.down && declared.id.len > 0
@@ -3092,13 +3109,13 @@ fn (mut w Window) page_focused_text_area(direction int) {
 		owns_tooltip := el.tooltip.len > 0 && el.kind != .image
 		if owns_tooltip {
 			w.add_element_tooltip(tooltip_key(el, area), el.tooltip, el, area, clip)
-			g_tooltip_owners++
-		} else if g_tooltip_owners == 0 && g_tooltip_targets.len > 0 && tooltip_hides_beneath(el) && el.kind != .image {
+			w.tooltip_owners++
+		} else if w.tooltip_owners == 0 && w.tooltip_targets.len > 0 && tooltip_hides_beneath(el) && el.kind != .image {
 			w.add_element_tooltip('', '', el, area, clip)
 		}
 		defer {
 			if owns_tooltip {
-				g_tooltip_owners--
+				w.tooltip_owners--
 			}
 		}
 		// A declared focus outline replaces the default ring instead of doubling it.
@@ -3240,12 +3257,12 @@ fn (mut w Window) page_focused_text_area(direction int) {
 					return
 				}
 				ctx.draw_asset_image(el,geometry)
-				if el.tooltip.len > 0 || (g_tooltip_owners == 0 && g_tooltip_targets.len > 0) {
-					count := g_tooltip_targets.len
+				if el.tooltip.len > 0 || (w.tooltip_owners == 0 && w.tooltip_targets.len > 0) {
+					count := w.tooltip_targets.len
 					w.add_tooltip_target(tooltip_key(el,area),el.tooltip,area,clip)
-					if g_tooltip_targets.len > count {
-						last := g_tooltip_targets.last()
-						g_tooltip_targets[g_tooltip_targets.len-1] = TooltipTarget{...last,is_image:true,image_geometry:geometry}
+					if w.tooltip_targets.len > count {
+						last := w.tooltip_targets.last()
+						w.tooltip_targets[w.tooltip_targets.len-1] = TooltipTarget{...last,is_image:true,image_geometry:geometry}
 					}
 				}
 				if el.enabled && voidptr(el.on_event) != unsafe { nil } && (el.clickable || el.draggable || el.drag_source != none || el.drop_target != none) {
@@ -3375,7 +3392,7 @@ fn (mut w Window) page_focused_text_area(direction int) {
 				x := el.frame.x + off_x
 				y := el.frame.y + off_y
 				selected := w.text_values[el.id] or { el.text }
-				list_open := el.enabled && el.id.len > 0 && g_open_dropdown == el.id
+				list_open := el.enabled && el.id.len > 0 && w.dropdown_id == el.id
 				expanded := list_open || (el.enabled && el.id.len > 0 && w.popup_menu_owner == el.id)
 				draw_control_surface(ctx, x, y, el.frame.width, el.frame.height, el.box,
 					expanded, el.enabled)
@@ -3415,7 +3432,7 @@ fn (mut w Window) page_focused_text_area(direction int) {
 							w.close_dropdown()
 						}
 					}
-				} else if el.id.len > 0 && g_open_dropdown == el.id {
+				} else if el.id.len > 0 && w.dropdown_id == el.id {
 					w.close_dropdown()
 				}
 			}

@@ -83,6 +83,7 @@ $if ui2_headless ? && !ui2_document_library ? {
 		environment LayoutEnvironment
 		revision    u64
 		close_hooks []fn ()
+		menus       MenuDeclarations
 	}
 
 	fn (mut app App) open_backend_window(config WindowConfig) !&Window {
@@ -95,7 +96,6 @@ $if ui2_headless ? && !ui2_document_library ? {
 			build: config.build
 		}
 		set_window_wake(fn [mut w] (reason RenderReason) { w.backend_invalidate(reason) })
-		w.publish_menu_context(config.title, unsafe { nil })
 		w.install_declared_menus()
 		w.headless_rebuild()
 		return w
@@ -615,9 +615,9 @@ $if ui2_headless ? && !ui2_document_library ? {
 
 	fn (mut w Window) backend_set_menu_bar(_menus []Menu) {}
 
-	fn backend_set_tray(_cfg TrayConfig) {}
+	fn (mut w Window) backend_set_tray(_cfg TrayConfig) {}
 
-	fn backend_remove_tray() {}
+	fn (mut w Window) backend_remove_tray() {}
 
 	// No operating system dialog is shown: pickers return no paths and message
 	// boxes their dismissal result.

@@ -2,8 +2,8 @@
 // The Windows host's menu bar, notification area icon and popup menus
 // (platform.v). Each is built from the declaration in one go rather than
 // reconciled: a menu is small, and rebuilding it is what keeps the declared
-// rows and the HMENU in step. The window is the one the renderer published to
-// menu.v.
+// rows and the HMENU in step. Each attaches to the native window of the
+// HostMenuOwner that installed it.
 module ui2
 
 #flag windows -luser32
@@ -52,11 +52,20 @@ const win_wm_contextmenu = u32(0x007b)
 // dismissed without a choice.
 const win_menu_command_base = u32(0x1000)
 
+// WindowsMenuState holds the menu bar's commands, the notification area icon
+// and the posted popup menu. Their messages reach V through the exported
+// functions below, which carry no context, so this host state is
+// process-wide; bar_owner and tray_owner are the windows those answer.
 @[heap]
 struct WindowsMenuState {
 mut:
 	bar_commands map[u32]MenuItem
+	bar_owner    HostMenuOwner
 	tray_active  bool
+	tray         TrayConfig
+	tray_owner   HostMenuOwner
+	// The native window the posted popup menu opens over.
+	popup_native voidptr
 	// The popup menu posted to the window and not yet shown, if popup_pending.
 	popup         PopupMenuConfig
 	popup_result  PopupMenuCallback = unsafe { nil }
@@ -71,10 +80,11 @@ fn windows_menu_state() &WindowsMenuState {
 	return unsafe { windows_menu_state_singleton }
 }
 
-fn host_set_menu_bar(menus []Menu) {
+fn host_set_menu_bar(owner HostMenuOwner, menus []Menu) {
 	mut st := windows_menu_state()
 	st.bar_commands = map[u32]MenuItem{}
-	window := menu_state().window
+	st.bar_owner = owner
+	window := owner.native
 	if window == unsafe { nil } {
 		// Declared before the window exists; the renderer installs it again
 		// once there is something to attach it to.
@@ -107,9 +117,9 @@ fn host_set_menu_bar(menus []Menu) {
 
 fn host_tray_supported() bool { return true }
 
-fn host_set_tray(cfg TrayConfig) {
+fn host_set_tray(owner HostMenuOwner, cfg TrayConfig) {
 	mut st := windows_menu_state()
-	window := menu_state().window
+	window := owner.native
 	if window == unsafe { nil } {
 		return
 	}
@@ -125,6 +135,8 @@ fn host_set_tray(cfg TrayConfig) {
 		free(wide_icon)
 	}
 	st.tray_active = true
+	st.tray = cfg
+	st.tray_owner = owner
 }
 
 fn host_remove_tray() {
@@ -134,17 +146,19 @@ fn host_remove_tray() {
 	}
 	C.ui2_host_tray_remove()
 	st.tray_active = false
+	st.tray = TrayConfig{}
+	st.tray_owner = HostMenuOwner{}
 }
 
-// A popup menu opens over the window the renderer published to menu.v.
-fn host_popup_menu_supported() bool { return menu_state().window != unsafe { nil } }
+// A popup menu opens over the native window.
+fn host_popup_menu_supported(native voidptr) bool { return native != unsafe { nil } }
 
 // TrackPopupMenuEx runs a modal loop of its own, so the menu is posted to the
 // window's message queue and shown from there, once the input callback that
 // asked for it has returned.
-fn host_show_popup_menu(cfg PopupMenuConfig, on_result PopupMenuCallback) {
+fn host_show_popup_menu(native voidptr, cfg PopupMenuConfig, on_result PopupMenuCallback) {
 	mut st := windows_menu_state()
-	window := menu_state().window
+	window := native
 	if st.popup_pending || window == unsafe { nil } || cfg.items.len == 0 {
 		on_result(PopupMenuResult{})
 		return
@@ -153,7 +167,9 @@ fn host_show_popup_menu(cfg PopupMenuConfig, on_result PopupMenuCallback) {
 	st.popup = cfg
 	st.popup_result = on_result
 	st.popup_pending = true
+	st.popup_native = window
 	if C.ui2_host_popup_post(window) == 0 {
+		st.popup_native = unsafe { nil }
 		st.popup = PopupMenuConfig{}
 		st.popup_result = unsafe { nil }
 		st.popup_pending = false
@@ -175,7 +191,8 @@ fn ui2_host_popup_message() {
 	st.popup = PopupMenuConfig{}
 	st.popup_result = unsafe { nil }
 	st.popup_pending = false
-	window := menu_state().window
+	window := st.popup_native
+	st.popup_native = unsafe { nil }
 	menu := C.ui2_host_menu_create()
 	if window == unsafe { nil } || menu == unsafe { nil } {
 		on_result(PopupMenuResult{})
@@ -241,24 +258,25 @@ fn windows_bool(value bool) int {
 fn ui2_host_menu_command(command u32) {
 	st := windows_menu_state()
 	item := st.bar_commands[command] or { return }
-	emit_host_menu_callback(item.on_select, item.id)
+	windows_emit_menu_callback(st.bar_owner, item.on_select, item.id)
 }
 
 // ui2_host_tray_message answers a click on the notification area icon. The
 // menu is built on demand so it always shows the current declaration.
 @[export: 'ui2_host_tray_message']
 fn ui2_host_tray_message(mouse_message u32) {
-	cfg := tray()
+	st := windows_menu_state()
+	cfg := st.tray
 	if mouse_message !in [win_wm_lbutton_up, win_wm_rbutton_up, win_wm_contextmenu] {
 		return
 	}
 	if cfg.menu.len == 0 {
 		if mouse_message == win_wm_lbutton_up {
-			emit_host_menu_callback(cfg.on_event, cfg.id)
+			windows_emit_menu_callback(st.tray_owner, cfg.on_event, cfg.id)
 		}
 		return
 	}
-	window := menu_state().window
+	window := st.tray_owner.native
 	menu := C.ui2_host_menu_create()
 	if window == unsafe { nil } || menu == unsafe { nil } {
 		return
@@ -269,5 +287,12 @@ fn ui2_host_tray_message(mouse_message u32) {
 	_ := windows_fill_menu(menu, cfg.menu, mut commands, win_menu_command_base)
 	chosen := commands[C.ui2_host_tray_popup(window, menu)] or { MenuItem{} }
 	C.ui2_host_menu_destroy(menu)
-	emit_host_menu_callback(chosen.on_select, chosen.id)
+	windows_emit_menu_callback(st.tray_owner, chosen.on_select, chosen.id)
+}
+
+fn windows_emit_menu_callback(owner HostMenuOwner, callback ElementCallback, id string) {
+	mut window := owner.window
+	if window != unsafe { nil } {
+		window.emit_menu_callback(callback, id)
+	}
 }

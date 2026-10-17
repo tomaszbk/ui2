@@ -4,7 +4,7 @@ module ui2
 $if (linux || macos || windows) && !ui2_headless ? && !ui2_document_library ? {
 	fn (mut w Window) resolve_custom_overlays(declared Element, measure LayoutTextMeasureFn) !Element {
 		viewport := if w.ctx != unsafe { nil } {
-			rect(0, 0, f64(w.ctx.width), f64(w.ctx.height) - menu_bar_height())
+			rect(0, 0, f64(w.ctx.width), f64(w.ctx.height) - w.menu_bar_height())
 		} else { w.bounds() }
 		root := w.with_drawn_popup_menu(declared, viewport)
 		mut tree := w.overlay_tree
@@ -69,7 +69,7 @@ $if (linux || macos || windows) && !ui2_headless ? && !ui2_document_library ? {
 				owner_id := if active.config.anchor.len > 0 { active.config.anchor } else { active.config.owner }
 				if owner := w.navigation.node(owner_id) {
 					if !owner.hidden && owner.enabled && hit_target_contains(w.custom_focus_target(owner), x, y) {
-						w.request_overlay_open(active, x, y - menu_bar_height())
+						w.request_overlay_open(active, x, y - w.menu_bar_height())
 						return true
 					}
 				}
@@ -82,7 +82,7 @@ $if (linux || macos || windows) && !ui2_headless ? && !ui2_document_library ? {
 			owner_id := if layer.config.anchor.len > 0 { layer.config.anchor } else { layer.config.owner }
 			node := w.navigation.node(owner_id) or { continue }
 			if node.hidden || !node.enabled || !hit_target_contains(w.custom_focus_target(node), x, y) { continue }
-			w.request_overlay_open(layer, x, y - menu_bar_height())
+			w.request_overlay_open(layer, x, y - w.menu_bar_height())
 			return true
 		}
 		return false
@@ -129,9 +129,9 @@ $if (linux || macos || windows) && !ui2_headless ? && !ui2_document_library ? {
 				continue
 			}
 			focused := !anchor.hidden && anchor.enabled && w.overlay_anchor_focused(anchor)
-			hovered := !anchor.hidden && anchor.enabled && g_tooltip.pointer_in
-				&& hit_target_contains(w.custom_focus_target(anchor), g_tooltip.pointer_x, g_tooltip.pointer_y)
-			inside := layer.available && (focused || hovered) && !w.touch.down && !menu_bar_open() && !w.drawn_popup_menu_open() && g_open_dropdown.len == 0
+			hovered := !anchor.hidden && anchor.enabled && w.tooltip.pointer_in
+				&& hit_target_contains(w.custom_focus_target(anchor), w.tooltip.pointer_x, w.tooltip.pointer_y)
+			inside := layer.available && (focused || hovered) && !w.touch.down && !w.menu_bar_open() && !w.drawn_popup_menu_open() && w.dropdown_id.len == 0
 			mut state := w.overlay_triggers[id] or { OverlayTrigger{ owner: owner } }
 			if state.owner != owner { state = OverlayTrigger{ owner: owner } }
 			if inside && !state.inside {
@@ -140,12 +140,12 @@ $if (linux || macos || windows) && !ui2_headless ? && !ui2_document_library ? {
 			}
 			if inside && !state.requested {
 				if focused { state.deadline = now }
-				else if state.pointer_x != g_tooltip.pointer_x || state.pointer_y != g_tooltip.pointer_y {
+				else if state.pointer_x != w.tooltip.pointer_x || state.pointer_y != w.tooltip.pointer_y {
 					state.deadline = now + i64(layer.config.tooltip_delay * 1000)
 				}
 			}
-			state.pointer_x = g_tooltip.pointer_x
-			state.pointer_y = g_tooltip.pointer_y
+			state.pointer_x = w.tooltip.pointer_x
+			state.pointer_y = w.tooltip.pointer_y
 			if !inside {
 				state.deadline = -1
 				state.requested = false
@@ -156,8 +156,8 @@ $if (linux || macos || windows) && !ui2_headless ? && !ui2_document_library ? {
 			if ready { state.requested = true; state.deadline = -1 }
 			w.overlay_triggers[id] = state
 			if leaving && layer.config.open { w.request_overlay_dismiss(layer, .pointer_leave) }
-			if ready && !layer.config.open { w.request_overlay_open(layer, anchor.frame.x, anchor.frame.y - menu_bar_height()) }
-			if layer.active { g_tooltip.dismiss() }
+			if ready && !layer.config.open { w.request_overlay_open(layer, anchor.frame.x, anchor.frame.y - w.menu_bar_height()) }
+			if layer.active { w.tooltip.dismiss() }
 			if !dispatch.valid() || root != w.navigation.root_revision { return }
 		}
 	}

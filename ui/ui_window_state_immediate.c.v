@@ -29,19 +29,6 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 	struct CustomWindowState {
 	mut:
 		legacy_fonts CustomFontState
-		open_dropdown string
-		dropdown_popup DropdownPopup
-		dropdown_hover int = -1
-		dropdown_scroll f64
-		tooltip_targets []TooltipTarget
-		tooltip TooltipState
-		tooltip_owners int
-		menu_context MenuState
-		menu_open_path []int
-		menu_hover_path []int
-		menu_hits []MenuBarHit
-		menu_panels []Rect
-		menu_swallow_up bool
 	}
 
 	__global g_active_custom_window_state = &CustomWindowState(unsafe { nil })
@@ -109,19 +96,6 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 			state.legacy_fonts.font_symbol_bases = g_font_symbol_bases
 			state.legacy_fonts.font_symbol_fons = g_font_symbol_fons
 		}
-		state.open_dropdown = g_open_dropdown
-		state.dropdown_popup = g_dropdown_popup
-		state.dropdown_hover = g_dropdown_hover
-		state.dropdown_scroll = g_dropdown_scroll
-		state.tooltip_targets = g_tooltip_targets
-		state.tooltip = g_tooltip
-		state.tooltip_owners = g_tooltip_owners
-		state.menu_context = *menu_state()
-		state.menu_open_path = g_menu_open_path
-		state.menu_hover_path = g_menu_hover_path
-		state.menu_hits = g_menu_hits
-		state.menu_panels = g_menu_panels
-		state.menu_swallow_up = g_menu_swallow_up
 	}
 
 	fn (state &CustomWindowState) restore() {
@@ -135,23 +109,5 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 			g_font_symbol_bases = state.legacy_fonts.font_symbol_bases
 			g_font_symbol_fons = state.legacy_fonts.font_symbol_fons
 		}
-		g_open_dropdown = state.open_dropdown
-		g_dropdown_popup = state.dropdown_popup
-		g_dropdown_hover = state.dropdown_hover
-		g_dropdown_scroll = state.dropdown_scroll
-		g_tooltip_targets = state.tooltip_targets
-		g_tooltip = state.tooltip
-		g_tooltip_owners = state.tooltip_owners
-		mut menu := menu_state()
-		menu.menus = state.menu_context.menus
-		menu.tray = state.menu_context.tray
-		menu.tray_visible = state.menu_context.tray_visible
-		menu.app_name = state.menu_context.app_name
-		menu.window = state.menu_context.window
-		g_menu_open_path = state.menu_open_path
-		g_menu_hover_path = state.menu_hover_path
-		g_menu_hits = state.menu_hits
-		g_menu_panels = state.menu_panels
-		g_menu_swallow_up = state.menu_swallow_up
 	}
 }

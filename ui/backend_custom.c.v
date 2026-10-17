@@ -55,16 +55,21 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 
 	fn backend_tray_supported() bool { return host_tray_supported() }
 
+	// host_menu_owner names this window to the host's menu bar and tray.
+	fn (w &Window) host_menu_owner() HostMenuOwner {
+		return HostMenuOwner{ window: w, native: w.os_window, app_name: w.title }
+	}
+
 	fn (mut w Window) backend_set_menu_bar(menus []Menu) {
-		host_set_menu_bar(menus)
+		host_set_menu_bar(w.host_menu_owner(), menus)
 		// Rebuild bounds and paint after replacing the menu declaration.
-		close_menu_bar()
+		w.close_menu_bar()
 		w.request_refresh()
 	}
 
-	fn backend_set_tray(cfg TrayConfig) { host_set_tray(cfg) }
+	fn (mut w Window) backend_set_tray(cfg TrayConfig) { host_set_tray(w.host_menu_owner(), cfg) }
 
-	fn backend_remove_tray() { host_remove_tray() }
+	fn (mut w Window) backend_remove_tray() { host_remove_tray() }
 
 	fn backend_file_dialog(cfg FileDialogConfig) []string { return host_file_dialog(cfg) }
 
