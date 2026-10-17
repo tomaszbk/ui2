@@ -61,6 +61,8 @@ pub:
 	// dark is true when the surface is dark. It sets the scrim opacity and
 	// the shadow strength.
 	dark bool
+	// The control chrome, shared by every build that reads these tokens.
+	paint &ControlPaint = unsafe { nil }
 }
 
 // ControlMetrics are the sizes of a control at one ControlSize. height is a
@@ -112,7 +114,7 @@ pub fn kit_tokens(theme Theme) KitTokens {
 		defaults: default_theme()
 	}
 	surface := r.color('surface')
-	return KitTokens{
+	tokens := KitTokens{
 		surface:         surface
 		surface_muted:   r.color('surface_muted')
 		popover:         r.color('popover')
@@ -165,6 +167,33 @@ pub fn kit_tokens(theme Theme) KitTokens {
 		control_font:    [r.font('control_small'), r.font('control_medium'), r.font('control_large')]!
 		dark:            kit_luminance(surface) < 0.5
 	}
+	return KitTokens{
+		...tokens
+		paint: &ControlPaint{
+			surface:       tokens.input
+			border:        tokens.input_border
+			focus_ring:    tokens.focus_ring
+			accent:        tokens.accent
+			on_accent:     tokens.on_accent
+			track:         tokens.track
+			text:          tokens.text
+			placeholder:   tokens.muted
+			disabled_text: tokens.disabled_text
+			popover:       tokens.popover
+			on_popover:    tokens.text
+			hover:         tokens.hover
+			radius:        tokens.control_radius[int(ControlSize.medium)]
+		}
+	}
+}
+
+// control_paint is the chrome a renderer-drawn control takes from these
+// tokens: set it as the element's paint.
+pub fn (t KitTokens) control_paint() &ControlPaint {
+	if t.paint == unsafe { nil } {
+		return kit_tokens(Theme{}).paint
+	}
+	return t.paint
 }
 
 struct KitThemeReader {

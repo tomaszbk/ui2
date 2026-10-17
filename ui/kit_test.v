@@ -74,6 +74,14 @@ fn test_kit_tokens_keep_the_kit_palette_and_metrics() {
 	assert dark.hover == kit_mix(dark.surface_muted, dark.text, 0.06)
 	assert dark.scrim_opacity() == 0.6
 	assert dark.metrics(.medium) == medium
+	// The control chrome comes from the same tokens and is shared by builds.
+	paint := light.control_paint()
+	assert paint.surface == light.input && paint.border == light.input_border
+	assert paint.accent == light.accent && paint.placeholder == light.muted
+	assert paint.radius == medium.radius && paint.chrome
+	assert voidptr(light.control_paint()) == voidptr(paint)
+	assert dark.control_paint().surface == 0x0f172a
+	assert KitTokens{}.control_paint().surface == light.input
 	// A partial theme keeps the defaults it leaves out.
 	partial := kit_tokens(Theme{
 		colors: {
@@ -109,7 +117,9 @@ fn test_kit_tokens_follow_the_owner_chain_and_theme_changes() ! {
 		owner: child
 	}
 	assert ctx.tokens() == tokens
-	assert VmlBuildContext{}.tokens() == kit_tokens(default_theme())
+	// Without an owner a build gets the default tokens.
+	defaults := VmlBuildContext{}.tokens()
+	assert defaults.accent == 0x2563eb && defaults.control_paint().surface == 0xffffff
 	// A theme change drops the cached tokens of the component and its
 	// descendants, and advances the revision themed widgets rebuild on.
 	mut revision := child.theme_revision_signal()!

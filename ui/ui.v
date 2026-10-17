@@ -528,6 +528,7 @@ pub:
 	// keys names the keys (key_event_name) the element takes as key_down events
 	// while it or a descendant has focus, before application key handlers.
 	keys                      []string
+	paint                     ?&ControlPaint // renderer-drawn control chrome (control_paint.v)
 }
 
 // BackendSupport is what control_support reports for a control kind. Partial
