@@ -7,16 +7,27 @@ module ui2
 
 fn kit_display_widgets() map[string]VmlWidgetType {
 	return {
-		'ProgressBar':   vml_widget[ProgressBarProps]()
-		'Spinner':       vml_widget[SpinnerProps]()
-		'Accordion':     vml_widget[AccordionProps]()
-		'AccordionItem': vml_widget[AccordionItemProps]()
-		'TabbedPanel':   vml_widget[TabbedPanelProps]()
-		'Tab':           vml_widget[TabProps]()
-		'Carousel':      vml_widget[CarouselProps]()
-		'CarouselSlide': vml_widget[CarouselSlideProps]()
-		'TreeView':      vml_widget[TreeViewProps]()
-		'TreeNode':      vml_widget[TreeNodeProps]()
+		'Badge':           vml_widget[BadgeProps]()
+		'Avatar':          vml_widget[AvatarProps]()
+		'Tag':             vml_widget[TagProps]()
+		'Separator':       vml_widget[SeparatorProps]()
+		'Kbd':             vml_widget[KbdProps]()
+		'Link':            vml_widget[LinkProps]()
+		'Alert':           vml_widget[AlertProps]()
+		'Empty':           vml_widget[EmptyProps]()
+		'GroupBox':        vml_widget[GroupBoxProps]()
+		'DescriptionList': vml_widget[DescriptionListProps]()
+		'DescriptionItem': vml_widget[DescriptionItemProps]()
+		'ProgressBar':     vml_widget[ProgressBarProps]()
+		'Spinner':         vml_widget[SpinnerProps]()
+		'Accordion':       vml_widget[AccordionProps]()
+		'AccordionItem':   vml_widget[AccordionItemProps]()
+		'TabbedPanel':     vml_widget[TabbedPanelProps]()
+		'Tab':             vml_widget[TabProps]()
+		'Carousel':        vml_widget[CarouselProps]()
+		'CarouselSlide':   vml_widget[CarouselSlideProps]()
+		'TreeView':        vml_widget[TreeViewProps]()
+		'TreeNode':        vml_widget[TreeNodeProps]()
 	}
 }
 
