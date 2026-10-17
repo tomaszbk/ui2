@@ -46,12 +46,12 @@ fn linux_clipboard_tool() ?LinuxClipboardTool {
 	return none
 }
 
-fn native_clipboard_supported() bool {
+fn host_clipboard_supported() bool {
 	linux_clipboard_tool() or { return false }
 	return true
 }
 
-fn native_set_clipboard_text(text string) bool {
+fn host_set_clipboard_text(text string) bool {
 	tool := linux_clipboard_tool() or { return false }
 	path := os.join_path(os.temp_dir(), 'ui2-clipboard-${os.getpid()}.txt')
 	os.write_file(path, text) or { return false }
@@ -62,7 +62,7 @@ fn native_set_clipboard_text(text string) bool {
 	return os.exec(['sh', '-c', tool.copy, 'sh', path]).exit_code == 0
 }
 
-fn native_clipboard_text() ?string {
+fn host_clipboard_text() ?string {
 	tool := linux_clipboard_tool() or { return none }
 	result := os.exec(['sh', '-c', tool.paste])
 	if result.exit_code != 0 {

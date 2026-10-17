@@ -11,7 +11,7 @@ const ui_alert_action_style_cancel = macos.Id(usize(1))
 // void (^)(UIAlertAction *)
 const alert_action_signature = 'v16@?0@8'
 
-// The alert's answer arrives on the block below, after native_message_box has
+// The alert's answer arrives on the block below, after host_message_box has
 // already parked itself in a run loop, so it is handed back through globals.
 __global g_alert_block = GlobalBlock{}
 __global g_alert_titles = []string{}
@@ -37,11 +37,11 @@ fn optional_nsstring(text string) macos.Id {
 	return if text.len == 0 { objc_nil() } else { macos.nsstring(text) }
 }
 
-fn native_message_box_supported() bool {
+fn host_message_box_supported() bool {
 	return true
 }
 
-fn native_message_box(cfg MessageBoxConfig) MessageBoxResult {
+fn host_message_box(cfg MessageBoxConfig) MessageBoxResult {
 	titles := message_box_button_titles(cfg.buttons)
 	handler := g_alert_block.build(voidptr(C.vui_alert_action), alert_action_signature)
 	if g_root_vc == unsafe { nil } || titles.len == 0 || handler == unsafe { nil } {

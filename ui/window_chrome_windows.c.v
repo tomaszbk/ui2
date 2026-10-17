@@ -15,34 +15,34 @@ fn C.ui2_chrome_minimize() int
 fn C.ui2_chrome_toggle_maximize() int
 fn C.ui2_chrome_is_maximized() int
 
-fn native_window_chrome_supported() bool {
+fn host_window_chrome_supported() bool {
 	return true
 }
 
-fn native_set_window_chrome(chrome WindowChrome) bool {
+fn host_set_window_chrome(chrome WindowChrome) bool {
 	return C.ui2_chrome_set(if chrome == .hidden_titlebar { 1 } else { 0 }) != 0
 }
 
-fn native_start_window_drag() bool {
+fn host_start_window_drag() bool {
 	return C.ui2_chrome_start_drag() != 0
 }
 
-fn native_minimize_window() bool {
+fn host_minimize_window() bool {
 	return C.ui2_chrome_minimize() != 0
 }
 
-fn native_toggle_maximize_window() bool {
+fn host_toggle_maximize_window() bool {
 	return C.ui2_chrome_toggle_maximize() != 0
 }
 
-fn native_window_is_maximized() bool {
+fn host_window_is_maximized() bool {
 	return C.ui2_chrome_is_maximized() != 0
 }
 
-fn native_window_controls_leading_inset() f64 {
+fn host_window_controls_leading_inset() f64 {
 	return 0
 }
 
-fn native_window_draws_own_controls() bool {
+fn host_window_draws_own_controls() bool {
 	return true
 }

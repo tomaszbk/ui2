@@ -165,11 +165,11 @@ $if ios && !ui2_headless ? && !ui2_document_library ? {
 
 	fn backend_remove_tray() {}
 
-	fn backend_file_dialog(cfg FileDialogConfig) []string { return native_file_dialog(cfg) }
+	fn backend_file_dialog(cfg FileDialogConfig) []string { return host_file_dialog(cfg) }
 
-	fn backend_file_dialog_supported() bool { return native_file_dialog_supported() }
+	fn backend_file_dialog_supported() bool { return host_file_dialog_supported() }
 
-	fn backend_message_box(cfg MessageBoxConfig) MessageBoxResult { return native_message_box(cfg) }
+	fn backend_message_box(cfg MessageBoxConfig) MessageBoxResult { return host_message_box(cfg) }
 
-	fn backend_message_box_supported() bool { return native_message_box_supported() }
+	fn backend_message_box_supported() bool { return host_message_box_supported() }
 }

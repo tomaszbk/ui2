@@ -14,7 +14,7 @@ pub:
 // key_modifiers reports the modifier keys held right now. Pointer events do not
 // carry them, so a click handler asks here to tell a Shift- or Cmd-click apart.
 pub fn key_modifiers() KeyModifiers {
-	return native_key_modifiers()
+	return host_key_modifiers()
 }
 
 // g_key_modifiers holds the modifier keys of the last event the custom

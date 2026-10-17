@@ -7,11 +7,11 @@ import macos
 
 const ns_modal_response_ok = i64(1)
 
-fn native_file_dialog_supported() bool {
+fn host_file_dialog_supported() bool {
 	return true
 }
 
-fn native_file_dialog(cfg FileDialogConfig) []string {
+fn host_file_dialog(cfg FileDialogConfig) []string {
 	pool := macos.autorelease_pool_new()
 	defer {
 		macos.release(pool)
@@ -56,19 +56,19 @@ fn native_file_dialog(cfg FileDialogConfig) []string {
 		return []string{}
 	}
 	if cfg.kind == .save {
-		path := native_file_dialog_macos_url_path(macos.msg_id(panel, 'URL'))
+		path := host_file_dialog_macos_url_path(macos.msg_id(panel, 'URL'))
 		return if path.len > 0 { [path] } else { []string{} }
 	}
 	urls := macos.msg_id(panel, 'URLs')
 	mut paths := []string{}
 	for index in 0 .. int(macos.msg_u64(urls, 'count')) {
-		paths << native_file_dialog_macos_url_path(macos.msg_id_u64(urls, 'objectAtIndex:',
+		paths << host_file_dialog_macos_url_path(macos.msg_id_u64(urls, 'objectAtIndex:',
 			u64(index)))
 	}
 	return paths.filter(it.len > 0)
 }
 
-fn native_file_dialog_macos_url_path(url macos.Id) string {
+fn host_file_dialog_macos_url_path(url macos.Id) string {
 	if url == unsafe { nil } {
 		return ''
 	}

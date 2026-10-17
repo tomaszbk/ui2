@@ -172,7 +172,7 @@ module ui2
 //   fn backend_remove_tray()
 //
 // Operating system dialogs (file_dialog.v and message_box.v call these;
-// windowed backends forward to the OS files' native_* functions):
+// windowed backends forward to the OS files' host_* functions):
 //   fn backend_file_dialog(cfg FileDialogConfig) []string
 //   fn backend_file_dialog_supported() bool
 //   fn backend_message_box(cfg MessageBoxConfig) MessageBoxResult

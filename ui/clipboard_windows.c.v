@@ -12,11 +12,11 @@ fn C.ui2_win_set_clipboard_text(text &u16, units int) int
 fn C.ui2_win_clipboard_text() &u16
 fn C.wcslen(text &u16) usize
 
-fn native_clipboard_supported() bool {
+fn host_clipboard_supported() bool {
 	return true
 }
 
-fn native_set_clipboard_text(text string) bool {
+fn host_set_clipboard_text(text string) bool {
 	wide := text.to_wide()
 	defer {
 		unsafe { free(wide) }
@@ -24,7 +24,7 @@ fn native_set_clipboard_text(text string) bool {
 	return C.ui2_win_set_clipboard_text(wide, int(C.wcslen(wide))) != 0
 }
 
-fn native_clipboard_text() ?string {
+fn host_clipboard_text() ?string {
 	wide := C.ui2_win_clipboard_text()
 	if wide == unsafe { nil } {
 		return none

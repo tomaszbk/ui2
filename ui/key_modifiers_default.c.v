@@ -2,6 +2,6 @@
 // of every event sokol delivers.
 module ui2
 
-fn native_key_modifiers() KeyModifiers {
+fn host_key_modifiers() KeyModifiers {
 	return g_key_modifiers
 }

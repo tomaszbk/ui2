@@ -25,11 +25,11 @@ fn chrome_main_window() macos.Id {
 	return macos.msg_id_u64(windows, 'objectAtIndex:', 0)
 }
 
-fn native_window_chrome_supported() bool {
+fn host_window_chrome_supported() bool {
 	return true
 }
 
-fn native_set_window_chrome(chrome WindowChrome) bool {
+fn host_set_window_chrome(chrome WindowChrome) bool {
 	window := chrome_main_window()
 	if window == unsafe { nil } {
 		return false
@@ -51,7 +51,7 @@ fn native_set_window_chrome(chrome WindowChrome) bool {
 }
 
 // The press that asked for the drag is still the application's current event.
-fn native_start_window_drag() bool {
+fn host_start_window_drag() bool {
 	window := chrome_main_window()
 	app := macos.msg_id(macos.get_class('NSApplication'), 'sharedApplication')
 	event := macos.msg_id(app, 'currentEvent')
@@ -64,7 +64,7 @@ fn native_start_window_drag() bool {
 	return true
 }
 
-fn native_minimize_window() bool {
+fn host_minimize_window() bool {
 	window := chrome_main_window()
 	if window == unsafe { nil } {
 		return false
@@ -73,7 +73,7 @@ fn native_minimize_window() bool {
 	return true
 }
 
-fn native_toggle_maximize_window() bool {
+fn host_toggle_maximize_window() bool {
 	window := chrome_main_window()
 	if window == unsafe { nil } {
 		return false
@@ -82,14 +82,14 @@ fn native_toggle_maximize_window() bool {
 	return true
 }
 
-fn native_window_is_maximized() bool {
+fn host_window_is_maximized() bool {
 	window := chrome_main_window()
 	return window != unsafe { nil } && macos.msg_bool(window, 'isZoomed')
 }
 
 // The traffic lights take about 70 points from the leading edge of a hidden
 // title bar; measuring the zoom button keeps it right if that changes.
-fn native_window_controls_leading_inset() f64 {
+fn host_window_controls_leading_inset() f64 {
 	window := chrome_main_window()
 	if window == unsafe { nil } {
 		return 78
@@ -102,6 +102,6 @@ fn native_window_controls_leading_inset() f64 {
 	return frame.x + frame.width + 12
 }
 
-fn native_window_draws_own_controls() bool {
+fn host_window_draws_own_controls() bool {
 	return false
 }
