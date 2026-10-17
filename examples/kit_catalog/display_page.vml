@@ -1,0 +1,95 @@
+component DisplayPage() {
+    Column(gap: 12) {
+        Label(text: "Display", style: [font_size(typography.title), weight(700), foreground(color.text)])
+        Label(text: "Avatars, badges and tags", style: [foreground(color.muted)])
+        Row(gap: 12, align_items: center) {
+            Avatar(name: "Ada Lovelace")
+            Avatar(name: "Grace Hopper", size: small)
+            Badge(count: 5)
+            Badge(count: 120, tone: primary)
+            Badge(dot: true, tone: success)
+            Tag(text: "Neutral")
+            Tag(text: "Shipped", tone: success, icon: circle_check)
+            Tag(text: "Beta", tone: warning, outline: true)
+        }
+        Row(gap: 8, align_items: center) {
+            Label(text: "Press", style: [foreground(color.text)])
+            Kbd(text: "Ctrl")
+            Kbd(text: "K")
+            Label(text: "to search, or", style: [foreground(color.text)])
+            Link(id: "docs_link", text: "read the docs", on_click: app.click())
+        }
+        Alert(title: "Heads up", text: "Your trial ends in three days.")
+        Alert(title: "Saved", text: "Your changes are live.", tone: success, icon: circle_check)
+        Row(gap: 16) {
+            GroupBox(title: "Account", flex_grow: 1) {
+                DescriptionList(label_width: 80) {
+                    DescriptionItem(label: "Name", text: "Ada Lovelace")
+                    DescriptionItem(label: "Plan", text: "Pro")
+                }
+            }
+            Empty(title: "No messages", text: "New messages show up here.", icon: bell, flex_grow: 1)
+        }
+        Separator(text: "Feedback")
+        Row(gap: 12, align_items: center) {
+            Progress(value: app.progress, flex_grow: 1)
+            ProgressCircle(value: app.progress)
+            ProgressCircle(loading: true, tone: success)
+            Spinner()
+            Button(id: "advance", text: "Advance", size: small, on_click: app.advance())
+        }
+        Progress(loading: true, tone: info)
+        Row(gap: 12, align_items: center) {
+            Skeleton(circle: true, width: 40, height: 40)
+            Shimmer(lines: 2, flex_grow: 1)
+            Clipboard(id: "copy_install", value: "v install ui2", text: "v install ui2")
+        }
+        Separator(text: "Disclosure")
+        Collapsible(id: "release_notes", text: "Release notes", icon: info, bind.open: app.notes_open) {
+            Label(text: "Kit components draw with vector paths and animate with motion.", style: [foreground(color.text)])
+        }
+        Accordion(id: "faq", bind.value: app.faq) {
+            AccordionItem(value: "billing", title: "How does billing work?") {
+                Label(text: "You pay monthly and can cancel at any time.", style: [foreground(color.text)])
+            }
+            AccordionItem(value: "data", title: "Where is my data stored?", icon: padlock) {
+                Label(text: "In the region you picked when you signed up.", style: [foreground(color.text)])
+            }
+        }
+        Separator(text: "Navigation")
+        Breadcrumb(id: "trail") {
+            BreadcrumbItem(text: "Home", icon: folder, on_click: app.click())
+            BreadcrumbItem(text: "Projects", on_click: app.click())
+            BreadcrumbItem(text: "ui2")
+        }
+        Tabs(id: "sections", bind.value: app.section) {
+            Tab(value: "overview", text: "Overview") {
+                Label(text: "A summary of the project.", style: [foreground(color.text)])
+            }
+            Tab(value: "activity", text: "Activity", icon: history) {
+                Label(text: "Recent commits and reviews.", style: [foreground(color.text)])
+            }
+        }
+        Pagination(id: "results", bind.page: app.results_page, total_pages: 12)
+        Row(gap: 16) {
+            Tree(id: "files", bind.value: app.file, flex_grow: 1) {
+                TreeItem(value: "src", text: "src", icon: folder, expanded: true) {
+                    TreeItem(value: "main.v", text: "main.v")
+                    TreeItem(value: "app.v", text: "app.v")
+                }
+                TreeItem(value: "readme", text: "README.md")
+            }
+            Carousel(id: "slides", bind.index: app.slide, loop: true, height: 140, flex_grow: 1) {
+                CarouselSlide(accessibility_label: "Draw", justify: center, align_items: center, style: [background(color.surface_muted), radius(8)]) {
+                    Label(text: "Draw", style: [font_size(20), weight(700), foreground(color.text)])
+                }
+                CarouselSlide(accessibility_label: "Animate", justify: center, align_items: center, style: [background(color.surface_muted), radius(8)]) {
+                    Label(text: "Animate", style: [font_size(20), weight(700), foreground(color.text)])
+                }
+                CarouselSlide(accessibility_label: "Ship", justify: center, align_items: center, style: [background(color.surface_muted), radius(8)]) {
+                    Label(text: "Ship", style: [font_size(20), weight(700), foreground(color.text)])
+                }
+            }
+        }
+    }
+}

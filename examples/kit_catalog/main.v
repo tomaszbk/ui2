@@ -11,6 +11,14 @@ pub mut:
 	page    string = 'buttons'
 	clicks  int
 	loading bool
+	// The display page.
+	progress     f64 = 40
+	notes_open   bool
+	faq          string = 'billing'
+	section      string = 'overview'
+	results_page int    = 3
+	file         string = 'main.v'
+	slide        int
 }
 
 pub fn (mut app CatalogApp) show(page string) {
@@ -23,6 +31,12 @@ pub fn (mut app CatalogApp) click() {
 
 pub fn (mut app CatalogApp) toggle_loading() {
 	app.loading = !app.loading
+}
+
+// advance fills the display page's progress by a fifth, and starts over once
+// it is full.
+pub fn (mut app CatalogApp) advance() {
+	app.progress = if app.progress >= 100 { 0 } else { app.progress + 20 }
 }
 
 fn build_catalog(mut app CatalogApp) ui2.Element {
