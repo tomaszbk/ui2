@@ -1,3 +1,4 @@
+// vtest vflags: -d vml_interpreter
 module main
 
 import os
@@ -79,7 +80,8 @@ fn test_generated_vml_round_trips_all_palette_components() {
 	assert document.components[0].text == app.components[0].text
 	assert document.components[4].checked
 	assert document.components[1].event_handler == 'save_clicked'
-	app.compile_preview() or { panic(err) }
+	// The live preview interprets the generated document.
+	app.run_preview() or { panic(err) }
 	defer { app.dispose_preview() }
 	ui2.validate_element_tree(app.preview_element(ui2.rect(0, 0, app.form_width, app.form_height))!)!
 }
@@ -255,7 +257,9 @@ fn test_saved_form_and_generated_main_compile_together() {
 	main_path := app.generate_companion(false) or { panic(err) }
 	module_path := [os.dir(@VMODROOT), '@vlib', '@vmodules'].join(os.path_delimiter)
 	mut command := [@VEXE, '-b', 'c', '-path', module_path]
-	$if ui2_custom_rendering ? { command << ['-d', 'ui2_custom_rendering'] }
+	$if ui2_custom_rendering ? {
+		command << ['-d', 'ui2_custom_rendering']
+	}
 	command << ['-o', os.join_path(test_dir, 'generated'), main_path]
 	result := os.exec(command)
 	assert result.exit_code == 0, result.output

@@ -551,9 +551,11 @@ UI2 Studio in [`ide/`](ide/) is a Delphi/Lazarus-style WYSIWYG form designer
 written in V with UI2 itself. It includes a component palette, draggable and
 resizable controls, object tree and inspector, undo/redo, VML source editing,
 live preview, project save/open, `main.v` generation, and a build messages pane.
+Its live preview runs on the VML interpreter, so it is built with
+`-d vml_interpreter`:
 
 ```sh
-v -b c run ide
+v -b c -d vml_interpreter run ide
 ```
 
 See [`ide/README.md`](ide/README.md) for the supported visual document shape

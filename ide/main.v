@@ -53,6 +53,7 @@ fn (app &IdeApp) menus() []ui2.Menu {
 			title: 'Run'
 			items: [
 				ui2.MenuItem{ ...ui2.menu_item_with_shortcut('preview', 'Toggle Preview', 'f9'), on_select: ide_action('preview') },
+				ui2.MenuItem{ ...ui2.menu_item('verify_preview', 'Verify with Compiler'), on_select: ide_action('verify_preview') },
 				ui2.MenuItem{ ...ui2.menu_item_with_shortcut('build_project', 'Build Project', 'cmd+b'), on_select: ide_action('build_project') },
 			]
 		},
@@ -228,8 +229,8 @@ fn (mut app IdeApp) toggle_preview() {
 		app.select_tab('designer')
 		return
 	}
-	app.compile_preview() or {
-		app.status = 'Preview compilation failed: ${err}'
+	app.run_preview() or {
+		app.status = 'Preview failed: ${err}'
 		app.log(app.status)
 		return
 	}
@@ -306,6 +307,7 @@ fn (mut app IdeApp) perform_action(event string, payload ui2.ElementEvent) {
 		'project_form', 'tab_source' { app.select_tab('source') }
 		'tab_designer' { app.select_tab('designer') }
 		'tab_preview', 'preview' { app.toggle_preview() }
+		'verify_preview' { app.verify_preview() }
 		'apply_source' { app.apply_source_editor() }
 		'source_edit' {
 			app.source_text = payload.text

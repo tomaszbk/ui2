@@ -19,10 +19,10 @@ step() {
 	fi
 }
 
-step "ide check" "$V $F -check ui2/ide"
+step "ide check" "$V $F -d vml_interpreter -check ui2/ide"
 step "layout geometry" "$V $F test ui2/ui/incremental_layout_test.v ui2/ui/incremental_layout_axes_test.v"
 step "compiled vml layout" "$V $F test ui2/ui/vml_modern_layout_test.v ui2/ui/vml_keyed_list_test.v ui2/ui/vml_keyed_dependencies_test.v"
-step "designer" "$V $F test ui2/ide"
+step "designer" "$V $F -d vml_interpreter test ui2/ide"
 step "menubar" "$V $F test ui2/examples/menubar"
 step "counter" "$V $F test ui2/examples/counter"
 step "compiled vml contracts" "$V $F test ui2/tests/compiled_vml"

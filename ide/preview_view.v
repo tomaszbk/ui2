@@ -52,5 +52,6 @@ fn build_preview_toolbar(layout IdeLayout, app &IdeApp) []ui2.Element {
 	) or { panic(err) }
 	children << tiny_button('preview_size', 'Apply size', ui2.rect(x + 164, 6, 76, 24), true)
 	children << tiny_button('preview_check', 'Check layout', ui2.rect(x + 248, 6, 90, 24), true)
+	children << tiny_button('preview_verify', 'Verify with compiler', ui2.rect(x + 346, 6, 132, 24), true)
 	return [ui2.scroll('preview_toolbar', ui2.rect(layout.stage.x, layout.stage.y, layout.stage.width, 38), color_panel_alt, children)]
 }

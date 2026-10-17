@@ -128,6 +128,7 @@ fn (mut app IdeApp) handle_preview_event(event string) bool {
 				app.changed('Updated control visibility.')
 			}
 		}
+		'preview_verify' { app.verify_preview() }
 		'inspector_layout' { app.inspector_tab = 'layout' }
 		else { return false }
 	}
