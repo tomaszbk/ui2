@@ -44,7 +44,8 @@ struct VmlRepeat[T] {
 
 // vml_repeat declares a keyed repeater among the children of a widget node or
 // of an enclosing repeater item. `name` is unique among the parent's
-// repeaters (the compiled lowering uses the declaration path). `items` is
+// repeaters; the compiled lowering names its keyed lists and their nested
+// fragments by the declaration path with `_` separators (`0_2_1`). `items` is
 // tracked; `build` runs once per inserted key with that key's owner, segment
 // and item signal.
 pub fn vml_repeat[T, N](mut parent N, name string, items fn () ![]T, key fn (T) string, build fn (mut CompiledVmlComponent, mut VmlSegment, &Signal[T]) !, src VmlSourceLocation) ! {
