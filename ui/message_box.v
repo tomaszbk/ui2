@@ -109,14 +109,6 @@ fn message_box_result_at(buttons MessageBoxButtons, index int) MessageBoxResult 
 
 // ── Hand-drawn dialog ──────────────────────────────────────────────
 
-// MessageBoxAction is one button of a custom_message_box.
-pub struct MessageBoxAction {
-pub:
-	id       string // lookup identity; callbacks choose behavior
-	on_event ElementCallback = unsafe { nil }
-	title    string
-}
-
 pub struct CustomMessageBoxConfig {
 pub:
 	// id names the dimmed overlay; the dialog and its labels derive their ids

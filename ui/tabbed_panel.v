@@ -15,15 +15,6 @@ pub enum TabPosition {
 	right_bottom
 }
 
-pub struct TabbedPanelTab {
-pub:
-	id       string
-	title    string
-	on_event ElementCallback = unsafe { nil }
-	content  Element
-	enabled  bool = true
-}
-
 pub struct TabbedPanelConfig {
 pub:
 	id                       string

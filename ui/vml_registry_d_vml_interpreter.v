@@ -237,8 +237,13 @@ fn vml_new_dyn_node[P](mut owner CompiledVmlComponent, o VmlNodeOptions, parent 
 	return vml_root(mut owner, P{}, o)!
 }
 
-// The builtin tags.
-const vml_builtin_widgets = {
+// The builtin tags: the core tags, and each kit package's tags from its
+// registry fragment (kit_registry_*_d_vml_interpreter.v).
+const vml_builtin_widgets = vml_merge_widgets(vml_core_widgets, kit_actions_widgets(),
+	kit_popups_widgets(), kit_display_widgets())
+
+// The core tags: layout, text, images, screens, menus and motion.
+const vml_core_widgets = {
 	'Screen':        vml_widget[ScreenProps]()
 	'View':          vml_widget[ViewProps]()
 	'Absolute':      vml_widget[AbsoluteProps]()
@@ -251,41 +256,26 @@ const vml_builtin_widgets = {
 	'ScaledContent': vml_widget[ScaledContentProps]()
 	'Label':         vml_widget[LabelProps]()
 	'Run':           vml_widget[RunProps]()
-	'TextInput':     vml_widget[TextInputProps]()
-	'TextArea':      vml_widget[TextAreaProps]()
 	'Image':         vml_widget[ImageProps]()
-	'Button':        vml_widget[ButtonProps]()
-	'Checkbox':      vml_widget[CheckboxProps]()
-	'Dropdown':      vml_widget[DropdownProps]()
-	'Option':        vml_widget[OptionProps]()
-	'ProgressBar':   vml_widget[ProgressBarProps]()
-	'Slider':        vml_widget[SliderProps]()
-	'Switch':        vml_widget[SwitchProps]()
-	'Spinner':       vml_widget[SpinnerProps]()
-	'MessageBox':    vml_widget[MessageBoxProps]()
-	'ToggleButton':  vml_widget[ToggleButtonProps]()
-	'Accordion':     vml_widget[AccordionProps]()
-	'AccordionItem': vml_widget[AccordionItemProps]()
-	'TabbedPanel':   vml_widget[TabbedPanelProps]()
-	'Tab':           vml_widget[TabProps]()
-	'Carousel':      vml_widget[CarouselProps]()
-	'CarouselSlide': vml_widget[CarouselSlideProps]()
 	'ScreenManager': vml_widget[ScreenManagerProps]()
 	'ManagedScreen': vml_widget[ManagedScreenProps]()
 	'ScreenView':    vml_widget[ScreenViewProps]()
-	'TreeView':      vml_widget[TreeViewProps]()
-	'TreeNode':      vml_widget[TreeNodeProps]()
 	'MenuItem':      vml_widget[MenuItemProps]()
 	'MenuSeparator': vml_widget[MenuSeparatorProps]()
 	'Menu':          vml_widget[MenuProps]()
 	'MenuBar':       vml_widget[MenuBarProps]()
-	'Dialog':        vml_widget[DialogProps]()
-	'Popover':       vml_widget[PopoverProps]()
-	'MenuOverlay':   vml_widget[MenuOverlayProps]()
-	'ContextMenu':   vml_widget[ContextMenuProps]()
-	'Tooltip':       vml_widget[TooltipProps]()
 	'Timeline':      vml_widget[TimelineProps]()
 	'Keyframe':      vml_widget[KeyframeProps]()
+}
+
+fn vml_merge_widgets(groups ...map[string]VmlWidgetType) map[string]VmlWidgetType {
+	mut widgets := map[string]VmlWidgetType{}
+	for group in groups {
+		for tag, t in group {
+			widgets[tag] = t
+		}
+	}
+	return widgets
 }
 
 @[heap]

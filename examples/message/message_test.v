@@ -37,7 +37,7 @@ fn test_message_vml_offers_native_and_drawn_dialogs() {
 	assert (find_message_element(root, 'overlay_title') or { panic('missing title') }).text == 'Hello World'
 	close := find_message_element(root, 'close_message') or { panic('missing close button') }
 	assert close.native_style
-	assert close.text == 'OK'
+	assert close.accessibility_label == 'OK'
 
 	mut opened := MessageDemo{}
 	opened.show_message()

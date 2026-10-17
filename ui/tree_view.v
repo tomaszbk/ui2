@@ -1,17 +1,5 @@
 module ui2
 
-pub struct TreeViewNode {
-pub:
-	id        string
-	text      string
-	on_event  ElementCallback = unsafe { nil }
-	on_toggle ElementCallback = unsafe { nil }
-	expanded  bool
-	selected  bool
-	enabled   bool = true
-	children  []TreeViewNode
-}
-
 pub struct TreeViewConfig {
 pub:
 	id                    string

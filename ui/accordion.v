@@ -1,14 +1,5 @@
 module ui2
 
-pub struct AccordionItem {
-pub:
-	id       string
-	title    string
-	on_event ElementCallback = unsafe { nil }
-	content  Element
-	enabled  bool = true
-}
-
 pub struct AccordionConfig {
 pub:
 	id                       string

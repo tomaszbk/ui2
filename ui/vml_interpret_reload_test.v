@@ -40,7 +40,7 @@ fn reload_find(el Element, id string) ?Element {
 }
 
 fn reload_texts(el Element) []string {
-	return el.children.map(it.text)
+	return el.children.map(if it.button_behavior { it.accessibility_label } else { it.text })
 }
 
 fn test_hot_reload_keeps_state_focus_and_edit_buffers() ! {
@@ -95,9 +95,9 @@ fn test_hot_reload_keeps_state_focus_and_edit_buffers() ! {
 	assert next != root
 	reloaded := next.element()
 	assert reload_find(reloaded, 'title')?.text_style.color == 0xff0000
-	assert reloaded.children[2].text == 'Count: 2'
+	assert reloaded.children[2].accessibility_label == 'Count: 2'
 	assert reloaded.children[2].id == first.children[2].id
-	assert reload_find(reloaded, 'click')?.text == 'Click 1'
+	assert reload_find(reloaded, 'click')?.accessibility_label == 'Click 1'
 	assert reload_find(reloaded, 'added')?.text == 'Added'
 	assert text('name') == 'Grace'
 	assert focused_id() == 'name'

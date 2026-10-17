@@ -1,5 +1,7 @@
 module ui2
 
+import math
+
 // IconName lists GPUI Kit's Lucide icon names that have a counterpart the
 // renderer can draw: an SF Symbols name that ui/symbols.v maps to a Material
 // Icons glyph of the same meaning. The first group is from GPUI's default
@@ -216,4 +218,53 @@ pub fn icon_pixel_size(size ControlSize) f64 {
 		.medium { 16 }
 		.large { 24 }
 	}
+}
+
+// kit_icon draws a named icon as a symbol image side units square, tinted
+// color. Its accessibility label is the icon's title; IconName.none is an
+// empty square.
+pub fn kit_icon(id string, name IconName, side f64, color u32) Element {
+	frame := rect(0, 0, side, side)
+	if name == .none {
+		return view(id, frame, BoxStyle{ transparent: true }, [])
+	}
+	return Element{
+		...image(id, 'symbol:' + name.symbol(), frame)
+		text_style:          TextStyle{
+			color: color
+			size:  side
+		}
+		accessibility_role:  'img'
+		accessibility_label: name.title()
+	}
+}
+
+// IconProps is the `Icon` tag: a named icon in the text color unless `color`
+// is set. `pixel_size` overrides the size preset (small 14, medium 16,
+// large 24); an authored width or height overrides both.
+pub struct IconProps {
+	CommonProps
+pub mut:
+	name       IconName
+	size       ControlSize = .medium
+	pixel_size f64
+	color      ?u32
+}
+
+pub fn (p IconProps) vml_themed() {}
+
+pub fn (p IconProps) validate() ! {
+	p.CommonProps.validate()!
+	if !math.is_finite(p.pixel_size) || p.pixel_size < 0 {
+		return error('Icon `pixel_size` must be finite and not negative')
+	}
+}
+
+pub fn (p IconProps) build(ctx VmlBuildContext) !Element {
+	side := if p.pixel_size > 0 { p.pixel_size } else { icon_pixel_size(p.size) }
+	icon := kit_icon(ctx.id, p.name, side, p.color or { ctx.tokens().text })
+	return vml_handled(Element{
+		...icon
+		frame: rect(ctx.frame.x, ctx.frame.y, p.width or { side }, p.height or { side })
+	}, ctx, p.element_callback())
 }

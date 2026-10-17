@@ -35,12 +35,12 @@ mut:
 
 // Called from the generic ref methods, which a program without refs never instantiates.
 // A ref names its control by a marker type or, for generic nodes, by the
-// props type of the node it binds (overlays are Views).
+// props type of the node it binds (overlays and kit Buttons are Views).
 @[markused]
 fn vml_ref_kind[T]() Kind {
-	$if T is VmlButton || T is ButtonProps {
+	$if T is VmlButton {
 		return .button
-	} $else $if T is VmlView || T is ViewProps || T is DialogProps || T is PopoverProps || T is MenuOverlayProps || T is ContextMenuProps || T is TooltipProps {
+	} $else $if T is VmlView || T is ViewProps || T is ButtonProps || T is DialogProps || T is PopoverProps || T is MenuOverlayProps || T is ContextMenuProps || T is TooltipProps {
 		return .view
 	} $else $if T is VmlLabel || T is LabelProps {
 		return .label

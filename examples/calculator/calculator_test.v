@@ -64,7 +64,7 @@ fn test_calculator_screen_contains_display_and_every_key() {
 	assert calculator.keys.len == 20
 	clear_key := panel.children[1].children[0]
 	assert clear_key.key == 'C'
-	assert clear_key.text == 'C'
+	assert clear_key.accessibility_label == 'C'
 	assert clear_key.box.bg == 0xef4444
 	assert voidptr(clear_key.on_event) != unsafe { nil }
 	assert clear_key.native_style

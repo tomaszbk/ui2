@@ -794,16 +794,22 @@ fn (mut c VmlNodeCore) structural_element() !Element {
 	mut node := c.node
 	element := node.element()
 	children := if c.structure == .sourced { node.child_elements()! } else { []Element{} }
+	layouts := if c.structure == .sourced {
+		node.source_children.map(it.child_layout.layout_item())
+	} else {
+		[]VmlLayoutItem{}
+	}
 	frame := node.frame()!
 	parts := c.collect_parts()!
 	mut typed := c.typed()
 	return typed.vml_element(VmlBuildContext{
-		id:       c.ctx_id()
-		key:      element.key
-		frame:    frame
-		children: children
-		parts:    parts
-		owner:    c.owner
+		id:            c.ctx_id()
+		key:           element.key
+		frame:         frame
+		children:      children
+		child_layouts: layouts
+		parts:         parts
+		owner:         c.owner
 	}, .direct)!
 }
 

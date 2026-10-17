@@ -220,7 +220,7 @@ Column {
 	assert app.name == 'Grace'
 	editor.children[1].on_event(ElementEvent{ kind: .click })
 	assert app.log.last() == 'Grace=1.0'
-	assert root.element().children[0].children[1].text == '1'
+	assert root.element().children[0].children[1].accessibility_label == '1'
 	app.name = 'Hopper'
 	root.component.invalidate_app()!
 	assert root.element().children[0].children[0].text == 'Hopper'
@@ -255,9 +255,9 @@ Column {
 	stepper := root.element().children[0]
 	stepper.children[0].on_event(ElementEvent{ kind: .click })
 	assert app.count == 3
-	assert root.element().children[0].children[0].text == '1'
+	assert root.element().children[0].children[0].accessibility_label == '1'
 	stepper.children[1].on_event(ElementEvent{ kind: .click })
-	assert root.element().children[0].children[0].text == '11'
+	assert root.element().children[0].children[0].accessibility_label == '11'
 	stepper.children[2].on_event(ElementEvent{ kind: .click })
 	assert app.count == 4
 	root.dispose_document()!

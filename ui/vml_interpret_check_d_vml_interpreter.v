@@ -400,8 +400,7 @@ const vml_compiled_motion_helpers = ['on', 'handle', 'clock']
 // The control kind a `ref name Type` declaration names.
 fn vml_ref_kind_of(tag string) ?Kind {
 	return match tag {
-		'Button' { .button }
-		'View', 'Dialog', 'Popover', 'MenuOverlay', 'ContextMenu', 'Tooltip' { .view }
+		'View', 'Button', 'Dialog', 'Popover', 'MenuOverlay', 'ContextMenu', 'Tooltip' { .view }
 		'Label' { .label }
 		'Image' { .image }
 		'TextInput' { .text_field }

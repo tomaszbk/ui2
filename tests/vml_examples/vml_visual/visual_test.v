@@ -99,7 +99,7 @@ fn test_compiled_scaled_content_preserves_declared_geometry_and_inverse_coordina
 fn test_compiled_sparse_styles_preserve_false_zero_black_and_typed_events() {
 	mut app := &VisualApp{}
 	el := styled(mut app)
-	assert el.id == 'styled' && el.kind == .button
+	assert el.id == 'styled' && el.kind == .view && el.button_behavior
 	assert el.box.border_pattern == .dashed
 	assert el.box.border_left_color or { u32(1) } == 0
 	assert el.box.dash_length == 5 && el.box.dash_gap == 3
@@ -125,7 +125,8 @@ fn test_compiled_sparse_styles_preserve_false_zero_black_and_typed_events() {
 	assert patch == ui2.InteractionStyle{
 		hover:         ui2.BoxStylePatch{ bg: u32(0), transparent: false }
 		hover_text:    ui2.TextStylePatch{ color: u32(0xffffff) }
-		focus:         ui2.BoxStylePatch{ border_left: f64(0), outline_width: f64(3) }
+		// The style patches the kit Button's own focus ring.
+		focus:         ui2.BoxStylePatch{ border_left: f64(0), outline_color: ui2.kit_tokens(ui2.default_theme()).focus_ring, outline_width: f64(3), outline_offset: f64(2) }
 		pressed:       ui2.BoxStylePatch{ bg: u32(0x22c55e), transparent: false }
 		disabled:      ui2.BoxStylePatch{ bg: u32(0xcccccc), transparent: false }
 		disabled_text: ui2.TextStylePatch{ color: u32(0) }

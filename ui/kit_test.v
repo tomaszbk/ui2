@@ -130,3 +130,24 @@ fn test_kit_tokens_follow_the_owner_chain_and_theme_changes() ! {
 	assert changed.text == 0xf8fafc
 	owner.dispose()!
 }
+
+fn test_button_variant_colors_follow_the_tokens() {
+	t := kit_tokens(default_theme())
+	secondary := button_variant_colors(t, .secondary, false, true)
+	assert secondary.fill == t.surface_muted && secondary.border == t.border
+	assert secondary.filled && secondary.bordered && !secondary.underline
+	assert button_variant_colors(t, .outline, false, true).fill == t.surface
+	assert button_variant_colors(t, .secondary, true, true).fill == t.pressed
+	ghost := button_variant_colors(t, .ghost, false, true)
+	assert !ghost.filled && !ghost.bordered && ghost.hover == t.hover
+	assert button_variant_colors(t, .ghost, true, true).filled
+	link := button_variant_colors(t, .link, false, true)
+	assert link.underline && !link.filled
+	assert kit_contrast(link.foreground, t.surface) >= 4.5
+	warning := button_variant_colors(t, .warning, false, true)
+	assert warning.fill == t.warning && warning.foreground == t.on_warning
+	assert button_variant_colors(t, .danger, true, true).fill == kit_mix(t.danger, t.text, 0.25)
+	off := button_variant_colors(t, .primary, false, false)
+	assert off.foreground == t.disabled_text
+	assert off.fill == kit_mix(t.accent, t.surface, 0.6)
+}
