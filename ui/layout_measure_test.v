@@ -1,6 +1,6 @@
 module ui2
 
-$if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headless ? {
+$if (android || ios || linux || macos || windows) && !ui2_headless ? {
 	import math
 }
 
@@ -50,13 +50,12 @@ fn test_layout_constraints_distinguish_zero_from_unbounded_and_validate() {
 }
 
 fn test_layout_measure_text_uses_available_content_width_and_preserves_point_style() {
-	label_inset := $if macos && !ui2_custom_rendering ?&& !ui2_headless ? { 4.0 } $else { 0.0 }
 	style := TextStyle{ size: 14, lines: 3 }
 	label := label('description', 'WW WW', Rect{}, style)
 	unbounded := measure_layout_element(label, LayoutConstraints{}, layout_measure_fixture_text)!
-	assert unbounded == LayoutSize{ width: 52 + label_inset, height: 20 }
+	assert unbounded == LayoutSize{ width: 52, height: 20 }
 	narrow := measure_layout_element(label, LayoutConstraints{ max_width: 30 }, layout_measure_fixture_text)!
-	assert narrow == LayoutSize{ width: 24 + label_inset, height: 40 }
+	assert narrow == LayoutSize{ width: 24, height: 40 }
 	assert label.text_style.size == 14
 	assert label.frame == Rect{}
 	fixed_width := Element{ ...label, frame: rect(0, 0, 30, 0) }
@@ -67,7 +66,6 @@ fn test_layout_measure_text_uses_available_content_width_and_preserves_point_sty
 }
 
 fn test_layout_measure_declared_sizes_hidden_nodes_and_nested_extents() {
-	label_inset := $if macos && !ui2_custom_rendering ?&& !ui2_headless ? { 4.0 } $else { 0.0 }
 	fixed := label('fixed', 'text', rect(7, 3, 40, 30), TextStyle{})
 	assert measure_layout_element(fixed, LayoutConstraints{ max_width: 20 }, layout_measure_unexpected_text)! == LayoutSize{ width: 20, height: 30 }
 	hidden := Element{ ...fixed, hidden: true }
@@ -77,7 +75,7 @@ fn test_layout_measure_declared_sizes_hidden_nodes_and_nested_extents() {
 		view('nested', rect(10, 5, 0, 0), BoxStyle{}, [child]),
 		Element{ ...fixed, frame: rect(1_000, 1_000, 400, 400), hidden: true },
 	])
-	assert measure_layout_element(container, LayoutConstraints{}, layout_measure_fixture_text)! == LayoutSize{ width: 53 + label_inset, height: 28 }
+	assert measure_layout_element(container, LayoutConstraints{}, layout_measure_fixture_text)! == LayoutSize{ width: 53, height: 28 }
 }
 
 fn test_layout_default_text_measurement_uses_real_fonts_before_window_creation() {
@@ -118,7 +116,7 @@ fn layout_measure_require_declared_editor_style(_text string, style TextStyle, _
 }
 
 fn test_custom_intrinsic_editor_matches_wrapping_content_width_before_window_creation() {
-	$if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headless ? {
+	$if (android || ios || linux || macos || windows) && !ui2_headless ? {
 		style := TextStyle{ size: 16, font_family: 'Roboto Mono', lines: 1 }
 		advance := measure_layout_text('M', style, -1)!.width
 		// With two monospaced glyphs per row, five Ms occupy three rows.
@@ -152,7 +150,7 @@ fn test_custom_intrinsic_editor_matches_wrapping_content_width_before_window_cre
 				assert measure_layout_element(fixed, LayoutConstraints{}, layout_measure_unexpected_text)! == LayoutSize{ width: 90, height: 30 }
 				zero_content := measure_layout_element(area,
 					LayoutConstraints{ max_width: left + gutter }, measure_layout_text)!
-				$if android {
+				$if android || ios {
 					assert zero_content == LayoutSize{ width: left + gutter, height: 16 }
 				} $else {
 					assert zero_content.width == left + gutter
@@ -169,7 +167,7 @@ fn layout_measure_require_declared_zero_lines(_text string, style TextStyle, _wi
 }
 
 fn test_intrinsic_label_keeps_its_declared_line_limit() {
-	$if ( linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headless ? {
+	$if (linux || macos || windows) && !ui2_headless ? {
 		label_one_line := label('caption', 'one\ntwo', Rect{}, TextStyle{ lines: 0 })
 		assert measure_layout_element(label_one_line, LayoutConstraints{}, layout_measure_require_declared_zero_lines)! == LayoutSize{ width: 16, height: 20 }
 		assert label_one_line.text_style.lines == 0

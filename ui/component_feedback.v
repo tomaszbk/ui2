@@ -15,7 +15,7 @@ import math
 // element per cell and none of them has to be recolored.
 //
 // A looping animation keeps running until it is stopped, even after its element
-// leaves the tree, and the native backends redraw for as long as one runs. Part
+// leaves the tree, and the renderer redraws for as long as one runs. Part
 // ids carry a signature of everything their keyframes depend on, so a new color,
 // size or speed starts a fresh set of loops and clears the old ones; call
 // stop_feedback_animations when a component is no longer shown.
@@ -43,7 +43,7 @@ enum FeedbackChannel {
 // stop_feedback_animations cancels and forgets every looping animation a feedback
 // component started under id. Call it when the application stops showing a
 // loading_spinner, shimmer, shimmer_text or loading progress indicator: the loop
-// otherwise keeps running, and the native backends keep redrawing, after the
+// otherwise keeps running, and the renderer keeps redrawing, after the
 // element has left the tree. Building the component again starts it afresh.
 pub fn stop_feedback_animations(id string) {
 	if id.len > 0 {
@@ -310,12 +310,6 @@ struct FeedbackPiece {
 // the other renderers draw round cells, which they antialias.
 fn feedback_draws_strips() bool {
 	return backend_feedback_strips
-}
-
-// feedback_parent_clips reports whether the renderer clips a view's children to
-// its rounded corners, as AppKit does by masking a layer with a corner radius.
-fn feedback_parent_clips() bool {
-	return backend_clips_rounded_children
 }
 
 // feedback_ring_pieces covers the stretch of a ring from turn `from` to turn

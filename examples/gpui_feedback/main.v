@@ -392,7 +392,7 @@ fn icon_section(mut children []ui2.Element, theme ui2.ComponentTheme) {
 		size:     .large
 		theme:    theme
 	) or { panic(err) }
-	children << caption('rotation: 90 (AppKit/UIKit)', ui2.rect(ix + 200, y + 10, 200, 16),
+	children << caption('rotation: 90', ui2.rect(ix + 200, y + 10, 200, 16),
 		theme)
 }
 

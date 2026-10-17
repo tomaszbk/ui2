@@ -66,5 +66,5 @@ fn build() ui2.Element {
 
 fn main() {
 	ui2.on_key_event(handle_key)
-	ui2.run_window('Windows custom runtime', 760, 560, build)
+	ui2.run_window('Runtime smoke', 760, 560, build)
 }

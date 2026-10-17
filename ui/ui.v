@@ -420,17 +420,6 @@ fn box_draws_border(box BoxStyle) bool {
 		|| box.border_bottom > 0
 }
 
-// Placing a label's text means sizing the control it draws with to the text, and that
-// control is then the wrong thing for anything measured against the label's declared
-// frame: a tooltip, a context menu, a border drawn round its edge. Such a label is put
-// inside a view covering the frame, which is what the backend holds and decorates,
-// while the text moves within it. A label with none of those stays the control itself,
-// because a view per label costs a third of a frame in a grid of them.
-fn label_needs_container(el Element) bool {
-	return el.kind == .label && (el.tooltip.len > 0 || el.menu.len > 0
-		|| box_draws_border(el.box))
-}
-
 // box_border_width keeps a declared border inside its element. Border widths
 // are logical units, just like Rect and corner radii; each backend is
 // responsible for mapping those units to its native device scale.
@@ -478,7 +467,7 @@ pub:
 	vector_shapes     []VectorShape    // custom: retained local geometry, clipped to the view frame
 	vector_hit_mode   VectorHitMode
 	text_style        TextStyle
-	native_style      bool // button: let the platform own bezel and interaction styling
+	native_style      bool // button: draw the standard bezel unless a fill is declared
 	text_runs                 []TextRun // label/text_area: optional rich text style runs
 	keyboard                  int
 	long_press                bool
@@ -535,8 +524,8 @@ pub:
 }
 
 // BackendSupport is what control_support reports for a control kind. Partial
-// means the control works but lacks some native behavior (for example Android
-// rich text). Each backend defines control_support (backend.v).
+// means the control works but lacks some native behavior (for example rich
+// text on Android and iOS). Each backend defines control_support (backend.v).
 pub enum BackendSupport {
 	unsupported
 	partial
@@ -713,9 +702,6 @@ fn validate_element_properties(el Element, path string) ! {
 		for shape in el.vector_shapes {
 			if !shape.prepared { return error('vector canvas needs prepared geometry at ${path}') }
 		}
-		if !backend_supports_vector_canvas {
-			return error('vector canvas requires the custom renderer at ${path}')
-		}
 	}
 	el.image_asset.validate()!
 	el.image_style.validate()!
@@ -723,15 +709,9 @@ fn validate_element_properties(el Element, path string) ! {
 		if el.kind !in [.image,.button] { return error('image assets/styles require an Image or raster Button at ${path}') }
 		if el.image_path.starts_with('symbol:') { return error('symbol buttons use text_style, not raster image assets/styles at ${path}') }
 	}
-	if backend_native_controls {
-		validate_native_image(el)!
-	}
 	if el.content_size.width != 0 || el.content_size.height != 0 {
 		if el.kind != .view { return error('scaled content must be a view at ${path}') }
 		contain_content(el.frame, el.content_size.width, el.content_size.height)!
-		if !backend_supports_vector_canvas {
-			return error('scaled content requires the custom renderer')
-		}
 	}
 }
 
@@ -1020,8 +1000,8 @@ pub fn button(id string, title string, frame Rect, box_ BoxStyle, style TextStyl
 	}
 }
 
-// with_native_style lets the platform render a button's standard bezel and
-// interaction states. Declared styles remain available to custom renderers.
+// with_native_style draws a button's standard bezel and interaction states
+// while it has no declared fill; a declared fill still wins.
 pub fn with_native_style(el Element) Element {
 	return Element{
 		...el

@@ -54,12 +54,12 @@ component and variant.
   (`radio_group_value_after_key`, `rating_value_after_key`,
   `stepper_step_after_key`) to call from `on_key_event` while the application
   considers the component focused.
-- Clickable parts are views with button behavior, not native buttons: a native
-  button dims its title when disabled and centers one line, and these parts need
+- Clickable parts are views with button behavior, not buttons: a button dims
+  its title when disabled and centers one line, and these parts need
   their own selected, pressed and disabled colors, icons beside captions, and
   multi-line content. Rounded borders are drawn as a border-colored shape under
-  an inset fill, because a `BoxStyle` border is square-cornered in the custom
-  renderer and clipped at the corners by AppKit.
+  an inset fill, because the renderer draws a `BoxStyle` border with square
+  corners.
 
 ## Radio
 
@@ -137,9 +137,8 @@ filled color from a theme tone (upstream's default is the theme's yellow, here
 empty stay distinct in both themes.
 
 Omitted: hover preview (ui2 has no hover state for composed views) and an
-arbitrary color (pick a `ComponentTone`). Stars are a filled `★` on Apple
-backends and the `star` symbol (a filled Material glyph) elsewhere: SF Symbols'
-`star` is an outline and the custom renderer's ★ is half size.
+arbitrary color (pick a `ComponentTone`). Stars are the `star.fill` symbol, a
+filled Material glyph.
 
 ## Toggle and toggle group
 
@@ -284,8 +283,6 @@ documented examples) and `text_center` for vertical steppers.
 
 ## Changes requested outside this group
 
-- AppKit accessibility mapping for `radio` (AXRadioButton), `radiogroup`
-  (AXRadioGroup) and `listitem`; until then they keep the native role.
 - A filled star in the symbol table (`star.fill`), which would let ratings use
   one symbol on every backend.
 
@@ -302,7 +299,5 @@ Run from the directory that contains the `ui2` checkout:
 
 ```sh
 v test ui2/ui/component_choice_test.v
-v -d ui2_custom_rendering test ui2/ui/component_choice_test.v
 v run ui2/examples/gpui_choice/main.v
-v -d ui2_custom_rendering run ui2/examples/gpui_choice/main.v
 ```

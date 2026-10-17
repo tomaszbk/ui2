@@ -55,9 +55,5 @@ fn build() ui2.Element {
 }
 
 fn main() {
-	$if !(linux || android || ((macos || windows) && ui2_custom_rendering ?)) {
-		eprintln('Run image_assets with -d ui2_custom_rendering (see docs/images-assets.md).')
-		return
-	}
 	ui2.run_window('UI2 image assets', 760, 570, build)
 }

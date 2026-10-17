@@ -1,9 +1,9 @@
-// vtest build: macos && ui2_custom_rendering? && ui2_embedder? && !ui2_headless?
-// vtest vflags: -d ui2_custom_rendering -d ui2_embedder
+// vtest build: macos && ui2_embedder? && !ui2_headless?
+// vtest vflags: -d ui2_embedder
 @[has_globals]
 module ui2
 
-$if macos && ui2_custom_rendering ? && ui2_embedder ? && !ui2_headless ? {
+$if macos && ui2_embedder ? && !ui2_headless ? {
 	import gg
 
 	__global embedder_drag_events = []ElementEvent{}

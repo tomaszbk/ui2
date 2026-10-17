@@ -1,8 +1,8 @@
-// vtest vflags: -d ui2_custom_rendering -d ui2_embedder -d ui2_geometry_capture
+// vtest vflags: -d ui2_embedder -d ui2_geometry_capture
 @[has_globals]
 module ui2
 
-$if macos && ui2_custom_rendering ?&& ui2_embedder ?&& ui2_geometry_capture ?&& !ui2_headless ? {
+$if macos && ui2_embedder ?&& ui2_geometry_capture ?&& !ui2_headless ? {
 	import gg
 	import json2
 	import math
@@ -27,7 +27,7 @@ $if macos && ui2_custom_rendering ?&& ui2_embedder ?&& ui2_geometry_capture ?&& 
 }
 
 fn test_full_affine_gpu_submission_clips_glyphs_images_selection_caret_and_siblings() {
-	$if macos && ui2_custom_rendering ?&& ui2_embedder ?&& ui2_geometry_capture ?&& !ui2_headless ? {
+	$if macos && ui2_embedder ?&& ui2_geometry_capture ?&& !ui2_headless ? {
 		previous := g_gg_app
 		previous_state := activate_custom_window_state(new_custom_window_state())
 		mut ctx := new_surface_draw_context(gg.Config{ width: 400, height: 300 }, transform_gpu_environment())!
@@ -162,7 +162,7 @@ fn test_full_affine_gpu_submission_clips_glyphs_images_selection_caret_and_sibli
 }
 
 fn test_actual_transform_update_preserves_edits_layout_and_returns_to_idle() {
-	$if macos && ui2_custom_rendering ?&& ui2_embedder ?&& ui2_geometry_capture ?&& !ui2_headless ? {
+	$if macos && ui2_embedder ?&& ui2_geometry_capture ?&& !ui2_headless ? {
 		previous := g_gg_app
 		previous_state := activate_custom_window_state(new_custom_window_state())
 		mut ctx := new_surface_draw_context(gg.Config{ width: 320, height: 240 }, transform_gpu_environment())!

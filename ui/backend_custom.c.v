@@ -5,22 +5,18 @@
 @[has_globals]
 module ui2
 
-$if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? && !ui2_document_library ? {
+$if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_document_library ? {
 	pub const backend_name = 'custom'
-	// Android keeps gg/Fontstash text, which has no layered, faded or
+	// Android and iOS keep gg/Fontstash text, which has no layered, faded or
 	// transformed presentation.
-	pub const backend_supports_overlays = $if android { false } $else { true }
-	pub const backend_supports_motion = $if android { false } $else { true }
-	pub const backend_supports_visual_transforms = $if android { false } $else { true }
-	pub const backend_supports_vector_canvas = true
-	pub const backend_supports_drag_drop = true
-	pub const backend_native_controls = false
+	pub const backend_supports_overlays = $if android || ios { false } $else { true }
+	pub const backend_supports_motion = $if android || ios { false } $else { true }
+	pub const backend_supports_visual_transforms = $if android || ios { false } $else { true }
 	pub const backend_embedder = $if ui2_embedder ? { true } $else { false }
 	pub const backend_needs_host = false
 	// sokol-gl spends some 370 vertices on every rounded rect and has 65,536 a
 	// frame, so rings of round cells would blank a busy window.
 	const backend_feedback_strips = true
-	const backend_clips_rounded_children = false
 
 	fn backend_input_dispatch() CustomInputDispatch { return custom_input_dispatch(g_gg_app) }
 
@@ -53,29 +49,30 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 
 	fn backend_control_insets(element Element) ?LayoutPadding { return custom_renderer_insets(element) }
 
-	// The renderer draws its own menu bar inside the window (menu_custom.c.v)
-	// and owns nothing outside it, so there is no status area to dock into.
-	fn backend_menu_bar_supported() bool { return true }
+	// The host shows the menu bar and tray (platform.v); where it has no menu
+	// bar of its own, the renderer draws one inside the window (menu_custom.c.v).
+	fn backend_menu_bar_supported() bool { return host_menu_bar != .absent }
 
-	fn backend_tray_supported() bool { return false }
+	fn backend_tray_supported() bool { return host_tray_supported() }
 
-	fn backend_set_menu_bar(_menus []Menu) {
+	fn backend_set_menu_bar(menus []Menu) {
+		host_set_menu_bar(menus)
 		// Rebuild bounds and paint after replacing the menu declaration.
 		close_menu_bar()
 		request_refresh()
 	}
 
-	fn backend_set_tray(_cfg TrayConfig) {}
+	fn backend_set_tray(cfg TrayConfig) { host_set_tray(cfg) }
 
-	fn backend_remove_tray() {}
+	fn backend_remove_tray() { host_remove_tray() }
 
-	fn backend_file_dialog(cfg FileDialogConfig) []string { return native_file_dialog(cfg) }
+	fn backend_file_dialog(cfg FileDialogConfig) []string { return host_file_dialog(cfg) }
 
-	fn backend_file_dialog_supported() bool { return native_file_dialog_supported() }
+	fn backend_file_dialog_supported() bool { return host_file_dialog_supported() }
 
-	fn backend_message_box(cfg MessageBoxConfig) MessageBoxResult { return native_message_box(cfg) }
+	fn backend_message_box(cfg MessageBoxConfig) MessageBoxResult { return host_message_box(cfg) }
 
-	fn backend_message_box_supported() bool { return native_message_box_supported() }
+	fn backend_message_box_supported() bool { return host_message_box_supported() }
 
 	// UI-thread presentation update. A subsequent declarative rebuild replaces it.
 	// A configured motion retargets its retained timeline without rebuilding.

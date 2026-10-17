@@ -2,7 +2,7 @@ module ui2
 
 import macos
 
-fn native_clipboard_supported() bool {
+fn host_clipboard_supported() bool {
 	return true
 }
 
@@ -10,7 +10,7 @@ fn general_pasteboard() macos.Id {
 	return macos.msg_id(macos.get_class('UIPasteboard'), 'generalPasteboard')
 }
 
-fn native_set_clipboard_text(text string) bool {
+fn host_set_clipboard_text(text string) bool {
 	pasteboard := general_pasteboard()
 	if pasteboard == unsafe { nil } {
 		return false
@@ -19,7 +19,7 @@ fn native_set_clipboard_text(text string) bool {
 	return true
 }
 
-fn native_clipboard_text() ?string {
+fn host_clipboard_text() ?string {
 	pasteboard := general_pasteboard()
 	if pasteboard == unsafe { nil } {
 		return none

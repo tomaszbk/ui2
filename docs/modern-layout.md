@@ -3,8 +3,7 @@
 UI2 uses declarative containers to assign parent-local frames. New screens can
 use `Flex`, `Grid`, explicit alignment, and viewport expressions.
 They work with compiled VML (`$vml`) and the
-V API, on native backends and the custom renderer. Resizing invalidates layout
-in the custom renderer too.
+V API, on every backend. Resizing invalidates layout.
 
 The layout containers are Flex (including Row and Column), Grid, Stack, Absolute,
 and Scroll. Stack overlays children in declaration order with alignment; Absolute
@@ -17,11 +16,11 @@ natural height there. An explicit content width can overflow horizontally.
 From the repository root:
 
 ```sh
-v -b c -d ui2_custom_rendering run examples/responsive_layout
-v -b c -d ui2_custom_rendering run examples/responsive_layout --compact
+v -b c run examples/responsive_layout
+v -b c run examples/responsive_layout --compact
 ```
 
-On macOS/Windows, omit the define to use native controls. The example includes a
+The example includes a
 wrapping toolbar, a flexible search field, a grid with a featured spanning card,
 and model actions. Automatic columns collapse as the window narrows; the featured
 card becomes a single cell. The outer scroll view makes shorter windows usable.
@@ -151,10 +150,9 @@ callers with measured preferred sizes.
 `LayoutConstraints` describes minimum/maximum sizes; `LayoutSize` describes a
 measured result. `measure_layout_element` accepts a text-measurement callback,
 so layout can be tested without a window. `measure_layout_text` supplies actual
-font metrics in logical units: the active custom renderer
-uses gg, native macOS uses AppKit, and measurement before a custom window opens
-uses a CPU-only fontstash context. Windows/iOS native measurement currently uses
-that fontstash fallback, so it is not an exact native-control measurement there.
+font metrics in logical units: the desktop renderer uses vglyph, also before a
+window opens, and Android, iOS and headless builds use a CPU-only fontstash
+context.
 Flex and Grid use content measurement for omitted preferred dimensions.
 Nested Flex and Grid containers measure their content before arrangement.
 Images, sliders and switches still need declared preferred dimensions.
@@ -163,8 +161,8 @@ This does not implement the CSS specifications: no selectors/cascade, percentage
 syntax, named grid areas, CSS track expressions, baseline alignment or subgrid.
 Other container types should keep explicit preferred dimensions when nested in
 Flex. Text shaping, bidirectional layout and complete grapheme handling remain
-the separate text-stack work in the product plan. Font metrics and native control
-appearance may differ across backends. The external V compiler's `$vml` lowering
+the separate text-stack work in the product plan. Font metrics may differ
+across backends. The external V compiler's `$vml` lowering
 supports Flex/Grid/Stack/Absolute with the same typed V layout API.
 
 ## Verification
@@ -172,7 +170,7 @@ supports Flex/Grid/Stack/Absolute with the same typed V layout API.
 The focused suites are `ui/flex_layout_test.v`, `ui/grid_layout_test.v`,
 `ui/layout_measure_test.v`, `ui/layout_measure_darwin_test.v`, and
 `ui/vml_modern_layout_test.v`. Run them with `v -b c test <files>` and again with
-`v -b c -d ui2_custom_rendering test <files>`. They cover constrained allocation,
+`v -b c test <files>`. They cover constrained allocation,
 intrinsic metrics, wrapping after width assignment, nested layouts, responsive
 screens, repeaters, events/bindings and the wide/compact example.
 

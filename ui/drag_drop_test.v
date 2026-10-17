@@ -31,13 +31,5 @@ fn test_drag_configuration_rejects_ambiguous_gestures_and_invalid_geometry() {
 	if _ := validate_element_tree(with_drag_source(view('source', rect(0, 0, 40, 40), BoxStyle{}, []), DragSource{})) {
 		assert false
 	}
-	if !backend_supports_drag_drop {
-		validate_element_tree(with_drag_source(base, DragSource{})) or {
-			assert err.msg() == 'drag-drop requires the custom renderer'
-			return
-		}
-		assert false, 'native profile must diagnose unsupported drag presentation'
-	} else {
-		validate_element_tree(with_drag_source(base, DragSource{})) or { panic(err) }
-	}
+	validate_element_tree(with_drag_source(base, DragSource{})) or { panic(err) }
 }

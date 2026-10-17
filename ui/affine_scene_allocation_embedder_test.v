@@ -1,8 +1,8 @@
-// vtest vflags: -gc boehm -d no_gc_thread_local_alloc -d ui2_custom_rendering -d ui2_embedder
+// vtest vflags: -gc boehm -d no_gc_thread_local_alloc -d ui2_embedder
 @[has_globals]
 module ui2
 
-$if macos && ui2_custom_rendering ?&& ui2_embedder ?&& !ui2_headless ? {
+$if macos && ui2_embedder ?&& !ui2_headless ? {
 	import gg
 	import sokol.gfx
 	import sokol.sgl
@@ -16,7 +16,7 @@ $if macos && ui2_custom_rendering ?&& ui2_embedder ?&& !ui2_headless ? {
 }
 
 fn test_complete_affine_scaled_scroll_scene_hover_allocates_nothing() ! {
-	$if macos && ui2_custom_rendering ?&& ui2_embedder ?&& !ui2_headless ? {
+	$if macos && ui2_embedder ?&& !ui2_headless ? {
 		previous_app := g_gg_app
 		previous_build := g_build_screen
 		previous_state := activate_custom_window_state(new_custom_window_state())
@@ -112,7 +112,7 @@ fn test_complete_affine_scaled_scroll_scene_hover_allocates_nothing() ! {
 }
 
 fn test_clip_cache_misses_and_cancellation_preserve_published_clip_snapshots() ! {
-	$if macos && ui2_custom_rendering ?&& ui2_embedder ?&& !ui2_headless ? {
+	$if macos && ui2_embedder ?&& !ui2_headless ? {
 		mut ctx := new_surface_draw_context(gg.Config{ width: 400, height: 300 }, affine_allocation_environment())!
 		defer { ctx.destroy() }
 		transform := VisualTransform{ rotation: 19, origin_x: 60, origin_y: 40 }.matrix(rect(10, 10, 120, 80))!

@@ -1,4 +1,4 @@
-// vtest vflags: -d ui2_custom_rendering -d ui2_embedder -d ui2_geometry_capture
+// vtest vflags: -d ui2_embedder -d ui2_geometry_capture
 @[has_globals]
 module ui2
 
@@ -6,7 +6,7 @@ import gg
 import sokol.gfx
 import sokol.sapp
 
-$if macos && ui2_custom_rendering ?&& ui2_embedder ?&& ui2_geometry_capture ?&& !ui2_headless ? {
+$if macos && ui2_embedder ?&& ui2_geometry_capture ?&& !ui2_headless ? {
 	__global controls_vertices = []PaintVertex{}
 
 	fn observe_controls_polygon(vertices []PaintVertex) { controls_vertices << vertices }
@@ -51,7 +51,7 @@ pub mut:
 }
 
 fn test_compiled_slider_switch_and_focus_ring_follow_the_pointer() {
-	$if macos && ui2_custom_rendering ?&& ui2_embedder ?&& ui2_geometry_capture ?&& !ui2_headless ? {
+	$if macos && ui2_embedder ?&& ui2_geometry_capture ?&& !ui2_headless ? {
 		previous := g_gg_app
 		previous_build := g_build_screen
 		previous_state := activate_custom_window_state(new_custom_window_state())

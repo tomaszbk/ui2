@@ -1,5 +1,5 @@
-// NSPasteboard only needs the Objective-C runtime bridge, so this file serves
-// custom-rendered macOS windows as well as the AppKit backend.
+// The macOS host's clipboard (platform.v): NSPasteboard through the
+// Objective-C runtime bridge.
 module ui2
 
 import macos
@@ -8,7 +8,7 @@ import macos
 
 const ns_pasteboard_type_string = 'public.utf8-plain-text'
 
-fn native_clipboard_supported() bool {
+fn host_clipboard_supported() bool {
 	return true
 }
 
@@ -16,7 +16,7 @@ fn general_pasteboard() macos.Id {
 	return macos.msg_id(macos.get_class('NSPasteboard'), 'generalPasteboard')
 }
 
-fn native_set_clipboard_text(text string) bool {
+fn host_set_clipboard_text(text string) bool {
 	pool := macos.autorelease_pool_new()
 	defer {
 		macos.release(pool)
@@ -30,7 +30,7 @@ fn native_set_clipboard_text(text string) bool {
 	return macos.msg_bool_id(pasteboard, 'writeObjects:', objects)
 }
 
-fn native_clipboard_text() ?string {
+fn host_clipboard_text() ?string {
 	pool := macos.autorelease_pool_new()
 	defer {
 		macos.release(pool)

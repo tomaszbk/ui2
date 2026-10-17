@@ -3,10 +3,6 @@ module ui2
 
 import math
 
-$if macos && !ui2_custom_rendering ?&& !ui2_headless ? {
-	import macos
-}
-
 enum SlotComposite {
 	screen_manager
 	tabbed_panel
@@ -322,7 +318,7 @@ fn test_selected_content_slots_follow_headers_and_carousel_keeps_slide_generatio
 	}
 }
 
-$if linux || ((macos || windows) && ui2_custom_rendering ?) || ui2_headless ?|| ui2_document_library ? {
+$if linux || macos || windows || ui2_headless ?|| ui2_document_library ? {
 	fn test_overlay_content_reflows_and_reopens_without_promoting_authored_descendant_frames() ! {
 		for kind in [OverlayKind.dialog, .popover] {
 			for layout in [LayoutKind.flex, .grid, .stack] {
@@ -379,10 +375,10 @@ $if linux || ((macos || windows) && ui2_custom_rendering ?) || ui2_headless ?|| 
 		}
 	}
 } $else {
-	fn test_native_profile_rejects_overlay_surfaces() ! {
+	fn test_mobile_rejects_overlay_surfaces() ! {
 		surface := with_overlay(view('dialog', rect(0, 0, 240, 120), BoxStyle{}, []Element{}), OverlayConfig{ kind: .dialog, open: true })!
 		if _ := validate_element_tree(surface) {
-			assert false, 'native controls must reject unsupported overlay presentation'
+			assert false, 'mobile builds must reject unsupported overlay presentation'
 		} else {
 			assert err.msg().contains('overlays require the desktop custom renderer')
 		}
@@ -407,61 +403,7 @@ fn slot_runtime_content(layout LayoutKind) !Element {
 	}
 }
 
-$if macos && !ui2_custom_rendering ?&& !ui2_headless ? {
-	fn slot_native_runtime_fixture(composite SlotComposite, layout LayoutKind) ! {
-		mut st := state()
-		previous := *st
-		st.layout_tree = &LayoutTree{}
-		st.root_view = native_new_flipped_view(native_rect(0, 0, 500, 300), BoxStyle{})
-		defer {
-			remove_stale_nodes(map[string]bool{})
-			macos.release(st.root_view)
-			unsafe { *st = previous }
-		}
-		content := slot_runtime_content(layout)!
-		render_root(screen(0xffffff, [slot_composite(composite, rect(0, 0, 320, 200), content)!]))
-		editor := st.views['editor'] or { panic('missing editor') }
-		pane := st.views['pane'] or { panic('missing scroll') }
-		macos.msg_void1(editor, 'setString:', macos.nsstring('ñ café🙂'))
-		macos.msg_void_range(editor, 'setSelectedRange:', macos.range(1, 4))
-		macos.msg_void_id_range(editor, 'setMarkedText:selectedRange:', macos.nsstring('á'), macos.range(1, 0))
-		assert macos.msg_bool(editor, 'hasMarkedText')
-		live_text := macos.utf8_string(macos.msg_id(editor, 'string'))
-		selection := macos.msg_range(editor, 'selectedRange')
-		composition := macos.msg_range(editor, 'markedRange')
-		scroll_to_offset('pane', 42)
-		assert scroll_offset('pane') == 42
-		generation := (st.layout_tree.identity('editor') or { panic('missing identity') }).generation
-		for size in [rect(0, 0, 500, 300), rect(0, 0, 320, 200)] {
-			render_root(screen(0xffffff, [slot_composite(composite, size, content)!]))
-			resolved := slot_resolve(mut st.layout_tree)!
-			slot_rect((slot_find(resolved, 'content') or { panic('missing content') }).frame, slot_expected(composite, size.width, size.height))
-			native_content := st.views['content'] or { panic('missing native content') }
-			native_frame := macos.msg_rect(native_content, 'frame')
-			slot_rect(rect(native_frame.x, native_frame.y, native_frame.width, native_frame.height), slot_expected(composite, size.width, size.height))
-			assert (st.views['editor'] or { panic('lost editor') }) == editor && (st.views['pane'] or { panic('lost scroll') }) == pane
-			assert (st.layout_tree.identity('editor') or { panic('missing identity') }).generation == generation
-			assert macos.utf8_string(macos.msg_id(editor, 'string')) == live_text
-			assert macos.msg_range(editor, 'selectedRange') == selection
-			assert macos.msg_bool(editor, 'hasMarkedText')
-			assert macos.msg_range(editor, 'markedRange') == composition
-			assert scroll_offset('pane') == 42
-		}
-	}
-
-	fn test_native_composite_resize_preserves_editor_selection_ime_and_scroll() {
-		pool := macos.autorelease_pool_new()
-		defer { macos.release(pool) }
-		ensure_runtime_classes()
-		for composite in [SlotComposite.screen_manager, .tabbed_panel, .carousel, .accordion] {
-			for layout in [LayoutKind.flex, .grid, .stack] {
-				slot_native_runtime_fixture(composite, layout)!
-			}
-		}
-	}
-}
-
-$if macos && ui2_custom_rendering ?&& !ui2_headless ? {
+$if macos && !ui2_headless ? {
 	fn test_custom_composite_resize_preserves_local_edit_selection_focus_scroll_and_ime() {
 		previous_app := g_gg_app
 		previous_window := capture_custom_window_state()

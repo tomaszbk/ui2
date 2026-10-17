@@ -334,12 +334,12 @@ driving a menu programmatically.
 
 ui2 already has three kinds of menu, and the dropdown menu complements them:
 
-- `Element.menu` (`[]MenuEntry`) attaches a native right-click menu to an
-  element: drawn by the system, a flat list of titles.
+- `Element.menu` (`[]MenuEntry`) attaches a right-click menu to an element: a
+  flat list of titles, which the renderer does not open yet.
 - `set_menu_bar` and `set_tray` take `MenuItem` rows with shortcuts, check
-  marks, disabled rows, separators and submenus, again drawn by the system
-  (README "Menus and the tray").
-- `dropdown` is the native select control.
+  marks, disabled rows, separators and submenus, drawn by the system where the
+  host has a menu bar (README "Menus and the tray").
+- `dropdown` is the select control.
 
 `dropdown_menu` is drawn by ui2 itself, inside the window, so it looks the same
 on every backend and can carry icons, radio rows, headings, custom content and
@@ -347,9 +347,9 @@ hover highlights, and it can open from any rectangle. To show the same choices
 in both places, `dropdown_menu_items_from_menu([]MenuItem)` and
 `dropdown_menu_items_from_entries([]MenuEntry)` convert existing declarations;
 shortcuts use the same `cmd+shift+s` syntax and are rendered with
-`menu_shortcut_label`. For GPUI Kit's context menu, keep using `Element.menu`
-for a native right-click menu, or open a `dropdown_menu` anchored at
-`rect(x, y, 0, 0)` from a pointer event's coordinates for a drawn one.
+`menu_shortcut_label`. For GPUI Kit's context menu, declare a ContextMenu
+overlay, or open a `dropdown_menu` anchored at `rect(x, y, 0, 0)` from a
+pointer event's coordinates.
 
 ## Dropdown button
 
@@ -398,8 +398,7 @@ labelled with the menu's (or the submenu row's) label, with `menuitem`,
 `menuitemcheckbox` and `menuitemradio` rows (value `checked`/`unchecked`;
 submenu rows `expanded`/`collapsed`), `separator` rows and `text` headings. A
 dropdown button is a button whose value is `expanded` or `collapsed`; a split
-button is a `group` of two buttons. AppKit does not map the `menu*` roles yet,
-so those rows keep the view's own role there.
+button is a `group` of two buttons.
 
 ## Implemented and omitted
 
@@ -418,7 +417,7 @@ so those rows keep the view's own role there.
 | `mouse_button(Right)` | Omitted: ui2 reports no mouse button; use `Element.menu` or a clickable view's pointer events |
 | `appearance(false)`, `Styled` refinements | Omitted: pass `padding: 0` and draw your own content; surface colors come from the theme |
 | `content` builder closure | Not applicable: content is an element list rebuilt with the tree |
-| Focus capture and restoration, Enter/Space on the trigger | Omitted: components cannot take focus; native buttons keep their own keyboard activation |
+| Focus capture and restoration, Enter/Space on the trigger | Omitted: components cannot take focus; buttons keep their own keyboard activation |
 | Open animation, shadow | Omitted: `BoxStyle` has no shadow; the app can animate the surface by id |
 
 ### Hover card
@@ -451,7 +450,7 @@ so those rows keep the view's own role there.
 | Link items (`link`, external-link icon) | Omitted: ui2 components never open URLs; use an item and open it in the app |
 | `check_side(Right)` | Omitted |
 | Actions, `action_context`, key-binding lookup | Not applicable: a chosen row's id reaches `on_step` |
-| Context menu on right click | Native via `Element.menu`; a drawn one can be anchored at a pointer position |
+| Context menu on right click | A ContextMenu overlay, or a `dropdown_menu` anchored at a pointer position |
 | App menu bar | Existing `set_menu_bar` |
 
 ### Dropdown button
@@ -473,9 +472,7 @@ Run from the directory that contains the `ui2` checkout:
 
 ```sh
 v test ui2/ui/component_popovers_test.v
-v -d ui2_custom_rendering test ui2/ui/component_popovers_test.v
 v run ui2/examples/gpui_popovers/main.v
-v -d ui2_custom_rendering run ui2/examples/gpui_popovers/main.v
 ```
 
 The tests cover placement (preferred and flipped sides, the roomier side when

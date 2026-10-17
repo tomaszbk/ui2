@@ -35,7 +35,7 @@ fn test_logical_typography_and_layout_preserve_fractional_sizes() {
 
 fn test_logical_text_measurement_has_the_same_em_height_at_every_dpi() {
 	style := TextStyle{ size: 18.25, lines: 1 }
-	$if (linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
+	$if (linux || macos || windows) && !ui2_headless ? {
 		for dpi in [f32(1), 1.25, 1.5, 2] {
 			mut engine := new_text_engine(dpi)!
 			shaped := engine.shape('fractional', style, -1, 1, false)!

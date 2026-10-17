@@ -20,8 +20,8 @@
 #include <windows.h>
 #include <commctrl.h>
 
-// The main window is this process's visible, unowned top-level window: ui2's own
-// UI2Window, or the window sokol made for a custom-rendered app.
+// The main window is this process's visible, unowned top-level window: the one
+// sokol made for the renderer.
 static BOOL CALLBACK ui2_chrome_find_window(HWND window, LPARAM output) {
 	DWORD process_id = 0;
 	GetWindowThreadProcessId(window, &process_id);

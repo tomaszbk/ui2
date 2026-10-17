@@ -12,7 +12,7 @@ short-lived garbage is included even when a collection reclaims it.
 From the UI2 repository root, with the pinned V compiler:
 
 ```sh
-V_MACOS_V3_NO_FALLBACK=1 /path/to/v -b c -gc boehm -d no_gc_thread_local_alloc -nocache -prod -d ui2_custom_rendering \
+V_MACOS_V3_NO_FALLBACK=1 /path/to/v -b c -gc boehm -d no_gc_thread_local_alloc -nocache -prod \
     -path "$(dirname "$PWD")|@vlib|@vmodules" \
     -o /tmp/ui2-vml-build-bench benchmarks/vml_build
 /tmp/ui2-vml-build-bench
@@ -43,7 +43,7 @@ calculator fixtures:
 
 Retained projections later settled once per batch instead of re-projecting
 every sibling up to the root after each child change. With the command above on
-a Linux x86-64 host (gcc, `-prod -d ui2_custom_rendering`), revision `90495a5`
+a Linux x86-64 host (gcc, `-prod`), revision `90495a5`
 and that change produced:
 
 | Keys | Scope | Before | After |
@@ -72,7 +72,7 @@ counts and elapsed time depend on collector and host state; the test bounds
 allocation traffic rather than imposing a machine-specific timing threshold.
 
 The generic node runtime builds the same documents with less allocation. With
-the command above on a Linux x86-64 host (gcc, `-prod -d ui2_custom_rendering`),
+the command above on a Linux x86-64 host (gcc, `-prod`),
 revision `f244aff` plus the generic runtime, with each figure from its own
 process:
 

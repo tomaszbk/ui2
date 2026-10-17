@@ -1,8 +1,8 @@
-// vtest vflags: -d ui2_custom_rendering -d ui2_embedder
+// vtest vflags: -d ui2_embedder
 @[has_globals]
 module ui2
 
-$if macos && ui2_custom_rendering ?&& ui2_embedder ?&& !ui2_headless ? {
+$if macos && ui2_embedder ?&& !ui2_headless ? {
 	import gg
 	import sokol.gfx
 
@@ -28,7 +28,7 @@ $if macos && ui2_custom_rendering ?&& ui2_embedder ?&& !ui2_headless ? {
 }
 
 fn test_counter_tick_relayouts_and_reshapes_only_the_changed_label() {
-	$if macos && ui2_custom_rendering ?&& ui2_embedder ?&& !ui2_headless ? {
+	$if macos && ui2_embedder ?&& !ui2_headless ? {
 		previous := g_gg_app
 		previous_build := g_build_screen
 		previous_state := activate_custom_window_state(new_custom_window_state())

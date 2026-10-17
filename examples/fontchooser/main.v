@@ -1,4 +1,3 @@
-// ui2 profiles: custom (custom font family)
 module main
 
 import ui2

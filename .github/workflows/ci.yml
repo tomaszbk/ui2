@@ -22,7 +22,7 @@ env:
 
 jobs:
   desktop-tests:
-    name: Desktop tests (${{ matrix.os }}${{ matrix.custom && ', custom renderer' || '' }})
+    name: Desktop tests (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
     strategy:
@@ -41,16 +41,6 @@ jobs:
             c_compiler: gcc
             compiler_flags: -b c -cc gcc
             tcc_revision: dc80dc81dcb8df649456090348b504b0be97a623
-          - os: macos-latest
-            c_compiler: clang
-            compiler_flags: -b c -cc clang
-            tcc_revision: 1d0ad0ecf70a91a1df64cebf215e683b1d5aedb5
-            custom: true
-          - os: windows-latest
-            c_compiler: gcc
-            tcc_revision: dc80dc81dcb8df649456090348b504b0be97a623
-            custom: true
-            compiler_flags: -b c -cc gcc
     steps:
       # `import ui2` resolves through the checkout directory name, so the
       # repository has to land in a directory called `ui2`.
@@ -67,8 +57,8 @@ jobs:
             pkg-config libpango1.0-dev libfreetype6-dev libharfbuzz-dev \
             libfribidi-dev libfontconfig1-dev fonts-noto-core fonts-noto-cjk fonts-noto-color-emoji
 
-      - name: Install macOS custom text dependencies
-        if: runner.os == 'macOS' && matrix.custom
+      - name: Install macOS text dependencies
+        if: runner.os == 'macOS'
         run: brew install pango freetype harfbuzz fribidi fontconfig pkgconf
 
       - name: Install Windows C toolchain
@@ -81,7 +71,8 @@ jobs:
           install: >-
             mingw-w64-ucrt-x86_64-gcc
             mingw-w64-ucrt-x86_64-pkgconf
-            ${{ matrix.custom && 'mingw-w64-ucrt-x86_64-pango mingw-w64-ucrt-x86_64-freetype' || '' }}
+            mingw-w64-ucrt-x86_64-pango
+            mingw-w64-ucrt-x86_64-freetype
 
       - name: Expose Windows C toolchain
         if: runner.os == 'Windows'
@@ -97,16 +88,16 @@ jobs:
           c-compiler: ${{ matrix.c_compiler }}
           tcc-revision: ${{ matrix.tcc_revision }}
 
-      - name: Verify custom text dependencies
-        if: runner.os != 'Windows' && (runner.os == 'Linux' || matrix.custom)
+      - name: Verify text dependencies
+        if: runner.os != 'Windows'
         shell: bash
         run: |
           pkg-config --exists $TEXT_PKG_CONFIG_MODULES
           pkg-config --atleast-version=1.50 pango
           pkg-config --modversion $TEXT_PKG_CONFIG_MODULES
 
-      - name: Verify custom text dependencies
-        if: runner.os == 'Windows' && matrix.custom
+      - name: Verify text dependencies
+        if: runner.os == 'Windows'
         shell: pwsh
         run: |
           $modules = $env:TEXT_PKG_CONFIG_MODULES.Split(' ')
@@ -118,56 +109,52 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       # These are typechecks on an actual Windows runner. They do not open a
-      # window or establish interactive D3D/Win32 runtime acceptance.
-      - name: Typecheck Windows native backend
-        if: runner.os == 'Windows' && !matrix.custom
+      # window or show that the renderer runs interactively.
+      - name: Typecheck Windows runtime fixtures
+        if: runner.os == 'Windows'
         shell: pwsh
         working-directory: ui2
         run: |
           v -b c -cc gcc -enable-globals -shared -os windows -check .
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          v -b c -cc gcc -enable-globals -os windows -check windows/ui_windows_test.v
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          v -b c -cc gcc -os windows -check examples/windows_custom_runtime
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
-      - name: Typecheck Windows custom backend and runtime fixtures
-        if: runner.os == 'Windows' && matrix.custom
-        shell: pwsh
-        working-directory: ui2
-        run: |
-          v -b c -cc gcc -d ui2_custom_rendering -shared -os windows -check .
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $fixtures = @('ui/ui_custom_test.v', 'ui/ui_custom_runtime_test.v', 'ui/ui_scheduler_immediate_test.v', 'ui/ui_pointer_capture_immediate_test.v', 'ui/ui_scroll_immediate_test.v', 'ui/ui_window_state_immediate_test.v', 'ui/text_backend_vglyph_test.v', 'ui/text_composition_test.v', 'ui/presentation_geometry_test.v', 'ui/frame_scheduler_test.v')
           foreach ($fixture in $fixtures) {
-            v -b c -cc gcc -d ui2_custom_rendering -os windows -check $fixture
+            v -b c -cc gcc -os windows -check $fixture
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           }
-          v -b c -cc gcc -d ui2_custom_rendering -os windows -check examples/windows_custom_runtime
+          v -b c -cc gcc -os windows -check examples/runtime_smoke
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+      # iOS and Android cannot run here; their library must still typecheck, as
+      # must the backends that replace the renderer.
+      - name: Typecheck mobile, headless and document library builds
+        if: runner.os == 'Linux'
+        working-directory: ui2
+        run: |
+          v -b c -cc gcc -enable-globals -shared -os ios -check .
+          v -b c -cc gcc -shared -os android -check .
+          v -b c -cc gcc -d ui2_headless -shared -check .
+          v -b c -cc gcc -d ui2_document_library -shared -check .
+
       - name: Test compiled VML menu declarations
-        run: v ${{ matrix.compiler_flags }} ${{ matrix.custom && '-d ui2_custom_rendering' || '' }} test ui2/examples/menubar
+        run: v ${{ matrix.compiler_flags }} test ui2/examples/menubar
 
       - name: Test independent Counter components
-        run: v ${{ matrix.compiler_flags }} ${{ matrix.custom && '-d ui2_custom_rendering' || '' }} test ui2/examples/counter
+        run: v ${{ matrix.compiler_flags }} test ui2/examples/counter
 
       - name: Test compiled VML contracts, keyed lists and diagnostics
-        if: runner.os == 'Linux' || matrix.custom
-        run: v ${{ matrix.compiler_flags }} ${{ matrix.custom && '-d ui2_custom_rendering' || '' }} test ui2/tests/compiled_vml
+        run: v ${{ matrix.compiler_flags }} test ui2/tests/compiled_vml
 
       - name: Test typed styles, theme tokens and retained updates
-        if: runner.os == 'Linux' || matrix.custom
         run: |
           v ${{ matrix.compiler_flags }} test ui2/ui/style_test.v
-          v ${{ matrix.compiler_flags }} ${{ matrix.custom && '-d ui2_custom_rendering' || '' }} test ui2/ui/style_immediate_test.v
+          v ${{ matrix.compiler_flags }} test ui2/ui/style_immediate_test.v
 
       - name: Test deterministic motion controllers
-        run: v ${{ matrix.compiler_flags }} ${{ matrix.custom && '-d ui2_custom_rendering' || '' }} test ui2/ui/motion_test.v ui2/ui/frame_scheduler_test.v
+        run: v ${{ matrix.compiler_flags }} test ui2/ui/motion_test.v ui2/ui/frame_scheduler_test.v
 
       - name: Test retained motion and presence
-        if: runner.os == 'Linux' || matrix.custom
-        run: v ${{ matrix.compiler_flags }} ${{ matrix.custom && '-d ui2_custom_rendering' || '' }} test ui2/ui/vml_presence_test.v ui2/ui/motion_runtime_immediate_test.v
+        run: v ${{ matrix.compiler_flags }} test ui2/ui/vml_presence_test.v ui2/ui/motion_runtime_immediate_test.v
 
       - name: Test overlay geometry, focus and retained projections
         run: v ${{ matrix.compiler_flags }} test ui2/ui/overlay_test.v ui2/ui/overlay_tree_test.v ui2/ui/overlay_focus_test.v ui2/ui/overlay_availability_test.v ui2/ui/overlay_layout_test.v ui2/ui/overlay_retained_test.v ui2/ui/overlay_scroll_allocation_test.v
@@ -178,39 +165,35 @@ jobs:
       - name: Test the VML interpreter, hot reload and widget registry
         run: v ${{ matrix.compiler_flags }} test ui2/ui/vml_interpret_test.v ui2/ui/vml_interpret_reload_test.v ui2/ui/vml_registry_test.v ui2/ui/vml_registry_nodes_test.v
 
-      - name: Test compiled overlays and custom input
-        if: runner.os == 'Linux' || matrix.custom
+      - name: Test compiled overlays and renderer input
         run: |
-          v ${{ matrix.compiler_flags }} ${{ matrix.custom && '-d ui2_custom_rendering' || '' }} test ui2/ui/vml_overlay_compiled_test.v ui2/ui/overlay_geometry_runtime_test.v ui2/ui/overlay_runtime_immediate_test.v ui2/ui/overlay_trigger_identity_test.v ui2/ui/shortcut_character_input_test.v
-          v ${{ matrix.compiler_flags }} ${{ matrix.custom && '-d ui2_custom_rendering' || '' }} test ui2/examples/dialog ui2/examples/profile_dialog ui2/examples/overlays
+          v ${{ matrix.compiler_flags }} test ui2/ui/vml_overlay_compiled_test.v ui2/ui/overlay_geometry_runtime_test.v ui2/ui/overlay_runtime_immediate_test.v ui2/ui/overlay_trigger_identity_test.v ui2/ui/shortcut_character_input_test.v
+          v ${{ matrix.compiler_flags }} test ui2/examples/dialog ui2/examples/profile_dialog ui2/examples/overlays
 
       - name: Test component catalog and primitives
-        run: v ${{ matrix.compiler_flags }} ${{ matrix.custom && '-d ui2_custom_rendering' || '' }} test ui2/ui/component_catalog_test.v
+        run: v ${{ matrix.compiler_flags }} test ui2/ui/component_catalog_test.v
 
       - name: Test immediate scrolling
-        if: runner.os == 'Linux' || matrix.custom
         shell: bash
         run: |
           set -eu
-          v ${{ matrix.compiler_flags }} ${{ matrix.custom && '-d ui2_custom_rendering' || '' }} test ui2/ui/ui_scroll_immediate_test.v
-          v ${{ matrix.compiler_flags }} ${{ matrix.custom && '-d ui2_custom_rendering' || '' }} test ui2/examples/scrollview ui2/examples/horizontal_scroll
-          v ${{ matrix.compiler_flags }} -gc boehm -d no_gc_thread_local_alloc ${{ matrix.custom && '-d ui2_custom_rendering' || '' }} test ui2/ui/horizontal_scroll_retained_test.v ui2/ui/incremental_scroll_axes_test.v
+          v ${{ matrix.compiler_flags }} test ui2/ui/ui_scroll_immediate_test.v
+          v ${{ matrix.compiler_flags }} test ui2/examples/scrollview ui2/examples/horizontal_scroll
+          v ${{ matrix.compiler_flags }} -gc boehm -d no_gc_thread_local_alloc test ui2/ui/horizontal_scroll_retained_test.v ui2/ui/incremental_scroll_axes_test.v
 
-      - name: Test custom text measurement and vendored runtime
-        if: runner.os == 'Linux' || matrix.custom
+      - name: Test text measurement and vendored runtime
         shell: bash
         run: |
           set -eu
-          v ${{ matrix.compiler_flags }} ${{ matrix.custom && '-d ui2_custom_rendering' || '' }} test ui2/ui/text_backend_vglyph_test.v
-          v ${{ matrix.compiler_flags }} ${{ matrix.custom && '-d ui2_custom_rendering' || '' }} test ui2/thirdparty/vglyph/ui2_context_test.v
-          v ${{ matrix.compiler_flags }} ${{ matrix.custom && '-d ui2_custom_rendering' || '' }} test ui2/thirdparty/vglyph/ui2_host_ime_test.v
+          v ${{ matrix.compiler_flags }} test ui2/ui/text_backend_vglyph_test.v
+          v ${{ matrix.compiler_flags }} test ui2/thirdparty/vglyph/ui2_context_test.v
+          v ${{ matrix.compiler_flags }} test ui2/thirdparty/vglyph/ui2_host_ime_test.v
 
       - name: Test allocation counters, retained snapshots and buffer growth
-        if: runner.os == 'Linux' || matrix.custom
         shell: bash
         run: |
           set -eu
-          v ${{ matrix.compiler_flags }} -gc boehm -d no_gc_thread_local_alloc ${{ matrix.custom && '-d ui2_custom_rendering' || '' }} test \
+          v ${{ matrix.compiler_flags }} -gc boehm -d no_gc_thread_local_alloc test \
             ui2/ui/gc_allocation_test.v ui2/ui/vml_allocation_test.v \
             ui2/ui/vml_geometry_runtime_test.v \
             ui2/ui/paint_allocation_test.v ui2/ui/retained_motion_clip_test.v \
@@ -223,33 +206,33 @@ jobs:
             ui2/benchmarks/vml_build/allocation_test.v
 
       - name: Check owned macOS embedder
-        if: runner.os == 'macOS' && matrix.custom
+        if: runner.os == 'macOS'
         working-directory: ui2
         run: make check-embedder-macos
 
       - name: Test ordinary gg frame submission allocations
-        if: runner.os == 'macOS' && matrix.custom
+        if: runner.os == 'macOS'
         working-directory: ui2
-        run: v ${{ matrix.compiler_flags }} -gc boehm -d no_gc_thread_local_alloc -d ui2_custom_rendering test ui/gg_pass_allocation_test.v
+        run: v ${{ matrix.compiler_flags }} -gc boehm -d no_gc_thread_local_alloc test ui/gg_pass_allocation_test.v
 
       - name: Test motion on the owned Metal surface
-        if: runner.os == 'macOS' && matrix.custom
+        if: runner.os == 'macOS'
         working-directory: ui2
-        run: v ${{ matrix.compiler_flags }} -d ui2_custom_rendering -d ui2_embedder -d ui2_geometry_capture test ui/motion_presence_embedder_test.v
+        run: v ${{ matrix.compiler_flags }} -d ui2_embedder -d ui2_geometry_capture test ui/motion_presence_embedder_test.v
 
       - name: Test retained-frame allocation budgets with GC enabled
-        if: runner.os == 'macOS' && matrix.custom
+        if: runner.os == 'macOS'
         working-directory: ui2
         run: |
           UI2_ALLOCATION_FRAMES=1000 make bench-allocations VFLAGS="${{ matrix.compiler_flags }}"
-          v ${{ matrix.compiler_flags }} -gc boehm -d no_gc_thread_local_alloc -d ui2_custom_rendering -d ui2_embedder test ui/paint_allocation_embedder_test.v ui/affine_scene_allocation_embedder_test.v ui/dropdown_allocation_embedder_test.v ui/motion_allocation_embedder_test.v
+          v ${{ matrix.compiler_flags }} -gc boehm -d no_gc_thread_local_alloc -d ui2_embedder test ui/paint_allocation_embedder_test.v ui/affine_scene_allocation_embedder_test.v ui/dropdown_allocation_embedder_test.v ui/motion_allocation_embedder_test.v
 
       - name: Test C ABI and build C example
         if: runner.os != 'Windows'
         run: |
-          v ${{ matrix.compiler_flags }} ${{ matrix.custom && '-d ui2_custom_rendering' || '' }} test ui2/c/api_test.v
-          v ${{ matrix.compiler_flags }} run ui2/c/build.vsh test ${{ matrix.compiler_flags }} ${{ matrix.custom && '-d ui2_custom_rendering' || '' }}
-          v ${{ matrix.compiler_flags }} run ui2/c/build.vsh example ${{ matrix.compiler_flags }} ${{ matrix.custom && '-d ui2_custom_rendering' || '' }}
+          v ${{ matrix.compiler_flags }} test ui2/c/api_test.v
+          v ${{ matrix.compiler_flags }} run ui2/c/build.vsh test ${{ matrix.compiler_flags }}
+          v ${{ matrix.compiler_flags }} run ui2/c/build.vsh example ${{ matrix.compiler_flags }}
 
   # Every example document and compiled_vml fixture is built compiled and
   # interpreted, and the two builds must agree (scripts/vml-conformance.sh).

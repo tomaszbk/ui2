@@ -2,9 +2,9 @@
 
 Desktop custom rendering supports translation, nonuniform scale, reflection and
 clockwise rotation on every `Element` and its subtree. Layout frames, wrapping
-constraints, ids and editor state remain logical and unchanged. Native profiles
-reject visual presentation with a diagnostic. Android also rejects it because
-its Fontstash text path does not support full affine glyphs. No new host port or
+constraints, ids and editor state remain logical and unchanged. Android and
+iOS reject visual presentation with a diagnostic, because their Fontstash text
+path does not support full affine glyphs. No new host port or
 animation/presence lifecycle is part of this API.
 
 ```v
@@ -153,7 +153,7 @@ chooses zoom limits and gestures using existing typed callbacks/capture.
 Run the maintained example with:
 
 ```sh
-v -d ui2_custom_rendering run examples/visual_transforms
+v run examples/visual_transforms
 make screenshot EXAMPLE=visual_transforms
 ```
 
@@ -173,4 +173,4 @@ callback fixtures. Integration with PR22/23/24 remains a later stack.
 
 For a pinned compiler wrapper, Make accepts `V` and explicit compiler `VFLAGS`,
 which also propagate to example/screenshot child builds, for example
-`make V=/path/to/wrapper VFLAGS='-cc clang' examples-custom`.
+`make V=/path/to/wrapper VFLAGS='-cc clang' examples`.

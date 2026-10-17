@@ -181,10 +181,6 @@ pub fn (mut app App) close_help() {
 }
 
 fn main() {
-	$if windows && !ui2_custom_rendering ? {
-		eprintln('Users requires -d ui2_custom_rendering on Windows for proportional image fitting.')
-		return
-	}
 	mut app := initial_app()
 	ui2.run_compiled_vml[App](
 		build:     build_users

@@ -257,9 +257,6 @@ fn test_saved_form_and_generated_main_compile_together() {
 	main_path := app.generate_companion(false) or { panic(err) }
 	module_path := [os.dir(@VMODROOT), '@vlib', '@vmodules'].join(os.path_delimiter)
 	mut command := [@VEXE, '-b', 'c', '-path', module_path]
-	$if ui2_custom_rendering ? {
-		command << ['-d', 'ui2_custom_rendering']
-	}
 	command << ['-o', os.join_path(test_dir, 'generated'), main_path]
 	result := os.exec(command)
 	assert result.exit_code == 0, result.output

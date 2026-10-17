@@ -27,11 +27,11 @@ fn linux_message_box_tool() string {
 	return ''
 }
 
-fn native_message_box_supported() bool {
+fn host_message_box_supported() bool {
 	return linux_message_box_tool().len > 0
 }
 
-fn native_message_box(cfg MessageBoxConfig) MessageBoxResult {
+fn host_message_box(cfg MessageBoxConfig) MessageBoxResult {
 	tool := linux_message_box_tool()
 	command := match tool {
 		'zenity' { linux_zenity_command(cfg) }

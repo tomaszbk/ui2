@@ -1,16 +1,21 @@
-# Owned custom embedder: macOS / Metal
+# Owned embedder: macOS / Metal
 
-The opt-in `ui2_embedder` path owns AppKit windows, their Metal surfaces and the
-event loop. Compile with `-d ui2_custom_rendering -d ui2_embedder`. The existing
-backend selection remains the default. Windows, Linux, Android and iOS still
-use their existing platform paths; this define currently requires macOS/Metal.
+The embedder is a macOS host variant of the renderer (see `ui/platform.v`):
+instead of drawing in a sokol_app window, the same renderer draws into AppKit
+windows and Metal surfaces that ui2 owns, with its own event loop. That gives
+it several windows, NSTextInputClient text input and an event loop that sleeps
+while idle. Compile with `-d ui2_embedder`; it requires macOS/Metal, and every
+other OS keeps its sokol window.
 
 ```sh
-v -d ui2_custom_rendering -d ui2_embedder run examples/text_input
+v -d ui2_embedder run examples/text_input
 ```
 
 `run_window` and the VML runners use the owned host under this define. The
 host builds and paints on demand; no render policy configuration is required.
+It installs the same native menu bar and status item as the sokol host, plus a
+standard Edit menu whose Cut, Copy, Paste and Select All rows its text view
+answers.
 
 ## Window ownership and scheduling
 
@@ -81,7 +86,7 @@ it never runs the `sokol_app` loop on this path.
 ```sh
 make check-backends
 make test-embedder
-v -d ui2_custom_rendering -d ui2_embedder -o /tmp/ui2-embedder tests/embedder
+v -d ui2_embedder -o /tmp/ui2-embedder tests/embedder
 /tmp/ui2-embedder --seconds 30
 /tmp/ui2-embedder --interactive --japanese-ime
 xcrun clang -std=c11 -Wall -Wextra -Werror -fobjc-arc \
