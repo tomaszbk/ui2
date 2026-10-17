@@ -81,15 +81,13 @@ fn motion_allocation_acceptance(rotating bool) ! {
 		panel := with_motion(pane, MotionConfig{
 			clock:            motion_allocation_clock
 			enter:            MotionStyle{
-				opacity:   0
-				transform: VisualTransform{
-					translate_x: -20
-					scale_x:     0.9
-					scale_y:     0.9
-					rotation:    if rotating { 19.0 } else { 0.0 }
-					origin_x:    125
-					origin_y:    75
-				}
+				opacity:     0
+				translate_x: -20
+				scale_x:     0.9
+				scale_y:     0.9
+				rotation:    if rotating { 19.0 } else { 0.0 }
+				origin_x:    125
+				origin_y:    75
 			}
 			enter_transition: MotionTransition{ duration: 30 }
 		})
@@ -98,8 +96,10 @@ fn motion_allocation_acceptance(rotating bool) ! {
 				BoxStyle{ transparent: true }, [panel]), MotionConfig{
 				clock:            motion_allocation_clock
 				enter:            MotionStyle{
-					opacity:   0.5
-					transform: VisualTransform{ rotation: -7, origin_x: 190, origin_y: 140 }
+					opacity:  0.5
+					rotation: -7
+					origin_x: 190
+					origin_y: 140
 				}
 				enter_transition: MotionTransition{ duration: 30 }
 			})

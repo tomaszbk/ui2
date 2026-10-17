@@ -28,13 +28,13 @@ ui2.run_windows()
 ```
 
 Each window owns its coordinator, declared tree, editor/focus/selection state,
-scroll positions, input capture, menus, tooltips, animations, images and font
+scroll positions, input capture, menus, tooltips, motion, images and font
 atlas. Element ids may be identical in different windows. Windows share the Metal
 device; the Sokol renderer resources shut down after the final drawing context closes.
 
 Builders, events and worker callbacks execute with their own window active.
-Existing APIs such as `bounds`, `text`, `focus`, `request_refresh` and animation helpers
-address that window. On the main thread, `window.update(fn () { ... })` scopes a
+Existing APIs such as `bounds`, `text`, `focus` and `request_refresh` address
+that window, and motion handles wake the window that shows their element. On the main thread, `window.update(fn () { ... })` scopes a
 callback to a chosen window, restoring the caller's context even with nested
 callbacks. It requests an update and returns false for a closed window or a
 non-main-thread caller. Workers use the captured dispatcher instead. A closed
@@ -48,7 +48,7 @@ main-thread platform integrations while the window remains open.
 
 The host waits for events or the earliest visual deadline. An idle window has
 no periodic pump callback. Worker messages post one coalesced native wake event.
-Tooltips and long presses use deadlines; active animations use the screen's
+Tooltips and long presses use deadlines; running motion uses the screen's
 reported presentation cadence and stop requesting frames when they finish.
 The coordinator preserves invalidations issued during a frame. An unavailable Metal drawable is retried
 after a bounded wait while business messages continue to be delivered.
@@ -106,7 +106,7 @@ GPU/native execution requires a normal macOS GUI session. Keep the default GC.
 The two-window acceptance checks native host pump counters separately from
 renderer callbacks, builds and draws. It also checks target-specific worker
 wakes, equal-id editors and their selections, scroll preservation, tooltip
-deadlines, animation completion, UTF-16 composition through the native client,
+deadlines, layout motion completion, UTF-16 composition through the native client,
 minimize/restore and independent close. A short `--seconds 2` run is useful for
 iteration; the idle acceptance interval is thirty seconds.
 

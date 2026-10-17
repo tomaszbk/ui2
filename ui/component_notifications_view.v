@@ -460,50 +460,64 @@ fn notification_entering_offset(config NotificationStackConfig, stack Notificati
 	}
 }
 
-// notification_start_motion slides a notification in while it is entering and
-// out while it is leaving. The card moves inside its slot, and the slot moves
-// across the stack, along axes whose declared offset is always zero, so the
-// values an animation leaves behind never fight a later layout.
-fn notification_start_motion(config NotificationStackConfig, stack NotificationStackLayout, entry NotificationEntry, slot Rect, in_x f64, in_y f64) {
-	if !config.animate {
-		return
+// notification_motion is how a notification moves: its card slides in from
+// the stack's entering edge when it appears, and its slot slides out across
+// the stack while it is leaving. The card moves inside its slot and the slot
+// across the stack, along axes whose declared offset is otherwise zero.
+fn notification_motion(enter MotionStyle, enter_duration f64, change_duration f64) MotionConfig {
+	return MotionConfig{
+		enter:            enter
+		exit:             MotionStyle{}
+		enter_transition: MotionTransition{
+			duration: enter_duration
+			easing:   .out_cubic
+		}
+		exit_transition:  MotionTransition{
+			duration: 0
+		}
+		transition:       MotionTransition{
+			duration: change_duration
+			easing:   .in_cubic
+		}
+	}
+}
+
+fn notification_animates(config NotificationStackConfig) bool {
+	return config.animate && backend_supports_motion
+}
+
+// notification_card_motion slides a new card in from in_x or in_y.
+fn notification_card_motion(config NotificationStackConfig, card Element, in_x f64, in_y f64) Element {
+	if !notification_animates(config) {
+		return card
+	}
+	return with_motion(card, notification_motion(if in_x != 0 {
+		MotionStyle{
+			translate_x: in_x
+		}
+	} else {
+		MotionStyle{
+			translate_y: in_y
+		}
+	}, notification_seconds(config.list.enter_duration), 0))
+}
+
+// notification_slot_motion moves a leaving slot out past the stack's side.
+fn notification_slot_motion(config NotificationStackConfig, stack NotificationStackLayout, entry NotificationEntry, slot Element) Element {
+	if !notification_animates(config) {
+		return slot
 	}
 	frame := config.frame
-	if entry.phase == .entering {
-		card_id := notification_card_id(config.id, entry.seq)
-		if animation_info(card_id).status != .idle {
-			return
-		}
-		duration := notification_seconds(config.list.enter_duration)
-		motion := if in_x != 0 {
-			animation(duration: 0, x: in_x) + animation(
-				duration:   duration
-				x:          0
-				transition: .out_cubic
-			)
-		} else {
-			animation(duration: 0, y: in_y) + animation(
-				duration:   duration
-				y:          0
-				transition: .out_cubic
-			)
-		}
-		motion.start(card_id)
-	} else if entry.phase == .leaving {
-		slot_id := notification_slot_id(config.id, entry.seq)
-		if animation_info(slot_id).status != .idle {
-			return
-		}
-		out_x := if stack.placement in [.top_left, .left_center, .bottom_left] {
-			frame.x - stack.frame.x - slot.width
-		} else {
-			frame.x + frame.width - stack.frame.x
-		}
-		animation(
-			duration:   notification_seconds(config.list.exit_duration)
-			x:          out_x
-			transition: .in_cubic
-		).start(slot_id)
+	out_x := if entry.phase != .leaving {
+		slot.frame.x
+	} else if stack.placement in [.top_left, .left_center, .bottom_left] {
+		frame.x - stack.frame.x - slot.frame.width
+	} else {
+		frame.x + frame.width - stack.frame.x
+	}
+	return Element{
+		...with_motion(slot, notification_motion(MotionStyle{}, 0, notification_seconds(config.list.exit_duration)))
+		translate_x: out_x - slot.frame.x
 	}
 }
 
@@ -521,13 +535,14 @@ pub fn notification_stacks(config NotificationStackConfig) ![]Element {
 		mut slots := []Element{cap: stack.entries.len}
 		for index, entry in stack.entries {
 			slot := stack.slots[index]
-			notification_start_motion(config, stack, entry, slot, in_x, in_y)
-			slots << Element{
+			card := notification_card_motion(config, notification_card(config, entry, stack.cards[index]),
+				in_x, in_y)
+			slots << notification_slot_motion(config, stack, entry, Element{
 				...view(notification_slot_id(config.id, entry.seq), slot, BoxStyle{ transparent: true }, [
-					notification_card(config, entry, stack.cards[index]),
+					card,
 				])
 				key: 'toast:${entry.seq}'
-			}
+			})
 		}
 		stacks << component_finish(Element{
 			...view(notification_stack_id(config.id, stack.placement), stack.frame, BoxStyle{

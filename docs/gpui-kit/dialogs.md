@@ -31,8 +31,9 @@ defaults, the way GPUI Kit's `AlertDialog` is built on its `Dialog`. Because
 `component_finish` validates the tree, building a dialog on Android or iOS,
 where the renderer has no overlays, returns an error.
 
-`sheet` is an ordinary element, so it works on every renderer and can slide
-with an animation: a backdrop button over the frame, then a panel against one
+`sheet` is an ordinary element, so it works on every renderer and slides in
+with [motion](../motion.md) where the renderer has it: a backdrop button over
+the frame, then a panel against one
 edge whose first child is a transparent surface button that keeps clicks
 inside the panel off the backdrop.
 
@@ -263,15 +264,11 @@ fn settings_config(m &Model) ui2.SheetConfig {
 	}
 }
 
-// Opening, with the optional slide:
+// Opening slides the panel in; closing slides it out before it is hidden.
 m.settings_open = true
-(ui2.sheet_open_animation(settings_config(m)) or { panic(err) }).start(ui2.sheet_panel_id('settings'))
 
 fn close_settings() {
-	slide := ui2.sheet_close_animation(settings_config(model), fn () {
-		update(fn (mut m Model) { m.settings_open = false })
-	}) or { panic(err) }
-	slide.start(ui2.sheet_panel_id('settings'))
+	update(fn (mut m Model) { m.settings_open = false })
 }
 ```
 
@@ -294,12 +291,11 @@ event)` computes it from any pointer event.
 Pointer events carry window coordinates, so the sheet's frame must be in window
 coordinates too, as it is when the sheet is a child of the screen.
 
-The slide is optional and the application keeps `open`.
-`sheet_open_animation(config)` moves the panel (`sheet_panel_id(id)`) in from
-just past its edge; `sheet_close_animation(config, closed)` moves it back out
-and then calls `closed`, where the application sets `open` to false. Both take
-`animation_duration` (0.2 s) and release the panel to its declared frame when
-they end. Without them the sheet appears and disappears at once.
+The application keeps `open`. On a renderer with motion, opening slides the
+panel (`sheet_panel_id(id)`) in from just past its edge while the sheet fades
+in, and closing slides it back out while the sheet fades, over
+`animation_duration` (0.2 s); the closed sheet stays in the tree, hidden, and
+reduced motion shows it at once. `animation_duration: 0` turns the slide off.
 `sheet_layout(config)` returns the geometry, including the off-screen frame the
 slide starts from.
 
@@ -376,7 +372,7 @@ overlay that has no fields of its own over one that does.
 | Dialog with an icon | Implemented: `icon`, `icon_tone` in the header. |
 | `on_ok`/`on_cancel` returning `false` to stay open, `on_close` | One typed callback, `on_dialog`, reports what was chosen and the application decides whether to close. |
 | `DialogAction`/`DialogClose` wrappers, `DialogChangeReason` | Replaced by `DialogButtonRole` and `DialogReason`. |
-| Entrance animations (`SlideDown`, `Fade`, `FadeSlide`, `None`) | `animate` slides down and fades (`dialog_motion`); without it the dialog appears at once. Reduced motion is the application's choice of whether to set it. |
+| Entrance animations (`SlideDown`, `Fade`, `FadeSlide`, `None`) | `animate` slides down and fades (`dialog_motion`); without it the dialog appears at once. `set_reduced_motion` shows it at once too. |
 | Nested dialogs | Supported by declaring several overlays; the overlay layer stacks them. Upstream's 16 px offset per layer is omitted because the overlay layer centers dialogs. |
 | `margin_top` (top offset instead of centering) | Omitted: the overlay layer centers dialogs. |
 | Declarative `trigger`, `content` builder, `DialogHeader`/`Title`/`Description`/`Footer` parts, `WindowExt::open_dialog`/`close_dialog` | Not applicable: any element opens a dialog by setting `open`, and the parts are config fields. Footers hold buttons only, not arbitrary elements. |
@@ -408,7 +404,7 @@ overlay that has no fields of its own over one that does.
 | Title, body, footer, close button | Implemented; a `description` is added, and footers hold buttons only. |
 | `overlay`, `overlay_closable`, Escape | Implemented as `backdrop`, `close_on_backdrop`, `close_on_escape`. |
 | `resizable` | Implemented, but off by default because the application has to store the size. |
-| Slide animation | Implemented and optional, in and out, over the full panel size. Upstream slides in only, by 100 px over 0.15 s. |
+| Slide animation | Implemented, in and out, over the full panel size, with a fade; `animation_duration: 0` turns it off. Upstream slides in only, by 100 px over 0.15 s. |
 | `on_close`, styling | As for the dialog. |
 
 ### Focus trap
@@ -434,7 +430,7 @@ v run ui2/examples/gpui_dialogs/main.v
 The tests cover layout (centering, presets, window margins, scrolling bodies,
 text wrapping, tiny windows), the overlay each dialog declares (kind, backdrop,
 motion), element structure, which parts have callbacks and what each reports,
-the key helpers, the sheet slide animations and resizing, and the focus-trap
+the key helpers, the sheet's slide motion and resizing, and the focus-trap
 helpers. The gallery opens with the
 profile dialog showing; its buttons open the long dialog, the alert dialog (from
 the page, and nested over the profile dialog) and a sheet on each side.

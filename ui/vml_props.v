@@ -47,9 +47,10 @@ pub:
 }
 
 // VmlPart is a child that is not an element: rich-text runs, dropdown options
-// (MenuEntry), menu rows (MenuItem), menus, message box actions, and the typed
-// records composite parents read from their children. Part tags defined
-// outside ui2 give their parent a VmlRecordPart.
+// (MenuEntry), menu rows (MenuItem), menus, message box actions, motion
+// timelines and their keyframes, and the typed records composite parents read
+// from their children. Part tags defined outside ui2 give their parent a
+// VmlRecordPart.
 pub type VmlPart = AccordionItem
 	| ManagedScreen
 	| Menu
@@ -58,8 +59,10 @@ pub type VmlPart = AccordionItem
 	| MessageBoxAction
 	| TabbedPanelTab
 	| TreeViewNode
+	| VmlKeyframe
 	| VmlRecordPart
 	| VmlRun
+	| VmlTimeline
 
 // VmlPartRecord is any record a part tag defined outside ui2 gives its parent.
 pub interface VmlPartRecord {}
@@ -104,8 +107,8 @@ pub mut:
 	flex_shrink  f64 = 1
 	min_width    f64
 	min_height   f64
-	max_width    f64 = -1
-	max_height   f64 = -1
+	max_width    f64             = -1
+	max_height   f64             = -1
 	align_self   LayoutAlignment = .auto
 	column_span  int             = 1
 	row_span     int             = 1
@@ -365,8 +368,8 @@ pub fn (p CommonProps) validate() ! {
 	if p.row_span <= 0 { return error('`row_span` must be positive') }
 }
 
-// project applies the authored common properties and MenuItem parts to a
-// built element. Widgets that wrap their element afterwards (overlays) or
+// project applies the authored common properties, MenuItem and Timeline parts
+// to a built element. Widgets that wrap their element afterwards (overlays) or
 // derive a common field (TextInput) override it.
 pub fn (p CommonProps) project(el Element, ctx VmlBuildContext) !Element {
 	return p.project_common(el, ctx)
@@ -389,7 +392,7 @@ pub fn (p CommonProps) project_common(el Element, ctx VmlBuildContext) Element {
 		swipe_left:          p.swipe_left or { el.swipe_left }
 		rotation:            p.rotation or { el.rotation }
 		opacity:             p.opacity or { el.opacity }
-		motion:              if motion := p.motion { ?MotionConfig(motion) } else { el.motion }
+		motion:              vml_project_motion(p.motion, el, ctx)
 		translate_x:         p.translate_x or { el.translate_x }
 		translate_y:         p.translate_y or { el.translate_y }
 		scale_x:             p.scale_x or { el.scale_x }

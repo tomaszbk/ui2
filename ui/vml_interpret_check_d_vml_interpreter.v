@@ -299,7 +299,7 @@ const vml_geometry_props = ['x', 'y', 'width', 'height']
 
 const vml_layout_tags = ['Flex', 'Row', 'Column', 'Grid']
 
-const vml_part_tags = ['MenuItem', 'Option', 'Run']
+const vml_part_tags = ['Keyframe', 'MenuItem', 'Option', 'Run', 'Timeline']
 
 // Child layout properties an invocation passes to its component's root.
 const vml_child_layout_props = ['flex_grow', 'flex_shrink', 'flex_basis', 'min_width', 'max_width',

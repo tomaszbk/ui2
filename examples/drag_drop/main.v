@@ -39,7 +39,7 @@ fn audit_idle(dispatcher ui2.UiDispatcher) {
 	before := dispatcher.stats()
 	time.sleep(30 * time.second)
 	after := dispatcher.stats()
-	println('IDLE builds=${after.builds - before.builds} draws=${after.draws - before.draws} callbacks=${after.callbacks - before.callbacks} pending=${after.pending} deadline=${after.next_deadline} animation=${after.animation_active}')
+	println('IDLE builds=${after.builds - before.builds} draws=${after.draws - before.draws} callbacks=${after.callbacks - before.callbacks} pending=${after.pending} deadline=${after.next_deadline} motion=${after.motion_active}')
 }
 
 fn handle_drag(event ui2.ElementEvent) {

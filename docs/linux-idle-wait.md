@@ -31,9 +31,9 @@ loads textures on its new device rather than retaining ids from the closed one.
 
 An idle callback remains blocked instead of returning at every refresh interval.
 No swap occurs while it waits. Once stable, a window without active timers or
-animations can have zero additional builds, draws and loop callback entries.
+running motion can have zero additional builds, draws and loop callback entries.
 This claim must be established by measurement on the actual host. It does not
-change GL's `presentation_required` flag. During animation the coordinator uses
+change GL's `presentation_required` flag. While motion runs the coordinator uses
 the last usable Sokol presentation interval; timing samples spanning long idle
 waits are excluded. Hidden windows suppress visual work while still delivering
 business callbacks. The next restore repaints completely.
@@ -63,7 +63,7 @@ stable window from a worker without posting, waits for its first complete paint
 and settling, reports separate activity deltas,
 and measures process user+system CPU for that interval with `getrusage`. It then
 checks worker delivery without input, coalescing, invalidation inside a build,
-animation completion and return to idle, followed by normal quit/teardown.
+layout motion completion and return to idle, followed by normal quit/teardown.
 Use `--interactive` for tooltip, selection, scrolling, pointer capture and
 resize/restore checks. Run deterministic Linux wait fixtures with
 `v test ui/idle_wait_linux_test.v`. Backend typechecks and interrupted screenshots

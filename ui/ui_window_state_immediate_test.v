@@ -21,9 +21,14 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? {
 		// Scroll's 16-unit bottom inset keeps the original 500-unit range.
 		root := screen(0xffffff, [
 			Element{ kind: .text_area, id: 'editor', on_event: on_event },
-			Element{ kind: .scroll, id: 'pane', frame: rect(0, 0, 100, 80), children: [
-				Element{ kind: .view, frame: rect(0, 0, 100, 484) },
-			] },
+			Element{
+				kind:     .scroll
+				id:       'pane'
+				frame:    rect(0, 0, 100, 80)
+				children: [
+					Element{ kind: .view, frame: rect(0, 0, 100, 484) },
+				]
+			},
 		])
 		update_custom_focus_tree(root)
 		sync_mounted_focus_controls(root, 'root')
@@ -143,7 +148,9 @@ fn test_custom_window_activation_is_reentrant_and_restores_pending_scroll_reques
 	}
 }
 
-fn test_custom_windows_isolate_animation_runs_and_visual_deadlines() {
+// Motion is retained by each window's own motion tree; visual deadlines are
+// window state too.
+fn test_custom_windows_isolate_visual_deadlines() {
 	$if (android || ios || linux || macos || windows) && !ui2_headless ? {
 		previous_app := g_gg_app
 		first := new_custom_window_state()
@@ -155,42 +162,29 @@ fn test_custom_windows_isolate_animation_runs_and_visual_deadlines() {
 		}
 		first_app := &GgApp{ scheduler: new_frame_coordinator() }
 		second_app := &GgApp{ scheduler: new_frame_coordinator() }
+		assert voidptr(first_app.motion_tree) != voidptr(second_app.motion_tree)
 		g_gg_app = first_app
-		root := screen(0xffffff, [view('same', rect(0, 0, 20, 20), BoxStyle{}, [])])
-		start_widget_animation_at('same', animation(AnimationConfig{ duration: 1, x: 100 }),
-			1_000, false)
-		animated := apply_custom_widget_animations_at(root, 1_500)
-		assert animated.children[0].frame.x == 50
 		g_tooltip = TooltipState{ pointer_in: true, key: 'help', rest_since: 1_000 }
 		first_app.scheduler.set_deadline(custom_visual_deadline())
 		assert first_app.scheduler.stats().next_deadline == 1_500
 
 		activate_custom_window_state(second)
 		g_gg_app = second_app
-		assert !has_animated_properties('same')
 		assert custom_visual_deadline() == -1
-		start_widget_animation_at('same', animation(AnimationConfig{ duration: 2, x: 400 }),
-			1_000, false)
-		other_animated := apply_custom_widget_animations_at(root, 1_500)
-		assert other_animated.children[0].frame.x == 100
 		second_app.scheduler.set_deadline(custom_visual_deadline())
 		assert second_app.scheduler.stats().next_deadline == -1
 
 		activate_custom_window_state(first)
 		g_gg_app = first_app
-		assert animation_info('same').progress == 0.5
 		assert custom_visual_deadline() == 1_500
 		first_app.scheduler.close()
 		discard_custom_window_state(first)
-		assert !has_animated_properties('same')
 		assert custom_visual_deadline() == -1
 
 		activate_custom_window_state(second)
 		g_gg_app = second_app
-		assert animation_info('same').progress == 0.25
 		assert !second_app.scheduler.is_closed()
 		assert second_app.scheduler.stats().next_deadline == -1
-		assert custom_animations_need_frame(root)
 	}
 }
 

@@ -277,19 +277,21 @@ fn sheet_config(app &Gallery, frame ui2.Rect) ui2.SheetConfig {
 	theme := theme_of(app)
 	horizontal := app.sheet_side in [.left, .right]
 	base := ui2.SheetConfig{
-		id:         'sheet'
-		frame:      frame
-		open:       app.sheet_open
-		side:       app.sheet_side
-		panel_size: if horizontal { app.sheet_size } else { 230 }
-		resizable:  horizontal
-		theme:      theme
-		on_dialog:  fn (event ui2.DialogEvent) {
+		id:                 'sheet'
+		frame:              frame
+		open:               app.sheet_open
+		side:               app.sheet_side
+		panel_size:         if horizontal { app.sheet_size } else { 230 }
+		resizable:          horizontal
+		// The sheet slides in as it opens and out as it closes.
+		animation_duration: if app.animate { 0.2 } else { 0 }
+		theme:              theme
+		on_dialog:          fn (event ui2.DialogEvent) {
 			with_app(fn [event] (mut app Gallery) {
 				answer_sheet(mut app, event)
 			})
 		}
-		on_resize:  fn (size f64) {
+		on_resize:          fn (size f64) {
 			with_app(fn [size] (mut app Gallery) {
 				app.sheet_size = size
 			})
@@ -543,24 +545,12 @@ fn open_sheet(mut app Gallery, side ui2.SheetSide) {
 	app.sheet_side = side
 	app.sheet_open = true
 	app.status = 'Opened the ${side} sheet.'
-	cfg := sheet_config(app, window_frame())
-	if app.animate {
-		(ui2.sheet_open_animation(cfg) or { panic(err) }).start(ui2.sheet_panel_id(cfg.id))
-	}
 }
 
-// close_sheet slides the sheet out before it is removed, when animating.
+// close_sheet closes the sheet; when animating, it slides out as it goes.
 fn close_sheet(mut app Gallery, why string) {
 	app.status = why
-	if !app.animate {
-		app.sheet_open = false
-		return
-	}
-	slide := ui2.sheet_close_animation(sheet_config(app, window_frame()), fn () {
-		mut state := unsafe { gallery }
-		state.sheet_open = false
-	}) or { panic(err) }
-	slide.start(ui2.sheet_panel_id('sheet'))
+	app.sheet_open = false
 }
 
 fn answer_sheet(mut app Gallery, event ui2.DialogEvent) {

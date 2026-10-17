@@ -244,7 +244,7 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 	// back into the viewport. Keep ordinary rows cheap; transformed subtrees use
 	// the common exact clipper when they are submitted.
 	fn subtree_has_visual_transform(el Element) bool {
-		if el.visual_transform() != VisualTransform{} { return true }
+		if el.presentation_moves() { return true }
 		for child in el.children {
 			if subtree_has_visual_transform(child) { return true }
 		}

@@ -172,16 +172,6 @@ fn component_forward_click(callback ElementCallback) ElementCallback {
 	}
 }
 
-// component_keep_animating starts definition on id unless an animation is
-// already running there, so a component can ask for its looping animation on
-// every build without restarting it from the beginning.
-pub fn component_keep_animating(id string, definition Animation) {
-	if id.len == 0 || animation_info(id).status == .running {
-		return
-	}
-	definition.start(id)
-}
-
 fn component_box(bg u32, border u32, radius f64) BoxStyle {
 	return BoxStyle{
 		bg:            bg

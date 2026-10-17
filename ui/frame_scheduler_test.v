@@ -81,26 +81,28 @@ fn test_frame_scheduler_invalidation_during_flush_survives() {
 	assert coordinator.stats().finished_generation == next.generation
 }
 
-fn test_animation_callback_follow_up_build_preserves_current_frame_and_explicit_invalidation() {
+fn test_motion_handler_follow_up_build_preserves_current_frame_and_explicit_invalidation() {
 	mut coordinator := new_frame_coordinator()
 	work := coordinator.begin_frame(0) or { panic('missing current frame') }
-	coordinator.invalidate(.animation_follow_up)
+	coordinator.invalidate(.motion_follow_up)
 	assert !coordinator.build_pending()
 	assert coordinator.stats().in_flight && coordinator.stats().pending
 	coordinator.finish_frame(work)
 	next := coordinator.begin_frame(1) or { panic('lost callback model update') }
-	assert next.build && next.draw && next.reasons == RenderReason.animation_follow_up
-	coordinator.invalidate(.animation_follow_up)
+	assert next.build && next.draw && next.reasons == RenderReason.motion_follow_up
+	coordinator.invalidate(.motion_follow_up)
 	coordinator.invalidate(.build)
 	assert coordinator.build_pending(), 'automatic work must not hide an explicit unsafe refresh'
 	coordinator.finish_frame(next)
 	final := finish_scheduler_test_frame(mut coordinator, 2)
-	assert final.build && final.reasons == (RenderReason.animation_follow_up | .build)
+	assert final.build && final.reasons == (RenderReason.motion_follow_up | .build)
 	assert !coordinator.build_pending() && !coordinator.stats().pending
-	if _ := coordinator.begin_frame(3) { assert false, 'finished callback work must return to idle' }
+	if _ := coordinator.begin_frame(3) {
+		assert false, 'finished callback work must return to idle'
+	}
 }
 
-fn test_frame_scheduler_paint_deadline_and_animation_return_to_idle() {
+fn test_frame_scheduler_paint_deadline_and_motion_return_to_idle() {
 	mut coordinator := new_frame_coordinator()
 	finish_scheduler_test_frame(mut coordinator, 0)
 	coordinator.invalidate(.paint)
@@ -114,14 +116,14 @@ fn test_frame_scheduler_paint_deadline_and_animation_return_to_idle() {
 	assert timer.reasons == RenderReason.timer
 	assert !timer.build && timer.draw
 	assert coordinator.stats().next_deadline == -1
-	coordinator.set_animation_active(true)
-	animation := finish_scheduler_test_frame(mut coordinator, 501)
-	assert animation.build && animation.draw
-	assert animation.reasons == RenderReason.animation
+	coordinator.set_motion_active(true)
+	motion := finish_scheduler_test_frame(mut coordinator, 501)
+	assert !motion.build && motion.draw
+	assert motion.reasons == RenderReason.motion
 	finish_scheduler_test_frame(mut coordinator, 509)
-	coordinator.set_animation_active(false)
+	coordinator.set_motion_active(false)
 	if _ := coordinator.begin_frame(510) {
-		assert false, 'finished animation must return to idle'
+		assert false, 'finished motion must return to idle'
 	}
 	coordinator.set_deadline(600)
 	coordinator.set_deadline(-1)
@@ -230,7 +232,7 @@ fn test_frame_scheduler_close_cancels_queue_timers_and_rejects_old_handle() {
 		assert false, 'closed context must cancel queued callback'
 	})
 	coordinator.set_deadline(500)
-	coordinator.set_animation_active(true)
+	coordinator.set_motion_active(true)
 	coordinator.close()
 	assert coordinator.take_tasks().len == 0
 	assert !dispatcher.post(fn () {})
@@ -241,7 +243,7 @@ fn test_frame_scheduler_close_cancels_queue_timers_and_rejects_old_handle() {
 	}
 	stats := dispatcher.stats()
 	assert stats.closed
-	assert !stats.pending && !stats.in_flight && !stats.animation_active
+	assert !stats.pending && !stats.in_flight && !stats.motion_active
 	assert stats.next_deadline == -1
 	assert UiDispatcher{}.stats().closed
 	assert !UiDispatcher{}.post(fn () {})

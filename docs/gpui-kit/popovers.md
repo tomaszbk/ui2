@@ -418,7 +418,7 @@ button is a `group` of two buttons.
 | `appearance(false)`, `Styled` refinements | Omitted: pass `padding: 0` and draw your own content; surface colors come from the theme |
 | `content` builder closure | Not applicable: content is an element list rebuilt with the tree |
 | Focus capture and restoration, Enter/Space on the trigger | Omitted: components cannot take focus; buttons keep their own keyboard activation |
-| Open animation, shadow | Omitted: `BoxStyle` has no shadow; the app can animate the surface by id |
+| Open animation, shadow | Omitted from the component; give the surface a `shadow` and [motion](../motion.md) |
 
 ### Hover card
 

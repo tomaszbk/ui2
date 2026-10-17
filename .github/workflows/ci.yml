@@ -157,10 +157,10 @@ jobs:
           v ${{ matrix.compiler_flags }} test ui2/ui/style_immediate_test.v
 
       - name: Test deterministic motion controllers
-        run: v ${{ matrix.compiler_flags }} test ui2/ui/motion_test.v ui2/ui/frame_scheduler_test.v
+        run: v ${{ matrix.compiler_flags }} test ui2/ui/motion_test.v ui2/ui/motion_timeline_test.v ui2/ui/frame_scheduler_test.v
 
       - name: Test retained motion and presence
-        run: v ${{ matrix.compiler_flags }} test ui2/ui/vml_presence_test.v ui2/ui/motion_runtime_immediate_test.v
+        run: v ${{ matrix.compiler_flags }} test ui2/ui/vml_presence_test.v ui2/ui/motion_runtime_immediate_test.v ui2/ui/motion_tree_test.v
 
       - name: Test overlay geometry, focus and retained projections
         run: v ${{ matrix.compiler_flags }} test ui2/ui/overlay_test.v ui2/ui/overlay_tree_test.v ui2/ui/overlay_focus_test.v ui2/ui/overlay_availability_test.v ui2/ui/overlay_layout_test.v ui2/ui/overlay_retained_test.v ui2/ui/overlay_scroll_allocation_test.v
@@ -169,7 +169,7 @@ jobs:
         run: v ${{ matrix.compiler_flags }} test ui2/ui/backend_guard_test.v ui2/ui/backend_headless_test.v
 
       - name: Test the VML interpreter, hot reload and widget registry
-        run: v ${{ matrix.compiler_flags }} test ui2/ui/vml_interpret_test.v ui2/ui/vml_interpret_reload_test.v ui2/ui/vml_registry_test.v ui2/ui/vml_registry_nodes_test.v
+        run: v ${{ matrix.compiler_flags }} test ui2/ui/vml_interpret_test.v ui2/ui/vml_interpret_reload_test.v ui2/ui/vml_interpret_motion_test.v ui2/ui/vml_registry_test.v ui2/ui/vml_registry_nodes_test.v
 
       - name: Test compiled overlays and renderer input
         run: |
@@ -203,7 +203,7 @@ jobs:
             ui2/ui/gc_allocation_test.v ui2/ui/vml_allocation_test.v \
             ui2/ui/vml_geometry_runtime_test.v \
             ui2/ui/paint_allocation_test.v ui2/ui/retained_motion_clip_test.v \
-            ui2/ui/motion_preparation_test.v \
+            ui2/ui/motion_preparation_test.v ui2/ui/motion_allocation_test.v \
             ui2/ui/retained_layout_snapshot_test.v \
             ui2/ui/retained_focus_geometry_test.v ui2/ui/retained_patch_validation_test.v \
             ui2/ui/retained_transform_snapshot_test.v ui2/ui/retained_scroll_identity_test.v \

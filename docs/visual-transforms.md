@@ -4,8 +4,9 @@ Desktop custom rendering supports translation, nonuniform scale, reflection and
 clockwise rotation on every `Element` and its subtree. Layout frames, wrapping
 constraints, ids and editor state remain logical and unchanged. Android and
 iOS reject visual presentation with a diagnostic, because their Fontstash text
-path does not support full affine glyphs. No new host port or
-animation/presence lifecycle is part of this API.
+path does not support full affine glyphs. To animate these properties, give the
+element [motion](motion.md): a changed transform then eases from what is on
+screen.
 
 ```v
 panel := ui2.with_transform(
@@ -58,7 +59,7 @@ replaces the patch: retain your camera/transform in your application model too.
 A typed element callback that calls this setter is a presentation-only action
 and skips automatic rebuilding. If that callback also changes layout/model
 content, call `request_refresh()` explicitly. Ordinary callbacks retain automatic
-refresh behavior. Existing widget animation APIs remain separate.
+refresh behavior.
 
 `visual_geometry(id)!` describes an element traversed in the **last presented**
 frame. Canceled frames preserve that snapshot. Hidden and culled elements have no entry; a transformed element outside

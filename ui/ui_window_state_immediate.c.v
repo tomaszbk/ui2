@@ -94,9 +94,6 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 		menu_hits []MenuBarHit
 		menu_panels []Rect
 		menu_swallow_up bool
-		animation_runtime &AnimationRuntime = &AnimationRuntime{
-			runs: map[string]AnimationRun{}
-		}
 	}
 
 	__global g_active_custom_window_state = &CustomWindowState(unsafe { nil })
@@ -106,7 +103,7 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 	}
 
 	// The first window adopts declarations made before run_window, including
-	// menus, event handlers, render state and animations. Further windows begin
+	// menus, event handlers and render state. Further windows begin
 	// with new_custom_window_state, so equal element ids never share state.
 	fn capture_custom_window_state() &CustomWindowState {
 		mut state := new_custom_window_state()
@@ -159,7 +156,6 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 		for id in g_text_editors.keys() {
 			forget_text_state(id)
 		}
-		reset_widget_animations()
 		empty := new_custom_window_state()
 		empty.restore()
 		mut owned := unsafe { state }
@@ -242,7 +238,6 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 		state.menu_hits = g_menu_hits
 		state.menu_panels = g_menu_panels
 		state.menu_swallow_up = g_menu_swallow_up
-		state.animation_runtime = g_animation_runtime
 	}
 
 	fn (state &CustomWindowState) restore() {
@@ -325,6 +320,5 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 		g_menu_hits = state.menu_hits
 		g_menu_panels = state.menu_panels
 		g_menu_swallow_up = state.menu_swallow_up
-		g_animation_runtime = state.animation_runtime
 	}
 }

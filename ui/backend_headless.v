@@ -149,7 +149,7 @@ $if ui2_headless ? && !ui2_document_library ? {
 		h.min_height = min_height
 		h.build = build
 		h.quit_requested = false
-		configure_animation_driver(refresh_animation_frame, false)
+		set_window_wake(backend_invalidate)
 		publish_menu_context(title, unsafe { nil })
 		install_declared_menus()
 		headless_rebuild()
@@ -189,7 +189,7 @@ $if ui2_headless ? && !ui2_document_library ? {
 	pub fn refresh_element(id string, element Element) {
 		mut h := g_headless
 		h.element_refreshes++
-		h.layout_tree.patch(id, apply_widget_animations(element)) or {
+		h.layout_tree.patch(id, element) or {
 			h.layout_error = err.msg()
 			return
 		}
@@ -215,7 +215,7 @@ $if ui2_headless ? && !ui2_document_library ? {
 	fn headless_render(declared Element) {
 		mut h := g_headless
 		h.declared = declared
-		h.layout_tree.replace(apply_widget_animations(declared)) or {
+		h.layout_tree.replace(declared) or {
 			h.layout_error = err.msg()
 			return
 		}
