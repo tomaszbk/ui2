@@ -5,20 +5,20 @@ module ui2
 const host_menu_bar = HostMenuBar.absent
 const host_menu_key_equivalents = false
 
-fn host_set_menu_bar(_menus []Menu) {}
+fn host_set_menu_bar(_owner HostMenuOwner, _menus []Menu) {}
 
 fn host_tray_supported() bool {
 	return false
 }
 
-fn host_set_tray(_cfg TrayConfig) {}
+fn host_set_tray(_owner HostMenuOwner, _cfg TrayConfig) {}
 
 fn host_remove_tray() {}
 
-fn host_popup_menu_supported() bool {
+fn host_popup_menu_supported(_native voidptr) bool {
 	return false
 }
 
-fn host_show_popup_menu(_cfg PopupMenuConfig, on_result PopupMenuCallback) {
+fn host_show_popup_menu(_native voidptr, _cfg PopupMenuConfig, on_result PopupMenuCallback) {
 	on_result(PopupMenuResult{})
 }

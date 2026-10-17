@@ -131,7 +131,7 @@ fn make_gallery() []ui2.Element {
 	return cards
 }
 
-fn build() ui2.Element {
+fn build(mut w ui2.Window) ui2.Element {
 	state := unsafe { gallery }
 	mut children := [
 		ui2.label('', 'Vector canvas', ui2.rect(24, 14, 930, 35), ui2.TextStyle{ size: 27, weight: 600, color: 0x172554 }),

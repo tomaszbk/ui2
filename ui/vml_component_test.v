@@ -357,55 +357,40 @@ fn ordinary_runner_build(mut model VmlRunnerFixture) Element {
 }
 
 fn test_runner_retains_component_builder_and_invalidates_external_app_reads() ! {
-	mut runtime := compiled_vml_runtime()
-	previous := runtime.controller
-	previous_root := runtime.root
-	defer {
-		runtime.controller = previous
-		runtime.root = previous_root
-	}
+	mut w := &Window{}
 	mut model := &VmlRunnerFixture{ text: 'before' }
 	mut controller := &CompiledVmlController[VmlRunnerFixture]{
 		build: component_runner_build
 		model: model
 	}
-	runtime.controller = voidptr(controller)
-	assert compiled_vml_controller_build[VmlRunnerFixture]().text == 'before'
+	assert controller.build_frame(mut w).text == 'before'
 	// The document built by this call has already read the model.
 	assert model.reads == 1
 	model.text = 'after'
-	assert compiled_vml_controller_build[VmlRunnerFixture]().text == 'after'
+	assert controller.build_frame(mut w).text == 'after'
 	assert model.reads == 2
 	assert controller.model.builds == 1
-	dispose_compiled_vml()
+	controller.dispose()
 	assert controller.model.owner.runtime.stats() == SignalStats{}
 	mut ordinary := &CompiledVmlController[VmlRunnerFixture]{
 		build: ordinary_runner_build
 		model: &VmlRunnerFixture{ text: 'old' }
 	}
-	runtime.controller = voidptr(ordinary)
-	assert compiled_vml_controller_build[VmlRunnerFixture]().text == 'old'
+	assert ordinary.build_frame(mut w).text == 'old'
 	ordinary.model.text = 'new'
-	assert compiled_vml_controller_build[VmlRunnerFixture]().text == 'new'
+	assert ordinary.build_frame(mut w).text == 'new'
 	assert ordinary.model.builds == 2
 }
 
 fn test_runner_first_build_observes_model_changes_from_mount_hooks() ! {
-	mut runtime := compiled_vml_runtime()
-	previous := runtime.controller
-	previous_root := runtime.root
-	defer {
-		runtime.controller = previous
-		runtime.root = previous_root
-	}
+	mut w := &Window{}
 	mut model := &VmlRunnerFixture{ text: 'before' }
 	mut controller := &CompiledVmlController[VmlRunnerFixture]{
 		build: mount_hook_runner_build
 		model: model
 	}
-	runtime.controller = voidptr(controller)
-	assert compiled_vml_controller_build[VmlRunnerFixture]().text == 'mounted'
-	dispose_compiled_vml()
+	assert controller.build_frame(mut w).text == 'mounted'
+	controller.dispose()
 	assert controller.model.owner.runtime.stats() == SignalStats{}
 }
 
@@ -461,13 +446,7 @@ fn test_runner_rejects_missing_model_before_building() {
 }
 
 fn test_runner_service_update_borrows_live_model_without_rebuilding() ! {
-	mut runtime := compiled_vml_runtime()
-	previous := runtime.controller
-	previous_root := runtime.root
-	defer {
-		runtime.controller = previous
-		runtime.root = previous_root
-	}
+	mut w := &Window{}
 	mut model := &VmlRunnerFixture{}
 	mut controller := &CompiledVmlController[VmlRunnerFixture]{
 		model:  model
@@ -477,11 +456,10 @@ fn test_runner_service_update_borrows_live_model_without_rebuilding() ! {
 			state.text = state.updates.str()
 		}
 	}
-	runtime.controller = voidptr(controller)
-	assert compiled_vml_controller_build[VmlRunnerFixture]().text == '1'
-	assert compiled_vml_controller_build[VmlRunnerFixture]().text == '2'
+	assert controller.build_frame(mut w).text == '1'
+	assert controller.build_frame(mut w).text == '2'
 	assert model.updates == 2 && model.builds == 1
-	dispose_compiled_vml()
+	controller.dispose()
 }
 
 fn test_lifecycle_reads_state_and_lazy_memos_before_nodes_are_disposed() ! {
@@ -645,46 +623,33 @@ fn test_dispose_document_reaches_implicit_owner_and_keeps_component_removal_loca
 }
 
 fn test_runner_shutdown_disposes_the_document_of_an_imported_component_root() ! {
-	mut runtime := compiled_vml_runtime()
-	previous := runtime.controller
-	previous_root := runtime.root
-	defer {
-		runtime.controller = previous
-		runtime.root = previous_root
-	}
+	mut w := &Window{}
 	mut model := &VmlRunnerFixture{ text: 'before' }
 	mut controller := &CompiledVmlController[VmlRunnerFixture]{ model: model, build: imported_component_runner_build }
-	runtime.controller = voidptr(controller)
-	initial := compiled_vml_controller_build[VmlRunnerFixture]()
+	initial := controller.build_frame(mut w)
 	assert initial.text == 'before'
 	retained := initial.compiled_node
 	mut expanded := retained.component.state('expanded', false)!
 	expanded.set(true)!
 	assert controller.node.component != model.owner
 	model.text = 'after'
-	updated := compiled_vml_controller_build[VmlRunnerFixture]()
+	updated := controller.build_frame(mut w)
 	assert updated.text == 'after'
 	assert updated.compiled_node == retained
 	assert updated.compiled_node.component == retained.component
 	assert expanded.get()!
 	assert model.builds == 1
-	dispose_compiled_vml()
+	controller.dispose()
 	assert model.owner.runtime.stats() == SignalStats{}
 	assert model.updates == 1
-	dispose_compiled_vml()
+	controller.dispose()
 	assert model.updates == 1
 }
 
 fn test_runner_updates_the_model_once_before_the_first_frame() ! {
-	mut runtime := compiled_vml_runtime()
-	previous := runtime.controller
-	previous_root := runtime.root
-	defer {
-		runtime.controller = previous
-		runtime.root = previous_root
-	}
+	mut w := &Window{}
 	mut model := &VmlRunnerFixture{}
-	start_compiled_vml(CompiledVmlRunConfig[VmlRunnerFixture]{
+	mut controller := start_compiled_vml(CompiledVmlRunConfig[VmlRunnerFixture]{
 		model:  model
 		build:  imported_component_runner_build
 		update: fn (mut state VmlRunnerFixture) {
@@ -693,11 +658,11 @@ fn test_runner_updates_the_model_once_before_the_first_frame() ! {
 		}
 	})!
 	assert model.reads == 1 && model.builds == 1
-	assert compiled_vml_controller_build[VmlRunnerFixture]().text == 'update 1'
+	assert controller.build_frame(mut w).text == 'update 1'
 	assert model.reads == 1 && model.builds == 1
-	assert compiled_vml_controller_build[VmlRunnerFixture]().text == 'update 2'
+	assert controller.build_frame(mut w).text == 'update 2'
 	assert model.reads == 2 && model.builds == 1
-	dispose_compiled_vml()
+	controller.dispose()
 	assert model.owner.runtime.stats() == SignalStats{}
 }
 

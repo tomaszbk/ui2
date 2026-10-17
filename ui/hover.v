@@ -100,8 +100,8 @@ fn hover_events(left []HoverTarget, entered []HoverTarget, x f64, y f64) []Pendi
 	return events
 }
 
-fn (pending PendingHoverEvent) fire() {
+fn (pending PendingHoverEvent) fire(w &Window) {
 	if voidptr(pending.on_event) != unsafe { nil } {
-		pending.on_event(pending.event)
+		pending.on_event(ElementEvent{ ...pending.event, window: w })
 	}
 }

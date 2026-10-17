@@ -405,8 +405,9 @@ pub fn (p ClipboardProps) build(ctx VmlBuildContext) !Element {
 				id:      event.id
 				checked: true
 			})
-			if !copied {
-				kit_after(2, fn [emitter] () {
+			if !copied && event.window != unsafe { nil } {
+				mut w := event.window
+				w.after(2, fn [emitter] () {
 					emitter.emit(ElementEvent{
 						kind:    .change
 						checked: false

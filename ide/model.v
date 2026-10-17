@@ -84,6 +84,24 @@ mut:
 	palette_drag_x      f64
 	palette_drag_y      f64
 	palette_drag_moved  bool
+	// The designer's window, which main opens. Tests have none.
+	window &ui2.Window = unsafe { nil }
+}
+
+// field_text is the live text of the window's text field id, or '' while the
+// designer has no window.
+fn (app &IdeApp) field_text(id string) string {
+	if app.window == unsafe { nil } {
+		return ''
+	}
+	return app.window.text(id)
+}
+
+// refresh asks the designer's window, if it has one, for a rebuild.
+fn (app &IdeApp) refresh() {
+	if app.window != unsafe { nil } {
+		app.window.request_refresh()
+	}
 }
 
 fn new_ide_app(root string) IdeApp {

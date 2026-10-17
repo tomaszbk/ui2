@@ -2,7 +2,7 @@
 
 A standalone Menu or MenuBar document builds a `ui2.Element` like any other
 document; `ui2.menus(el)` returns its `[]ui2.Menu`. Attach explicit callbacks and
-install the result with `set_menu_bar`:
+install the result with the window's `set_menu_bar`:
 
 ```v okfmt
 fn file_new(event ui2.ElementEvent) {

@@ -15,11 +15,10 @@ $if (linux || macos || windows) && !ui2_headless ?&& !ui2_embedder ? {
 		return os.join_path(@VMODROOT, 'examples', 'image_assets', 'assets', 'red.png')
 	}
 
-	fn image_probe_build() Element {
+	fn image_probe_build(mut w Window) Element {
 		if !image_probe_started {
 			image_probe_started = true
-			dispatcher := ui_dispatcher()
-			spawn image_probe_worker(dispatcher)
+			spawn image_probe_worker(w.dispatcher(), w)
 		}
 		mut children := [text_input(
 			id:         'editor'
@@ -38,8 +37,8 @@ $if (linux || macos || windows) && !ui2_headless ?&& !ui2_embedder ? {
 		return screen(0xffffff, children)
 	}
 
-	fn image_probe_worker(dispatcher UiDispatcher) {
-		for callback in [image_probe_shared, image_probe_one, image_probe_none] {
+	fn image_probe_worker(dispatcher UiDispatcher, window &Window) {
+		for check in [image_probe_shared, image_probe_one, image_probe_none] {
 			mut waits := 0
 			for dispatcher.stats().draws == 0 {
 				time.sleep(20 * time.millisecond)
@@ -47,7 +46,10 @@ $if (linux || macos || windows) && !ui2_headless ?&& !ui2_embedder ? {
 				assert waits < 500
 			}
 			before := dispatcher.stats().draws
-			assert dispatcher.post(callback)
+			assert dispatcher.post(fn [window, check] () {
+				mut w := unsafe { window }
+				check(mut w)
+			})
 			waits = 0
 			for dispatcher.stats().draws == before && !dispatcher.stats().closed {
 				time.sleep(20 * time.millisecond)
@@ -57,16 +59,16 @@ $if (linux || macos || windows) && !ui2_headless ?&& !ui2_embedder ? {
 		}
 	}
 
-	fn image_probe_shared() {
-		image_probe_shared_checked() or { panic(err) }
+	fn image_probe_shared(mut w Window) {
+		image_probe_shared_checked(mut w) or { panic(err) }
 	}
 
-	fn image_probe_shared_checked() ! {
-		stats := image_resource_stats()
+	fn image_probe_shared_checked(mut w Window) ! {
+		stats := w.image_resource_stats()
 		assert stats.entries == 1 && stats.pages == 1 && stats.decodes == 1
 		assert stats.cache_hits > 0 && stats.uploads == 1
 		image_probe_decodes = stats.decodes
-		mut ctx := g_gg_app.ctx
+		mut ctx := w.ctx
 		entry := ctx.images.entries[image_entry_key(image_probe_path(), 0)] or { panic('missing shared entry') }
 		page := ctx.images.pages[entry.page] or { panic('missing shared page') }
 		// A second owner on the active graphics device cannot share handles.
@@ -108,35 +110,35 @@ $if (linux || macos || windows) && !ui2_headless ?&& !ui2_embedder ? {
 		assert gfx.query_image_state(other_page.image) != .valid
 		assert gfx.query_sampler_state(other_page.sampler) != .valid
 		assert gfx.query_image_state(page.image) == .valid
-		set_text('editor', 'edición ñ áé')
-		g_focused_field = 'editor'
-		mut editor := g_text_editors['editor'] or { panic('missing editor') }
+		w.set_text('editor', 'edición ñ áé')
+		w.focused_field = 'editor'
+		mut editor := w.text_editors['editor'] or { panic('missing editor') }
 		editor.set_caret(2)
-		replace_text_editor('editor', editor)
+		w.replace_text_editor('editor', editor)
 		image_probe_stage = 1
-		request_refresh()
+		w.request_refresh()
 	}
 
-	fn image_probe_one() {
-		stats := image_resource_stats()
+	fn image_probe_one(mut w Window) {
+		stats := w.image_resource_stats()
 		assert stats.entries == 1 && stats.pages == 1 && stats.decodes == image_probe_decodes
-		assert text('editor') == 'edición ñ áé'
-		assert g_focused_field == 'editor'
-		assert (g_text_editors['editor'] or { panic('editor lost') }).selection.caret == 2
+		assert w.text('editor') == 'edición ñ áé'
+		assert w.focused_field == 'editor'
+		assert (w.text_editors['editor'] or { panic('editor lost') }).selection.caret == 2
 		image_probe_stage = 2
-		request_refresh()
+		w.request_refresh()
 	}
 
-	fn image_probe_none() {
-		stats := image_resource_stats()
+	fn image_probe_none(mut w Window) {
+		stats := w.image_resource_stats()
 		assert stats.entries == 0 && stats.pages == 0
 		assert stats.textures == 0 && stats.samplers == 0
 		assert stats.pages_created == stats.pages_destroyed
-		assert text('editor') == 'edición ñ áé'
-		assert g_focused_field == 'editor'
+		assert w.text('editor') == 'edición ñ áé'
+		assert w.focused_field == 'editor'
 		image_probe_passed = true
 		println('image runtime: reuse, owner isolation, shared release, UTF-8/focus/selection and normal close passed')
-		quit()
+		w.quit()
 	}
 }
 
@@ -145,8 +147,17 @@ fn test_image_resources_submit_release_and_close_in_the_running_backend() {
 		image_probe_stage = 0
 		image_probe_started = false
 		image_probe_passed = false
-		run_window('UI2 image resource runtime', 320, 200, image_probe_build)
+		mut app := new_app()
+		w := app.new_window(
+			title:  'UI2 image resource runtime'
+			width:  320
+			height: 200
+			build:  image_probe_build
+		) or {
+			panic(err)
+		}
+		app.run()
 		assert image_probe_passed
-		assert g_gg_app.ctx == unsafe { nil }
+		assert w.ctx == unsafe { nil }
 	}
 }

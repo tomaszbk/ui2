@@ -3,7 +3,7 @@ module ui2
 import math
 
 // The kit's shared vocabulary: control sizes, tones, the color math its
-// components derive states from, part ids, timers, motion presets and the
+// components derive states from, part ids, motion presets and the
 // spinner. Components are VML props types (kit_*.v); their colors and metrics
 // come from KitTokens (kit_tokens.v).
 
@@ -83,21 +83,6 @@ fn kit_legible(color u32, bg u32, toward u32) u32 {
 // an id has anonymous parts.
 pub fn kit_part_id(id string, part string) string {
 	return if id.len == 0 { '' } else { id + '__' + part }
-}
-
-// ── Timers ──────────────────────────────────────────────────────────
-
-// kit_after is the kit's only way to start a timer: a component starts one
-// from an event handler, never from build. It runs callback on the UI thread
-// after `seconds` and rebuilds the window.
-pub fn kit_after(seconds f64, callback TimerFn) TimerId {
-	return after(seconds, callback)
-}
-
-// kit_cancel calls off a timer kit_after started, and reports whether it was
-// still pending.
-pub fn kit_cancel(id TimerId) bool {
-	return cancel_timer(id)
 }
 
 // ── Motion ──────────────────────────────────────────────────────────

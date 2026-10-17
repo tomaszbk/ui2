@@ -54,18 +54,20 @@ fn (mut app FilesDroppedDemo) receive(paths []string, dropped_text string) {
 fn handle_files_drop(event ui2.DropEvent) {
 	mut state := unsafe { files_dropped_state }
 	state.receive(event.paths, event.text)
-	ui2.request_refresh()
+	event.window.request_refresh()
 }
 
 fn main() {
-	ui2.on_drop(handle_files_drop)
-	ui2.run_compiled_vml[FilesDroppedDemo](
+	mut app := ui2.new_app()
+	mut window := ui2.open_compiled_vml[FilesDroppedDemo](mut app,
 		build:  build_files_dropped
 		model:  files_dropped_state
 		title:  'Dropped Files'
 		width:  files_dropped_width
 		height: files_dropped_height
 	) or { panic(err) }
+	window.on_drop(handle_files_drop)
+	app.run()
 }
 
 fn build_files_dropped(mut app FilesDroppedDemo) ui2.Element {

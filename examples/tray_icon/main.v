@@ -133,24 +133,24 @@ fn on_off(value bool) string {
 	return if value { 'on' } else { 'off' }
 }
 
-fn handle_tray_icon_event(event string) {
+fn handle_tray_icon_event(mut w ui2.Window, event string) {
 	mut state := unsafe { tray_demo_state }
 	if !state.choose(event) {
 		return
 	}
 	if event == 'tray_quit' {
-		ui2.remove_tray()
-		ui2.quit()
+		w.remove_tray()
+		w.quit()
 		return
 	}
 	// Docking and the check marks both live in the declaration, so re-install
 	// it rather than trying to patch the native menu in place.
 	if state.docked {
-		ui2.set_tray(state.tray_config())
+		w.set_tray(state.tray_config())
 	} else {
-		ui2.remove_tray()
+		w.remove_tray()
 	}
-	ui2.request_refresh()
+	w.request_refresh()
 }
 
 fn main() {
@@ -165,23 +165,25 @@ fn main() {
 		state.docked = false
 		state.last_action = 'No status area on this backend.'
 	}
-	// Declaring the tray before the window exists is fine: it is docked as
-	// soon as the application is up.
-	if state.docked {
-		ui2.set_tray(state.tray_config())
-	}
-	ui2.run_compiled_vml[TrayDemo](
+	mut app := ui2.new_app()
+	mut window := ui2.open_compiled_vml[TrayDemo](mut app,
 		build:  build_tray_icon
 		model:  tray_demo_state
 		title:  'Tray Icon'
 		width:  tray_icon_width
 		height: tray_icon_height
 	) or { panic(err) }
+	// Declaring the tray before the window runs is fine: it is docked as soon
+	// as the application is up.
+	if state.docked {
+		window.set_tray(state.tray_config())
+	}
+	app.run()
 }
 
 fn tray_callback(action string) ui2.ElementCallback {
-	return fn [action] (_event ui2.ElementEvent) {
-		handle_tray_icon_event(action)
+	return fn [action] (event ui2.ElementEvent) {
+		handle_tray_icon_event(mut event.window, action)
 	}
 }
 

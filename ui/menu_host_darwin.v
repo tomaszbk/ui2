@@ -4,7 +4,7 @@
 // NSMenu and NSStatusItem are Objective-C runtime objects rather than views,
 // so the bridge is all they need, whichever host variant owns the window. A
 // popup menu opens over the content view of the window the renderer
-// published, sokol's or the embedder's.
+// names, sokol's or the embedder's.
 module ui2
 
 import macos
@@ -49,11 +49,17 @@ struct MacosPopupMenu {
 	window    macos.Id
 }
 
+// MacosMenuState holds the process's main menu and status item. NSApp has one
+// of each, and their actions reach V through the exported functions below,
+// which carry no context, so this host state is process-wide. bar_owner and
+// tray_owner are the windows that installed them, which their rows answer.
 @[heap]
 struct MacosMenuState {
 mut:
 	handler     macos.Id
 	status_item macos.Id
+	bar_owner   HostMenuOwner
+	tray_owner  HostMenuOwner
 	// bar_ids and tray_ids map an NSMenuItem — or the status item's button — to
 	// the typed callback it invokes. The menu owns the item, so the pointer
 	// identifies it for as long as it can be chosen.
@@ -81,23 +87,31 @@ fn macos_menu_state() &MacosMenuState {
 	return unsafe { macos_menu_state_singleton }
 }
 
-fn host_set_menu_bar(menus []Menu) { macos_install_menu_bar(menu_app_name(), menus) }
+fn host_set_menu_bar(owner HostMenuOwner, menus []Menu) {
+	macos_install_menu_bar(owner.app_name, menus)
+	mut st := macos_menu_state()
+	st.bar_owner = owner
+}
 
 fn host_tray_supported() bool { return true }
 
-fn host_set_tray(cfg TrayConfig) { macos_install_status_item(cfg) }
+fn host_set_tray(owner HostMenuOwner, cfg TrayConfig) {
+	macos_install_status_item(cfg)
+	mut st := macos_menu_state()
+	st.tray_owner = owner
+}
 
 fn host_remove_tray() { macos_remove_status_item() }
 
-// A popup menu opens over the window the renderer published to menu.v.
-fn host_popup_menu_supported() bool { return menu_state().window != unsafe { nil } }
+// A popup menu opens over the content view of the native window.
+fn host_popup_menu_supported(native voidptr) bool { return native != unsafe { nil } }
 
 // The menu tracks in a modal loop of its own. It opens from the run loop once
 // the input callback that asked for it has returned, so that loop never runs
 // inside the renderer's callbacks, and the answer comes from there too.
-fn host_show_popup_menu(cfg PopupMenuConfig, on_result PopupMenuCallback) {
+fn host_show_popup_menu(native voidptr, cfg PopupMenuConfig, on_result PopupMenuCallback) {
 	mut st := macos_menu_state()
-	window := macos.Id(menu_state().window)
+	window := macos.Id(native)
 	if st.popup_active || window == unsafe { nil } || cfg.items.len == 0 {
 		on_result(PopupMenuResult{})
 		return
@@ -323,6 +337,7 @@ fn macos_remove_status_item() {
 	macos.release(st.status_item)
 	st.status_item = macos.Id(unsafe { nil })
 	st.tray_ids = map[u64]MacosMenuCallback{}
+	st.tray_owner = HostMenuOwner{}
 }
 
 // macos_status_image resolves an SF Symbol name or an image file into an icon
@@ -478,6 +493,12 @@ fn macos_menu_handler() macos.Id {
 fn ui2_menu_item_chosen(_self voidptr, _cmd voidptr, sender voidptr) {
 	st := macos_menu_state()
 	pointer := u64(sender)
-	binding := st.bar_ids[pointer] or { st.tray_ids[pointer] or { return } }
-	emit_menu_callback(binding.on_event, binding.id)
+	mut owner := st.bar_owner.window
+	binding := st.bar_ids[pointer] or {
+		owner = st.tray_owner.window
+		st.tray_ids[pointer] or { return }
+	}
+	if owner != unsafe { nil } {
+		owner.emit_menu_callback(binding.on_event, binding.id)
+	}
 }

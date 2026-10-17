@@ -20,24 +20,6 @@
 #include <windows.h>
 #include <commctrl.h>
 
-// The main window is this process's visible, unowned top-level window: the one
-// sokol made for the renderer.
-static BOOL CALLBACK ui2_chrome_find_window(HWND window, LPARAM output) {
-	DWORD process_id = 0;
-	GetWindowThreadProcessId(window, &process_id);
-	if (process_id != GetCurrentProcessId() || !IsWindowVisible(window)
-		|| GetWindow(window, GW_OWNER) != NULL) return TRUE;
-	*((HWND *)output) = window;
-	return FALSE;
-}
-
-static HWND ui2_chrome_main_window(void) {
-	HWND window = GetActiveWindow();
-	if (window != NULL) return GetAncestor(window, GA_ROOT);
-	EnumWindows(ui2_chrome_find_window, (LPARAM)&window);
-	return window;
-}
-
 #define UI2_CHROME_SUBCLASS_ID 0x75693263
 
 // With the caption removed, the frame above the client area is given to the client
@@ -60,8 +42,8 @@ static LRESULT CALLBACK ui2_chrome_proc(HWND hwnd, UINT message, WPARAM wparam, 
 	return DefSubclassProc(hwnd, message, wparam, lparam);
 }
 
-static int ui2_chrome_set(int hidden) {
-	HWND window = ui2_chrome_main_window();
+static int ui2_chrome_set(void *native, int hidden) {
+	HWND window = (HWND)native;
 	if (window == NULL) return 0;
 	LONG_PTR style = GetWindowLongPtrW(window, GWL_STYLE);
 	if (hidden) {
@@ -79,30 +61,30 @@ static int ui2_chrome_set(int hidden) {
 }
 
 // Handing the press to the title-bar hit test makes Windows run the move loop.
-static int ui2_chrome_start_drag(void) {
-	HWND window = ui2_chrome_main_window();
+static int ui2_chrome_start_drag(void *native) {
+	HWND window = (HWND)native;
 	if (window == NULL) return 0;
 	ReleaseCapture();
 	SendMessageW(window, WM_NCLBUTTONDOWN, HTCAPTION, 0);
 	return 1;
 }
 
-static int ui2_chrome_minimize(void) {
-	HWND window = ui2_chrome_main_window();
+static int ui2_chrome_minimize(void *native) {
+	HWND window = (HWND)native;
 	if (window == NULL) return 0;
 	ShowWindow(window, SW_MINIMIZE);
 	return 1;
 }
 
-static int ui2_chrome_toggle_maximize(void) {
-	HWND window = ui2_chrome_main_window();
+static int ui2_chrome_toggle_maximize(void *native) {
+	HWND window = (HWND)native;
 	if (window == NULL) return 0;
 	ShowWindow(window, IsZoomed(window) ? SW_RESTORE : SW_MAXIMIZE);
 	return 1;
 }
 
-static int ui2_chrome_is_maximized(void) {
-	HWND window = ui2_chrome_main_window();
+static int ui2_chrome_is_maximized(void *native) {
+	HWND window = (HWND)native;
 	return window != NULL && IsZoomed(window);
 }
 

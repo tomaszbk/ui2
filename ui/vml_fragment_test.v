@@ -237,57 +237,50 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? {
 	}
 
 	fn test_nested_fragment_reorder_preserves_live_editor_and_retained_layout() ! {
-		previous_app := g_gg_app
-		previous_window := capture_custom_window_state()
-		defer {
-			g_gg_app = previous_app
-			previous_window.restore()
-		}
-		mut app := &GgApp{ scheduler: new_frame_coordinator() }
-		g_gg_app = app
+		mut w := &Window{}
 		mut component := new_vml_document('live nested fragments')!
 		defer { component.dispose() or { panic(err) } }
 		mut fixture := &VmlFragmentFixture{}
 		mut root := component.element(flex(FlexConfig{ id: 'root', frame: rect(0, 0, 600, 100) })!)!
 		mut rows := vml_fragment_rows(mut root, mut fixture)!
 		rows.update([VmlFragmentItem{ id: 'a' }, VmlFragmentItem{ id: 'b' }])!
-		app.declared_root = root.element()
-		initial := app.scheduler.begin_frame(0) or { panic('missing initial frame') }
-		_ = resolve_custom_layout(mut app, initial, vml_fragment_measure, take_custom_layout_patches(mut app))!
-		app.scheduler.finish_frame(initial)
+		w.declared_root = root.element()
+		initial := w.scheduler.begin_frame(0) or { panic('missing initial frame') }
+		_ = w.resolve_custom_layout(initial, vml_fragment_measure, w.take_custom_layout_patches())!
+		w.scheduler.finish_frame(initial)
 		root.mount()!
 		mut inner := fixture.lists['a'] or { panic('missing a') }
 		editor_node := inner.nodes()[0]
 		editor := editor_node.element().id
-		identity := app.layout_tree.identity(editor) or { panic('missing editor') }
-		replace_text_prop(editor, 'declarado')
-		replace_text_value(editor, 'ñ café🙂')
-		replace_text_editor(editor, TextEditor{ text: 'ñ café🙂'.clone(), selection: TextSelection{ anchor: 1, caret: 4 } })
-		g_focused_field = editor
-		g_scroll_offsets[named_scroll_state_id(editor)] = 42
-		app.composition = TextComposition{ field_id: editor, text: 'á' }
-		app.layout_tree.reset_stats()
+		identity := w.layout_tree.identity(editor) or { panic('missing editor') }
+		w.replace_text_prop(editor, 'declarado')
+		w.replace_text_value(editor, 'ñ café🙂')
+		w.replace_text_editor(editor, TextEditor{ text: 'ñ café🙂'.clone(), selection: TextSelection{ anchor: 1, caret: 4 } })
+		w.focused_field = editor
+		w.scroll_offsets[named_scroll_state_id(editor)] = 42
+		w.composition = TextComposition{ field_id: editor, text: 'á' }
+		w.layout_tree.reset_stats()
 		inner.update([VmlFragmentItem{ id: 'y', text: 'a:y' },
 			VmlFragmentItem{ id: 'x', text: 'a:x!' }])!
 		rows.update([VmlFragmentItem{ id: 'b' }, VmlFragmentItem{ id: 'a' }])!
-		work := app.scheduler.begin_frame(1) or { panic('missing retained frame') }
+		work := w.scheduler.begin_frame(1) or { panic('missing retained frame') }
 		assert !work.build && work.reasons == RenderReason.layout
-		resolved := resolve_custom_layout(mut app, work, vml_fragment_measure, take_custom_layout_patches(mut app))!
-		app.scheduler.finish_frame(work)
+		resolved := w.resolve_custom_layout(work, vml_fragment_measure, w.take_custom_layout_patches())!
+		w.scheduler.finish_frame(work)
 		assert resolved.children.len == 10
 		assert resolved.children[7].id == editor
 		assert resolved.children.all(it.kind != .view)
-		assert app.layout_tree.identity(editor) or { panic('retired editor') } == identity
-		assert text(editor) == 'ñ café🙂'
-		assert g_text_editors[editor].selection == TextSelection{ anchor: 1, caret: 4 }
-		assert g_focused_field == editor
-		assert scroll_offset(editor) == 42
-		assert app.composition == TextComposition{ field_id: editor, text: 'á' }
-		assert app.layout_tree.stats().builds == 0
-		assert !app.scheduler.stats().pending
+		assert w.layout_tree.identity(editor) or { panic('retired editor') } == identity
+		assert w.text(editor) == 'ñ café🙂'
+		assert w.text_editors[editor].selection == TextSelection{ anchor: 1, caret: 4 }
+		assert w.focused_field == editor
+		assert w.scroll_offset(editor) == 42
+		assert w.composition == TextComposition{ field_id: editor, text: 'á' }
+		assert w.layout_tree.stats().builds == 0
+		assert !w.scheduler.stats().pending
 		for _, fragment in fixture.fragments {
 			assert fragment.frame()! == Rect{}
-			assert fragment.identity() !in app.layout_tree.nodes
+			assert fragment.identity() !in w.layout_tree.nodes
 		}
 	}
 }

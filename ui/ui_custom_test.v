@@ -2,24 +2,25 @@
 module ui2
 
 $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_document_library ? {
-	fn set_checkbox_checked(id string, checked bool) {
-		if id !in g_active_checkboxes {
+	fn set_checkbox_checked(mut w Window, id string, checked bool) {
+		if id !in w.active_checkboxes {
 			return
 		}
-		g_checkbox_values[id] = checked
-		invalidate_custom_paint()
+		w.checkbox_values[id] = checked
+		w.invalidate_custom_paint()
 	}
 
 	__global custom_control_test_events = []ElementEvent{}
 	fn capture_custom_control_event(event ElementEvent) { custom_control_test_events << event }
 
-	fn custom_test_key_handler(_key string) {}
+	fn custom_test_key_handler(mut _ Window, _key string) {}
 	fn custom_test_key_event_handler(_event KeyEvent) {}
 
 	fn custom_test_drop_handler(_event DropEvent) {}
 
 	fn test_custom_desktop_backend_defaults() {
-		assert bounds() == Rect{
+		mut w := &Window{}
+		assert w.bounds() == Rect{
 			width:  800
 			height: 600
 		}
@@ -30,51 +31,48 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 	}
 
 	fn test_custom_desktop_backend_exposes_desktop_hooks() {
-		previous_app := g_gg_app
-		previous := activate_custom_window_state(new_custom_window_state())
-		g_gg_app = &GgApp{}
-		defer { activate_custom_window_state(previous); g_gg_app = previous_app }
-		on_key(custom_test_key_handler)
-		on_key_event(custom_test_key_event_handler)
-		on_drop(custom_test_drop_handler)
-		request_refresh()
-		refresh_element('missing', Element{})
-		insert_text_area_text('missing', 'text')
-		scroll_to_rect('missing', 0, 0, 10, 10)
-		assert scroll_offset('missing') == 0
-		assert text_area_runs('missing').len == 0
+		mut w := &Window{}
+		w.on_key(custom_test_key_handler)
+		w.on_key_event(custom_test_key_event_handler)
+		w.on_drop(custom_test_drop_handler)
+		w.request_refresh()
+		w.refresh_element('missing', Element{})
+		w.insert_text_area_text('missing', 'text')
+		w.scroll_to_rect('missing', 0, 0, 10, 10)
+		assert w.scroll_offset('missing') == 0
+		assert w.text_area_runs('missing').len == 0
 		assert text_area_format_state('missing') == TextFormatState{}
 		assert !clipboard_has_image()
 		assert !save_clipboard_image_png('unused.png')
-		quit()
+		w.quit()
 	}
 
 	fn test_custom_text_editor_replaces_owned_state_after_caret_moves() {
-		previous := activate_custom_window_state(new_custom_window_state())
+		mut w := &Window{}
 		defer {
-			forget_text_state('field')
-			activate_custom_window_state(previous)
+			w.forget_text_state('field')
 		}
 		root := screen(0xffffff, [Element{ kind: .text_field, id: 'field', text: 'abc' }])
-		update_custom_focus_tree(root)
-		sync_mounted_focus_controls(root, 'root')
-		focus('field')
-		handle_key_down(.left, 0)
-		handle_key_down(.backspace, 0)
-		handle_char_input(`x`)
-		assert text('field') == 'axc'
+		w.update_custom_focus_tree(root)
+		w.sync_mounted_focus_controls(root, 'root')
+		w.focus('field')
+		w.handle_key_down(.left, 0)
+		w.handle_key_down(.backspace, 0)
+		w.handle_char_input(`x`)
+		assert w.text('field') == 'axc'
 	}
 
 	fn test_custom_pointer_callbacks_receive_typed_coordinates() {
+		mut w := &Window{}
 		custom_control_test_events = []ElementEvent{}
 		target := HitTarget{ id: 'surface', on_event: capture_custom_control_event }
-		fire_pointer_event(.pointer_down, target, 20, 30)
-		fire_pointer_event(.pointer_drag, target, 40, 50)
-		fire_pointer_event(.pointer_up, target, 40, 50)
+		w.fire_pointer_event(.pointer_down, target, 20, 30)
+		w.fire_pointer_event(.pointer_drag, target, 40, 50)
+		w.fire_pointer_event(.pointer_up, target, 40, 50)
 		assert custom_control_test_events == [
-			ElementEvent{ kind: .pointer_down, id: 'surface', x: 20, y: 30 },
-			ElementEvent{ kind: .pointer_drag, id: 'surface', x: 40, y: 50 },
-			ElementEvent{ kind: .pointer_up, id: 'surface', x: 40, y: 50 },
+			ElementEvent{ window: w, kind: .pointer_down, id: 'surface', x: 20, y: 30 },
+			ElementEvent{ window: w, kind: .pointer_drag, id: 'surface', x: 40, y: 50 },
+			ElementEvent{ window: w, kind: .pointer_up, id: 'surface', x: 40, y: 50 },
 		]
 	}
 
@@ -134,6 +132,7 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 	}
 
 	fn test_custom_slider_pointer_value_uses_range_step_and_orientation() {
+		mut w := &Window{}
 		horizontal := HitTarget{
 			slider:         true
 			slider_frame:   rect(10, 20, 120, 30)
@@ -144,7 +143,7 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 				step: 5
 			}
 		}
-		assert slider_target_value(horizontal, 70, 35) == 30
+		assert w.slider_target_value(horizontal, 70, 35) == 30
 
 		vertical := HitTarget{
 			...horizontal
@@ -154,34 +153,36 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 				orientation: .vertical
 			}
 		}
-		assert slider_target_value(vertical, 25, 30) == 80
-		assert slider_target_value(vertical, 25, 130) == -20
+		assert w.slider_target_value(vertical, 25, 30) == 80
+		assert w.slider_target_value(vertical, 25, 130) == -20
 	}
 
 	fn test_custom_slider_value_api_only_updates_mounted_controls() {
-		g_slider_values = map[string]f64{}
-		g_slider_specs = map[string]SliderSpec{
+		mut w := &Window{}
+		w.slider_values = map[string]f64{}
+		w.slider_specs = map[string]SliderSpec{
 			'volume': SliderSpec{
 				min: -20
 				max: 80
 			}
 		}
-		g_active_sliders = map[string]bool{
+		w.active_sliders = map[string]bool{
 			'volume': true
 		}
-		set_slider_value('volume', 120)
-		set_slider_value('missing', 40)
-		assert slider_value('volume') == 80
-		assert slider_value('missing') == 0
-		g_slider_values = map[string]f64{}
-		g_slider_specs = map[string]SliderSpec{}
-		g_active_sliders = map[string]bool{}
+		w.set_slider_value('volume', 120)
+		w.set_slider_value('missing', 40)
+		assert w.slider_value('volume') == 80
+		assert w.slider_value('missing') == 0
+		w.slider_values = map[string]f64{}
+		w.slider_specs = map[string]SliderSpec{}
+		w.active_sliders = map[string]bool{}
 	}
 
 	fn test_custom_slider_change_payload_uses_committed_value_and_suppresses_duplicates() {
-		previous_values := g_slider_values.clone()
-		defer { g_slider_values = previous_values.clone() }
-		g_slider_values = {
+		mut w := &Window{}
+		previous_values := w.slider_values.clone()
+		defer { w.slider_values = previous_values.clone() }
+		w.slider_values = {
 			'volume': -20.0
 		}
 		custom_control_test_events = []ElementEvent{}
@@ -193,42 +194,41 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 			slider_padding: 10
 			slider_spec:    SliderSpec{ min: -20, max: 80, step: 5 }
 		}
-		commit_slider(target, 70, 35)
-		commit_slider(target, 70, 35)
-		assert slider_value('volume') == 30
-		assert custom_control_test_events == [ElementEvent{ kind: .change, id: 'volume', value: 30 }]
+		w.commit_slider(target, 70, 35)
+		w.commit_slider(target, 70, 35)
+		assert w.slider_value('volume') == 30
+		assert custom_control_test_events == [ElementEvent{ window: w, kind: .change, id: 'volume', value: 30 }]
 	}
 
 	fn test_custom_text_field_callback_receives_committed_change_and_submit_text() {
-		current := new_custom_window_state()
-		previous := activate_custom_window_state(current)
+		mut w := &Window{}
 		defer {
-			forget_text_state('editor')
-			activate_custom_window_state(previous)
+			w.forget_text_state('editor')
 		}
 		root := screen(0xffffff, [Element{ kind: .text_field, id: 'editor', text: 'café:', on_event: capture_custom_control_event }])
-		update_custom_focus_tree(root)
-		sync_mounted_focus_controls(root, 'root')
-		focus('editor')
-		mut editor := g_text_editors['editor'] or { panic('missing editor') }
+		w.update_custom_focus_tree(root)
+		w.sync_mounted_focus_controls(root, 'root')
+		w.focus('editor')
+		mut editor := w.text_editors['editor'] or { panic('missing editor') }
 		editor.set_caret(editor.text.runes().len)
-		replace_text_editor('editor', editor)
+		w.replace_text_editor('editor', editor)
 		custom_control_test_events = []ElementEvent{}
-		handle_char_input(u32(`ñ`))
-		handle_key_down(.enter, 0)
+		w.handle_char_input(u32(`ñ`))
+		w.handle_key_down(.enter, 0)
 		assert custom_control_test_events == [
-			ElementEvent{ kind: .change, id: 'editor', text: 'café:ñ' },
-			ElementEvent{ kind: .submit, id: 'editor', text: 'café:ñ' },
+			ElementEvent{ window: w, kind: .change, id: 'editor', text: 'café:ñ' },
+			ElementEvent{ window: w, kind: .submit, id: 'editor', text: 'café:ñ' },
 		]
-		assert focused_id() == ''
+		assert w.focused_id() == ''
 	}
 
 	fn test_custom_switch_tap_and_drag_update_live_state() {
+		mut w := &Window{}
 		custom_control_test_events = []ElementEvent{}
-		g_switch_values = map[string]bool{
+		w.switch_values = map[string]bool{
 			'network': false
 		}
-		g_active_switches = map[string]bool{
+		w.active_switches = map[string]bool{
 			'network': true
 		}
 		target := HitTarget{
@@ -240,41 +240,42 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 			h:              32
 			switch_control: true
 		}
-		g_hit_targets = [target]
-		handle_touch_down(20, 30)
-		handle_touch_up(20, 30)
-		assert switch_active('network')
-		set_switch_active('network', false)
-		handle_touch_down(20, 30)
-		handle_touch_move(80, 30)
-		handle_touch_up(80, 30)
-		assert switch_active('network')
-		set_switch_active('network', false)
-		assert !switch_active('network')
-		set_switch_active('network', true)
-		set_switch_active('missing', true)
-		assert switch_active('network')
-		assert !switch_active('missing')
+		w.hit_targets = [target]
+		w.handle_touch_down(20, 30)
+		w.handle_touch_up(20, 30)
+		assert w.switch_active('network')
+		w.set_switch_active('network', false)
+		w.handle_touch_down(20, 30)
+		w.handle_touch_move(80, 30)
+		w.handle_touch_up(80, 30)
+		assert w.switch_active('network')
+		w.set_switch_active('network', false)
+		assert !w.switch_active('network')
+		w.set_switch_active('network', true)
+		w.set_switch_active('missing', true)
+		assert w.switch_active('network')
+		assert !w.switch_active('missing')
 		assert custom_control_test_events == [
-			ElementEvent{ kind: .change, id: 'network', checked: true },
-			ElementEvent{ kind: .change, id: 'network', checked: true },
+			ElementEvent{ window: w, kind: .change, id: 'network', checked: true },
+			ElementEvent{ window: w, kind: .change, id: 'network', checked: true },
 		]
-		g_switch_values = map[string]bool{}
-		g_switch_declared = map[string]bool{}
-		g_active_switches = map[string]bool{}
-		g_hit_targets = []HitTarget{}
-		g_touch = TouchState{}
+		w.switch_values = map[string]bool{}
+		w.switch_declared = map[string]bool{}
+		w.active_switches = map[string]bool{}
+		w.hit_targets = []HitTarget{}
+		w.touch = TouchState{}
 	}
 
 	fn test_custom_checkbox_tap_updates_live_checked_state() {
+		mut w := &Window{}
 		custom_control_test_events = []ElementEvent{}
-		g_checkbox_values = map[string]bool{
+		w.checkbox_values = map[string]bool{
 			'newsletter': false
 		}
-		g_active_checkboxes = map[string]bool{
+		w.active_checkboxes = map[string]bool{
 			'newsletter': true
 		}
-		g_hit_targets = [HitTarget{
+		w.hit_targets = [HitTarget{
 			id:       'newsletter'
 			on_event: capture_custom_control_event
 			x:        10
@@ -283,29 +284,30 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 			h:        28
 			checkbox: true
 		}]
-		handle_touch_down(20, 30)
-		handle_touch_up(20, 30)
-		assert checkbox_checked('newsletter')
-		set_checkbox_checked('newsletter', false)
-		set_checkbox_checked('missing', true)
-		assert !checkbox_checked('newsletter')
-		assert !checkbox_checked('missing')
-		assert custom_control_test_events == [ElementEvent{ kind: .change, id: 'newsletter', checked: true }]
-		g_checkbox_values = map[string]bool{}
-		g_checkbox_declared = map[string]bool{}
-		g_active_checkboxes = map[string]bool{}
-		g_hit_targets = []HitTarget{}
-		g_touch = TouchState{}
+		w.handle_touch_down(20, 30)
+		w.handle_touch_up(20, 30)
+		assert w.checkbox_checked('newsletter')
+		set_checkbox_checked(mut w, 'newsletter', false)
+		set_checkbox_checked(mut w, 'missing', true)
+		assert !w.checkbox_checked('newsletter')
+		assert !w.checkbox_checked('missing')
+		assert custom_control_test_events == [ElementEvent{ window: w, kind: .change, id: 'newsletter', checked: true }]
+		w.checkbox_values = map[string]bool{}
+		w.checkbox_declared = map[string]bool{}
+		w.active_checkboxes = map[string]bool{}
+		w.hit_targets = []HitTarget{}
+		w.touch = TouchState{}
 	}
 
 	fn test_custom_checkbox_drag_preserves_scrolling_without_toggling() {
-		g_checkbox_values = map[string]bool{
+		mut w := &Window{}
+		w.checkbox_values = map[string]bool{
 			'newsletter': false
 		}
-		g_active_checkboxes = map[string]bool{
+		w.active_checkboxes = map[string]bool{
 			'newsletter': true
 		}
-		g_hit_targets = [HitTarget{
+		w.hit_targets = [HitTarget{
 			id:       'newsletter'
 			x:        10
 			y:        60
@@ -313,47 +315,48 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 			h:        28
 			checkbox: true
 		}]
-		g_scroll_areas = map[string]Rect{
+		w.scroll_areas = map[string]Rect{
 			named_scroll_state_id('form'): rect(0, 0, 160, 160)
 		}
-		g_scroll_viewports = map[string]Rect{
+		w.scroll_viewports = map[string]Rect{
 			named_scroll_state_id('form'): rect(0, 0, 160, 160)
 		}
-		g_scroll_order = [named_scroll_state_id('form')]
-		g_scroll_content_h = map[string]f64{
+		w.scroll_order = [named_scroll_state_id('form')]
+		w.scroll_content_h = map[string]f64{
 			named_scroll_state_id('form'): 320
 		}
-		g_scroll_offsets = map[string]f64{}
-		handle_touch_down(20, 70)
-		handle_touch_move(20, 20)
-		handle_touch_up(20, 20)
-		assert scroll_offset('form') == 50
-		assert !checkbox_checked('newsletter')
-		g_checkbox_values = map[string]bool{}
-		g_checkbox_declared = map[string]bool{}
-		g_active_checkboxes = map[string]bool{}
-		g_hit_targets = []HitTarget{}
-		reset_scroll_frame()
-		g_scroll_content_h = map[string]f64{}
-		g_scroll_offsets = map[string]f64{}
-		g_touch = TouchState{}
+		w.scroll_offsets = map[string]f64{}
+		w.handle_touch_down(20, 70)
+		w.handle_touch_move(20, 20)
+		w.handle_touch_up(20, 20)
+		assert w.scroll_offset('form') == 50
+		assert !w.checkbox_checked('newsletter')
+		w.checkbox_values = map[string]bool{}
+		w.checkbox_declared = map[string]bool{}
+		w.active_checkboxes = map[string]bool{}
+		w.hit_targets = []HitTarget{}
+		w.reset_scroll_frame()
+		w.scroll_content_h = map[string]f64{}
+		w.scroll_offsets = map[string]f64{}
+		w.touch = TouchState{}
 	}
 
 	fn test_custom_toggle_button_updates_live_pressed_state() {
+		mut w := &Window{}
 		custom_control_test_events = []ElementEvent{}
-		g_toggle_values = map[string]bool{
+		w.toggle_values = map[string]bool{
 			'bold': false
 		}
-		g_active_toggles = map[string]bool{
+		w.active_toggles = map[string]bool{
 			'bold': true
 		}
-		g_toggle_groups = map[string]string{
+		w.toggle_groups = map[string]string{
 			'bold': ''
 		}
-		g_toggle_allow_no_selection = map[string]bool{
+		w.toggle_allow_no_selection = map[string]bool{
 			'bold': true
 		}
-		g_hit_targets = [HitTarget{
+		w.hit_targets = [HitTarget{
 			id:            'bold'
 			on_event:      capture_custom_control_event
 			x:             10
@@ -362,74 +365,75 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 			h:             32
 			toggle_button: true
 		}]
-		handle_touch_down(20, 30)
-		handle_touch_up(20, 30)
-		assert toggle_button_pressed('bold')
-		set_toggle_button_pressed('bold', false)
-		set_toggle_button_pressed('missing', true)
-		assert !toggle_button_pressed('bold')
-		assert !toggle_button_pressed('missing')
-		assert custom_control_test_events == [ElementEvent{ kind: .change, id: 'bold', checked: true }]
-		g_toggle_values = map[string]bool{}
-		g_toggle_declared = map[string]bool{}
-		g_toggle_groups = map[string]string{}
-		g_toggle_allow_no_selection = map[string]bool{}
-		g_active_toggles = map[string]bool{}
-		g_hit_targets = []HitTarget{}
-		g_touch = TouchState{}
+		w.handle_touch_down(20, 30)
+		w.handle_touch_up(20, 30)
+		assert w.toggle_button_pressed('bold')
+		w.set_toggle_button_pressed('bold', false)
+		w.set_toggle_button_pressed('missing', true)
+		assert !w.toggle_button_pressed('bold')
+		assert !w.toggle_button_pressed('missing')
+		assert custom_control_test_events == [ElementEvent{ window: w, kind: .change, id: 'bold', checked: true }]
+		w.toggle_values = map[string]bool{}
+		w.toggle_declared = map[string]bool{}
+		w.toggle_groups = map[string]string{}
+		w.toggle_allow_no_selection = map[string]bool{}
+		w.active_toggles = map[string]bool{}
+		w.hit_targets = []HitTarget{}
+		w.touch = TouchState{}
 	}
 
 	fn test_custom_toggle_button_groups_are_exclusive() {
-		g_toggle_values = map[string]bool{
+		mut w := &Window{}
+		w.toggle_values = map[string]bool{
 			'left':  true
 			'right': false
 		}
-		g_toggle_groups = map[string]string{
+		w.toggle_groups = map[string]string{
 			'left':  'alignment'
 			'right': 'alignment'
 		}
-		g_toggle_allow_no_selection = map[string]bool{
+		w.toggle_allow_no_selection = map[string]bool{
 			'left':  false
 			'right': false
 		}
-		g_active_toggles = map[string]bool{
+		w.active_toggles = map[string]bool{
 			'left':  true
 			'right': true
 		}
-		commit_toggle_button(HitTarget{
+		w.commit_toggle_button(HitTarget{
 			id:                        'right'
 			toggle_button:             true
 			toggle_group:              'alignment'
 			toggle_allow_no_selection: false
 		})
-		assert !toggle_button_pressed('left')
-		assert toggle_button_pressed('right')
-		commit_toggle_button(HitTarget{
+		assert !w.toggle_button_pressed('left')
+		assert w.toggle_button_pressed('right')
+		w.commit_toggle_button(HitTarget{
 			id:                        'right'
 			toggle_button:             true
 			toggle_group:              'alignment'
 			toggle_allow_no_selection: false
 		})
-		assert toggle_button_pressed('right')
-		commit_toggle_button(HitTarget{
+		assert w.toggle_button_pressed('right')
+		w.commit_toggle_button(HitTarget{
 			id:                        'right'
 			toggle_button:             true
 			toggle_group:              'alignment'
 			toggle_allow_no_selection: true
 		})
-		assert !toggle_button_pressed('left')
-		assert !toggle_button_pressed('right')
-		set_toggle_button_pressed('left', true)
-		assert toggle_button_pressed('left')
-		assert !toggle_button_pressed('right')
-		mut members := toggle_button_group_members('left')
+		assert !w.toggle_button_pressed('left')
+		assert !w.toggle_button_pressed('right')
+		w.set_toggle_button_pressed('left', true)
+		assert w.toggle_button_pressed('left')
+		assert !w.toggle_button_pressed('right')
+		mut members := w.toggle_button_group_members('left')
 		members.sort()
 		assert members == ['left', 'right']
-		g_toggle_values = map[string]bool{}
-		g_toggle_declared = map[string]bool{}
-		g_toggle_groups = map[string]string{}
-		g_toggle_allow_no_selection = map[string]bool{}
-		g_active_toggles = map[string]bool{}
+		w.toggle_values = map[string]bool{}
+		w.toggle_declared = map[string]bool{}
+		w.toggle_groups = map[string]string{}
+		w.toggle_allow_no_selection = map[string]bool{}
+		w.active_toggles = map[string]bool{}
 	}
 
 	fn test_custom_dropdown_popup_opens_below_its_control() {
@@ -456,7 +460,8 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 	}
 
 	fn test_custom_dropdown_scroll_reveals_the_selected_row() {
-		g_dropdown_popup = DropdownPopup{
+		mut w := &Window{}
+		w.dropdown_popup = DropdownPopup{
 			id:         'menu'
 			options:    ['a', 'b', 'c', 'd', 'e', 'f']
 			row_height: 28
@@ -464,62 +469,61 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 			max_scroll: 4 * 28
 			selected:   5
 		}
-		g_dropdown_scroll = 0
-		reveal_dropdown_row(5)
-		assert g_dropdown_scroll == 4 * 28
-		reveal_dropdown_row(0)
-		assert g_dropdown_scroll == 0
-		assert clamped_dropdown_scroll(1000) == 4 * 28
-		assert clamped_dropdown_scroll(-10) == 0
-		close_dropdown()
-		assert g_dropdown_scroll == 0
-		assert g_dropdown_popup.options.len == 0
+		w.dropdown_scroll = 0
+		w.reveal_dropdown_row(5)
+		assert w.dropdown_scroll == 4 * 28
+		w.reveal_dropdown_row(0)
+		assert w.dropdown_scroll == 0
+		assert w.clamped_dropdown_scroll(1000) == 4 * 28
+		assert w.clamped_dropdown_scroll(-10) == 0
+		w.close_dropdown()
+		assert w.dropdown_scroll == 0
+		assert w.dropdown_popup.options.len == 0
 	}
 
 	fn test_custom_dropdown_click_opens_a_list_instead_of_cycling() {
-		previous_app := g_gg_app
-		previous := activate_custom_window_state(new_custom_window_state())
-		g_gg_app = &GgApp{}
-		defer { activate_custom_window_state(previous); g_gg_app = previous_app }
-		mount_custom_test_dropdown('menu-click')
+		mut w := &Window{}
+		mount_custom_test_dropdown(mut w, 'menu-click')
 		custom_control_test_events = []ElementEvent{}
-		close_dropdown()
+		w.close_dropdown()
 		target := HitTarget{
 			id:       'menu-click'
 			on_event: capture_custom_control_event
 			dropdown: true
 			options:  ['One', 'Two', 'Three']
 		}
-		open_dropdown(target)
-		assert g_open_dropdown == 'menu-click'
-		assert text('menu-click') == ''
-		select_dropdown_option(HitTarget{
+		w.open_dropdown(target)
+		assert w.dropdown_id == 'menu-click'
+		assert w.text('menu-click') == ''
+		w.select_dropdown_option(HitTarget{
 			...target
 			dropdown_option: true
 			option_index:    2
 		})
-		assert g_open_dropdown == ''
-		assert text('menu-click') == 'Three'
-		assert custom_control_test_events == [ElementEvent{ kind: .change, id: 'menu-click', text: 'Three' }]
+		assert w.dropdown_id == ''
+		assert w.text('menu-click') == 'Three'
+		assert custom_control_test_events == [ElementEvent{ window: w, kind: .change, id: 'menu-click', text: 'Three' }]
 	}
 
 	fn test_custom_dropdown_without_an_id_only_reports_the_tap() {
+		mut w := &Window{}
 		custom_control_test_events = []ElementEvent{}
-		close_dropdown()
-		open_dropdown(HitTarget{
+		w.close_dropdown()
+		w.open_dropdown(HitTarget{
 			on_event: capture_custom_control_event
 			dropdown: true
 			options:  ['One']
 		})
-		assert g_open_dropdown == ''
-		assert custom_control_test_events == [ElementEvent{ kind: .click }]
+		assert w.dropdown_id == ''
+		assert custom_control_test_events == [ElementEvent{ window: w, kind: .click }]
 	}
 
 	fn test_custom_dropdown_keys_move_the_highlight_and_commit() {
+		mut w := &Window{}
 		custom_control_test_events = []ElementEvent{}
-		close_dropdown()
-		g_open_dropdown = 'menu-keys'
-		g_dropdown_popup = DropdownPopup{
+		w.close_dropdown()
+		w.dropdown_id = 'menu-keys'
+		w.dropdown_popup = DropdownPopup{
 			id:         'menu-keys'
 			on_event:   capture_custom_control_event
 			options:    ['One', 'Two', 'Three']
@@ -527,29 +531,30 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 			height:     3 * 28 + 8
 			mounted:    true
 		}
-		assert handle_dropdown_key(.down)
-		assert g_dropdown_hover == 0
-		assert handle_dropdown_key(.up)
-		assert g_dropdown_hover == 2
-		assert handle_dropdown_key(.tab) == false
-		assert handle_dropdown_key(.enter)
-		assert g_open_dropdown == ''
-		assert text('menu-keys') == 'Three'
-		assert custom_control_test_events == [ElementEvent{ kind: .change, id: 'menu-keys', text: 'Three' }]
+		assert w.handle_dropdown_key(.down)
+		assert w.dropdown_hover == 0
+		assert w.handle_dropdown_key(.up)
+		assert w.dropdown_hover == 2
+		assert w.handle_dropdown_key(.tab) == false
+		assert w.handle_dropdown_key(.enter)
+		assert w.dropdown_id == ''
+		assert w.text('menu-keys') == 'Three'
+		assert custom_control_test_events == [ElementEvent{ window: w, kind: .change, id: 'menu-keys', text: 'Three' }]
 	}
 
 	// The control sits at 32,70 296x42 and the list rows the popup registers on
 	// the next frame start at y 120, matching the dropdown example's layout.
-	fn mount_custom_test_dropdown(id string) {
+	fn mount_custom_test_dropdown(mut w Window, id string) {
 		root := screen(0xffffff, [Element{
-			kind: .dropdown
-			id: id
+			kind:     .dropdown
+			id:       id
 			on_event: capture_custom_control_event
-			frame: rect(32, 70, 296, 42)
-			menu: [MenuEntry{ title: 'One' }, MenuEntry{ title: 'Two' }, MenuEntry{ title: 'Three' }]
+			frame:    rect(32, 70, 296, 42)
+			menu:     [MenuEntry{ title: 'One' }, MenuEntry{ title: 'Two' },
+				MenuEntry{ title: 'Three' }]
 		}])
-		update_custom_focus_tree(root)
-		sync_mounted_focus_controls(root, 'root')
+		w.update_custom_focus_tree(root)
+		w.sync_mounted_focus_controls(root, 'root')
 	}
 
 	fn custom_test_dropdown_targets(id string) []HitTarget {
@@ -585,97 +590,93 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 	}
 
 	fn test_custom_dropdown_pointer_flow_picks_a_row_from_the_list() {
-		previous_app := g_gg_app
-		previous := activate_custom_window_state(new_custom_window_state())
-		g_gg_app = &GgApp{}
-		defer { activate_custom_window_state(previous); g_gg_app = previous_app }
-		mount_custom_test_dropdown('menu-pick')
+		mut w := &Window{}
+		mount_custom_test_dropdown(mut w, 'menu-pick')
 		custom_control_test_events = []ElementEvent{}
-		close_dropdown()
+		w.close_dropdown()
 		targets := custom_test_dropdown_targets('menu-pick')
-		g_hit_targets = [targets[0]]
-		handle_touch_down(100, 90)
-		handle_touch_up(100, 90)
-		assert g_open_dropdown == 'menu-pick'
-		assert text('menu-pick') == ''
-		g_hit_targets = targets.clone()
-		handle_touch_down(100, 160)
-		assert g_dropdown_hover == 1
-		handle_touch_up(100, 160)
-		assert g_open_dropdown == ''
-		assert text('menu-pick') == 'Two'
-		assert custom_control_test_events == [ElementEvent{ kind: .change, id: 'menu-pick', text: 'Two' }]
-		g_hit_targets = []HitTarget{}
+		w.hit_targets = [targets[0]]
+		w.handle_touch_down(100, 90)
+		w.handle_touch_up(100, 90)
+		assert w.dropdown_id == 'menu-pick'
+		assert w.text('menu-pick') == ''
+		w.hit_targets = targets.clone()
+		w.handle_touch_down(100, 160)
+		assert w.dropdown_hover == 1
+		w.handle_touch_up(100, 160)
+		assert w.dropdown_id == ''
+		assert w.text('menu-pick') == 'Two'
+		assert custom_control_test_events == [ElementEvent{ window: w, kind: .change, id: 'menu-pick', text: 'Two' }]
+		w.hit_targets = []HitTarget{}
 	}
 
 	fn test_custom_dropdown_pointer_flow_dismisses_on_an_outside_click() {
-		previous_app := g_gg_app
-		previous := activate_custom_window_state(new_custom_window_state())
-		g_gg_app = &GgApp{}
-		defer { activate_custom_window_state(previous); g_gg_app = previous_app }
-		mount_custom_test_dropdown('menu-dismiss')
-		close_dropdown()
+		mut w := &Window{}
+		mount_custom_test_dropdown(mut w, 'menu-dismiss')
+		w.close_dropdown()
 		targets := custom_test_dropdown_targets('menu-dismiss')
-		g_hit_targets = [targets[0]]
-		handle_touch_down(100, 90)
-		handle_touch_up(100, 90)
-		assert g_open_dropdown == 'menu-dismiss'
-		g_hit_targets = targets.clone()
-		handle_touch_down(100, 300)
-		assert g_dropdown_hover == -1
-		handle_touch_up(100, 300)
-		assert g_open_dropdown == ''
-		assert text('menu-dismiss') == ''
-		g_hit_targets = [targets[0]]
-		handle_touch_down(100, 90)
-		handle_touch_up(100, 90)
-		assert g_open_dropdown == 'menu-dismiss'
-		handle_touch_down(100, 90)
-		handle_touch_up(100, 90)
-		assert g_open_dropdown == ''
-		assert text('menu-dismiss') == ''
-		g_hit_targets = []HitTarget{}
+		w.hit_targets = [targets[0]]
+		w.handle_touch_down(100, 90)
+		w.handle_touch_up(100, 90)
+		assert w.dropdown_id == 'menu-dismiss'
+		w.hit_targets = targets.clone()
+		w.handle_touch_down(100, 300)
+		assert w.dropdown_hover == -1
+		w.handle_touch_up(100, 300)
+		assert w.dropdown_id == ''
+		assert w.text('menu-dismiss') == ''
+		w.hit_targets = [targets[0]]
+		w.handle_touch_down(100, 90)
+		w.handle_touch_up(100, 90)
+		assert w.dropdown_id == 'menu-dismiss'
+		w.handle_touch_down(100, 90)
+		w.handle_touch_up(100, 90)
+		assert w.dropdown_id == ''
+		assert w.text('menu-dismiss') == ''
+		w.hit_targets = []HitTarget{}
 	}
 
 	fn test_custom_dropdown_escape_closes_the_list() {
-		close_dropdown()
-		g_open_dropdown = 'menu-escape'
-		g_dropdown_popup = DropdownPopup{
+		mut w := &Window{}
+		w.close_dropdown()
+		w.dropdown_id = 'menu-escape'
+		w.dropdown_popup = DropdownPopup{
 			id:         'menu-escape'
 			options:    ['One', 'Two']
 			row_height: 28
 			height:     2 * 28 + 8
 			mounted:    true
 		}
-		assert handle_dropdown_key(.escape)
-		assert g_open_dropdown == ''
-		assert text('menu-escape') == ''
+		assert w.handle_dropdown_key(.escape)
+		assert w.dropdown_id == ''
+		assert w.text('menu-escape') == ''
 	}
 
 	fn test_custom_button_press_state_follows_the_pointer() {
-		g_touch = TouchState{}
-		assert !touch_is_held_inside(10, 10, 100, 30)
-		g_touch = TouchState{
+		mut w := &Window{}
+		w.touch = TouchState{}
+		assert !w.touch_is_held_inside(10, 10, 100, 30)
+		w.touch = TouchState{
 			down:      true
 			start_x:   20
 			start_y:   20
 			current_x: 20
 			current_y: 20
 		}
-		assert touch_is_held_inside(10, 10, 100, 30)
+		assert w.touch_is_held_inside(10, 10, 100, 30)
 		// Held down, but dragged off the button.
-		g_touch.current_x = 300
-		assert !touch_is_held_inside(10, 10, 100, 30)
+		w.touch.current_x = 300
+		assert !w.touch_is_held_inside(10, 10, 100, 30)
 		// A press that began elsewhere does not light up what it passes over.
-		g_touch = TouchState{
+		w.touch = TouchState{
 			down:      true
 			start_x:   300
 			start_y:   20
 			current_x: 20
 			current_y: 20
 		}
-		assert !touch_is_held_inside(10, 10, 100, 30)
-		g_touch = TouchState{}
+		assert !w.touch_is_held_inside(10, 10, 100, 30)
+		w.touch = TouchState{}
 	}
 }
 

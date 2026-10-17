@@ -25,6 +25,10 @@ mut:
 	fallbacks []int
 }
 
+// Measurement has no window: layout measures text through the backend
+// contract's free functions, before any window exists and in libraries that
+// never open one. This font registration, a fontstash context with the loaded
+// font files, is therefore kept once per process, behind its mutex.
 __global g_layout_measure_fonts = &LayoutMeasureFonts{}
 
 fn (mut fonts LayoutMeasureFonts) initialize() ! {

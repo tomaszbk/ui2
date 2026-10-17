@@ -19,7 +19,7 @@ fn preview_model_call(name string, args []ui2.VmlValue) {
 	mut state := unsafe { ide_state }
 	state.status = 'Preview called app.${name}() with ${args.len} argument(s).'
 	state.log(state.status)
-	ui2.request_refresh()
+	state.refresh()
 }
 
 fn preview_fallback(_name string) ui2.ElementCallback {

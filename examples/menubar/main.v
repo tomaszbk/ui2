@@ -161,15 +161,15 @@ fn on_off(value bool) string {
 	return if value { 'on' } else { 'off' }
 }
 
-fn handle_menubar_event(event string) {
+fn handle_menubar_event(mut w ui2.Window, event string) {
 	mut state := unsafe { menubar_state }
 	if event == 'reset' {
 		state.reset()
 	} else if state.choose(event) && menu_bar_rows_changed(event) {
 		// The check marks live in the declaration, so re-install it.
-		ui2.set_menu_bar(state.menus())
+		w.set_menu_bar(state.menus())
 	}
-	ui2.request_refresh()
+	w.request_refresh()
 }
 
 fn main() {
@@ -179,21 +179,23 @@ fn main() {
 	} else {
 		'This backend has no menu bar; the declaration is ignored.'
 	}
-	// Declaring the menu bar before the window exists is fine: it is installed
-	// as soon as there is something to attach it to.
-	ui2.set_menu_bar(state.menus())
-	ui2.run_compiled_vml[MenubarDemo](
+	mut app := ui2.new_app()
+	mut window := ui2.open_compiled_vml[MenubarDemo](mut app,
 		build:  build_menubar
 		model:  menubar_state
 		title:  'Menu Bar'
 		width:  menubar_width
 		height: menubar_height
 	) or { panic(err) }
+	// Declaring the menu bar before the window runs is fine: it is installed as
+	// soon as there is a native window to attach it to.
+	window.set_menu_bar(state.menus())
+	app.run()
 }
 
 fn menubar_callback(action string) ui2.ElementCallback {
-	return fn [action] (_event ui2.ElementEvent) {
-		handle_menubar_event(action)
+	return fn [action] (event ui2.ElementEvent) {
+		handle_menubar_event(mut event.window, action)
 	}
 }
 

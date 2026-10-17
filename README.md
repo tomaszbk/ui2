@@ -29,10 +29,10 @@ callback, widget constructors, state access, ownership rules, and a Python
 v -b c run examples/users/main.v
 ```
 
-The renderer builds on demand. Model changes outside VML handlers
-require `request_refresh()`; timers and deadlines must request
-updates when external state changes. Workers can post changes through a captured
-`ui2.ui_dispatcher()`. Idle drawing currently stops on macOS Metal. GL/EGL/D3D
+The renderer builds on demand. A window rebuilds after every event its elements
+handle and after its timers run; other model changes call `request_refresh()`
+on the window they belong to (an event carries it as `event.window`). Workers
+can post changes through a captured `window.dispatcher()`. Idle drawing currently stops on macOS Metal. GL/EGL/D3D
 reuse the declared tree but still repaint because Sokol presents every callback.
 See [scheduling and diagnostics](docs/custom-rendering-scheduler.md).
 For Windows setup, presentation and what CI verifies there, see
@@ -58,8 +58,8 @@ containment and anchored placement. Run
 On macOS, the experimental owned embedder is a host variant that replaces the
 sokol window with AppKit windows and Metal surfaces of its own, adding IME
 composition and a blocking event loop that sleeps while idle. Enable it with
-`-d ui2_embedder`. `open_window`/`run_windows` support independent windows
-with scoped updates and dispatchers. See [the embedder contract and acceptance tests](docs/custom-embedder.md).
+`-d ui2_embedder`. An `App` runs any number of independent windows opened with
+`app.new_window`, each with its own state, updates and dispatcher. See [the embedder contract and acceptance tests](docs/custom-embedder.md).
 
 ## Requirements
 
@@ -168,7 +168,8 @@ View(id: "card", motion: app.card_motion()) {
 ```
 
 `MotionHandle` cancels, finishes or restarts an element's motion, and
-`set_reduced_motion(true)` stills every element for accessibility. See
+`app.set_reduced_motion(true)` stills every element of the app's windows for
+accessibility. See
 [motion](docs/motion.md) for layout modes, easing curves and springs, events
 and the allocation-free frame contract.
 
@@ -191,6 +192,24 @@ fn main() {
         width: 780
         height: 420
     )!
+}
+```
+
+`run_compiled_vml` opens one window and runs it. To keep the window, for
+example to set its menu bar or to read its text fields from the model, open it
+with `open_compiled_vml` on an app you run yourself:
+
+```v
+fn main() {
+    mut app := ui2.new_app()
+    mut model := &App{}
+    // App keeps the window in a `window &ui2.Window` field.
+    model.window = ui2.open_compiled_vml[App](mut app,
+        model: model
+        build: build
+        title: 'My app'
+    )!
+    app.run()
 }
 ```
 
@@ -252,12 +271,14 @@ ui2.run_vml[App](source_path: 'app.vml', model: &App{}, watch: true)!
 With `watch: true` the window reloads the document when it or an imported
 component changes. Declarations whose path and key did not change keep their
 state, focus and edit buffers, and a document that no longer loads leaves the
-running one in place. `ui2.vml_interpret(source, &app)` builds a document from
-source for embedding. The interpreter reads public model fields, writes public
-mutable ones and calls methods by reflection, and evaluates the expression
-subset of compiled VML with V's semantics: integer arithmetic stays integral,
-mixing an integer with a float gives a float, and strings and numbers do not
-mix outside display text. Anything else is a load error naming the construct.
+running one in place. `ui2.open_vml` opens the window on an app you run
+yourself, as `open_compiled_vml` does. `ui2.vml_interpret(source, &app)` builds
+a document from source for embedding. The interpreter reads public model
+fields, writes public mutable ones and calls methods by reflection, and
+evaluates the expression subset of compiled VML with V's semantics: integer
+arithmetic stays integral, mixing an integer with a float gives a float, and
+strings and numbers do not mix outside display text. Anything else is a load
+error naming the construct.
 
 Compiled VML stays the source of truth. The interpreter may accept a program V
 rejects, such as an integer passed to an `f64` parameter, never the reverse.
@@ -584,10 +605,10 @@ MessageBox(
 
 ## Window chrome
 
-`set_window_chrome(.hidden_titlebar)` lets the application draw its own title
+`window.set_chrome(.hidden_titlebar)` lets the application draw its own title
 bar: content runs to the top edge of the window. macOS keeps its close,
 minimize and zoom buttons over the content's leading corner
-(`window_controls_leading_inset()` is how much room they take); Windows removes
+(`window.controls_leading_inset()` is how much room they take); Windows removes
 the caption but keeps the resizable border, and `window_draws_own_controls()`
 says the application draws the window buttons.
 
@@ -597,37 +618,37 @@ titlebar := ui2.Element{
 	clickable: true
 	on_event:  fn (event ui2.ElementEvent) {
 		if event.kind == .pointer_down {
-			ui2.start_window_drag() // the platform moves the window
+			event.window.start_move() // the platform moves the window
 		}
 	}
 }
 close := ui2.with_event(ui2.button('close', '×', ui2.rect(width - 40, 0, 40, 36),
 	ui2.BoxStyle{}, ui2.TextStyle{}), fn (event ui2.ElementEvent) {
 	if event.kind == .click {
-		ui2.quit()
+		event.window.quit()
 	}
 })
 ```
 
-`start_window_drag` only works while a press is being handled, so give the
+`start_move` only works while a press is being handled, so give the
 title bar `clickable: true` (or `draggable`) and call it on `.pointer_down`.
-`minimize_window` and `toggle_maximize_window` go behind the other buttons'
+`minimize` and `toggle_maximize` go behind the other buttons'
 callbacks the same way.
-`window_is_maximized` tells a maximize button which icon to show. These work
+`is_maximized` tells a maximize button which icon to show. These work
 on macOS and Windows; Linux, Android and iOS keep their own frame and the calls
 report false.
 
 ## Timers
 
-`after` runs a callback on the UI thread once a delay has passed and then
-rebuilds the window, so a notification can dismiss itself or a search can
-debounce without the application owning a thread:
+`window.after` runs a callback on the window's UI thread once a delay has
+passed and then rebuilds the window, so a notification can dismiss itself or a
+search can debounce without the application owning a thread:
 
 ```v
-toast := ui2.after(4, fn [mut app] () {
+toast := window.after(4, fn [mut app] () {
 	app.toast_visible = false
 })
-ui2.cancel_timer(toast) // call it off, e.g. when the user dismisses it first
+window.cancel_timer(toast) // call it off, e.g. when the user dismisses it first
 ```
 
 Callbacks run on the UI thread just before the window's next build, so
@@ -694,7 +715,7 @@ asynchronous presentation callback.
 `FilePicker` provides an in-window picker with no `zenity` or `kdialog`
 dependency, for Linux or wherever a system dialog is unavailable. It uses the same
 `FileDialogConfig` for open, save, and folder modes. Keep the picker in app
-state and add `picker.render(ui2.bounds())` as the last screen child. Its
+state and add `picker.render(w.bounds())` as the last screen child. Its
 controls attach callbacks directly. `FilePickerConfig.on_result` receives a
 `FilePickerResult` with `.selected` and absolute paths, or `.cancelled`.
 
@@ -707,7 +728,7 @@ mut picker := ui2.new_file_picker(
     }
 )!
 picker.open()!
-ui2.request_refresh()
+event.window.request_refresh()
 ```
 
 Run `v -b c run examples/custom_file_picker/main.v` for a complete example. The
@@ -717,13 +738,13 @@ absolute path.
 
 ## Menus and the tray
 
-`set_menu_bar(...)` installs the application's top level menu bar and
-`set_tray(...)` docks an icon in the status area. Both are plain declarations,
+`window.set_menu_bar(...)` installs the window's top level menu bar and
+`window.set_tray(...)` docks an icon in the status area. Both are plain declarations,
 and each menu leaf carries `on_select`; a menu-less tray icon carries
 `on_event`. Both receive `ElementEvent` with `.click` and source identity.
 
 ```v
-ui2.set_menu_bar([ui2.Menu{
+window.set_menu_bar([ui2.Menu{
     title: 'File'
     items: [ui2.MenuItem{
         id: 'file_new'
@@ -732,7 +753,7 @@ ui2.set_menu_bar([ui2.Menu{
         on_select: fn (event ui2.ElementEvent) { println('New note') }
     }]
 }])
-ui2.set_tray(
+window.set_tray(
     title: 'ui2'
     icon: 'symbol:cup.and.saucer.fill'
     on_event: fn (event ui2.ElementEvent) { println('Tray clicked') }
@@ -742,8 +763,8 @@ ui2.set_tray(
 A shortcut names the platform's primary modifier as `cmd`: Command on macOS,
 Control on Windows and Linux. A row's `checked` state is declared rather than
 remembered — after handling the event, install the menu again with the new
-value. Either call may come before `run_window`; what was declared is installed
-as soon as there is a window to attach it to. `remove_tray()` undocks the icon.
+value. Either call may come before `app.run()`; what was declared is installed
+as soon as there is a native window to attach it to. `remove_tray()` undocks the icon.
 
 Menus are a host service. macOS builds an `NSMenu` main menu, keeping its own
 application menu with "Quit <app>" first, and an `NSStatusItem` for the tray,
@@ -835,7 +856,7 @@ and a `.scroll` element callback reports a change along either axis.
 The event carries both offsets in `x` and `y`, with the vertical offset in `value`.
 An offset asked for before
 the element exists is taken up when it is first laid out. To scroll to content
-the event being handled has just added, call `request_refresh()` first: an
+the event being handled has just added, call `event.window.request_refresh()` first: an
 offset past the current range, asked for while a rebuild is pending, is taken up
 again once that rebuild has laid out the new range.
 
@@ -971,8 +992,8 @@ Charts expose their title and data through accessibility metadata. Data markers
 and slices use the existing backend tooltip support. Legends wrap, and category
 labels are thinned to fit. The frame must be at least 120 by 100 and have enough
 height for its title and legend. For resizing, derive the frame from
-`ui2.bounds()` in your build function. Update the model and call `ui2.request_refresh()`
-to rebuild with new data.
+`w.bounds()` in your build function, which receives the window as `mut w ui2.Window`.
+Update the model and call `request_refresh()` on the window to rebuild with new data.
 
 This is a basic chart component rather than the complete Chart.js API: it has
 no chart animations, clickable legends, zoom, stacking, time axes, or plugins.
@@ -996,19 +1017,19 @@ active layout.
 fn handle_key(event ui2.KeyEvent) {
 	if event.cmd && !event.shift && !event.ctrl && !event.alt
 		&& event.code == ui2.KeyCode.n {
-		ui2.consume_key()
+		event.window.consume_key()
 		// New document
 	}
 }
 
-ui2.on_key_event(handle_key)
+window.on_key_event(handle_key)
 ```
 
-Pointer events do not carry modifier keys; `ui2.key_modifiers()` reports the
+Pointer events do not carry modifier keys; `event.window.key_modifiers()` reports the
 ones held right now (`shift`, `ctrl`, `alt`, and `cmd` for Command or the
 Windows key), so a click handler can tell a Shift- or Cmd-click apart.
 
-The existing `on_key` callback remains available for normalized strings such as
+The `on_key` callback, `fn (mut w ui2.Window, key string)`, receives normalized strings such as
 `cmd+n` and `up`. The renderer derives those strings from physical key codes,
 so command shortcuts are independent of the input source.
 

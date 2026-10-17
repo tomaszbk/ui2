@@ -153,13 +153,14 @@ precedence.
 
 ## Events and handles
 
-`on_motion` receives a `MotionEvent` for every run: `kind` is `start`,
-`progress` (every frame, with `progress` from 0 to 1), `complete` or `cancel`;
-`source` is `enter`, `exit`, `transition`, `layout` or `timeline` (whose
-`progress` is that of the current `cycle`). A run replaced before it ends
-reports `cancel` at the progress it reached. Events are delivered on the UI
-thread after a frame has sampled every element, in tree order, and a frame that
-delivered events builds again, so a handler may change application state.
+`on_motion` receives a `MotionEvent` for every run: `window` is the window
+whose element moved; `kind` is `start`, `progress` (every frame, with
+`progress` from 0 to 1), `complete` or `cancel`; `source` is `enter`, `exit`,
+`transition`, `layout` or `timeline` (whose `progress` is that of the current
+`cycle`). A run replaced before it ends reports `cancel` at the progress it
+reached. Events are delivered on the UI thread after a frame has sampled every
+element, in tree order, and a frame that delivered events builds again, so a
+handler may change application state.
 
 ```v
 ui2.motion_on(fn [mut app] (event ui2.MotionEvent) {
@@ -182,8 +183,8 @@ the element:
 
 ## Reduced motion
 
-`ui2.set_reduced_motion(true)` applies the platform's accessibility preference
-to every element, and `MotionConfig.reduced_motion` (or `motion_reduced`) to
+`app.set_reduced_motion(true)` applies the platform's accessibility preference
+to every element of the app's windows, and `MotionConfig.reduced_motion` (or `motion_reduced`) to
 one. Transitions and layout changes show their end at once, and timelines do
 not play, except that a held finite timeline shows its final values. Exits still
 perform unmount and cleanup exactly once. Turning it off does not restart a

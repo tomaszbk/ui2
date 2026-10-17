@@ -3,8 +3,8 @@ module main
 import math
 import ui2
 
-fn build_charts() ui2.Element {
-	return charts_screen(ui2.bounds())
+fn build_charts(mut w ui2.Window) ui2.Element {
+	return charts_screen(w.bounds())
 }
 
 fn charts_screen(bounds ui2.Rect) ui2.Element {

@@ -279,8 +279,8 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 		return true
 	}
 
-	pub fn image_resource_stats() ImageResourceStats {
-		if g_gg_app.ctx == unsafe { nil } { return ImageResourceStats{} }
-		return g_gg_app.ctx.images.stats()
+	pub fn (mut w Window) image_resource_stats() ImageResourceStats {
+		if w.ctx == unsafe { nil } { return ImageResourceStats{} }
+		return w.ctx.images.stats()
 	}
 }

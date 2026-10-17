@@ -13,19 +13,11 @@ pub mut:
 	platform_note      string
 	transparent_screen bool
 	screen_background  u32 = u32(0x0f172a)
-mut:
-	window_ready bool
 }
 
 const custom_window_state = &CustomWindowDemo{}
 
 fn (mut app CustomWindowDemo) prepare_window() {
-	if !app.window_ready {
-		app.window_ready = configure_custom_window()
-		if !app.window_ready {
-			ui2.request_refresh()
-		}
-	}
 	app.transparent_screen = custom_window_uses_transparent_screen()
 	app.screen_background = custom_window_screen_background()
 	app.platform_note = custom_window_platform_note()
@@ -58,34 +50,33 @@ fn (mut app CustomWindowDemo) update_completed_label() {
 
 fn custom_window_callbacks() map[string]ui2.ElementCallback {
 	return {
-		'increment':   fn (_event ui2.ElementEvent) {
+		'increment':   fn (event ui2.ElementEvent) {
 			mut state := unsafe { custom_window_state }
 			state.add_completed()
-			ui2.request_refresh()
+			event.window.request_refresh()
 		}
-		'decrement':   fn (_event ui2.ElementEvent) {
+		'decrement':   fn (event ui2.ElementEvent) {
 			mut state := unsafe { custom_window_state }
 			state.remove_completed()
-			ui2.request_refresh()
+			event.window.request_refresh()
 		}
-		'reset':       fn (_event ui2.ElementEvent) {
+		'reset':       fn (event ui2.ElementEvent) {
 			mut state := unsafe { custom_window_state }
 			state.reset()
-			ui2.request_refresh()
+			event.window.request_refresh()
 		}
-		'close':       fn (_event ui2.ElementEvent) {
-			ui2.quit()
-			ui2.request_refresh()
+		'close':       fn (event ui2.ElementEvent) {
+			event.window.quit()
 		}
 		'window_drag': fn (event ui2.ElementEvent) {
-			if event.kind == .pointer_down { drag_custom_window() }
-			ui2.request_refresh()
+			if event.kind == .pointer_down { event.window.start_move() }
 		}
 	}
 }
 
 fn main() {
-	ui2.run_compiled_vml[CustomWindowDemo](
+	mut app := ui2.new_app()
+	mut window := ui2.open_compiled_vml[CustomWindowDemo](mut app,
 		build:  build_custom_window
 		model:  custom_window_state
 		title:  'ui2 custom window'
@@ -93,6 +84,11 @@ fn main() {
 		height: custom_window_height
 		update: update_custom_window
 	) or { panic(err) }
+	// Timers run on the window's first frame, once its native window exists.
+	window.after(0, fn [mut window] () {
+		configure_custom_window(mut window)
+	})
+	app.run()
 }
 
 fn build_custom_window(mut app CustomWindowDemo) ui2.Element {

@@ -70,12 +70,12 @@ $if linux && !ui2_headless ? {
 	fn test_linux_nested_callback_does_not_wait_during_flush() {
 		mut signal := new_linux_wake_signal()
 		defer { signal.close() }
-		mut app := GgApp{ linux_signal: signal, scheduler: new_frame_coordinator() }
-		work := app.scheduler.begin_frame(0) or { panic('mount') }
-		app.scheduler.invalidate(.paint)
-		wait_linux_idle(mut app)
-		assert app.scheduler.stats().waits == 0
-		app.scheduler.finish_frame(work)
-		assert app.scheduler.next_wake(1, 0, 10) == 1
+		mut w := &Window{ linux_signal: signal }
+		work := w.scheduler.begin_frame(0) or { panic('mount') }
+		w.scheduler.invalidate(.paint)
+		w.wait_linux_idle()
+		assert w.scheduler.stats().waits == 0
+		w.scheduler.finish_frame(work)
+		assert w.scheduler.next_wake(1, 0, 10) == 1
 	}
 }

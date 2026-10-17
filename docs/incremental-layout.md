@@ -19,7 +19,7 @@ A tight assigned width 200 instead has two columns and needs height 40.
 ## Updating a subtree
 
 ```v
-ui2.refresh_element('description', ui2.label('description', new_text,
+w.refresh_element('description', ui2.label('description', new_text,
     ui2.Rect{}, ui2.TextStyle{ lines: 20 }))
 ```
 

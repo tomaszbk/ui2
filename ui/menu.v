@@ -100,60 +100,40 @@ pub:
 	key   string
 }
 
-@[heap]
-struct MenuState {
+// MenuDeclarations is what a window declares for the operating system's
+// menus: its menu bar and its status area icon. Every backend's Window keeps
+// one as `menus`.
+struct MenuDeclarations {
 mut:
-	menus        []Menu
+	bar          []Menu
 	tray         TrayConfig
 	tray_visible bool
-	// Platform menus use the published application name and native window.
-	app_name string = 'App'
-	window   voidptr
 }
 
-const menu_state_singleton = &MenuState{}
-
-fn menu_state() &MenuState {
-	return unsafe { menu_state_singleton }
-}
-
-// publish_menu_context is called by each backend's run_window before the first
-// menu is built.
-fn publish_menu_context(app_name string, window voidptr) {
-	mut st := menu_state()
-	if app_name.len > 0 {
-		st.app_name = app_name
-	}
-	st.window = window
-}
-
-fn emit_menu_callback(callback ElementCallback, id string) {
+// emit_menu_callback delivers a chosen menu row, or a click on the status
+// area icon, to the window that declared it.
+fn (mut w Window) emit_menu_callback(callback ElementCallback, id string) {
 	if voidptr(callback) != unsafe { nil } {
-		dispatch := backend_input_dispatch()
+		dispatch := w.backend_input_dispatch()
 		if !dispatch.valid() {
 			return
 		}
-		callback(ElementEvent{ kind: .click, id: id })
+		callback(ElementEvent{ window: w, kind: .click, id: id })
 		if !dispatch.valid() {
 			return
 		}
-		request_refresh()
+		w.request_refresh()
 	}
-}
-
-fn menu_app_name() string {
-	return menu_state().app_name
 }
 
 // install_declared_menus applies what was declared before the window existed.
 // Backends call it once there is something to attach a menu to. The menu bar
 // is installed even when nothing was declared, because macOS still needs its
 // application menu.
-fn install_declared_menus() {
-	st := menu_state()
-	backend_set_menu_bar(st.menus)
-	if st.tray_visible {
-		backend_set_tray(st.tray)
+fn (mut w Window) install_declared_menus() {
+	w.backend_set_menu_bar(w.menus.bar)
+	if w.menus.tray_visible {
+		w.backend_set_tray(w.menus.tray)
 	}
 }
 
@@ -207,18 +187,19 @@ pub fn disabled(item MenuItem) MenuItem {
 	}
 }
 
-// set_menu_bar installs the application's top level menu bar, replacing any
-// previous one. Call it before or after run_window: menus declared before the
-// window exists are installed as the application finishes launching.
-pub fn set_menu_bar(menus []Menu) {
-	mut st := menu_state()
-	st.menus = menus.clone()
-	backend_set_menu_bar(st.menus)
+// set_menu_bar installs the window's top level menu bar, replacing any
+// previous one. Call it before or after App.run: menus declared before the
+// window exists are installed as the window opens. Where the menu bar is the
+// system's one, as on macOS, the window that installed it last shows its
+// menus there.
+pub fn (mut w Window) set_menu_bar(menus []Menu) {
+	w.menus.bar = menus.clone()
+	w.backend_set_menu_bar(w.menus.bar)
 }
 
 // menu_bar reports the menu bar last passed to set_menu_bar.
-pub fn menu_bar() []Menu {
-	return menu_state().menus
+pub fn (w &Window) menu_bar() []Menu {
+	return w.menus.bar
 }
 
 // menu_bar_supported reports whether set_menu_bar reaches a real menu bar.
@@ -227,30 +208,30 @@ pub fn menu_bar_supported() bool {
 	return backend_menu_bar_supported()
 }
 
-// set_tray shows the status area icon, replacing any previous one.
-pub fn set_tray(cfg TrayConfig) {
-	mut st := menu_state()
-	st.tray = cfg
-	st.tray_visible = true
-	backend_set_tray(cfg)
+// set_tray shows the status area icon, replacing any previous one. The
+// status area is the system's, so there is one icon per process; its clicks
+// and rows are delivered to the window that set it last.
+pub fn (mut w Window) set_tray(cfg TrayConfig) {
+	w.menus.tray = cfg
+	w.menus.tray_visible = true
+	w.backend_set_tray(cfg)
 }
 
 // remove_tray takes the status area icon away again.
-pub fn remove_tray() {
-	mut st := menu_state()
-	st.tray = TrayConfig{}
-	st.tray_visible = false
-	backend_remove_tray()
+pub fn (mut w Window) remove_tray() {
+	w.menus.tray = TrayConfig{}
+	w.menus.tray_visible = false
+	w.backend_remove_tray()
 }
 
 // tray reports the configuration last passed to set_tray.
-pub fn tray() TrayConfig {
-	return menu_state().tray
+pub fn (w &Window) tray() TrayConfig {
+	return w.menus.tray
 }
 
 // tray_visible reports whether a tray icon is currently declared.
-pub fn tray_visible() bool {
-	return menu_state().tray_visible
+pub fn (w &Window) tray_visible() bool {
+	return w.menus.tray_visible
 }
 
 // tray_supported reports whether set_tray reaches a real status area. The

@@ -33,7 +33,7 @@ $if macos && ui2_embedder ?&& !ui2_headless ? {
 		for i in 0 .. width * height {
 			for channel in 0 .. 4 { pixels[i * 4 + channel] = color[channel] }
 		}
-		return vglyph.Bitmap{width: width, height: height, channels: 4, data: pixels}
+		return vglyph.Bitmap{ width: width, height: height, channels: 4, data: pixels }
 	}
 
 	fn text_gpu_test_environment() gfx.Environment {
@@ -214,7 +214,9 @@ fn test_text_atlas_uploads_new_glyphs_before_on_demand_submission_and_releases_g
 		assert gfx.query_image_state(small.simg) != .valid
 		assert gfx.query_sampler_state(grown.ssmp) == .valid
 		for image in first_generations {
-			if image.simg != grown.simg { assert gfx.query_image_state(image.simg) != .valid }
+			if image.simg != grown.simg {
+				assert gfx.query_image_state(image.simg) != .valid
+			}
 		}
 		// Glyph insertion may replace the borrowed first-frame image. Observe
 		// the live image after drawing and keep retired generations separate.
@@ -229,7 +231,9 @@ fn test_text_atlas_uploads_new_glyphs_before_on_demand_submission_and_releases_g
 			assert image.ssmp == live.ssmp
 			update := gfx.query_image_info(image.simg).upd_frame_index
 			retired_updates << update
-			if image.simg != live.simg { assert update > 0 }
+			if image.simg != live.simg {
+				assert update > 0
+			}
 			assert C.ui2_test_atlas_watch(image.simg.id,
 				if image.simg == live.simg { u32(2) } else { update }, unsafe { nil }, 0)
 		}
@@ -275,12 +279,12 @@ fn test_text_atlas_uploads_new_glyphs_before_on_demand_submission_and_releases_g
 
 fn test_new_glyph_uploads_in_the_submission_frame_without_atlas_growth() {
 	$if macos && ui2_embedder ?&& !ui2_headless ? {
-		mut ctx := new_surface_draw_context(gg.Config{width: 320, height: 240}, text_gpu_test_environment())!
+		mut ctx := new_surface_draw_context(gg.Config{ width: 320, height: 240 }, text_gpu_test_environment())!
 		defer { ctx.destroy() }
 		window := C.ui2_embedder_create(&C.ui2_embedder_config{
-			title: c'UI2 glyph upload verification'
-			width: 320
-			height: 240
+			title:   c'UI2 glyph upload verification'
+			width:   320
+			height:  240
 			visible: false
 		}, &C.ui2_embedder_callbacks{}, unsafe { nil })
 		assert window != unsafe { nil }
@@ -289,7 +293,7 @@ fn test_new_glyph_uploads_in_the_submission_frame_without_atlas_growth() {
 		assert gfx.query_backend() == .metal_macos
 		image := ctx.text_renderer.atlas_images()[0]
 		style := TextStyle{
-			size: 16
+			size:        16
 			font_family: os.join_path(@VMODROOT, 'assets', 'fonts', 'Roboto-Regular.ttf')
 		}
 		defer { C.ui2_test_atlas_stop() }
@@ -316,7 +320,7 @@ fn test_new_glyph_uploads_in_the_submission_frame_without_atlas_growth() {
 
 fn test_atlas_growth_submits_retired_and_live_pixels_and_releases_only_retired_images() {
 	$if macos && ui2_embedder ?&& !ui2_headless ? {
-		config := gg.Config{width: 320, height: 240}
+		config := gg.Config{ width: 320, height: 240 }
 		environment := text_gpu_test_environment()
 		mut ctx := new_surface_draw_context(config, environment)!
 		defer { ctx.destroy() }
@@ -324,9 +328,9 @@ fn test_atlas_growth_submits_retired_and_live_pixels_and_releases_only_retired_i
 		defer { guard.destroy() }
 		guard_image := guard.text_renderer.atlas_images()[0]
 		window := C.ui2_embedder_create(&C.ui2_embedder_config{
-			title: c'UI2 atlas growth verification'
-			width: 320
-			height: 240
+			title:   c'UI2 atlas growth verification'
+			width:   320
+			height:  240
 			visible: false
 		}, &C.ui2_embedder_callbacks{}, unsafe { nil })
 		assert window != unsafe { nil }
@@ -342,8 +346,8 @@ fn test_atlas_growth_submits_retired_and_live_pixels_and_releases_only_retired_i
 		ctx.begin()
 		ctx.text_renderer.debug_insert_bitmap(red, 0, 0)!
 		ctx.inner.draw_image_with_config(gg.DrawImageConfig{
-			img_id: retired.id
-			img_rect: gg.Rect{ x: 5, y: 5, width: 8, height: 4 }
+			img_id:    retired.id
+			img_rect:  gg.Rect{ x: 5, y: 5, width: 8, height: 4 }
 			part_rect: gg.Rect{ width: 8, height: 4 }
 		})
 		assert ctx.text_renderer.atlas_images()[0].simg == retired.simg
@@ -365,7 +369,7 @@ fn test_atlas_growth_submits_retired_and_live_pixels_and_releases_only_retired_i
 		// Queue the old generation before growth. Its newly inserted green
 		// pixels must survive until this frame's Metal submission.
 		ctx.inner.draw_image_with_config(gg.DrawImageConfig{
-			img_id: retired.id
+			img_id:   retired.id
 			img_rect: gg.Rect{ x: 5, y: 5, width: 8, height: 8 }
 		})
 		ctx.text_renderer.debug_insert_bitmap(blue, 0, 0)!
@@ -378,8 +382,8 @@ fn test_atlas_growth_submits_retired_and_live_pixels_and_releases_only_retired_i
 		assert gfx.query_image_info(retired.simg).upd_frame_index == 2
 		assert gfx.query_image_info(live.simg).upd_frame_index == 0
 		ctx.inner.draw_image_with_config(gg.DrawImageConfig{
-			img_id: live.id
-			img_rect: gg.Rect{ x: 25, y: 5, width: 8, height: 8 }
+			img_id:    live.id
+			img_rect:  gg.Rect{ x: 25, y: 5, width: 8, height: 8 }
 			part_rect: gg.Rect{ y: 8, width: 8, height: 8 }
 		})
 		mut retired_pixels := red.data.clone()
@@ -514,17 +518,9 @@ fn test_closing_with_deferred_atlas_images_keeps_another_context_alive() {
 
 fn test_scaled_composition_gpu_submission_keeps_caret_and_layout_on_resize() {
 	$if macos && ui2_embedder ?&& !ui2_headless ? {
-		previous_app := g_gg_app
-		isolated := new_custom_window_state()
-		previous_state := activate_custom_window_state(isolated)
-		defer {
-			discard_custom_window_state(isolated)
-			activate_custom_window_state(previous_state)
-			g_gg_app = previous_app
-		}
 		mut ctx := new_surface_draw_context(gg.Config{ width: 640, height: 480 }, text_gpu_test_environment())!
 		defer { ctx.destroy() }
-		g_gg_app = &GgApp{ ctx: ctx }
+		mut w := &Window{ ctx: ctx }
 		style := TextStyle{ size: 24, font_family: 'Inter' }
 		field := text_input(
 			id:          'field'
@@ -544,7 +540,7 @@ fn test_scaled_composition_gpu_submission_keeps_caret_and_layout_on_resize() {
 			window := C.ui2_embedder_create(&C.ui2_embedder_config{ title: c'UI2 scaled composition verification', width: int(viewport.width), height: int(viewport.height), visible: false }, &C.ui2_embedder_callbacks{}, unsafe { nil })
 			assert window != unsafe { nil }
 			text_gpu_test_surface(mut ctx, window)
-			g_focused_field = 'field'
+			w.focused_field = 'field'
 			ctx.begin()
 			// Independent font advances: this bundled Inter face measures 114.890625
 			// logical units. Both paint paths must retain that fractional budget.
@@ -553,27 +549,27 @@ fn test_scaled_composition_gpu_submission_keeps_caret_and_layout_on_resize() {
 			assert draw_label_text(ctx, '96%', 0, 0, 114.0, 59, tight_style, viewport)
 			tight_rich := rich_label('tight', [TextRun{ text: '96%', style: tight_style }], rect(0, 0, 114.890625, 59), tight_style)
 			assert !draw_rich_label_text(ctx, tight_rich, 0, 0, viewport)
-			render_element(ctx, scaled_content('slide', viewport, 1280, 720, BoxStyle{ transparent: true }, [
+			w.render_element(ctx, scaled_content('slide', viewport, 1280, 720, BoxStyle{ transparent: true }, [
 				rich,
 				field,
 			]), 0, 0, viewport, '', 'root')
 			assert sgl.error() == .no_error
 			assert ctx.content_transform == ContentTransform{}
 			assert ctx.shape_runs(rich.text_runs, rich.text_style, 400, 3, true)!.size == reference
-			caret := g_gg_app.text_caret
+			caret := w.text_caret
 			if viewport.width == 640 {
 				assert caret.x == 42
 				assert caret.width == 1
 				assert caret.y >= 345 && caret.y + caret.height <= 375
-				set_text('field', 'local draft')
-				mut editor := g_text_editors['field'] or { panic('editor was not mounted') }
+				w.set_text('field', 'local draft')
+				mut editor := w.text_editors['field'] or { panic('editor was not mounted') }
 				editor.set_caret(0)
-				replace_text_editor('field', editor)
+				w.replace_text_editor('field', editor)
 			} else {
 				assert caret.x == 56
 				assert caret.y > 439 && caret.y + caret.height < 480
-				assert text('field') == 'local draft'
-				assert (g_text_editors['field'] or { panic('editor lost on resize') }).selection.caret == 0
+				assert w.text('field') == 'local draft'
+				assert (w.text_editors['field'] or { panic('editor lost on resize') }).selection.caret == 0
 			}
 			ctx.end()
 			C.ui2_embedder_frame_done(window)

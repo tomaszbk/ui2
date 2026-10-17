@@ -103,8 +103,8 @@ fn (mut app IdeApp) handle_preview_event(event string) bool {
 		'preview_desktop' { app.set_preview_size(1280, 800) }
 		'preview_rotate' { app.set_preview_size(app.canvas_height(), app.canvas_width()) }
 		'preview_size' {
-			width := parse_f64_property(ui2.text('preview_width')) or { return true }
-			height := parse_f64_property(ui2.text('preview_height')) or { return true }
+			width := parse_f64_property(app.field_text('preview_width')) or { return true }
+			height := parse_f64_property(app.field_text('preview_height')) or { return true }
 			app.set_preview_size(width, height)
 		}
 		'preview_check' {

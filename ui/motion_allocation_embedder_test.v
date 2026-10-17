@@ -39,9 +39,6 @@ fn test_actual_rotating_scaled_scroll_motion_frames_allocate_nothing() ! {
 
 fn motion_allocation_acceptance(rotating bool) ! {
 	$if macos && ui2_embedder ?&& !ui2_headless ? {
-		previous_app := g_gg_app
-		previous_build := g_build_screen
-		previous_state := activate_custom_window_state(new_custom_window_state())
 		mut ctx := new_surface_draw_context(gg.Config{ width: 400, height: 300 },
 			motion_allocation_environment())!
 		window := C.ui2_embedder_create(&C.ui2_embedder_config{
@@ -52,14 +49,9 @@ fn motion_allocation_acceptance(rotating bool) ! {
 		}, &C.ui2_embedder_callbacks{}, unsafe { nil })
 		assert window != unsafe { nil }
 		defer {
-			g_gg_app.motion_tree.dispose()
 			C.ui2_embedder_close(window)
 			ctx.destroy()
-			activate_custom_window_state(previous_state)
-			g_build_screen = previous_build
-			g_gg_app = previous_app
 		}
-		g_build_screen = unsafe { nil }
 		motion_allocation_now = 0
 		button_el := button('hover', 'España café ñ', rect(12, 12, 160, 28),
 			BoxStyle{ bg: 0xabcdef, radius: 6 }, TextStyle{ size: 16 })
@@ -111,32 +103,33 @@ fn motion_allocation_acceptance(rotating bool) ! {
 			id:    'root'
 			frame: rect(0, 0, 400, 300)
 		}
-		g_gg_app = &GgApp{ ctx: ctx, native_window: window, has_root: true, declared_root: root }
-		on_frame(mut g_gg_app)
-		focus('edit')
+		mut w := &Window{ ctx: ctx, native_window: window, has_root: true, declared_root: root }
+		defer { w.motion_tree.dispose() }
+		on_frame(mut w)
+		w.focus('edit')
 		for i in 1 .. 9 {
 			motion_allocation_now = f64(i) / 60
-			on_frame(mut g_gg_app)
-			assert mounted_geometry('hover')!.bounds().width > 0
+			on_frame(mut w)
+			assert w.mounted_geometry('hover')!.bounds().width > 0
 		}
-		before_frames := g_gg_app.scheduler.stats()
-		before_layout := layout_stats()
+		before_frames := w.scheduler.stats()
+		before_layout := w.layout_stats()
 		before_shapes := ctx.text.shape_builds
 		before := gc_allocation_snapshot()!
 		for i in 9 .. 1009 {
 			motion_allocation_now = f64(i) / 60
-			on_frame(mut g_gg_app)
-			geometry := mounted_geometry('hover')!
+			on_frame(mut w)
+			geometry := w.mounted_geometry('hover')!
 			bounds := geometry.bounds()
 			point := geometry.transform.point(geometry.frame.x + 80, geometry.frame.y + 14)
 			assert presentation_bounds_contains(bounds, point.x, point.y)
 			assert geometry.contains(point.x, point.y)
-			assert hit_test(point.x, point.y).id == 'hover'
-			assert g_focused_field == 'edit'
+			assert w.hit_test(point.x, point.y).id == 'hover'
+			assert w.focused_field == 'edit'
 		}
 		delta := gc_allocation_snapshot()!.delta_since(before)
-		after_frames := g_gg_app.scheduler.stats()
-		after_layout := layout_stats()
+		after_frames := w.scheduler.stats()
+		after_layout := w.layout_stats()
 		println('owned Metal motion: rotating=${rotating} frames=1000 bytes=${delta.allocated_bytes} collections=${delta.collections}')
 		assert after_frames.draws == before_frames.draws + 1000
 		assert after_frames.builds == before_frames.builds
@@ -147,10 +140,10 @@ fn motion_allocation_acceptance(rotating bool) ! {
 		assert delta.allocated_bytes == 0
 		assert delta.collections == 0
 		motion_allocation_now = 30
-		on_frame(mut g_gg_app)
-		completed := g_gg_app.scheduler.stats()
+		on_frame(mut w)
+		completed := w.scheduler.stats()
 		assert !completed.motion_active && !completed.pending
-		for _ in 0 .. 8 { on_frame(mut g_gg_app) }
-		assert g_gg_app.scheduler.stats().draws == completed.draws
+		for _ in 0 .. 8 { on_frame(mut w) }
+		assert w.scheduler.stats().draws == completed.draws
 	}
 }

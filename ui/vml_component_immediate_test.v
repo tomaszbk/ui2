@@ -7,14 +7,7 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? {
 	}
 
 	fn test_compiled_effect_and_keyed_reorder_preserve_live_utf8_edit_selection_focus_scroll_ime() ! {
-		previous_app := g_gg_app
-		previous_window := capture_custom_window_state()
-		defer {
-			g_gg_app = previous_app
-			previous_window.restore()
-		}
-		mut app := &GgApp{ scheduler: new_frame_coordinator() }
-		g_gg_app = app
+		mut w := &Window{}
 		mut component := new_vml_component('retained runtime')!
 		defer { component.dispose() or { panic(err) } }
 		mut root := component.element(Element{ kind: .screen, id: 'root', frame: rect(0, 0, 300, 300) })!
@@ -30,35 +23,35 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? {
 			})!
 		rows.update(['a', 'b'])!
 		root.set_children([container, caption])!
-		app.declared_root = root.element()
-		initial := app.scheduler.begin_frame(0) or { panic('missing initial frame') }
-		_ = resolve_custom_layout(mut app, initial, vml_retained_measure, take_custom_layout_patches(mut app))!
-		app.scheduler.finish_frame(initial)
+		w.declared_root = root.element()
+		initial := w.scheduler.begin_frame(0) or { panic('missing initial frame') }
+		_ = w.resolve_custom_layout(initial, vml_retained_measure, w.take_custom_layout_patches())!
+		w.scheduler.finish_frame(initial)
 		root.mount()!
 		editor := rows.nodes()[0].element().id
-		identity := app.layout_tree.identity(editor) or { panic('missing mounted editor') }
-		replace_text_prop(editor, 'declarado')
-		replace_text_value(editor, 'ñ café🙂')
-		replace_text_editor(editor, TextEditor{ text: 'ñ café🙂'.clone(), selection: TextSelection{ anchor: 1, caret: 4 } })
-		g_focused_field = editor
-		g_scroll_offsets[named_scroll_state_id(editor)] = 42
-		app.composition = TextComposition{ field_id: editor, text: 'á' }
-		app.layout_tree.reset_stats()
+		identity := w.layout_tree.identity(editor) or { panic('missing mounted editor') }
+		w.replace_text_prop(editor, 'declarado')
+		w.replace_text_value(editor, 'ñ café🙂')
+		w.replace_text_editor(editor, TextEditor{ text: 'ñ café🙂'.clone(), selection: TextSelection{ anchor: 1, caret: 4 } })
+		w.focused_field = editor
+		w.scroll_offsets[named_scroll_state_id(editor)] = 42
+		w.composition = TextComposition{ field_id: editor, text: 'á' }
+		w.layout_tree.reset_stats()
 		value.set('after')!
 		rows.update(['b', 'a'])!
-		work := app.scheduler.begin_frame(1) or { panic('missing retained patch frame') }
+		work := w.scheduler.begin_frame(1) or { panic('missing retained patch frame') }
 		assert !work.build && work.reasons == RenderReason.layout
-		resolved := resolve_custom_layout(mut app, work, vml_retained_measure, take_custom_layout_patches(mut app))!
-		app.scheduler.finish_frame(work)
+		resolved := w.resolve_custom_layout(work, vml_retained_measure, w.take_custom_layout_patches())!
+		w.scheduler.finish_frame(work)
 		assert resolved.children[1].text == 'after'
 		assert resolved.children[0].children[1].id == editor
-		assert app.layout_tree.identity(editor) or { panic('editor identity retired') } == identity
-		assert text(editor) == 'ñ café🙂'
-		assert g_text_editors[editor].selection == TextSelection{ anchor: 1, caret: 4 }
-		assert g_focused_field == editor
-		assert scroll_offset(editor) == 42
-		assert app.composition == TextComposition{ field_id: editor, text: 'á' }
-		assert app.layout_tree.stats().builds == 0
-		assert !app.scheduler.stats().pending
+		assert w.layout_tree.identity(editor) or { panic('editor identity retired') } == identity
+		assert w.text(editor) == 'ñ café🙂'
+		assert w.text_editors[editor].selection == TextSelection{ anchor: 1, caret: 4 }
+		assert w.focused_field == editor
+		assert w.scroll_offset(editor) == 42
+		assert w.composition == TextComposition{ field_id: editor, text: 'á' }
+		assert w.layout_tree.stats().builds == 0
+		assert !w.scheduler.stats().pending
 	}
 }

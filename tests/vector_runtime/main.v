@@ -14,11 +14,13 @@ __global vector_runtime_started = false
 __global vector_runtime_phase = 0
 __global vector_runtime_done = false
 __global vector_runtime_shapes = []ui2.VectorShape{}
+__global vector_runtime_dispatcher = ui2.UiDispatcher{}
 
-fn build() ui2.Element {
+fn build(mut w ui2.Window) ui2.Element {
 	if !vector_runtime_started {
 		vector_runtime_started = true
-		spawn verify(ui2.ui_dispatcher())
+		vector_runtime_dispatcher = w.dispatcher()
+		spawn verify(w, vector_runtime_dispatcher)
 	}
 	mut children := [ui2.text_area(
 		id:         'edit'
@@ -46,7 +48,9 @@ fn build() ui2.Element {
 	return ui2.screen(0xf1f5f9, children)
 }
 
-fn verify(dispatcher ui2.UiDispatcher) {
+// verify drives window from a worker thread: it reads the dispatcher's
+// counters, and touches the window only from callbacks posted to its UI thread.
+fn verify(window &ui2.Window, dispatcher ui2.UiDispatcher) {
 	time.sleep(1200 * time.millisecond)
 	before := dispatcher.stats()
 	time.sleep(500 * time.millisecond)
@@ -56,49 +60,49 @@ fn verify(dispatcher ui2.UiDispatcher) {
 		assert after.draws == before.draws
 	}
 	println('VECTOR_IDLE builds=${after.builds - before.builds} draws=${after.draws - before.draws} callbacks=${after.callbacks - before.callbacks} presentation_required=${before.presentation_required}')
-	assert dispatcher.post(fn () {
-		ui2.set_text('edit', 'edición local: ñ, á, é')
-		ui2.focus('edit')
-		ui2.text_area_set_selection('edit', 2, 5)
+	assert dispatcher.post(fn [window] () {
+		window.set_text('edit', 'edición local: ñ, á, é')
+		window.focus('edit')
+		window.text_area_set_selection('edit', 2, 5)
 		vector_runtime_phase = 1
 		assert resize_vector_window(540, 380)
 	})
 	time.sleep(600 * time.millisecond)
-	assert dispatcher.post(fn () {
+	assert dispatcher.post(fn [window] () {
 		assert int(f32(sapp.width()) / sapp.dpi_scale() + 0.5) == 540
 		assert int(f32(sapp.height()) / sapp.dpi_scale() + 0.5) == 380
-		assert ui2.text('edit') == 'edición local: ñ, á, é'
-		assert ui2.focused_id() == 'edit'
-		assert ui2.text_area_caret('edit') == 7
-		assert ui2.text_area_selection_length('edit') == 5
+		assert window.text('edit') == 'edición local: ñ, á, é'
+		assert window.focused_id() == 'edit'
+		assert window.text_area_caret('edit') == 7
+		assert window.text_area_selection_length('edit') == 5
 		vector_runtime_phase = 2
 	})
 	time.sleep(600 * time.millisecond)
-	assert dispatcher.post(fn () {
-		assert ui2.text('edit') == 'edición local: ñ, á, é'
-		assert ui2.focused_id() == 'edit'
-		assert ui2.text_area_caret('edit') == 7
-		assert ui2.text_area_selection_length('edit') == 5
+	assert dispatcher.post(fn [window] () {
+		assert window.text('edit') == 'edición local: ñ, á, é'
+		assert window.focused_id() == 'edit'
+		assert window.text_area_caret('edit') == 7
+		assert window.text_area_selection_length('edit') == 5
 		vector_runtime_phase = 3
 		assert resize_vector_window(460, 320)
 	})
 	time.sleep(600 * time.millisecond)
-	assert dispatcher.post(fn () {
+	assert dispatcher.post(fn [window] () {
 		assert int(f32(sapp.width()) / sapp.dpi_scale() + 0.5) == 460
 		assert int(f32(sapp.height()) / sapp.dpi_scale() + 0.5) == 320
-		assert ui2.text('edit') == 'edición local: ñ, á, é'
-		assert ui2.text_area_selection_length('edit') == 5
+		assert window.text('edit') == 'edición local: ñ, á, é'
+		assert window.text_area_selection_length('edit') == 5
 		vector_runtime_done = true
-		ui2.quit()
-		assert ui2.render_stats().closed
-		assert !ui2.ui_dispatcher().post(fn () {})
+		window.quit()
+		assert window.render_stats().closed
+		assert !window.dispatcher().post(fn () {})
 		println('VECTOR_RUNTIME_OK resize/edit/selection/focus/remove/recreate')
 	})
 }
 
 fn verify_exit() {
 	assert vector_runtime_done
-	assert ui2.render_stats().closed
+	assert vector_runtime_dispatcher.stats().closed
 	assert !gfx.is_valid()
 	println('VECTOR_TEARDOWN_OK scheduler closed / GPU device released / normal exit')
 }

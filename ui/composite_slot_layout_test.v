@@ -320,40 +320,33 @@ fn slot_runtime_content(layout LayoutKind) !Element {
 
 $if macos && !ui2_headless ? {
 	fn test_custom_composite_resize_preserves_local_edit_selection_focus_scroll_and_ime() {
-		previous_app := g_gg_app
-		previous_window := capture_custom_window_state()
-		defer {
-			g_gg_app = previous_app
-			previous_window.restore()
-		}
 		for composite in [SlotComposite.screen_manager] {
 			for layout in [LayoutKind.flex, .grid, .stack] {
-				mut app := &GgApp{ scheduler: new_frame_coordinator() }
-				g_gg_app = app
+				mut w := &Window{}
 				content := slot_runtime_content(layout)!
-				app.declared_root = slot_composite(composite, rect(0, 0, 320, 200), content)!
-				initial := app.scheduler.begin_frame(0) or { panic('no initial frame') }
-				_ = resolve_custom_layout(mut app, initial, slot_measure, take_custom_layout_patches(mut app))!
-				app.scheduler.finish_frame(initial)
-				replace_text_prop('editor', 'declarado')
-				replace_text_value('editor', 'ñ café🙂')
-				replace_text_editor('editor', TextEditor{ text: 'ñ café🙂'.clone(), selection: TextSelection{ anchor: 1, caret: 4 } })
-				g_focused_field = 'editor'
-				g_scroll_offsets[named_scroll_state_id('pane')] = 42
-				app.composition = TextComposition{ field_id: 'editor', text: 'á' }
-				generation := (app.layout_tree.identity('editor') or { panic('missing identity') }).generation
+				w.declared_root = slot_composite(composite, rect(0, 0, 320, 200), content)!
+				initial := w.scheduler.begin_frame(0) or { panic('no initial frame') }
+				_ = w.resolve_custom_layout(initial, slot_measure, w.take_custom_layout_patches())!
+				w.scheduler.finish_frame(initial)
+				w.replace_text_prop('editor', 'declarado')
+				w.replace_text_value('editor', 'ñ café🙂')
+				w.replace_text_editor('editor', TextEditor{ text: 'ñ café🙂'.clone(), selection: TextSelection{ anchor: 1, caret: 4 } })
+				w.focused_field = 'editor'
+				w.scroll_offsets[named_scroll_state_id('pane')] = 42
+				w.composition = TextComposition{ field_id: 'editor', text: 'á' }
+				generation := (w.layout_tree.identity('editor') or { panic('missing identity') }).generation
 				for index, size in [rect(0, 0, 500, 300), rect(0, 0, 320, 200)] {
-					app.declared_root = slot_composite(composite, size, content)!
-					app.scheduler.invalidate(.build)
-					work := app.scheduler.begin_frame(i64(index + 1)) or { panic('missing rebuild') }
-					resolved := resolve_custom_layout(mut app, work, slot_measure, take_custom_layout_patches(mut app))!
-					app.scheduler.finish_frame(work)
+					w.declared_root = slot_composite(composite, size, content)!
+					w.scheduler.invalidate(.build)
+					work := w.scheduler.begin_frame(i64(index + 1)) or { panic('missing rebuild') }
+					resolved := w.resolve_custom_layout(work, slot_measure, w.take_custom_layout_patches())!
+					w.scheduler.finish_frame(work)
 					slot_rect((slot_find(resolved, 'content') or { panic('missing content') }).frame, slot_expected(composite, size.width, size.height))
-					assert (app.layout_tree.identity('editor') or { panic('missing identity') }).generation == generation
-					assert text('editor') == 'ñ café🙂'
-					assert g_text_editors['editor'].selection == TextSelection{ anchor: 1, caret: 4 }
-					assert focused_id() == 'editor' && scroll_offset('pane') == 42
-					assert app.composition.field_id == 'editor' && app.composition.text == 'á'
+					assert (w.layout_tree.identity('editor') or { panic('missing identity') }).generation == generation
+					assert w.text('editor') == 'ñ café🙂'
+					assert w.text_editors['editor'].selection == TextSelection{ anchor: 1, caret: 4 }
+					assert w.focused_id() == 'editor' && w.scroll_offset('pane') == 42
+					assert w.composition.field_id == 'editor' && w.composition.text == 'á'
 				}
 			}
 		}

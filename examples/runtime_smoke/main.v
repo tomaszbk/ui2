@@ -17,30 +17,30 @@ fn notes() string {
 	return lines.join('\n')
 }
 
-fn update_counter() {
+fn update_counter(w &ui2.Window) {
 	mut state := unsafe { runtime_demo }
 	state.updates++
-	ui2.request_refresh()
+	w.request_refresh()
 }
 
 fn handle_key(event ui2.KeyEvent) {
 	if event.code == .f6 {
-		update_counter()
-		ui2.consume_text_key()
+		update_counter(event.window)
+		event.window.consume_text_key()
 	} else if event.code == .f7 {
-		ui2.set_text('notes', notes())
-		ui2.consume_text_key()
+		event.window.set_text('notes', notes())
+		event.window.consume_text_key()
 	}
 }
 
 fn handle_button(event ui2.ElementEvent) {
 	if event.kind == .click {
-		update_counter()
+		update_counter(event.window)
 	}
 }
 
-fn build() ui2.Element {
-	b := ui2.bounds()
+fn build(mut w ui2.Window) ui2.Element {
+	b := w.bounds()
 	style := ui2.TextStyle{ size: 16, color: 0x172554 }
 	return ui2.screen(0xf1f5f9, [
 		ui2.label('heading', 'Editable text and retained updates', ui2.rect(24, 20, b.width - 48, 32), ui2.TextStyle{ size: 22, bold: true, color: 0x172554 }),
@@ -65,6 +65,13 @@ fn build() ui2.Element {
 }
 
 fn main() {
-	ui2.on_key_event(handle_key)
-	ui2.run_window('Runtime smoke', 760, 560, build)
+	mut app := ui2.new_app()
+	mut window := app.new_window(
+		title:  'Runtime smoke'
+		width:  760
+		height: 560
+		build:  build
+	) or { panic(err) }
+	window.on_key_event(handle_key)
+	app.run()
 }

@@ -56,7 +56,7 @@ $if macos && ui2_embedder ?&& !ui2_headless ? {
 				hidden:   fixture.hide_logo
 				on_event: fn [original] (event ui2.ElementEvent) {
 					if event.kind in [.pointer_down, .pointer_drag, .pointer_up] {
-						geometry := ui2.visual_geometry('logo') or { panic(err) }
+						geometry := event.window.visual_geometry('logo') or { panic(err) }
 						mut fixture := unsafe { logo_drag_fixture }
 						fixture.events << LogoPointerRecord{
 							kind:   event.kind
@@ -70,12 +70,12 @@ $if macos && ui2_embedder ?&& !ui2_headless ? {
 		return result
 	}
 
-	fn build_logo_drag_fixture() ui2.Element {
+	fn build_logo_drag_fixture(mut w ui2.Window) ui2.Element {
 		fixture := unsafe { logo_drag_fixture }
 		frame := if fixture.scaled {
 			ui2.rect(0, 0, inside_row_width, inside_row_height)
 		} else {
-			ui2.bounds()
+			w.bounds()
 		}
 		mut app := unsafe { inside_row_state }
 		root := canvas_layout_inside_row_tree(mut app, frame)
@@ -89,16 +89,14 @@ $if macos && ui2_embedder ?&& !ui2_headless ? {
 		return adjusted
 	}
 
-	fn present_logo_drag_fixture(window ui2.CustomWindow) {
+	fn present_logo_drag_fixture(window &ui2.Window) {
 		assert C.ui2_inside_row_present(window.native_handle()), 'retained presentation did not settle'
 	}
 
-	fn read_logo_drag_geometry(window ui2.CustomWindow) {
-		assert window.update(fn () {
-			mut fixture := unsafe { logo_drag_fixture }
-			fixture.logo = ui2.visual_geometry('logo') or { panic(err) }
-			fixture.card = ui2.visual_geometry('card') or { panic(err) }
-		})
+	fn read_logo_drag_geometry(mut window ui2.Window) {
+		mut fixture := unsafe { logo_drag_fixture }
+		fixture.logo = window.visual_geometry('logo') or { panic(err) }
+		fixture.card = window.visual_geometry('card') or { panic(err) }
 	}
 
 	fn assert_logo_drag_near(actual f64, expected f64) {
@@ -110,10 +108,10 @@ $if macos && ui2_embedder ?&& !ui2_headless ? {
 		return geometry.transform.point(geometry.frame.x + 36, geometry.frame.y + 36)
 	}
 
-	fn send_logo_drag_pointer(window ui2.CustomWindow, kind int, point ui2.Point) {
+	fn send_logo_drag_pointer(mut window ui2.Window, kind int, point ui2.Point) {
 		C.ui2_inside_row_pointer(window.native_handle(), kind, point.x, point.y)
 		present_logo_drag_fixture(window)
-		read_logo_drag_geometry(window)
+		read_logo_drag_geometry(mut window)
 	}
 }
 
@@ -123,9 +121,14 @@ fn test_rotated_logo_callbacks_follow_window_pointer_using_retained_geometry() {
 		previous_state := *state
 		mut fixture := unsafe { logo_drag_fixture }
 		defer { unsafe { *state = previous_state } }
-		window := ui2.open_window('Rotated logo drag regression', inside_row_width,
-			inside_row_height, build_logo_drag_fixture) or { panic(err) }
-		defer { window.close() }
+		mut app := ui2.new_app()
+		mut window := app.new_window(
+			title:  'Rotated logo drag regression'
+			width:  inside_row_width
+			height: inside_row_height
+			build:  build_logo_drag_fixture
+		) or { panic(err) }
+		defer { window.quit() }
 		for scenario in 0 .. 3 {
 			for rotation in [0.0, 90.0, 180.0, 270.0] {
 				unsafe {
@@ -133,9 +136,9 @@ fn test_rotated_logo_callbacks_follow_window_pointer_using_retained_geometry() {
 					*fixture = LogoDragFixture{ translated: scenario > 0, scaled: scenario == 2 }
 				}
 				state.rotation = rotation
-				assert window.update(ui2.refresh)
+				window.request_refresh()
 				present_logo_drag_fixture(window)
-				read_logo_drag_geometry(window)
+				read_logo_drag_geometry(mut window)
 				assert_logo_drag_near(fixture.logo.frame.x - fixture.card.frame.x, state.logo_x)
 				assert_logo_drag_near(fixture.logo.frame.y - fixture.card.frame.y, state.logo_y)
 				scale := if fixture.scaled { 0.75 } else { 1.0 }
@@ -143,14 +146,14 @@ fn test_rotated_logo_callbacks_follow_window_pointer_using_retained_geometry() {
 				// Non-centre grab: no jump on down, including rotated corners.
 				down := fixture.logo.transform.point(fixture.logo.frame.x + 20,
 					fixture.logo.frame.y + 26)
-				send_logo_drag_pointer(window, 0, down)
+				send_logo_drag_pointer(mut window, 0, down)
 				assert_logo_drag_near(state.logo_x, 92)
 				assert_logo_drag_near(state.logo_y, 150)
 				grab_x, grab_y := state.grab_x, state.grab_y
 				// Independent window movements: right20 must never become up20.
 				for step in 1 .. 4 {
 					point := ui2.Point{down.x + 20 * step, down.y + 12 * (step - 1)}
-					send_logo_drag_pointer(window, if step == 3 { 2 } else { 1 }, point)
+					send_logo_drag_pointer(mut window, if step == 3 { 2 } else { 1 }, point)
 					assert_logo_drag_near(state.logo_x, 92 + 20 * step / scale)
 					assert_logo_drag_near(state.logo_y, 150 + 12 * (step - 1) / scale)
 					assert_logo_drag_near(state.grab_x, grab_x)
@@ -186,24 +189,29 @@ fn test_logo_callback_clamps_to_presented_card_after_resize_and_missing_geometry
 			*fixture = LogoDragFixture{ translated: true }
 		}
 		state.rotation = 90
-		window := ui2.open_window('Logo clamp and resize regression', inside_row_width,
-			inside_row_height, build_logo_drag_fixture) or { panic(err) }
-		defer { window.close() }
+		mut app := ui2.new_app()
+		mut window := app.new_window(
+			title:  'Logo clamp and resize regression'
+			width:  inside_row_width
+			height: inside_row_height
+			build:  build_logo_drag_fixture
+		) or { panic(err) }
+		defer { window.quit() }
 		present_logo_drag_fixture(window)
-		read_logo_drag_geometry(window)
+		read_logo_drag_geometry(mut window)
 		down := fixture.logo.transform.point(fixture.logo.frame.x + 20, fixture.logo.frame.y + 26)
-		send_logo_drag_pointer(window, 0, down)
-		send_logo_drag_pointer(window, 1, ui2.Point{5000, 5000})
+		send_logo_drag_pointer(mut window, 0, down)
+		send_logo_drag_pointer(mut window, 1, ui2.Point{5000, 5000})
 		assert_logo_drag_near(state.logo_x, fixture.card.frame.width - logo_size - 18)
 		assert_logo_drag_near(state.logo_y, fixture.card.frame.height - logo_size - 60)
 		C.ui2_inside_row_resize(window.native_handle(), 700, 480)
 		present_logo_drag_fixture(window)
-		read_logo_drag_geometry(window)
+		read_logo_drag_geometry(mut window)
 		assert fixture.card.frame.width == 668 && fixture.card.frame.height == 448
-		send_logo_drag_pointer(window, 1, ui2.Point{5000, 5000})
+		send_logo_drag_pointer(mut window, 1, ui2.Point{5000, 5000})
 		assert_logo_drag_near(state.logo_x, 578)
 		assert_logo_drag_near(state.logo_y, 316)
-		send_logo_drag_pointer(window, 2, ui2.Point{-1000, -1000})
+		send_logo_drag_pointer(mut window, 2, ui2.Point{-1000, -1000})
 		assert_logo_drag_near(state.logo_x, tray_x)
 		assert_logo_drag_near(state.logo_y, pane_y)
 		assert fixture.events.map(it.kind) == [.pointer_down, .pointer_drag, .pointer_drag,
@@ -211,27 +219,24 @@ fn test_logo_callback_clamps_to_presented_card_after_resize_and_missing_geometry
 		for hide_logo in [true, false] {
 			fixture.hide_logo = hide_logo
 			fixture.omit_card_id = !hide_logo
-			assert window.update(ui2.refresh)
+			window.request_refresh()
 			present_logo_drag_fixture(window)
 			before := *state
-			assert window.update(fn () {
-				fixture := unsafe { logo_drag_fixture }
-				if fixture.hide_logo {
-					if _ := ui2.visual_geometry('logo') {
-						assert false
-					}
-					ui2.visual_geometry('card') or { panic(err) }
-				} else {
-					ui2.visual_geometry('logo') or { panic(err) }
-					if _ := ui2.visual_geometry('card') {
-						assert false
-					}
+			if fixture.hide_logo {
+				if _ := window.visual_geometry('logo') {
+					assert false
 				}
-				callback := canvas_layout_inside_row_callbacks()['logo'] or { panic('missing callback') }
-				for kind in [ui2.ElementEventKind.pointer_down, .pointer_drag, .pointer_up] {
-					callback(ui2.ElementEvent{ kind: kind, id: 'logo', x: 200, y: 200 })
+				window.visual_geometry('card') or { panic(err) }
+			} else {
+				window.visual_geometry('logo') or { panic(err) }
+				if _ := window.visual_geometry('card') {
+					assert false
 				}
-			})
+			}
+			callback := canvas_layout_inside_row_callbacks()['logo'] or { panic('missing callback') }
+			for kind in [ui2.ElementEventKind.pointer_down, .pointer_drag, .pointer_up] {
+				callback(ui2.ElementEvent{ window: window, kind: kind, id: 'logo', x: 200, y: 200 })
+			}
 			assert *state == before
 		}
 	}

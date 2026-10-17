@@ -78,12 +78,13 @@ fn test_hover_events_reach_the_callbacks_leaves_first() {
 		id:       'cell'
 		on_event: callback
 	}
+	w := &Window{}
 	for pending in hover_events([other], [target], 3, 4) {
-		pending.fire()
+		pending.fire(w)
 	}
 	assert log.events == ['pointer_leave:cell:3.0:4.0', 'pointer_enter:row:3.0:4.0']
 	// A target without a callback is skipped.
-	PendingHoverEvent{}.fire()
+	PendingHoverEvent{}.fire(w)
 	assert log.events.len == 2
 }
 
