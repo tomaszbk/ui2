@@ -9,4 +9,7 @@ pub:
 	tab       ?TabbedPanelTab
 	tree      ?TreeViewNode
 	screen    ?ManagedScreen
+	// A MenuBar or Menu document carries its application menus; see menus().
+	menu_document bool
+	menus         []Menu
 }
