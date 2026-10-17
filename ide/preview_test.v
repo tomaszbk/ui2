@@ -3,6 +3,8 @@ module main
 import ui2
 import os
 
+fn C.GC_base(voidptr) voidptr
+
 fn preview_test_find(element ui2.Element, id string) ?ui2.Element {
 	if element.id == id { return element }
 	for child in element.children {
@@ -36,6 +38,9 @@ fn test_preview_reuses_owner_and_failed_compile_preserves_live_document() ! {
 	defer { app.dispose_preview() }
 	frame := ui2.rect(0, 0, app.form_width, app.form_height)
 	first := app.preview_element(frame)!
+	// The library allocates its document from this process's collector, not
+	// from a private one whose heap this collector cannot see.
+	assert C.GC_base(voidptr(first.compiled_node)) != unsafe { nil }
 	second := app.preview_element(frame)!
 	assert first.compiled_node == second.compiled_node
 	assert first.compiled_node.component.runtime.stats() == second.compiled_node.component.runtime.stats()

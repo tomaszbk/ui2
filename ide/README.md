@@ -42,7 +42,9 @@ The designer provides:
 
 Preview compiles VML to a declaration library with the same compiler as the designer.
 The designer and its preview libraries use V's C backend for their exported
-struct and callback ABI.
+struct and callback ABI. A preview library has no garbage collector of its own:
+it is linked against the designer's, which the designer exports on Linux and
+macOS. V cannot link a Windows DLL that way, so Windows has no compiled preview.
 Entering Preview recompiles the current source and its relative component imports;
 a compilation error keeps the previous preview alive. Retained controls keep
 their component state during unrelated designer updates. Closing or replacing
