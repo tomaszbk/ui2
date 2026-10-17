@@ -1,7 +1,7 @@
-// vtest vflags: -d ui2_custom_rendering -d ui2_embedder
+// vtest vflags: -d ui2_embedder
 module ui2
 
-$if macos && ui2_embedder ?&& ui2_custom_rendering ?&& !ui2_headless ? {
+$if macos && ui2_embedder ?&& !ui2_headless ? {
 	import gg
 	import os
 	import sokol.gfx
@@ -33,7 +33,7 @@ $if macos && ui2_embedder ?&& ui2_custom_rendering ?&& !ui2_headless ? {
 }
 
 fn test_image_gpu_atlas_context_isolation_shared_release_resize_and_recreation() {
-	$if macos && ui2_embedder ?&& ui2_custom_rendering ?&& !ui2_headless ? {
+	$if macos && ui2_embedder ?&& !ui2_headless ? {
 		environment := image_gpu_environment()
 		mut first := new_surface_draw_context(gg.Config{ width: 320, height: 240 }, environment)!
 		defer { first.destroy() }

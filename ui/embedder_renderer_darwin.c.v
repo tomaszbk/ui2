@@ -2,7 +2,7 @@
 @[has_globals]
 module ui2
 
-$if macos && ui2_custom_rendering ? && ui2_embedder ? && !ui2_headless ? && !ui2_document_library ? {
+$if macos && ui2_embedder ? && !ui2_headless ? && !ui2_document_library ? {
 	import gg
 	import sokol.gfx
 
@@ -117,6 +117,10 @@ $if macos && ui2_custom_rendering ? && ui2_embedder ? && !ui2_headless ? && !ui2
 		handle := app.native_window
 		app.scheduler.set_presentation_required(false)
 		app.scheduler.set_wakeup(fn [handle] () { C.ui2_embedder_wakeup(handle) })
+		// The embedder has made NSApp and the window by now, so the host can
+		// install the declared menus over the embedder's default ones.
+		publish_menu_context('', C.ui2_embedder_native_window(handle))
+		install_declared_menus()
 		C.ui2_embedder_show(handle)
 		return CustomWindow{app: app}
 	}

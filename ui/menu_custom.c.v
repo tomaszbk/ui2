@@ -1,12 +1,14 @@
 // vfmt off
-// The custom renderer has no platform menu bar to hand a declaration to, so it
-// draws one across the top of the window and reserves that strip from the
-// screen it lays elements out in. Keep the gg import inside the platform block
-// for the same reason ui_immediate.c.v does.
+// A host without a menu bar of its own (host_menu_bar == .drawn, platform.v)
+// gets one drawn across the top of the window, and that strip is reserved from
+// the screen elements are laid out in. Where the host shows the menu bar, only
+// the shortcuts may be left to this file: the renderer matches them against
+// its key events unless the host's menu runs its own key equivalents. Keep the
+// gg import inside the platform block for the same reason ui_immediate.c.v does.
 @[has_globals]
 module ui2
 
-$if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? && !ui2_document_library ? {
+$if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_document_library ? {
 	import gg
 
 	const menubar_height = 26.0
@@ -62,7 +64,12 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	// bounds() subtracts it and the screen is drawn below it, so an element at
 	// y 0 sits under the bar rather than behind it.
 	fn menu_bar_height() f64 {
-		return if menu_bar().len == 0 { 0.0 } else { menubar_height }
+		return if menu_bar_drawn() { menubar_height } else { 0.0 }
+	}
+
+	// menu_bar_drawn reports whether the window shows a drawn menu bar.
+	fn menu_bar_drawn() bool {
+		return host_menu_bar == .drawn && menu_bar().len > 0
 	}
 
 	fn menu_bar_open() bool {
@@ -106,7 +113,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		if t.len == 0 {
 			return 0.0
 		}
-		$if android {
+		$if android || ios {
 			family := text_font_file(style.font_family, style.bold, style.italic)
 			ensure_family_fallbacks(ctx, family)
 			ctx.set_text_cfg(gg.TextCfg{
@@ -132,12 +139,12 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	// list the pointer handlers read. It runs after the element tree so the
 	// panels float above the window's own controls.
 	fn draw_menu_bar(ctx &DrawContext) {
-		bar_menus := menu_bar()
 		g_menu_hits = []MenuBarHit{}
 		g_menu_panels = []Rect{}
-		if bar_menus.len == 0 {
+		if !menu_bar_drawn() {
 			return
 		}
+		bar_menus := menu_bar()
 		window := rect(0, 0, f64(ctx.width), f64(ctx.height))
 		apply_clip(ctx, window)
 		draw_rect(ctx, 0, 0, window.width, menubar_height, menubar_background, 0)
@@ -354,7 +361,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	// act on release, the way both platform menus do, so a press-drag-release
 	// selects in one gesture.
 	fn menu_bar_handle_down(x f64, y f64) bool {
-		if menu_bar().len == 0 {
+		if !menu_bar_drawn() {
 			return false
 		}
 		if hit := menu_bar_hit_at(x, y) {
@@ -406,7 +413,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	fn menu_bar_handle_up(x f64, y f64) bool {
 		swallow := g_menu_swallow_up
 		g_menu_swallow_up = false
-		if menu_bar().len == 0 {
+		if !menu_bar_drawn() {
 			return false
 		}
 		if hit := menu_bar_hit_at(x, y) {
@@ -421,14 +428,15 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 
 	// menu_bar_handle_key runs Escape and the declared accelerators. It is
 	// asked before the window's own key handler, so a menu shortcut wins over
-	// an app binding on the same chord.
+	// an app binding on the same chord. A host menu that runs its own key
+	// equivalents has taken the key before the window sees it.
 	fn menu_bar_handle_key(e &gg.Event) bool {
 		if menu_bar_open() && e.key_code == .escape {
 			close_menu_bar()
 			return true
 		}
 		bar_menus := menu_bar()
-		if bar_menus.len == 0 {
+		if bar_menus.len == 0 || host_menu_key_equivalents {
 			return false
 		}
 		pressed := parse_menu_shortcut(immediate_normalized_key(e))

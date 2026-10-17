@@ -72,7 +72,7 @@ fn test_image_variant_selection_uses_density_and_preserves_intrinsic_layout() {
 	assert image_geometry(rect(0, 0, 80, 80), asset.logical_size, ImageStyle{ fit: .cover })!.density == 4
 }
 
-fn test_image_invalid_assets_and_native_presentation_have_diagnostics() {
+fn test_image_invalid_assets_have_diagnostics() {
 	for asset in [ImageAsset{ variants: [ImageVariant{ path: 'x', density: 2 }] },
 		ImageAsset{ logical_size: LayoutSize{ width: 2, height: 2 }, variants: [ImageVariant{ path: 'x', density: 1 }] },
 		ImageAsset{ logical_size: LayoutSize{ width: 2, height: 0 } }] {
@@ -84,39 +84,12 @@ fn test_image_invalid_assets_and_native_presentation_have_diagnostics() {
 		style.validate() or { continue }
 		assert false
 	}
-	for style in [ImageStyle{ fit: .cover }, ImageStyle{ tint: ImageTint{ a: 0 } },
-		ImageStyle{ source: rect(0, 0, 0.5, 1) }] {
-		validate_native_image(Element{ ...image('i', 'x', rect(0, 0, 10, 10)), image_style: style }) or {
-			assert err.msg().contains('custom renderer')
-			continue
-		}
-		assert false
-	}
 	image_geometry(rect(0, 0, 10, 10), LayoutSize{ width: 0, height: 10 }, ImageStyle{}) or { return }
 	assert false
 }
 
-fn test_image_tree_rejects_custom_presentation_on_native_hosts() {
+fn test_image_tree_accepts_custom_presentation() {
 	el := Element{ ...image('styled', 'x.png', rect(0, 0, 100, 100)), image_style: ImageStyle{ fit: .cover } }
-	if backend_native_controls {
-		validate_element_tree(el) or {
-			assert err.msg().contains('custom renderer')
-			return
-		}
-		assert false
-	} else {
-		validate_element_tree(el)!
-	}
+	validate_element_tree(el)!
 }
 
-fn test_native_image_rotation_and_quad_interaction_require_custom() {
-	base := image('image', 'x.png', rect(0, 0, 100, 100))
-	for el in [Element{ ...base, rotation: 45 }, Element{ ...base, clickable: true },
-		Element{ ...base, tooltip: 'quad' }] {
-		validate_native_image(el) or {
-			assert err.msg().contains('visible-quad interaction')
-			continue
-		}
-		assert false
-	}
-}

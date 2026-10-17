@@ -22,7 +22,6 @@ component and variant with its loops running:
 ```sh
 # from the directory that contains the ui2 checkout
 v run ui2/examples/gpui_feedback/main.v
-v -d ui2_custom_rendering run ui2/examples/gpui_feedback/main.v
 ```
 
 The loading spinner is called `loading_spinner` because ui2's `spinner` is a
@@ -48,9 +47,8 @@ sizes its box by presentation alone, and nothing allocates while it runs.
 - Every animated component takes `reduce_motion`, which draws it at rest: GPUI
   does the same when the system asks for reduced motion. `set_reduced_motion`
   does the same for every component in the application.
-- Renderers without motion (the native AppKit, Windows, UIKit and Android
-  backends) draw the components at rest, as `reduce_motion` does. Linear
-  progress changes its value at once there.
+- Android and iOS, which have no motion, draw the components at rest, as
+  `reduce_motion` does. Linear progress changes its value at once there.
 
 ui2 colors are opaque, so GPUI's translucent tracks are flattened: a track
 defaults to the indicator color mixed 20% over the theme's background. Rings
@@ -61,9 +59,8 @@ when a ring sits on a card or inside a colored button.
 
 ui2 cannot rotate a view or draw an arc, so rings are built from simple views:
 
-- **AppKit, UIKit, Win32:** overlapping round cells along the ring, half a stroke
-  apart, so an arc gets round ends. AppKit and UIKit antialias them; Win32 paints
-  them with GDI's `RoundRect`, which does not (untested here).
+- **Headless:** overlapping round cells along the ring, half a stroke apart, so
+  an arc gets round ends.
 - **Custom renderer:** gg draws a rounded rectangle with about 370 sokol-gl
   vertices and its buffer holds 65,536 a frame, so a few hundred round cells blank
   the whole window. There a ring is scan-converted into horizontal strips half a
@@ -192,9 +189,9 @@ circle brightens as the band passes its center. The timing follows GPUI's
 | `base_color`, `highlight_color` | Shape fill and the brightest band color. In a light theme the base is a step darker than `skeleton`'s muted fill so the lighter band shows; in a dark theme the band moves toward the foreground |
 | `reduce_motion`, `accessibility_label` | Shapes without a sweep; a `status` labelled `Loading` |
 
-AppKit clips the square band to each rounded shape. Other renderers do not clip
-a view to its parent, so there the band crosses only the straight middle of a
-rounded shape and leaves its round ends in the base color.
+Renderers do not clip a view to its parent's rounded corners, so the band
+crosses only the straight middle of a rounded shape and leaves its round ends
+in the base color.
 
 ### `shimmer_text`
 
@@ -232,14 +229,12 @@ with `text_style.color`, centered in `frame` at `pixel_size` (or the size preset
 small 14, medium 16, large 24; GPUI's xsmall is 12). Its role is `img` and its
 label the icon's title (`IconName.title()`), unless `accessibility_label` is set.
 `symbol` takes any name `symbol_known` accepts instead of an `IconName`; other
-names are rejected because they would draw a question mark off Apple platforms.
+names are rejected because the renderer would draw a question mark for them.
 `icon_names()` lists every `IconName`.
 
-How each backend draws it: AppKit and UIKit draw the SF Symbol, tinted with
-`contentTintColor`/`tintColor`; the custom renderer draws the Material Icons
-glyph from `ui/symbols.v` in the text color; Win32 draws the same glyph as a
-label in the bundled Material Icons face. `rotation` (degrees clockwise) is
-honored by AppKit and UIKit only.
+The renderer draws the Material Icons glyph from `ui/symbols.v` in the text
+color. `rotation` (degrees clockwise) is the element's visual rotation, which
+Android and iOS do not support.
 
 `IconName` has the GPUI names with a counterpart in `ui/symbols.v` that draws the
 same thing in both faces:
@@ -296,11 +291,10 @@ Gaps:
   outlined star, `rectangle.split.1x2` and `rectangle.split.2x1` draw the wrong
   panes, `arrow.right.to.line` draws an indent, the four-way move arrow draws
   diagonal ones), so they are left out until the table has them.
-- SF Symbols are outlines and the bundled Material Icons face is filled, so the
-  same `IconName` looks outlined on Apple platforms and solid elsewhere.
+- The bundled Material Icons glyphs are filled where Lucide's are outlines.
 - SVG paths and bytes (`Icon::path`, `Icon::data`) and custom `IconNamed` types:
   draw files with `image()`.
-- `rotate`/`transform` work on AppKit and UIKit only.
+- `rotate`/`transform`: use `rotation`, the element's visual rotation.
 
 ## Accessibility
 
@@ -317,7 +311,6 @@ Gaps:
 ```sh
 # from the directory that contains the ui2 checkout
 v test ui2/ui/component_feedback_test.v
-v -d ui2_custom_rendering test ui2/ui/component_feedback_test.v
 ```
 
 The suite covers value clamping and announcement, size presets and geometry,

@@ -1,4 +1,3 @@
-// vtest vflags: -d ui2_custom_rendering
 module ui2
 
 import math
@@ -103,14 +102,7 @@ fn test_style_padding_uses_fractional_stack_geometry_and_paint_changes_reuse_lay
 	assert plain.layout.kind == .none
 }
 
-fn test_style_native_profile_checks_explicit_supplied_zero_and_false() ! {
-	validate_native_style(compose_styles([style_background(0), style_radius(0)]), .view)!
-	for patch in [style_outline_width(0), style_letter_spacing(0), style_tabular_figures(false),
-		style_hover([style_background(0)])!] {
-		if _ := validate_native_style(patch, .view) {
-			assert false, 'unsupported supplied properties need a diagnostic'
-		}
-	}
+fn test_style_rejects_invalid_values() ! {
 	for patch in [style_padding(-1), style_radius(math.inf(1)), style_font_size(-1), style_weight(99)] {
 		if _ := apply_style(view('v', Rect{}, BoxStyle{}, []), patch) {
 			assert false
@@ -213,9 +205,6 @@ fn test_button_padding_changes_intrinsic_measurement_and_inner_paint_box() ! {
 	zero := apply_style(base, style_padding(0))!
 	assert measure_layout_element(zero, LayoutConstraints{}, style_fixture_measure)! == LayoutSize{ width: 20, height: 15 }
 	assert button_content_rect(Element{ ...zero, frame: rect(0, 0, 80, 50) }) == rect(0, 0, 80, 50)
-	if _ := validate_native_style(style_padding(0), .button) {
-		assert false
-	}
 }
 
 fn test_theme_only_allocates_requested_sources_and_rejects_orphaned_custom_token_atomically() ! {
@@ -288,38 +277,6 @@ fn test_tree_style_targets_owned_row_typography_without_replacing_part_colors() 
 	assert styled.selected_text_style.color == 0x222222 && styled.selected_text_style.size == 22
 	assert styled.disclosure_text_style.color == 0x333333 && styled.disclosure_text_style.size == 22
 	assert style_tree_view(config, StylePatch{})! == config
-}
-
-fn test_native_style_masks_follow_actual_appkit_control_capabilities() ! {
-	$if macos {
-		validate_native_style(compose_styles([style_foreground(0), style_font_size(15),
-			style_weight(700)]), .label)!
-		validate_native_style(compose_styles([style_background(0), style_foreground(0),
-			style_weight(700)]), .button)!
-		for patch in [style_background(0), style_radius(0), style_transparent(false)] {
-			if _ := validate_native_style(patch, .label) {
-				assert false
-			}
-		}
-		for patch in [style_weight(700), style_italic(false), style_font_family(''),
-			style_padding_left(0)] {
-			if _ := validate_native_style(patch, .text_field) {
-				assert false
-			}
-		}
-		if _ := validate_native_style(style_foreground(0), .dropdown) {
-			assert false
-		}
-		if _ := validate_native_style(style_text_align(.center), .button) {
-			assert false
-		}
-		if _ := validate_native_style(style_background(0), .image) {
-			assert false
-		}
-		if _ := validate_native_style(style_border_width(0), .screen) {
-			assert false
-		}
-	}
 }
 
 fn test_style_text_enum_and_empty_string_composition_preserves_typed_values() ! {

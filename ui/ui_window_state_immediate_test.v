@@ -1,7 +1,7 @@
 @[has_globals]
 module ui2
 
-$if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
+$if (android || ios || linux || macos || windows) && !ui2_headless ? {
 	struct WindowStateEvent {
 		window string
 		event  ElementEvent
@@ -36,7 +36,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 }
 
 fn test_custom_windows_same_ids_keep_independent_edits_focus_scroll_and_menus() {
-	$if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
+	$if (android || ios || linux || macos || windows) && !ui2_headless ? {
 		previous_app := g_gg_app
 		previous_events := window_state_events.clone()
 		first := new_custom_window_state()
@@ -118,7 +118,7 @@ fn test_custom_windows_same_ids_keep_independent_edits_focus_scroll_and_menus() 
 }
 
 fn test_custom_window_activation_is_reentrant_and_restores_pending_scroll_requests() {
-	$if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
+	$if (android || ios || linux || macos || windows) && !ui2_headless ? {
 		previous_app := g_gg_app
 		first := new_custom_window_state()
 		second := new_custom_window_state()
@@ -151,7 +151,7 @@ fn test_custom_window_activation_is_reentrant_and_restores_pending_scroll_reques
 // Motion is retained by each window's own motion tree; visual deadlines are
 // window state too.
 fn test_custom_windows_isolate_visual_deadlines() {
-	$if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
+	$if (android || ios || linux || macos || windows) && !ui2_headless ? {
 		previous_app := g_gg_app
 		first := new_custom_window_state()
 		second := new_custom_window_state()
@@ -189,7 +189,7 @@ fn test_custom_windows_isolate_visual_deadlines() {
 }
 
 fn test_custom_windows_keep_scroll_callback_declarations_independent() {
-	$if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
+	$if (android || ios || linux || macos || windows) && !ui2_headless ? {
 		first := new_custom_window_state()
 		second := new_custom_window_state()
 		previous := activate_custom_window_state(first)

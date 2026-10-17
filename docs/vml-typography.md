@@ -39,10 +39,10 @@ In V, `rich_label(id, runs, frame, style)` constructs the same label using
 existing `TextRun` values. V run styles are complete styles, with their ordinary
 TextStyle defaults; they do not implicitly inherit the parent.
 
-These additions currently render on desktop custom (macOS, Windows and Linux).
-Native, Android and headless retain their existing text paths: a rich label's
-concatenated text remains visible, but new typography attributes and per-run
-styles do not gain portable native rendering in this delivery. Existing native
-rich TextArea contracts remain unchanged. This does not extend grapheme editing,
+These additions currently render on the desktop renderer (macOS, Windows and
+Linux). iOS, Android and headless retain their existing text paths: a rich
+label's concatenated text remains visible, but new typography attributes and
+per-run styles are not drawn there. Existing rich TextArea contracts remain
+unchanged. This does not extend grapheme editing,
 IME or accessibility support. Run syntax is lowered by the pinned V compiler
-through `$vml`; unsupported native presentation properties are diagnosed.
+through `$vml`; unsupported presentation properties are diagnosed.

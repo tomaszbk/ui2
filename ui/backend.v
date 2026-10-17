@@ -2,59 +2,60 @@ module ui2
 
 // # Backend contract
 //
-// Every build compiles exactly one backend. The backend owns the window, or
-// the lack of one, and provides the functions listed below. Shared code calls
-// those functions and reads the capability constants directly; it never tests
-// the compile-time flags that select a backend.
+// Every build compiles exactly one backend. ui2 draws every control itself
+// with one renderer, the custom backend, on every OS; the operating system
+// only hosts it (platform.v). The other backends exist for tests and tools:
+// headless keeps window state in memory, and the document library has no
+// window at all. Shared code calls the functions listed below and reads the
+// capability constants directly; it never tests the compile-time flags that
+// select a backend.
 //
 // ## Rule
 //
-// Only a backend's own files may test `ui2_custom_rendering`, `ui2_headless`,
-// `ui2_embedder` or `ui2_document_library`, and only in their single
-// whole-file guard, spelled exactly as in the tables below. A difference
-// between backends that shared code has to know about becomes a contract
-// function or a `backend_*` constant that every backend defines. Both
-// branches of an `if` on such a constant must compile with every backend; a
-// false constant still costs nothing at run time, because it is emitted as a
-// C `#define` and the C compiler drops the dead branch.
+// Only a backend's own files may test `ui2_headless`, `ui2_embedder` or
+// `ui2_document_library`, and only in their single whole-file guard, spelled
+// exactly as in the tables below. A difference between backends that shared
+// code has to know about becomes a contract function or a `backend_*`
+// constant that every backend defines. Both branches of an `if` on such a
+// constant must compile with every backend; a false constant still costs
+// nothing at run time, because it is emitted as a C `#define` and the C
+// compiler drops the dead branch.
 //
 // The few other places that may name a flag are listed in
 // backend_guard_test.v, which enforces the rule: ui/embedder_options.v, which
-// rejects flag combinations the embedder does not support; the custom
-// renderer's `$if macos && ui2_embedder ? {` branches, which pick the owned
-// Metal surface for a few statements; the unsupported-OS check in
-// ui/backend_headless.v; and constants of backend_custom.c.v and
-// backend_document.v.
+// rejects flag combinations the embedder does not support; the renderer's
+// `$if macos && ui2_embedder ? {` branches, which pick the embedder host for a
+// few statements; the unsupported-OS check in ui/backend_headless.v; and
+// constants of backend_custom.c.v and backend_document.v.
 //
-// OS-specific services that do not depend on the backend (clipboard, file and
-// message dialogs, key modifiers, window chrome) keep V's file suffixes
-// (`_darwin.v`, `_linux.v`, `_windows.c.v`, `_ios.v`, `_default.c.v`) and
-// plain `$if macos`-style checks; the backends reach them through the dialog
-// hooks below.
+// OS host services (menus, tray, clipboard, dialogs, window chrome, key
+// modifiers, the safe area and the barcode scanner) are not backends:
+// platform.v documents them, and their files keep V's OS suffixes and plain
+// `$if macos`-style checks.
 //
 // ## Selection
 //
 // The first matching row selects the backend. The guards are mutually
 // exclusive and together cover every combination of flags and target OS.
 //
-// | Flags and target                       | Backend    | Whole-file guard                                                                                                   |
-// |----------------------------------------|------------|--------------------------------------------------------------------------------------------------------------------|
-// | -d ui2_document_library                | document   | `$if ui2_document_library ? {`                                                                                     |
-// | -d ui2_headless                        | headless   | `$if ui2_headless ? && !ui2_document_library ? {`                                                                  |
-// | -os ios                                | uikit      | `$if ios && !ui2_headless ? && !ui2_document_library ? {`                                                          |
-// | -os macos                              | appkit     | `$if macos && !ui2_custom_rendering ? && !ui2_headless ? && !ui2_document_library ? {`                             |
-// | -os windows                            | win32      | `$if windows && !ui2_custom_rendering ? && !ui2_headless ? && !ui2_document_library ? {`                           |
-// | linux, android, or macos/windows with  | custom     | `$if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? && !ui2_document_library ? {` |
-// | -d ui2_custom_rendering                |            |                                                                                                                    |
-// | any other OS                           | none       | compile error from ui/backend_headless.v; build with -d ui2_headless                                               |
+// | Flags and target                    | Backend  | Whole-file guard                                                                                    |
+// |-------------------------------------|----------|-----------------------------------------------------------------------------------------------------|
+// | -d ui2_document_library             | document | `$if ui2_document_library ? {`                                                                      |
+// | -d ui2_headless                     | headless | `$if ui2_headless ? && !ui2_document_library ? {`                                                   |
+// | linux, macos, windows, android, ios | custom   | `$if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_document_library ? {` |
+// | any other OS                        | none     | compile error from ui/backend_headless.v; build with -d ui2_headless                                |
 //
-// The custom renderer has three parts with narrower guards of their own:
+// The custom renderer has parts with narrower guards of their own:
 //
-// | Part                                    | Whole-file guard                                                                                                   |
-// |-----------------------------------------|--------------------------------------------------------------------------------------------------------------------|
-// | desktop text and overlays (vglyph)      | `$if (linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? && !ui2_document_library ? {`   |
-// | Android Fontstash text                  | `$if android && !ui2_headless ? && !ui2_document_library ? {`                                                     |
-// | owned macOS Metal surface (embedder)    | `$if macos && ui2_custom_rendering ? && ui2_embedder ? && !ui2_headless ? && !ui2_document_library ? {`           |
+// | Part                                  | Whole-file guard                                                                  |
+// |---------------------------------------|-----------------------------------------------------------------------------------|
+// | desktop text and overlays (vglyph)    | `$if (linux || macos || windows) && !ui2_headless ? && !ui2_document_library ? {` |
+// | mobile Fontstash text, no overlays    | `$if (android || ios) && !ui2_headless ? && !ui2_document_library ? {`            |
+// | macOS embedder host (-d ui2_embedder) | `$if macos && ui2_embedder ? && !ui2_headless ? && !ui2_document_library ? {`     |
+//
+// The embedder is a host variant of the custom renderer, not a backend of its
+// own: on macOS, -d ui2_embedder replaces the sokol window with AppKit windows
+// and Metal surfaces the renderer owns (platform.v).
 //
 // Files of each backend:
 //
@@ -65,14 +66,12 @@ module ui2
 //   insets follow the host's renderer so the library lays out as it will draw.
 // - headless: ui/backend_headless.v. In-memory window state that tests drive
 //   with headless_state(), headless_frame() and headless_key(); no OS dialogs.
-// - uikit: uikit/ and ui/message_box_ios.v.
-// - appkit: appkit/ and ui/layout_measure_darwin.c.v.
-// - win32: windows/.
 // - custom: ui/backend_custom.c.v, the `*_immediate.c.v` files,
 //   draw_context.c.v, image_resources.c.v, menu_custom.c.v and
 //   linux_idle_linux.c.v; desktop text in text_backend_vglyph.c.v; overlays
-//   in overlay_runtime_immediate.c.v (desktop, with an Android stub); Android
-//   text in ui_text_legacy_android.c.v; the embedder in embedder_*_darwin.c.v.
+//   in overlay_runtime_immediate.c.v (desktop, with a mobile stub); Android
+//   and iOS text in ui_text_fontstash.c.v; the embedder in
+//   embedder_*_darwin.c.v.
 //
 // Motion, visual transform and CPU text measurement code is shared
 // (motion_runtime.c.v, visual_transform_runtime.c.v, layout_measure_cpu.c.v):
@@ -164,15 +163,16 @@ module ui2
 //   fn backend_control_insets(element Element) ?LayoutPadding
 //   fn backend_layout_environment(environment LayoutEnvironment) LayoutEnvironment
 //
-// Menu bar and status area (menu.v keeps the declarations):
+// Menu bar and status area (menu.v keeps the declarations; the custom
+// backend forwards to the host's host_* functions, platform.v):
 //   fn backend_menu_bar_supported() bool
 //   fn backend_set_menu_bar(menus []Menu)
 //   fn backend_tray_supported() bool
 //   fn backend_set_tray(cfg TrayConfig)
 //   fn backend_remove_tray()
 //
-// Operating system dialogs (file_dialog.v and message_box.v call these;
-// windowed backends forward to the OS files' native_* functions):
+// Operating system dialogs (file_dialog.v and message_box.v call these; the
+// custom backend forwards to the host's host_* functions):
 //   fn backend_file_dialog(cfg FileDialogConfig) []string
 //   fn backend_file_dialog_supported() bool
 //   fn backend_message_box(cfg MessageBoxConfig) MessageBoxResult
@@ -180,28 +180,20 @@ module ui2
 //
 // ## Constants every backend defines
 //
-//   pub const backend_name string: 'document', 'headless', 'uikit', 'appkit',
-//     'win32' or 'custom'.
+//   pub const backend_name string: 'document', 'headless' or 'custom'.
 //   pub const backend_supports_overlays bool: retained overlays (with_overlay).
 //   pub const backend_supports_motion bool: element opacity and motion.
 //   pub const backend_supports_visual_transforms bool: with_transform.
-//   pub const backend_supports_vector_canvas bool: vector canvases and scaled
-//     content.
-//   pub const backend_supports_drag_drop bool: drag sources and drop targets.
-//   pub const backend_native_controls bool: controls are platform widgets, so
-//     declarations are checked against the native style profile.
-//   pub const backend_embedder bool: the custom renderer draws into the owned
-//     macOS Metal surface instead of a gg window.
+//   pub const backend_embedder bool: the custom renderer runs in the macOS
+//     embedder host instead of a sokol window.
 //   pub const backend_needs_host bool: there is no window; refreshes, element
 //     updates and control commands go through the host's handlers.
 //   const backend_feedback_strips bool: rounded rects are expensive, so
 //     feedback rings are drawn as scan-converted strips.
-//   const backend_clips_rounded_children bool: a view with a corner radius
-//     clips its children to it.
 //
-// Backend-specific extensions outside the contract, such as rich text editing
-// (appkit, custom), set_window_title (appkit, win32), render_stats (custom) or
-// the embedder's host API, exist only on the backends named.
+// Backend-specific extensions outside the contract, such as rich text
+// editing, render_stats or the embedder's host API, exist only on the custom
+// backend.
 
 // AlwaysValidDispatch is the input dispatch token of backends whose input
 // callbacks cannot outlive the window that delivered them.

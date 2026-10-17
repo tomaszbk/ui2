@@ -4,8 +4,7 @@ The custom renderer supports `scaled_content(id, viewport, content_width,
 content_height, box, children)`. Children retain their fixed logical coordinates.
 The view centers and scales the composition to fit its viewport, preserving its
 aspect ratio. It clips drawing and pointer targets to the visible content. Device
-DPI and the composition scale are separate; native backends report unsupported
-scaled content instead of silently changing its meaning.
+DPI and the composition scale are separate.
 
 ```vml
 Screen {

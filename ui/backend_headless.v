@@ -8,7 +8,7 @@
 @[has_globals]
 module ui2
 
-$if !(android || linux || macos || windows || ios) && !ui2_headless ? && !ui2_document_library ? {
+$if !(android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_document_library ? {
 	$compile_error('ui2 has no backend for this target OS; build with -d ui2_headless')
 }
 
@@ -19,13 +19,9 @@ $if ui2_headless ? && !ui2_document_library ? {
 	pub const backend_supports_overlays = true
 	pub const backend_supports_motion = true
 	pub const backend_supports_visual_transforms = true
-	pub const backend_supports_vector_canvas = true
-	pub const backend_supports_drag_drop = true
-	pub const backend_native_controls = false
 	pub const backend_embedder = false
 	pub const backend_needs_host = false
 	const backend_feedback_strips = false
-	const backend_clips_rounded_children = false
 
 	// HeadlessControl is the live state of one mounted control with an id. As on
 	// the custom renderer, a declared value replaces the live one only when the

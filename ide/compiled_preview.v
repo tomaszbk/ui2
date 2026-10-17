@@ -144,9 +144,6 @@ fn (mut app IdeApp) compile_preview() ! {
 	// the designer host and ui2's platform builds.
 	mut command := [@VEXE, '-b', 'c', '-path', module_path]
 	command << ['-d', 'ui2_document_library']
-	$if ui2_custom_rendering ? {
-		command << ['-d', 'ui2_custom_rendering']
-	}
 	$if ui2_headless ? {
 		command << ['-d', 'ui2_headless']
 	}
@@ -168,24 +165,43 @@ fn (mut app IdeApp) compile_preview() ! {
 	keep = true
 }
 
+// dispose_preview_node disposes the previewed document: the interpreted one
+// with its interpreter, or the compiled library's.
 fn (mut app IdeApp) dispose_preview_node() {
+	if app.preview_interpreter != unsafe { nil } {
+		mut interpreter := app.preview_interpreter
+		interpreter.dispose()
+		app.preview_interpreter = unsafe { nil }
+		app.preview_node = unsafe { nil }
+		return
+	}
 	if app.preview_node == unsafe { nil } { return }
 	app.preview_node.dispose_document() or { app.log('Preview cleanup failed: ${err}') }
 	app.preview_node = unsafe { nil }
 }
 
+fn (mut app IdeApp) preview_declaration(frame ui2.Rect) !ui2.Element {
+	if app.preview_interpreter != unsafe { nil } {
+		mut interpreter := app.preview_interpreter
+		return interpreter.build()!
+	}
+	if app.preview_build == unsafe { nil } { return error('preview has not been run') }
+	return app.preview_build(frame, preview_callback)
+}
+
 fn (mut app IdeApp) preview_element(frame ui2.Rect) !ui2.Element {
-	if app.preview_build == unsafe { nil } { return error('preview has not been compiled') }
 	if app.preview_node == unsafe { nil } {
-		declaration := app.preview_build(frame, preview_callback)
+		declaration := app.preview_declaration(frame)!
 		ui2.validate_element_tree(declaration) or {
-			if declaration.compiled_node != unsafe { nil } {
+			if app.preview_interpreter != unsafe { nil } {
+				app.dispose_preview_node()
+			} else if declaration.compiled_node != unsafe { nil } {
 				declaration.compiled_node.dispose_document()!
 			}
 			return err
 		}
 		if declaration.compiled_node == unsafe { nil } {
-			return error('compiled preview has no retained owner')
+			return error('the preview has no retained owner')
 		}
 		app.preview_node = declaration.compiled_node
 		app.preview_node.component.set_publisher(preview_publish)!

@@ -189,15 +189,11 @@ fn props_diff(compiled Element, props Element, path string, mut out []string) {
 	a := props_normal(compiled)
 	b := props_normal(props)
 	if a != b {
-		$for field in Element.fields {
-			$if field.name != 'on_event' {
-				lv := a.$(field.name)
-				rv := b.$(field.name)
-				left := '${lv}'
-				right := '${rv}'
-				if left != right {
-					out << '${path}.${field.name}:\n    compiled ${left}\n    props    ${right}'
-				}
+		left := props_fields(a)
+		right := props_fields(b)
+		for index, field in left {
+			if field != right[index] {
+				out << '${path}.${field.all_before('=')}:\n    compiled ${field.all_after('=')}\n    props    ${right[index].all_after('=')}'
 			}
 		}
 	}
@@ -214,6 +210,20 @@ fn props_diff(compiled Element, props Element, path string, mut out []string) {
 	for index, child in compiled.children {
 		props_diff(child, props.children[index], '${path}/${index}:${child.id}', mut out)
 	}
+}
+
+// props_fields formats the fields of one element as `name=value`. Formatting
+// both elements' fields inline in props_diff needs a stack frame larger than
+// the default 8 MiB stack with C compilers that do not reuse stack slots.
+fn props_fields(el Element) []string {
+	mut out := []string{}
+	$for field in Element.fields {
+		$if field.name != 'on_event' {
+			value := el.$(field.name)
+			out << '${field.name}=${value}'
+		}
+	}
+	return out
 }
 
 fn props_count(el Element) int {

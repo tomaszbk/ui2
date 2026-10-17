@@ -1,4 +1,3 @@
-// vtest vflags: -d ui2_custom_rendering
 @[has_globals]
 module ui2
 
@@ -232,7 +231,7 @@ fn test_late_nested_fragment_mount_runs_parent_before_child() ! {
 	assert owner.runtime.stats() == SignalStats{}
 }
 
-$if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
+$if (android || ios || linux || macos || windows) && !ui2_headless ? {
 	fn vml_fragment_measure(text string, _style TextStyle, width f64) !LayoutSize {
 		return LayoutSize{ width: if width < 0 { f64(text.runes().len * 8) } else { width }, height: 30 }
 	}

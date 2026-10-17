@@ -295,10 +295,6 @@ fn test_linear_progress_loading_follows_gpui_curve() {
 fn test_ring_cells_and_strips_cover_the_ring() {
 	if backend_name == 'custom' {
 		assert feedback_draws_strips()
-		assert !feedback_parent_clips()
-	} else if backend_name == 'appkit' {
-		assert !feedback_draws_strips()
-		assert feedback_parent_clips()
 	}
 	diameter, stroke := 40.0, 6.0
 	ring := (diameter - stroke) / 2

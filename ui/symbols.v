@@ -1,10 +1,10 @@
 module ui2
 
-// `symbol:<name>` images name SF Symbols, which AppKit and UIKit draw natively.
-// Every other renderer draws the same name as a glyph from the bundled Material
-// Icons face (assets/fonts/MaterialIcons-Regular.ttf), so an icon stays
-// recognizable on a machine without a symbol font. symbol_glyphs is the shared
-// list of names that have such a glyph. Names follow SF Symbols, where a plain
+// `symbol:<name>` images use SF Symbols names. The renderer draws each as a
+// glyph from the bundled Material Icons face
+// (assets/fonts/MaterialIcons-Regular.ttf), so an icon looks the same on every
+// OS, with or without a symbol font. symbol_glyphs is the list of names that
+// have such a glyph. Names follow SF Symbols, where a plain
 // name is the outline and `.fill` the solid form, and each maps to the matching
 // Material Icons outline or filled glyph.
 const symbol_glyphs = {

@@ -2,14 +2,14 @@
 // ClipboardManager needs a JVM callback the C backend cannot install.
 module ui2
 
-fn native_clipboard_supported() bool {
+fn host_clipboard_supported() bool {
 	return false
 }
 
-fn native_set_clipboard_text(_text string) bool {
+fn host_set_clipboard_text(_text string) bool {
 	return false
 }
 
-fn native_clipboard_text() ?string {
+fn host_clipboard_text() ?string {
 	return none
 }

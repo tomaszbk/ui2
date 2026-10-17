@@ -1,4 +1,3 @@
-// ui2 profiles: custom (visual transform with a pivot)
 module main
 
 import os
@@ -136,11 +135,6 @@ fn canvas_layout_inside_row_callbacks() map[string]ui2.ElementCallback {
 }
 
 fn main() {
-	$if (macos || windows) && !ui2_custom_rendering ? {
-		eprintln('This transform example requires -d ui2_custom_rendering')
-		return
-	}
-
 	mut state := unsafe { inside_row_state }
 	unsafe {
 		*state = inside_row_demo()

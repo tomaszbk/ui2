@@ -38,20 +38,20 @@ exit "$UI2_DIALOG_STATUS"
 		buttons: .yes_no_cancel
 	}
 	os.setenv('XDG_CURRENT_DESKTOP', 'GNOME', true)
-	assert native_message_box(cfg) == .yes
+	assert host_message_box(cfg) == .yes
 	assert linux_dialog_test_arguments(trace) == ['--question', '--title=' + title,
 		'--text=' + title + '\n\n' + text, '--ok-label=Yes', '--cancel-label=Cancel',
 		'--extra-button=No']
 	os.setenv('UI2_DIALOG_STATUS', '1', true)
 	os.setenv('UI2_DIALOG_OUTPUT', 'No\n', true)
-	assert native_message_box(cfg) == .no
+	assert host_message_box(cfg) == .no
 	os.setenv('UI2_DIALOG_OUTPUT', '', true)
-	assert native_message_box(cfg) == .cancel
+	assert host_message_box(cfg) == .cancel
 
 	os.setenv('XDG_CURRENT_DESKTOP', 'KDE', true)
 	for status, expected in [MessageBoxResult.yes, .no, .cancel] {
 		os.setenv('UI2_DIALOG_STATUS', status.str(), true)
-		assert native_message_box(cfg) == expected
+		assert host_message_box(cfg) == expected
 		assert linux_dialog_test_arguments(trace) == ['--title', title, '--yesnocancel',
 			title + '\n\n' + text, '--yes-label', 'Yes', '--no-label', 'No', '--cancel-label',
 			'Cancel']
@@ -60,7 +60,7 @@ exit "$UI2_DIALOG_STATUS"
 		for desktop in ['GNOME', 'KDE'] {
 			os.setenv('XDG_CURRENT_DESKTOP', desktop, true)
 			os.setenv('UI2_DIALOG_STATUS', '1', true)
-			assert native_message_box(MessageBoxConfig{ buttons: buttons }) == [
+			assert host_message_box(MessageBoxConfig{ buttons: buttons }) == [
 				MessageBoxResult.ok,
 				.cancel,
 				.no,
@@ -71,11 +71,11 @@ exit "$UI2_DIALOG_STATUS"
 	os.setenv('UI2_DIALOG_STATUS', '0', true)
 	for i, style in [MessageBoxStyle.info, .warning, .error, .question] {
 		os.setenv('XDG_CURRENT_DESKTOP', 'KDE', true)
-		assert native_message_box(MessageBoxConfig{ style: style }) == .ok
+		assert host_message_box(MessageBoxConfig{ style: style }) == .ok
 		assert linux_dialog_test_arguments(trace) == ['--title', '',
 			['--msgbox', '--sorry', '--error', '--msgbox'][i], '']
 		os.setenv('XDG_CURRENT_DESKTOP', 'GNOME', true)
-		assert native_message_box(MessageBoxConfig{ style: style }) == .ok
+		assert host_message_box(MessageBoxConfig{ style: style }) == .ok
 		assert linux_dialog_test_arguments(trace) == [
 			['--info', '--warning', '--error', '--question'][i],
 			'--title=',
@@ -97,7 +97,7 @@ exit "$UI2_DIALOG_STATUS"
 	for desktop in ['GNOME', 'KDE'] {
 		os.setenv('XDG_CURRENT_DESKTOP', desktop, true)
 		os.setenv('UI2_DIALOG_OUTPUT', selected.join('\r\n') + '\r\n', true)
-		assert native_file_dialog(file_cfg) == selected
+		assert host_file_dialog(file_cfg) == selected
 		if desktop == 'GNOME' {
 			assert linux_dialog_test_arguments(trace) == ['--file-selection', '--multiple',
 				'--separator=\n', '--title=' + title, '--filename=' + start,
@@ -107,7 +107,7 @@ exit "$UI2_DIALOG_STATUS"
 				start, '*.txt *.md|Text "files"; |', '--multiple', '--separate-output']
 		}
 		os.setenv('UI2_DIALOG_OUTPUT', selected[0] + '\n', true)
-		assert native_file_dialog(save_file_dialog_config(file_cfg)) == [selected[0]]
+		assert host_file_dialog(save_file_dialog_config(file_cfg)) == [selected[0]]
 		args := linux_dialog_test_arguments(trace)
 		assert '--multiple' !in args
 		assert if desktop == 'GNOME' {
@@ -115,7 +115,7 @@ exit "$UI2_DIALOG_STATUS"
 		} else {
 			'--getsavefilename' in args
 		}
-		assert native_file_dialog(open_folder_dialog_config(file_cfg)) == [selected[0]]
+		assert host_file_dialog(open_folder_dialog_config(file_cfg)) == [selected[0]]
 		folder_args := linux_dialog_test_arguments(trace)
 		assert '--multiple' !in folder_args
 		assert if desktop == 'GNOME' {
@@ -124,7 +124,7 @@ exit "$UI2_DIALOG_STATUS"
 			folder_args == ['--title', title, '--getexistingdirectory', file_cfg.directory]
 		}
 		os.setenv('UI2_DIALOG_STATUS', '1', true)
-		assert native_file_dialog(file_cfg).len == 0
+		assert host_file_dialog(file_cfg).len == 0
 		os.setenv('UI2_DIALOG_STATUS', '0', true)
 	}
 }

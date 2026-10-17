@@ -114,10 +114,9 @@ fn file_dialog_extensions(filters []FileDialogFilter) []string {
 	return result
 }
 
-// file_dialog_filter_spec is the label/pattern representation expected by the
-// Windows backend. It is deliberately plain text so each backend can map the
-// same public filters onto its own native control. Only the Windows backend
-// calls it; it stays shared so its tests run on every host.
+// file_dialog_filter_spec is the label|pattern list the Windows host's file
+// dialog takes (file_dialog_windows.c.v). It stays shared so its tests run on
+// every host.
 @[markused]
 fn file_dialog_filter_spec(filters []FileDialogFilter) string {
 	mut parts := []string{}

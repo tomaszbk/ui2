@@ -10,34 +10,34 @@ pub:
 	namespace          string
 	identity_namespace string
 mut:
-	parent       &CompiledVmlComponent = unsafe { nil }
-	name         string
-	children     map[string]&CompiledVmlComponent
-	nodes        map[string]&CompiledVmlNode
-	values       map[string]voidptr
-	value_types  map[string]string
-	mount_hooks  map[string]fn () !
-	mount_order  []string
+	parent        &CompiledVmlComponent = unsafe { nil }
+	name          string
+	children      map[string]&CompiledVmlComponent
+	nodes         map[string]&CompiledVmlNode
+	values        map[string]voidptr
+	value_types   map[string]string
+	mount_hooks   map[string]fn () !
+	mount_order   []string
 	unmount_hooks map[string]fn ()
 	unmount_order []string
-	cleanup_keys map[string]bool
+	cleanup_keys  map[string]bool
 	// mounted is true from the mount hooks until the unmount hooks run. The
 	// counts cover the mounted nodes of this component and its descendants:
 	// a component mounts with its first control and unmounts when no node,
 	// not even an empty fragment, is left in the mounted tree.
-	mounted      bool
-	mounted_nodes int
+	mounted          bool
+	mounted_nodes    int
 	mounted_controls int
-	disposed     bool
-	leaving         bool
-	publish      fn (string, Element) = compiled_vml_publish
-	command_handler fn (VmlHostCommand) ! = compiled_vml_host_command
-	app_revision &Signal[u64]
-	theme Theme
-	theme_colors map[string]&Signal[u32]
-	theme_numbers map[string]&Signal[f64]
-	theme_spacing map[string]&Signal[f64]
-	theme_radii map[string]&Signal[f64]
+	disposed         bool
+	leaving          bool
+	publish          fn (string, Element)  = compiled_vml_publish
+	command_handler  fn (VmlHostCommand) ! = compiled_vml_host_command
+	app_revision     &Signal[u64]
+	theme            Theme
+	theme_colors     map[string]&Signal[u32]
+	theme_numbers    map[string]&Signal[f64]
+	theme_spacing    map[string]&Signal[f64]
+	theme_radii      map[string]&Signal[f64]
 	theme_font_sizes map[string]&Signal[f64]
 	// Shared by every component of a document, like its signal runtime.
 	projections &VmlProjections
@@ -50,24 +50,24 @@ pub struct CompiledVmlNode {
 pub:
 	component &CompiledVmlComponent
 mut:
-	declaration       Element
-	local_id          string
-	authored_id       string
-	authored_width    bool
-	authored_height   bool
-	inherit_width     bool
-	inherit_height    bool
-	is_fragment       bool
-	relative_key      string
+	declaration          Element
+	local_id             string
+	authored_id          string
+	authored_width       bool
+	authored_height      bool
+	inherit_width        bool
+	inherit_height       bool
+	is_fragment          bool
+	relative_key         string
 	fragment_keys_prefix string
-	fragment_keys_ready bool
-	presentation      &VmlPresentation = unsafe { nil }
-	source_snapshot   &VmlSourceSnapshot = unsafe { nil }
+	fragment_keys_ready  bool
+	presentation         &VmlPresentation   = unsafe { nil }
+	source_snapshot      &VmlSourceSnapshot = unsafe { nil }
 	// The node owns its element's motion state and the runtime record that
 	// links it from the declaration (motion_presence.v).
 	motion_state      &ElementMotionState = unsafe { nil }
-	motion_runtime    &ElementRuntime = unsafe { nil }
-	parent            &CompiledVmlNode = unsafe { nil }
+	motion_runtime    &ElementRuntime     = unsafe { nil }
+	parent            &CompiledVmlNode    = unsafe { nil }
 	children          []&CompiledVmlNode
 	children_revision &Signal[u64]
 	source_children   []&CompiledVmlNode
@@ -76,7 +76,7 @@ mut:
 	effects           map[string]&SignalEffect
 	mounted           bool
 	// A structural rebuild publishes and mounts its result once, at the end.
-	reconciling       bool
+	reconciling bool
 
 	frame_value      &Signal[Rect] = unsafe { nil }
 	viewport_width   bool
@@ -101,15 +101,15 @@ mut:
 	widget       &VmlNodeCore = unsafe { nil }
 	widget_dirty bool
 	// Per-call marks for set_children identity checks: (caller, serial).
-	check_serial   u64
-	attach_owner   voidptr
-	attach_serial  u64
-	ancestor_owner voidptr
+	check_serial    u64
+	attach_owner    voidptr
+	attach_serial   u64
+	ancestor_owner  voidptr
 	ancestor_serial u64
 }
 
 pub fn new_vml_component(name string) !&CompiledVmlComponent {
-	return new_vml_owner(name, 'vml:' + vml_identity_segment(name), Theme{})
+	return new_vml_owner(name, 'vml:' + vml_identity_segment(name), Theme{}, '')
 }
 
 // A document preserves application-facing ids. Reusable components below it
@@ -121,13 +121,17 @@ pub:
 	// A generic document whose frame is not explicit follows the viewport in
 	// the dimensions its root does not author.
 	follow_viewport bool
+	// The private identity namespace of the document owner; empty for a new
+	// one. A document rebuilt in place of another (an interpreter reload)
+	// takes its predecessor's, so unchanged declarations keep their identities.
+	identity string
 }
 
 pub fn new_vml_document(name string, config VmlDocumentConfig) !&CompiledVmlComponent {
-	return new_vml_owner(name, '', config.theme or { vml_initial_theme() })
+	return new_vml_owner(name, '', config.theme or { vml_initial_theme() }, config.identity)
 }
 
-fn new_vml_owner(name string, namespace string, theme Theme) !&CompiledVmlComponent {
+fn new_vml_owner(name string, namespace string, theme Theme, identity string) !&CompiledVmlComponent {
 	theme.validate()!
 	mut runtime := new_signal_runtime()
 	mut scope := runtime.scope()!
@@ -139,9 +143,9 @@ fn new_vml_owner(name string, namespace string, theme Theme) !&CompiledVmlCompon
 		scope:              scope
 		name:               name
 		namespace:          namespace
-		identity_namespace: next_vml_owner_id()
+		identity_namespace: if identity.len > 0 { identity } else { next_vml_owner_id() }
 		app_revision:       revision
-		theme: Theme{ colors: theme.colors.clone(), spacing: theme.spacing.clone(), radii: theme.radii.clone(), font_sizes: theme.font_sizes.clone() }
+		theme:              Theme{ colors: theme.colors.clone(), spacing: theme.spacing.clone(), radii: theme.radii.clone(), font_sizes: theme.font_sizes.clone() }
 	}
 	return owner
 }
@@ -299,27 +303,27 @@ fn (mut component CompiledVmlComponent) owned_element(declaration Element, confi
 		return node
 	}
 	mut node := &CompiledVmlNode{
-		component:         &component
-		local_id:          local_id
-		authored_id:       declaration.id
-		authored_width:    config.authored_width
-		authored_height:   config.authored_height
-		inherit_width:     config.inherit_width
-		inherit_height:    config.inherit_height
-		is_fragment:       fragment
-		relative_key:      declaration.key
-		identity_value:    '/compiled:' + component.identity_namespace + '/' + vml_identity_segment(local_id)
+		component:           &component
+		local_id:            local_id
+		authored_id:         declaration.id
+		authored_width:      config.authored_width
+		authored_height:     config.authored_height
+		inherit_width:       config.inherit_width
+		inherit_height:      config.inherit_height
+		is_fragment:         fragment
+		relative_key:        declaration.key
+		identity_value:      '/compiled:' + component.identity_namespace + '/' + vml_identity_segment(local_id)
 		fragment_keys_ready: true
-		children_revision: new_signal(mut component.scope, u64(0),
+		children_revision:   new_signal(mut component.scope, u64(0),
 			name: '@children:' + local_id
 		)!
-		declaration:       Element{
+		declaration:         Element{
 			...declaration
 			runtime:  unsafe { nil }
 			id:       component.control_id(declaration.id)
 			children: []
 		}
-		frame_value:       component.geometry(local_id, declaration.frame)!
+		frame_value:         component.geometry(local_id, declaration.frame)!
 	}
 	node.declaration = node.update_motion(node.declaration)!
 	component.nodes[local_id] = node
@@ -587,7 +591,9 @@ fn (mut node CompiledVmlNode) check_children(children []&CompiledVmlNode) ! {
 		}
 		candidate.attach_owner = owner
 		candidate.attach_serial = serial
-		if voidptr(child) == voidptr(&node) { return error('compiled VML element cannot contain itself') }
+		if voidptr(child) == voidptr(&node) {
+			return error('compiled VML element cannot contain itself')
+		}
 		if child.ancestor_owner == owner && child.ancestor_serial == serial {
 			return error('compiled VML element cannot contain an ancestor')
 		}

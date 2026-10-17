@@ -232,18 +232,10 @@ fn test_round_point_contours_respect_the_stroke_mesh_budget() {
 	}
 }
 
-fn test_native_profile_rejects_vector_presentation() {
+fn test_vector_canvas_validates_with_and_without_shapes() {
 	shape := line_shape(.butt)
 	for shapes in [[shape], []ui2.VectorShape{}] {
 		el := ui2.vector_canvas(id: 'shape', frame: ui2.rect(0, 0, 40, 40), shapes: shapes)!
-		$if !( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headless ? {
-			if _ := ui2.validate_element_tree(el) {
-				assert false
-			} else {
-				assert err.msg().contains('vector canvas requires the custom renderer')
-			}
-		} $else {
-			ui2.validate_element_tree(el)!
-		}
+		ui2.validate_element_tree(el)!
 	}
 }

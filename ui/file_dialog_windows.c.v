@@ -7,7 +7,7 @@ import os
 #flag windows -lshell32
 #flag windows -lole32
 
-#insert "@VMODROOT/windows/file_dialog_windows.h"
+#insert "@VMODROOT/ui/file_dialog_windows.h"
 
 // The native common dialog uses a maximum 32,768 UTF-16 character result
 // buffer. Multi-select responses retain that compact folder-plus-filenames
@@ -16,11 +16,11 @@ const file_dialog_windows_buffer_size = 65536
 
 fn C.ui2_win_file_dialog(output &u16, output_capacity u32, title &u16, directory &u16, filename &u16, filter_spec &u16, kind int, multiple int) int
 
-fn native_file_dialog_supported() bool {
+fn host_file_dialog_supported() bool {
 	return true
 }
 
-fn native_file_dialog(cfg FileDialogConfig) []string {
+fn host_file_dialog(cfg FileDialogConfig) []string {
 	mut output := []u16{len: file_dialog_windows_buffer_size}
 	title := cfg.title.to_wide()
 	directory := cfg.directory.to_wide()

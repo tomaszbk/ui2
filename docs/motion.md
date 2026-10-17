@@ -1,7 +1,7 @@
 # Motion
 
 Motion is ui2's animation system. An element's `motion` is a typed
-`MotionConfig` that the custom renderer keeps with the retained element: there
+`MotionConfig` that the renderer keeps with the retained element: there
 is no id registry, nothing is started by hand, and a window draws frames only
 while some motion runs, then returns to idle. Motion changes presentation, not
 layout: it preserves the element's layout identity, local editor text and
@@ -20,9 +20,9 @@ One configuration covers:
 - **events and control**: `on_motion` hears every run start, progress, complete
   or cancel, and a `MotionHandle` cancels, finishes or restarts them.
 
-Motion needs the custom renderer (and runs in the headless backend). Native
-rendering rejects motion and nondefault opacity with a diagnostic; on macOS and
-Windows, enable custom rendering with `-d ui2_custom_rendering`.
+Motion runs in the renderer on Linux, macOS and Windows and in the headless
+backend. Android and iOS keep gg/Fontstash text and reject motion and
+nondefault opacity with a diagnostic.
 
 ## Composing motion
 
@@ -262,9 +262,9 @@ uses the ordinary delayed unmount and cleanup contract.
 
 ## Frames and cost
 
-Motion requests paint frames while anything runs and returns the custom
-scheduler to idle after the last run ends; a motion frame draws without
-building unless an event handler ran. Elements under a hidden ancestor never
+Motion requests paint frames while anything runs and returns the scheduler to
+idle after the last run ends; a motion frame draws without building unless an
+event handler ran. Elements under a hidden ancestor never
 keep the window drawing. In the steady state a running transition, layout
 transition or loop allocates nothing: states, compiled timelines and the event
 buffer are retained and every frame reuses them (`ui/motion_allocation_test.v`).

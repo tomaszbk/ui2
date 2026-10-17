@@ -1,4 +1,3 @@
-// ui2 profiles: custom (retained overlay dialogs)
 module main
 
 import ui2
@@ -60,8 +59,7 @@ fn theme_of(app &Gallery) ui2.ComponentTheme {
 
 // ── Overlay configurations, shared by the build and the handlers ────
 
-// Text fields stay light in both themes: AppKit draws a bezeled field white
-// whatever background it is given, so dark text is the one that always shows.
+// Text fields stay light, with dark text, in both themes.
 const field_style = ui2.TextStyle{
 	color: 0x172033
 	size:  14
@@ -79,8 +77,8 @@ fn field_box(theme ui2.ComponentTheme) ui2.BoxStyle {
 	}
 }
 
-// toggle is a checkbox with its title as a separate label, because AppKit draws
-// a checkbox title in the system text color, which a dark theme would hide.
+// toggle is a checkbox with its title as a separate label in the theme's text
+// color.
 fn toggle(id string, title string, checked bool, frame ui2.Rect, theme ui2.ComponentTheme, on_change fn (mut app Gallery, checked bool)) []ui2.Element {
 	return [
 		ui2.Element{
@@ -459,7 +457,7 @@ fn focus_soon(id string) {
 // ── Opening and answering overlays ──────────────────────────────────
 
 // profile_field_event stores what is typed in a profile field, and Return in
-// one saves the profile: AppKit gives Return to the field, not to on_key_event.
+// one, which the field reports as a submit, saves the profile.
 fn profile_field_event(event ui2.ElementEvent) {
 	match event.kind {
 		.change {
@@ -601,14 +599,6 @@ fn handle_key_event(event ui2.KeyEvent) {
 	}
 }
 
-// handle_key catches Tab pressed in a focused AppKit text field, which only
-// the string key handler hears.
-fn handle_key(key string) {
-	if backwards := ui2.focus_trap_key_direction(key) {
-		tab(backwards)
-	}
-}
-
 // ── The page ────────────────────────────────────────────────────────
 
 fn trigger(id string, text string, frame ui2.Rect, theme ui2.ComponentTheme, danger bool, open fn (mut app Gallery)) ui2.Element {
@@ -739,6 +729,5 @@ fn build() ui2.Element {
 
 fn main() {
 	ui2.on_key_event(handle_key_event)
-	ui2.on_key(handle_key)
 	ui2.run_window('GPUI Kit dialogs', window_width, window_height, build)
 }

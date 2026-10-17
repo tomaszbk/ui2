@@ -1,16 +1,21 @@
 // vfmt off
-// Keep the imports inside the platform block. Hoisting gg imports makes the
-// AppKit backend compile Sokol's ARC sources together with Objective-C MRC.
+// Keep the imports inside the backend block, so the builds without the
+// renderer (headless, document library) never compile gg and sokol.
 @[has_globals]
 module ui2
 
-$if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? && !ui2_document_library ? {
+$if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_document_library ? {
 	import gg
 	import math
 	import sokol.sapp
 	import sokol.gfx
 	import time
 	import arena
+
+	// sokol_app runs UIApplicationMain on iOS. V's sokol module defines
+	// SOKOL_NO_ENTRY only for the desktop OSes, and without it sokol_app.h
+	// would define a main() beside V's own.
+	#flag ios -DSOKOL_NO_ENTRY
 
 	struct HitTarget {
 		is_image bool
@@ -279,7 +284,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	__global g_active_checkboxes = map[string]bool{}
 	__global g_active_toggles = map[string]bool{}
 	__global g_active_scrolls = map[string]bool{}
-	$if android {
+	$if android || ios {
 		__global g_font_metrics = FontMetrics{}
 		__global g_font_files = map[string]string{}
 		__global g_font_indexed = false
@@ -411,7 +416,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		publish_menu_context(title, unsafe { nil })
 		// Pick the bundled font before constructing either drawing adapter.
 		font_regular, font_bold := font_paths()
-		$if android {
+		$if android || ios {
 			if font_regular.len > 0 {
 				g_font_metrics = font_file_metrics(font_regular) or { FontMetrics{} }
 			}
@@ -494,7 +499,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 
 	pub fn invalidate_layout_environment(environment LayoutEnvironment) {
 		g_gg_app.layout_environment = environment
-		$if !android {
+		$if !(android || ios) {
 			g_text_font_mutex.lock()
 			if g_cpu_text_engine != unsafe { nil } { g_cpu_text_engine.invalidate_environment() }
 			if g_gg_app.ctx != unsafe { nil } && g_gg_app.ctx.text != unsafe { nil } {
@@ -702,13 +707,11 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	}
 
 	pub fn safe_area_top() f64 {
-		return 0
+		return host_safe_area_top()
 	}
 
 	pub fn start_barcode_scan(on_result ScanCallback) {
-		if voidptr(on_result) != unsafe { nil } {
-			on_result(ScanResult{ kind: .error, text: 'barcode scanner unavailable' })
-		}
+		host_start_barcode_scan(on_result)
 	}
 
 	pub fn insert_text_area_text(id string, value string) {
@@ -871,6 +874,18 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		mut ctx := app.ctx
 		ctx.sync_gg()
 		configure_custom_presentation(app, gfx.query_backend())
+		// The window exists now: hand its native handle to the host services
+		// and install the menus declared before it did (platform.v).
+		publish_menu_context('', custom_native_window())
+		install_declared_menus()
+	}
+
+	// custom_native_window is the platform handle of sokol's window that the
+	// host's menu bar attaches to: an NSWindow, an HWND, or nil.
+	fn custom_native_window() voidptr {
+		$if macos { return sapp.macos_get_window() }
+		$if windows { return sapp.win32_get_hwnd() }
+		return unsafe { nil }
 	}
 
 	fn on_cleanup(app &GgApp) {
@@ -1208,7 +1223,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 				scheduler.invalidate(.layout)
 			}
 		}
-		$if android { ensure_symbol_fallbacks(ctx) }
+		$if android || ios { ensure_symbol_fallbacks(ctx) }
 		if work.build && !build_custom_declaration(mut app,false) { return }
 		if !custom_frame_current(dispatch, ctx) {
 			return
@@ -1321,8 +1336,8 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		}
 		check_long_press()
 		if !custom_frame_current(dispatch, ctx) || g_focus_navigation.root_revision != mounted { return }
-		$if android {
-			// Android's legacy gg atlas uploads glyphs introduced by this frame.
+		$if android || ios {
+			// The Fontstash atlas uploads glyphs introduced by this frame.
 			if ctx.font_inited { ctx.ft.flush() }
 		}
 		app.scheduler.record_draw()
@@ -1332,6 +1347,21 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		app.scheduler.set_motion_active(motion_tree_needs_frame(app.declared_root))
 		// Content can move under a pointer that stays put.
 		update_hover()
+		$if ios { sync_ios_keyboard(&app) }
+	}
+
+	$if ios {
+		__global g_ios_keyboard_field = ''
+
+		// An iPhone has no keyboard of its own, so sokol's on-screen one follows
+		// the focused editable field. It is shown or hidden only when that field
+		// changes, which leaves the user free to dismiss it.
+		fn sync_ios_keyboard(app &GgApp) {
+			field := if g_focused_field in g_active_fields && app.editable_fields[g_focused_field] { g_focused_field } else { '' }
+			if field == g_ios_keyboard_field { return }
+			g_ios_keyboard_field = field
+			sapp.show_keyboard(field.len > 0)
+		}
 	}
 
 	fn on_event(e &gg.Event, app &GgApp) {
@@ -2708,7 +2738,7 @@ fn page_focused_text_area(direction int) {
 			size: tooltip_text_size
 			align: .left
 		}
-		$if android {
+		$if android || ios {
 			// Measured with the configuration draw_text_in_box draws with, so no
 			// line that fits here is shortened when it is drawn.
 			ctx.set_text_cfg(gg.TextCfg{
@@ -3139,8 +3169,7 @@ fn page_focused_text_area(direction int) {
 					draw_button_bezel(ctx, x, y, el.frame.width, el.frame.height, el.box.radius,
 						el.enabled)
 				} else {
-					// Gradients fill views; a button keeps its solid fill, as natively.
-					draw_box_fill(ctx, x, y, el.frame.width, el.frame.height, BoxStyle{ ...el.box, gradient: Gradient{} })
+					draw_box_fill(ctx, x, y, el.frame.width, el.frame.height, el.box)
 				}
 				draw_box_borders(ctx, x, y, el.frame.width, el.frame.height, el.box)
 				content := button_content_rect(el)
@@ -3181,7 +3210,7 @@ fn page_focused_text_area(direction int) {
 					draw_button_bezel(ctx, x, y, el.frame.width, el.frame.height, box.radius,
 						el.enabled)
 				} else {
-					draw_box_fill(ctx, x, y, el.frame.width, el.frame.height, BoxStyle{ ...box, gradient: Gradient{} })
+					draw_box_fill(ctx, x, y, el.frame.width, el.frame.height, box)
 				}
 				draw_box_borders(ctx, x, y, el.frame.width, el.frame.height, box)
 				content := button_content_rect(el)
@@ -3324,7 +3353,7 @@ fn page_focused_text_area(direction int) {
 					el.frame.width, el.frame.height), padding_left), clip)
 				if content_clip.width > 0 && content_clip.height > 0 {
 					apply_clip(ctx, content_clip)
-					$if android {
+					$if android || ios {
 						if is_focused && !editor.selection.collapsed() {
 							draw_text_field_selection(ctx, display_text, editor.selection, x + padding_left,
 								y, content_width, el.frame.height, el.text_style)
@@ -3893,12 +3922,10 @@ fn page_focused_text_area(direction int) {
 	const unstyled_box_bg = u32(0xffffff)
 	const button_bezel_radius = f64(6)
 
-	// A button that asked for the platform's styling gets its bezel from
-	// AppKit or Win32 on the native backends. The immediate renderer is the
-	// platform in its own window, so it draws one itself; without it a
-	// `native` button that was never painted is a bare caption, invisible on a
-	// white card. A button the application did colour keeps that colour, since
-	// the styling it asked the platform for stops where its own begins.
+	// A `native` button that was never painted gets the standard bezel;
+	// without it the button is a bare caption, invisible on a white card. A
+	// button the application did colour keeps that colour, since the standard
+	// styling stops where its own begins.
 	fn draw_button_bezel(ctx &DrawContext, x f64, y f64, w f64, h f64, radius f64, enabled bool) {
 		mut fill := u32(0xeef2f7)
 		mut border := u32(0xb4bfcd)
@@ -3970,9 +3997,9 @@ fn page_focused_text_area(direction int) {
 
 	// draw_text draws text that belongs to a box, shortening it when it does
 	// not fit, and reports whether it had to. A control draws its text down the
-	// middle of the box whatever the style says, because a label is the only
-	// thing the native backends let place its text, and a style shared with one
-	// must not move a button.
+	// middle of the box whatever the style says: only a label places its text
+	// by its style (draw_label_text), so a style shared with one does not move
+	// a button.
 	fn draw_text(ctx &DrawContext, t string, x f64, y f64, w f64, h f64, style TextStyle) bool {
 		return draw_text_in_box(ctx, t, x, y, w, h, centered_text_style(style), true, Rect{})
 	}
@@ -3986,7 +4013,7 @@ fn page_focused_text_area(direction int) {
 	}
 
 	fn draw_rich_label_text(ctx &DrawContext, el Element, x f64, y f64, clip Rect) bool {
-		$if !android {
+		$if !(android || ios) {
 			if el.text_runs.len > 0 {
 				shaped := ctx.shape_runs(el.text_runs, el.text_style, math.max(0.0, el.frame.width), text_line_budget(el.text_style.lines), true) or {
 					eprintln('ui2: rich label: ${err}')
@@ -4019,7 +4046,7 @@ fn page_focused_text_area(direction int) {
 		}
 	}
 
-	$if !android {
+	$if !(android || ios) {
 		// Keep the editor's rune offsets while obtaining all painted geometry from
 		// the same full shaped line, including ligatures and mixed direction runs.
 		fn draw_shaped_text_field(ctx &DrawContext, el Element, editor TextEditor, display_text string,
@@ -4095,7 +4122,7 @@ fn page_focused_text_area(direction int) {
 		if t.len == 0 {
 			return false
 		}
-		$if android {
+		$if android || ios {
 			text_x := match style.align {
 				.left { int(x) }
 				.center { int(x + w / 2) }
@@ -4122,8 +4149,8 @@ fn page_focused_text_area(direction int) {
 			block_h := f64(parts.len) * line_h
 			// A block with more lines than its box has room for is anchored at the top of
 			// the box and would run on out of the bottom of it, over whatever is drawn
-			// below. A native control draws only inside itself, so the lines that do not
-			// fit are cut off at the box rather than drawn past it.
+			// below, so the lines that do not fit are cut off at the box rather than
+			// drawn past it.
 			bounded := block_h > h && clip.width > 0 && clip.height > 0
 			if bounded {
 				inside := intersect_rect(Rect{
@@ -4180,10 +4207,10 @@ fn page_focused_text_area(direction int) {
 		}
 	}
 
-	$if android {
+	$if android || ios {
 		// draw_text_decorations rules a line drawn at text_x (its anchor for the
 		// line's alignment) and centred on line_y. Desktop text is shaped with its
-		// decorations; Android's gg text is not, so a link is underlined here.
+		// decorations; mobile gg text is not, so a link is underlined here.
 		fn draw_text_decorations(ctx &DrawContext, line string, text_x f64, line_y f64, cfg gg.TextCfg, style TextStyle) {
 			ctx.set_text_cfg(cfg)
 			width := f64(ctx.text_width_f(line))

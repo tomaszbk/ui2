@@ -66,20 +66,24 @@ pub mut:
 	status          string = 'Choose a component, then click the form to place it.'
 	messages        string
 mut:
-	preview_build      DesignerPreviewBuild = unsafe { nil }
-	preview_node       &ui2.CompiledVmlNode = unsafe { nil }
-	preview_libraries  []DesignerPreviewLibrary
-	undo_stack         []IdeSnapshot
-	redo_stack         []IdeSnapshot
-	drag_component_id  int = -1
-	drag_mode          string
-	drag_grab_x        f64
-	drag_grab_y        f64
-	drag_checkpointed  bool
-	palette_drag_kind  string
-	palette_drag_x     f64
-	palette_drag_y     f64
-	palette_drag_moved bool
+	// The live preview (interpreted_preview.v) and, after "Verify with
+	// compiler", the compiled one (compiled_preview.v).
+	preview_interpreter &ui2.VmlInterpreter = unsafe { nil }
+	preview_document    string
+	preview_build       DesignerPreviewBuild = unsafe { nil }
+	preview_node        &ui2.CompiledVmlNode = unsafe { nil }
+	preview_libraries   []DesignerPreviewLibrary
+	undo_stack          []IdeSnapshot
+	redo_stack          []IdeSnapshot
+	drag_component_id   int = -1
+	drag_mode           string
+	drag_grab_x         f64
+	drag_grab_y         f64
+	drag_checkpointed   bool
+	palette_drag_kind   string
+	palette_drag_x      f64
+	palette_drag_y      f64
+	palette_drag_moved  bool
 }
 
 fn new_ide_app(root string) IdeApp {
@@ -161,94 +165,6 @@ fn (mut app IdeApp) log(message string) {
 	}
 }
 
-fn component_title(kind string) string {
-	return match kind {
-		'label' { 'Label' }
-		'button' { 'Button' }
-		'text_field' { 'Text field' }
-		'text_area' { 'Text area' }
-		'checkbox' { 'Checkbox' }
-		'dropdown' { 'Dropdown' }
-		'view' { 'View' }
-		'image' { 'Image' }
-		else { kind }
-	}
-}
-
-fn component_tag(kind string) string {
-	return match kind {
-		'label' { 'Label' }
-		'button' { 'Button' }
-		'text_field' { 'TextInput' }
-		'text_area' { 'TextArea' }
-		'checkbox' { 'Checkbox' }
-		'dropdown' { 'Dropdown' }
-		'view' { 'View' }
-		'image' { 'Image' }
-		else { '' }
-	}
-}
-
-fn tag_component_kind(tag string) string {
-	return match tag {
-		'Label' { 'label' }
-		'Button' { 'button' }
-		'TextInput' { 'text_field' }
-		'TextArea' { 'text_area' }
-		'Checkbox' { 'checkbox' }
-		'Dropdown' { 'dropdown' }
-		'View' { 'view' }
-		'Image' { 'image' }
-		else { '' }
-	}
-}
-
-fn component_default_size(kind string) (f64, f64) {
-	return match kind {
-		'label' { 120.0, 26.0 }
-		'button' { 112.0, 36.0 }
-		'text_field' { 190.0, 36.0 }
-		'text_area' { 240.0, 108.0 }
-		'checkbox' { 150.0, 30.0 }
-		'dropdown' { 170.0, 36.0 }
-		'view' { 160.0, 100.0 }
-		'image' { 120.0, 100.0 }
-		else { 120.0, 36.0 }
-	}
-}
-
-fn component_default_background(kind string) u32 {
-	return match kind {
-		'button' { u32(0x2563eb) }
-		'text_field', 'text_area', 'dropdown' { u32(0xffffff) }
-		'view' { u32(0xdbeafe) }
-		'image' { u32(0xe2e8f0) }
-		else { u32(0xffffff) }
-	}
-}
-
-fn component_default_text(kind string, ordinal int) string {
-	return match kind {
-		'label' { 'Label ${ordinal}' }
-		'button' { 'Button ${ordinal}' }
-		'text_field' { 'Text field ${ordinal}' }
-		'text_area' { 'Text area ${ordinal}' }
-		'checkbox' { 'Checkbox ${ordinal}' }
-		'dropdown' { 'Option 1' }
-		'view' { '' }
-		'image' { '' }
-		else { component_title(kind) }
-	}
-}
-
-fn component_name_prefix(kind string) string {
-	return match kind {
-		'text_field' { 'text_field' }
-		'text_area' { 'text_area' }
-		else { kind }
-	}
-}
-
 fn (app &IdeApp) component_ordinal(kind string) int {
 	mut count := 1
 	for component in app.components {
@@ -319,7 +235,7 @@ fn (app &IdeApp) adjacent_inspector_property_id(current string, reverse bool) ?s
 }
 
 fn (app &IdeApp) unique_component_name(kind string) string {
-	prefix := component_name_prefix(kind)
+	prefix := kind
 	mut ordinal := 1
 	for {
 		candidate := '${prefix}${ordinal}'
@@ -642,7 +558,7 @@ fn (mut app IdeApp) set_component_text_property(field string, value string) bool
 
 fn (mut app IdeApp) toggle_selected_checked() {
 	index := app.find_component_index(app.selected_id)
-	if index < 0 || app.components[index].kind != 'checkbox' {
+	if index < 0 || !(designer_kind(app.components[index].kind) or { return }).has('checked') {
 		return
 	}
 	app.checkpoint()
@@ -717,7 +633,7 @@ fn vml_escape(value string) string {
 }
 
 fn component_vml(component DesignerComponent) string {
-	tag := component_tag(component.kind)
+	entry := designer_kind(component.kind) or { return '' }
 	radius := component.radius or {
 		match component.kind {
 			'button' { 6.0 }
@@ -734,41 +650,24 @@ fn component_vml(component DesignerComponent) string {
 	]
 	mut styles := []string{}
 	if component.hidden { properties << 'hidden: true' }
+	// An image without a source declares none; other text properties are
+	// always declared.
+	if entry.text_prop.len > 0 && (component.text.len > 0 || entry.text_prop != 'source') {
+		properties << '${entry.text_prop}: "${vml_escape(component.text)}"'
+	}
+	if entry.has('checked') { properties << 'checked: ${component.checked}' }
 	match component.kind {
-		'label' {
-			properties << 'text: "${vml_escape(component.text)}"'
+		'label', 'checkbox' {
 			styles << 'foreground(${color_hex(component.color)})'
 			styles << 'font_size(${component.font_size:g})'
 		}
-		'button' {
-			properties << 'text: "${vml_escape(component.text)}"'
+		'button', 'text_field', 'text_area' {
 			styles << 'background(${color_hex(component.background)})'
 			styles << 'foreground(${color_hex(component.color)})'
 			styles << 'font_size(${component.font_size:g})'
 			styles << 'radius(${radius:g})'
-		}
-		'text_field' {
-			properties << 'placeholder: "${vml_escape(component.text)}"'
-			styles << 'background(${color_hex(component.background)})'
-			styles << 'foreground(${color_hex(component.color)})'
-			styles << 'font_size(${component.font_size:g})'
-			styles << 'radius(${radius:g})'
-		}
-		'text_area' {
-			properties << 'text: "${vml_escape(component.text)}"'
-			styles << 'background(${color_hex(component.background)})'
-			styles << 'foreground(${color_hex(component.color)})'
-			styles << 'font_size(${component.font_size:g})'
-			styles << 'radius(${radius:g})'
-		}
-		'checkbox' {
-			properties << 'text: "${vml_escape(component.text)}"'
-			properties << 'checked: ${component.checked}'
-			styles << 'foreground(${color_hex(component.color)})'
-			styles << 'font_size(${component.font_size:g})'
 		}
 		'dropdown' {
-			properties << 'text: "${vml_escape(component.text)}"'
 			styles << 'background(${color_hex(component.background)})'
 			styles << 'foreground(${color_hex(component.color)})'
 			styles << 'font_size(${component.font_size:g})'
@@ -778,30 +677,18 @@ fn component_vml(component DesignerComponent) string {
 			styles << 'background(${color_hex(component.background)})'
 			styles << 'radius(${radius:g})'
 		}
-		'image' {
-			if component.text.len > 0 {
-				properties << 'source: "${vml_escape(component.text)}"'
-			}
-		}
 		else {}
 	}
 	if styles.len > 0 { properties << 'style: [${styles.join(', ')}]' }
 	if component.event_handler.len > 0 {
-		event_property := if component.kind in ['text_field', 'text_area', 'dropdown'] {
-			'on_change'
-		} else {
-			'on_click'
-		}
-		properties << '${event_property}: ${component.event_handler}'
-		if component.kind in ['label', 'view', 'image'] {
-			properties << 'clickable: true'
-		}
+		properties << '${entry.event}: ${component.event_handler}'
+		if entry.clickable { properties << 'clickable: true' }
 	}
 	attributes := properties.join(', ')
 	if component.kind == 'dropdown' {
-		return '    ${tag}(${attributes}) {\n        Option(text: "Option 1")\n        Option(text: "Option 2")\n        Option(text: "Option 3")\n    }'
+		return '    ${entry.tag}(${attributes}) {\n        Option(text: "Option 1")\n        Option(text: "Option 2")\n        Option(text: "Option 3")\n    }'
 	}
-	return '    ${tag}(${attributes})'
+	return '    ${entry.tag}(${attributes})'
 }
 
 fn generate_vml(app &IdeApp) string {
@@ -852,7 +739,7 @@ fn component_from_node(node &DesignerNode, id int) !DesignerComponent {
 		return error('unsupported designer component `${node.tag}`')
 	}
 	default_width, default_height := component_default_size(kind)
-	name := if node.id.len > 0 { node.id } else { '${component_name_prefix(kind)}${id}' }
+	name := if node.id.len > 0 { node.id } else { '${kind}${id}' }
 	if !valid_identifier(name) {
 		return error('`${name}` is not a valid component id')
 	}
@@ -861,11 +748,11 @@ fn component_from_node(node &DesignerNode, id int) !DesignerComponent {
 			return error('nested `${child.tag}` inside `${name}` is not editable by the visual designer')
 		}
 	}
-	mut text := node.prop('text')
-	if kind == 'text_field' {
-		text = node.prop_or('placeholder', text)
-	} else if kind == 'image' {
-		text = node.prop_or('source', node.prop('path'))
+	entry := designer_kind(kind) or { return error('unsupported designer component `${node.tag}`') }
+	text := match entry.text_prop {
+		'' { node.prop('text') }
+		'source' { node.prop_or('source', node.prop('path')) }
+		else { node.prop_or(entry.text_prop, node.prop('text')) }
 	}
 	if node_number(node, 'width', default_width)! < 0 || node_number(node, 'height', default_height)! < 0 {
 		return error('designer control dimensions must be non-negative')
@@ -887,13 +774,13 @@ fn component_from_node(node &DesignerNode, id int) !DesignerComponent {
 			u32(0x172033)
 		})!
 		font_size:     node_style_number(node, 'font_size', 14)!
-		radius:        if node.style('radius').len > 0 { ?f64(node_style_number(node, 'radius', 0)!) } else { none }
-		checked:       node.prop_bool('checked')
-		event_handler: if kind in ['text_field', 'text_area', 'dropdown'] {
-			node.prop('on_change')
+		radius:        if node.style('radius').len > 0 {
+			?f64(node_style_number(node, 'radius', 0)!)
 		} else {
-			node.prop('on_click')
+			none
 		}
+		checked:       node.prop_bool('checked')
+		event_handler: node.prop(entry.event)
 	}
 }
 

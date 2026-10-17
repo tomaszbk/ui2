@@ -1,15 +1,15 @@
-// vtest vflags: -gc boehm -d no_gc_thread_local_alloc -d ui2_custom_rendering -d ui2_embedder
+// vtest vflags: -gc boehm -d no_gc_thread_local_alloc -d ui2_embedder
 @[has_globals]
 module ui2
 
-$if macos && ui2_custom_rendering ?&& ui2_embedder ?&& !ui2_headless ? {
+$if macos && ui2_embedder ?&& !ui2_headless ? {
 	import gg
 	import sokol.gfx
 	import sokol.sgl
 }
 
 fn test_open_dropdown_hover_reuses_targets_and_refreshes_scroll_and_selection() ! {
-	$if macos && ui2_custom_rendering ?&& ui2_embedder ?&& !ui2_headless ? {
+	$if macos && ui2_embedder ?&& !ui2_headless ? {
 		previous_app := g_gg_app
 		previous_build := g_build_screen
 		previous_state := activate_custom_window_state(new_custom_window_state())

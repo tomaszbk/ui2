@@ -1,6 +1,6 @@
-# Custom desktop text
+# Desktop text
 
-The custom desktop renderer uses [vglyph](https://github.com/vlang/vglyph)
+The desktop renderer uses [vglyph](https://github.com/vlang/vglyph)
 for text layout, shaping and drawing. UI2 includes its runtime at
 `thirdparty/vglyph`, based on upstream commit
 `72377fbe720dbd658ee96c59b49904ba30ebe059` (module version 0.9.0), with the
@@ -9,13 +9,11 @@ There is no separate `v install vglyph` step.
 
 | Build | Text path |
 | --- | --- |
-| Linux desktop | vglyph |
-| macOS or Windows with `-d ui2_custom_rendering` | vglyph |
-| macOS with `-d ui2_custom_rendering -d ui2_embedder` | vglyph with the owned Metal context |
-| Native AppKit, UIKit and Win32 | Existing platform controls and native/Fontstash CPU measurement |
-| Android custom and `-d ui2_headless` | Existing Fontstash text and CPU measurement |
+| Linux, macOS and Windows | vglyph |
+| macOS with `-d ui2_embedder` | vglyph with the owned Metal context |
+| Android, iOS and `-d ui2_headless` | Fontstash text and CPU measurement |
 
-The native, Android and headless paths do not import the vendored runtime and
+The iOS, Android and headless paths do not import the vendored runtime and
 do not require its C libraries. The remaining Fontstash helpers serve those
 paths. This rollout preserves the existing editor state, binding and undo
 contracts and the host's IME bridge. Full cursor movement and deletion by
@@ -88,7 +86,7 @@ and matching GCC libraries:
 pacman -S --needed mingw-w64-ucrt-x86_64-gcc \
   mingw-w64-ucrt-x86_64-pkgconf mingw-w64-ucrt-x86_64-pango \
   mingw-w64-ucrt-x86_64-freetype
-v -cc gcc -d ui2_custom_rendering run examples/counter
+v -cc gcc run examples/counter
 ```
 
 Keep the UCRT64 `bin` directory ahead of other compilers and pkg-config
@@ -112,14 +110,14 @@ pkg-config --atleast-version=1.50 pango
 pkg-config --modversion pango pangoft2 freetype2 harfbuzz fribidi fontconfig gobject-2.0 glib-2.0
 ```
 
-CI checks these modules and logs the installed versions on Linux and custom
-macOS/Windows builds. The vglyph source revision is fixed in the repository;
+CI checks these modules and logs the installed versions on Linux, macOS and
+Windows. The vglyph source revision is fixed in the repository;
 the C package versions follow the runner's package repositories.
 
 ## Measurement and units
 
-`measure_layout_text(text, style, max_width)` works before opening a custom
-desktop window. It uses a CPU vglyph context with the same font resolution,
+`measure_layout_text(text, style, max_width)` works before opening a desktop
+window. It uses a CPU vglyph context with the same font resolution,
 shaping, wrapping and the same logical em sizes as drawing. CPU measurement
 does not create an atlas texture, window or Sokol device.
 Wrapping preserves the existing line spacing and does not insert automatic
@@ -202,20 +200,18 @@ The focused CPU suite checks shaping, measurement without a window, long
 text and device-scale invariance:
 
 ```sh
-v -d ui2_custom_rendering test ui/text_backend_vglyph_test.v
-v -d ui2_custom_rendering test thirdparty/vglyph/ui2_context_test.v
-v -d ui2_custom_rendering test thirdparty/vglyph/ui2_host_ime_test.v
+v test ui/text_backend_vglyph_test.v
+v test thirdparty/vglyph/ui2_context_test.v
+v test thirdparty/vglyph/ui2_host_ime_test.v
 ```
 
-On Linux the custom renderer is already the default, so the define is
-optional. For MSYS2 Windows custom tests use `-cc gcc`.
+For MSYS2 Windows tests use `-cc gcc`.
 
 The existing checks cover the backend and retained input/layout contracts:
 
 ```sh
 make test
 make examples
-make examples-custom
 make check-embedder-macos
 make test-embedder
 make screenshot EXAMPLE=message
@@ -224,8 +220,8 @@ make screenshot EXAMPLE=message
 The embedder resource suite requires a real macOS graphics device. CI's
 embedder check compiles the path; it does not establish interactive IME
 acceptance. A screenshot tests the gg/OpenGL presentation path on macOS;
-inspect the owned Metal path separately. Native and mobile checks keep
-their existing SDK/toolchain requirements.
+inspect the owned Metal path separately. Mobile checks keep their existing
+SDK/toolchain requirements.
 
 The example builder treats warnings as errors with `-W`. Informational
 compiler notices, including unused private helpers shared across backends,

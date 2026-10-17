@@ -1,8 +1,8 @@
-// vtest vflags: -gc boehm -d no_gc_thread_local_alloc -d ui2_custom_rendering
+// vtest vflags: -gc boehm -d no_gc_thread_local_alloc
 @[has_globals]
 module ui2
 
-$if macos && ui2_custom_rendering ? && !ui2_embedder ? && !ui2_headless ? {
+$if macos && !ui2_embedder ? && !ui2_headless ? {
 	import gg
 
 	struct GgPassAllocationAcceptance {
@@ -33,7 +33,7 @@ $if macos && ui2_custom_rendering ? && !ui2_embedder ? && !ui2_headless ? {
 }
 
 fn test_real_gg_pass_submission_allocates_nothing_after_warmup() {
-	$if macos && ui2_custom_rendering ? && !ui2_embedder ? && !ui2_headless ? {
+	$if macos && !ui2_embedder ? && !ui2_headless ? {
 		mut probe := &GgPassAllocationAcceptance{}
 		probe.context = gg.new_context(
 			width:        64

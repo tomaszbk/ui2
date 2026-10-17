@@ -1,8 +1,7 @@
-// vtest vflags: -d ui2_custom_rendering
 @[has_globals]
 module ui2
 
-$if macos && ui2_custom_rendering ? && !ui2_headless ? {
+$if macos && !ui2_headless ? {
 	__global declaration_drag_events = []ElementEvent{}
 	__global declaration_drag_case = ''
 	__global declaration_drag_changed = false

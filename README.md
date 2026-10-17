@@ -6,12 +6,14 @@
 <img height="280" alt="image" src="https://github.com/user-attachments/assets/0fb17bf1-ba64-4d70-bba9-76e08069e009" />
 
 
-`ui2` is a compact declarative UI module for V. It uses retained native controls
-on macOS, iOS, and Windows and a custom immediate-mode `gg` renderer on Linux
-and Android.
-
-The Linux backend draws and handles widgets directly through `gg`/Sokol; it has
-no GTK dependency.
+`ui2` is a compact declarative UI module for V. It draws every control itself,
+the way a browser engine does: one immediate-mode `gg`/Sokol renderer paints
+and handles the whole window on Linux, macOS, Windows, Android and iOS. The
+operating system is only the host: it
+provides the window and event loop, input, the clipboard, menus, dialogs, the
+tray, window chrome, key modifiers and, on iOS, the barcode scanner, as
+described in
+[host services](ui/platform.v). There is no GTK dependency on Linux.
 
 The V API includes responsive Flex and Grid placement with intrinsic text
 measurement. See the [layout guide](docs/modern-layout.md) and
@@ -23,46 +25,41 @@ header is [`c/ui2.h`](c/ui2.h). See the [C API guide](c/README.md) for the build
 callback, widget constructors, state access, ownership rules, and a Python
 `ctypes` example. Application code needs no V compiler once the library is built.
 
-macOS and Windows use native widgets by default. Pass the compile-time define
-`-d ui2_custom_rendering` to use the same custom `gg` renderer there instead:
-
 ```sh
-v -b c -d ui2_custom_rendering run examples/users/main.v
+v -b c run examples/users/main.v
 ```
 
-The custom renderer builds on demand. Model changes outside VML handlers
+The renderer builds on demand. Model changes outside VML handlers
 require `request_refresh()`; timers and deadlines must request
 updates when external state changes. Workers can post changes through a captured
 `ui2.ui_dispatcher()`. Idle drawing currently stops on macOS Metal. GL/EGL/D3D
 reuse the declared tree but still repaint because Sokol presents every callback.
 See [scheduling and diagnostics](docs/custom-rendering-scheduler.md).
-For Windows custom setup, retained D3D presentation and the typecheck
-verification scope, see [Windows custom runtime](docs/windows-custom-runtime.md)
-and `examples/windows_custom_runtime`.
+For Windows setup, presentation and what CI verifies there, see
+[Windows](docs/windows.md) and `examples/runtime_smoke`.
 
-The custom renderer also supports retained [vector canvases](docs/vector-canvas.md):
+The renderer also supports retained [vector canvases](docs/vector-canvas.md):
 typed paths, quadratic/cubic Bézier curves, concave polygons and holes, stroked
 caps/joins and shape-based pointer hits. See `examples/vector_canvas`.
 
-Custom windows support [typed drag sources, drop targets and previews](docs/drag-drop.md).
-Run `v -b c -d ui2_custom_rendering run examples/drag_drop` to try the interaction.
+Windows support [typed drag sources, drop targets and previews](docs/drag-drop.md).
+Run `v -b c run examples/drag_drop` to try the interaction.
 
-Custom rendering supports retained [motion](docs/motion.md): entry and exit,
+The renderer supports retained [motion](docs/motion.md): entry and exit,
 transitions of opacity, transforms and paint, layout transitions, keyframe
 timelines, events, handles, reduced motion and controlled clocks. Run
-`v -b c -d ui2_custom_rendering run examples/motion_presence` or
-`examples/transitions` to try it.
+`v -b c run examples/motion_presence` or `examples/transitions` to try it.
 
-Custom windows support retained [overlays](docs/overlays.md): Dialog, Popover,
+Windows support retained [overlays](docs/overlays.md): Dialog, Popover,
 MenuOverlay, ContextMenu and Tooltip, with controlled open state, focus
 containment and anchored placement. Run
-`v -b c -d ui2_custom_rendering run examples/overlays` to try all five.
+`v -b c run examples/overlays` to try all five.
 
-On macOS, the experimental owned embedder adds native windows, Metal surfaces,
-IME composition and a blocking event loop. Enable it with both
-`-d ui2_custom_rendering -d ui2_embedder` for idle sleep.
-`open_window`/`run_windows` support independent windows with scoped
-updates and dispatchers. See [the embedder contract and acceptance tests](docs/custom-embedder.md).
+On macOS, the experimental owned embedder is a host variant that replaces the
+sokol window with AppKit windows and Metal surfaces of its own, adding IME
+composition and a blocking event loop that sleeps while idle. Enable it with
+`-d ui2_embedder`. `open_window`/`run_windows` support independent windows
+with scoped updates and dispatchers. See [the embedder contract and acceptance tests](docs/custom-embedder.md).
 
 ## Requirements
 
@@ -76,17 +73,21 @@ export PATH="$HOME/.local/share/ui2-v:$PATH"
 ```
 
 CI builds the same pin through [the shared setup action](.github/actions/setup-v/action.yml).
-The module is split across `ui/`, `appkit/`, `uikit/` and `windows/` through
-the `subdirs` field of `v.mod`.
+The module lives in `ui/`, the one entry in the `subdirs` field of `v.mod`.
 
 Build and run ui2 with V's C backend (`v -b c ...`), including the designer
 and its shared preview libraries.
 
-Custom desktop builds also need Pango 1.50+, FreeType and their text-library
+Desktop builds also need Pango 1.50+, FreeType and their text-library
 dependencies. The vglyph runtime is included in the repository. See
-[custom desktop text setup](docs/vglyph-text.md) for macOS, Linux and Windows
-installation, linking and distribution. Native, Android and headless builds
-retain their existing dependencies.
+[desktop text setup](docs/vglyph-text.md) for macOS, Linux and Windows
+installation, linking and distribution. Android, iOS and headless builds do
+not need them.
+
+On iOS, sokol_app starts the app through `UIApplicationMain` and draws with
+Metal. The renderer looks for its fonts in `fonts/` or `assets/fonts/` beside
+the executable, so an app bundle has to carry them there. iOS builds are only
+typechecked (`make check-ios`); none has been run on a device yet.
 
 To use `ui2` from a project outside this repository, link the clone into
 `~/.vmodules`:
@@ -101,7 +102,7 @@ ln -s "$(pwd)" ~/.vmodules/ui2
   other lookup APIs.
 - `Element.key` identifies a child during reconciliation. Keys must be unique
   among siblings; IDs must be unique in the tree. Renderers validate both before
-  changing native state.
+  changing mounted state.
 - `Element.on_event` is a typed callback attached to that element.
   `ElementEvent.id` identifies its source; ids never select a callback.
   Attach callbacks with `with_event(element, callback)` or a control config.
@@ -112,8 +113,7 @@ logical offset in `value`; VML declares them with `on_scroll`.
 
 Text inputs use controlled-on-change semantics: changing the declared `text`
 applies that value, while a refresh with the same declaration preserves the
-current native/local edit, selection, focus, and (on native controls) input
-method composition. Use `set_text` for an explicit imperative replacement.
+current local edit, selection, focus, and input method composition. Use `set_text` for an explicit imperative replacement.
 
 Compiled VML `text` declarations accept strings and numbers without explicit
 interpolation: `Label(text: app.count)` displays a numeric field, and
@@ -128,14 +128,14 @@ cleanup are available through the window-independent signals runtime. See
 [the signals API](docs/signals.md) and [the runnable example](examples/signals/main.v).
 Ordinary V assignments require explicit observable setters to notify this graph.
 
-The custom renderer builds on demand and reuses its tree while idle. See
+The renderer builds on demand and reuses its tree while idle. See
 [render scheduling](docs/render-scheduling.md) for invalidation, worker delivery,
 window lifecycle and the acceptance fixture.
 
 ## Motion
 
 Motion is the one animation system: an element's `motion` configuration is
-retained with the element by the custom renderer, which draws frames only while
+retained with the element by the renderer, which draws frames only while
 something moves. Compose it from `motion_<name>` pieces, as styles compose from
 `style_<name>` pieces:
 
@@ -238,11 +238,38 @@ properties. Inline lists and component-local declarations use the same rules.
 See [VML styles and themes](docs/vml-styles.md) for tokens, variants, interaction
 states and theme updates.
 
+### Interpreted VML
+
+Development builds and dynamic documents can also run VML without compiling
+it. Built with `-d vml_interpreter`, ui2 parses a document with the compiler's
+VML parser, checks it against the model type and the widget registry when it
+loads, and declares the same retained nodes as compiled VML:
+
+```v
+ui2.run_vml[App](source_path: 'app.vml', model: &App{}, watch: true)!
+```
+
+With `watch: true` the window reloads the document when it or an imported
+component changes. Declarations whose path and key did not change keep their
+state, focus and edit buffers, and a document that no longer loads leaves the
+running one in place. `ui2.vml_interpret(source, &app)` builds a document from
+source for embedding. The interpreter reads public model fields, writes public
+mutable ones and calls methods by reflection, and evaluates the expression
+subset of compiled VML with V's semantics: integer arithmetic stays integral,
+mixing an integer with a float gives a float, and strings and numbers do not
+mix outside display text. Anything else is a load error naming the construct.
+
+Compiled VML stays the source of truth. The interpreter may accept a program V
+rejects, such as an integer passed to an `f64` parameter, never the reverse.
+`scripts/vml-conformance.sh` builds every example and `tests/compiled_vml`
+document both ways and requires equal element trees, scripted event results
+and model state.
+
 ## Custom buttons
 
 A `Button` can be styled directly in VML. Leave `native` unset when the
 application should own its colors and shape; `native: true` requests the
-standard native-style appearance instead.
+standard bezel instead.
 
 ```vml
 Absolute(
@@ -297,12 +324,9 @@ and derives its accessibility label from the first visible, noninteractive
 descendant with a label or text; set `accessibility_role` or
 `accessibility_label` explicitly to override those defaults.
 
-This adds activation semantics without requesting a native bezel or pressed
-visuals—the rectangle and its children remain application-drawn. The native
-Windows backend exposes the composite as a focusable button to accessibility
-tools and supports Enter/Space activation; the other renderers do not add
-native keyboard focus treatment. Use `Button` when a platform-drawn bezel and
-pressed state are required.
+This adds activation semantics without requesting a bezel or pressed
+visuals—the rectangle and its children remain application-drawn. Use `Button`
+when the standard bezel and pressed state are required.
 
 This is deliberately separate from `clickable: true`. A clickable view is a
 low-level pointer surface that reports typed `.pointer_down`, `.pointer_drag`
@@ -415,8 +439,7 @@ already exists. `button_view` and `with_button_behavior` leave the raw
 The event carries the element's id and the pointer position in logical window
 coordinates.
 
-Hover follows the CSS `:hover` rule on AppKit, Windows and the custom renderer
-alike: an element is hovered while the topmost element under the pointer is it
+Hover follows the CSS `:hover` rule: an element is hovered while the topmost element under the pointer is it
 or one of its descendants. Moving onto a child keeps its hoverable ancestors
 hovered, an element covered by another one is not hovered, and hover is checked
 again after every render, so content moving under a still pointer is reported
@@ -446,77 +469,56 @@ banner := ui2.view('banner', ui2.rect(0, 0, w, 120), ui2.BoxStyle{
 ```
 
 - `opacity` (0 to 1) fades the fill and nothing else.
-- `gradient` replaces `bg` on a view with a linear gradient: `angle` in degrees
+- `gradient` replaces `bg` with a linear gradient: `angle` in degrees
   (0 runs left to right, 90 top to bottom) and two or more stops, each with a
   position from 0 to 1 and an optional opacity. Like CSS `linear-gradient`, it
-  spans the box corner to corner along its angle. Buttons keep their solid fill
-  (a native button draws its title beneath any gradient layer); make a gradient
-  button from a view with `button_behavior`.
+  spans the box corner to corner along its angle. Buttons draw it too.
 - `shadow` draws a drop shadow beneath the box: `color`, `opacity`, `blur`,
-  offset `x`/`y` and `spread`, as in CSS `box-shadow`. A box that casts a shadow
-  does not clip its children to its rounded corners on AppKit and UIKit, since a
-  layer masking to its bounds masks its shadow away too.
+  offset `x`/`y` and `spread`, as in CSS `box-shadow`.
 
 A shadow animates with [motion](docs/motion.md), as do the element's opacity and
-fill color. AppKit and UIKit use CoreAnimation (`NSShadow`/layer shadows and a
-`CAGradientLayer`), and the custom renderer draws them itself. Windows draws
-fill opacity and gradients with `AlphaBlend` and `GradientFill`, but not a
-gradient's per-stop opacity, and it draws no shadows: Win32 child windows cannot
-paint outside themselves. Screenshots taken with `UI2_SCREENSHOT_PATH` on AppKit
-do not show CoreAnimation shadows, which `cacheDisplayInRect:` does not render.
+fill color.
 
 ## Backend capabilities
 
-Call `control_support(kind)` to query support. macOS implements every shared
-control kind; native images are `partial` because quad interaction and advanced
-presentation require custom rendering. iOS likewise reports images as `partial`,
-with text areas reported as `partial`
-because rich runs are currently rendered as plain text. Linux, Android, and
-opt-in custom desktop builds implement every kind through custom rendering;
-dropdowns and text areas are `partial` because the dropdown list is drawn by
-the renderer instead of a native menu and rich text-area runs are rendered as
-plain text.
+Call `control_support(kind)` to query support. The renderer implements every
+shared control kind; dropdowns and text areas are `partial` because the
+dropdown list is drawn by the renderer instead of a native menu and rich
+text-area runs are rendered as plain text. On Android and iOS the renderer
+draws text with Fontstash rather than vglyph, and does not offer overlays,
+motion or visual transforms (`backend_supports_overlays` and its siblings are
+false there).
 
-A button marked `native` asks the platform for the standard bezel and hands it
-the interaction styling. AppKit and Win32 supply theirs; the custom renderer
-draws one, including a pressed shade while the pointer is held on it, so the
-button does not come out as a bare caption. A button the application gave its
-own background keeps it, since the platform styling stops where the
-application's own begins.
+A button marked `native` gets the standard bezel, including a pressed shade
+while the pointer is held on it, so it does not come out as a bare caption. A
+button the application gave its own background keeps it, since the standard
+styling stops where the application's own begins.
 
 Box-backed elements (`View`, `Button`, `Scroll`, `Dropdown`,
 `TextInput`, `TextArea`) can draw each border edge independently. Widths use
-the same logical units as frames and corner radii, so native and custom
-renderers scale them with the rest of the element:
+the same logical units as frames and corner radii, so the renderer scales them
+with the rest of the element:
 
 ```vml
 View(style: [background(#10131F), border_color(#28314A), border_left(1), border_top(1), border_right(1), border_bottom(0)])
 ```
 
 Use `style: [transparent(true)]` to omit a box's fill. It also works on the root
-`Screen`; a transparent screen reveals the desktop when its native host window
-is configured for transparency, as demonstrated by `examples/custom_window`.
+`Screen`, which then leaves the window's own background showing.
 
 `border_width(1)` supplies all four edges; a later helper such as
 `border_bottom(0)` overrides that edge. The equivalent V API fields live
 directly on `BoxStyle`.
 
-Images load from `image_path` on every backend. The custom renderer caches
-decoded images. Scroll viewports clip both drawing and hit testing.
-
-The Windows backend uses retained Win32 `BUTTON`, `EDIT`, `COMBOBOX`, `STATIC`,
-and custom container windows. Its image control currently loads BMP files and
-its text area is plain-text, so those two controls report `partial` support.
+Images load from `image_path` on every backend. The renderer caches decoded
+images. Scroll viewports clip both drawing and hit testing.
 
 Shared state includes `hidden`, `enabled`, `accessibility_role`,
-`accessibility_label`, and `accessibility_value`. Native backends expose these
-through AppKit/UIKit. Roles use ARIA names (`button`, `checkbox`, `tab`,
-`progressbar`, `navigation`, …); AppKit maps them onto its own roles, passes
-`AX…` roles through unchanged, and leaves a view's native role in place for a
-name it has no role for. Standard Windows controls expose their native name and
-value; `button_behavior` views also expose a native button role, generated
-label, keyboard focus, and accessibility activation. Other explicit Windows
-accessibility role/value overrides are not yet implemented.
+`accessibility_label`, and `accessibility_value`. Roles use ARIA names
+(`button`, `checkbox`, `tab`, `progressbar`, `navigation`, …). The renderer
+keeps them in a semantic tree that `semantic_tree()`, `semantic_node(id)` and
+`perform_semantic_action(id, action)` expose to tests and tools; it does not
+hand that tree to the platform's accessibility API yet.
 `autocorrect` and `padding_left` configure applicable mobile text inputs.
 
 ## Visual IDE
@@ -525,9 +527,11 @@ UI2 Studio in [`ide/`](ide/) is a Delphi/Lazarus-style WYSIWYG form designer
 written in V with UI2 itself. It includes a component palette, draggable and
 resizable controls, object tree and inspector, undo/redo, VML source editing,
 live preview, project save/open, `main.v` generation, and a build messages pane.
+Its live preview runs on the VML interpreter, so it is built with
+`-d vml_interpreter`:
 
 ```sh
-v -b c run ide
+v -b c -d vml_interpreter run ide
 ```
 
 See [`ide/README.md`](ide/README.md) for the supported visual document shape
@@ -551,7 +555,8 @@ choice := ui2.message_box(
 `NSAlert` message and informative text, Windows as a `MessageBoxW` caption and
 body, and Linux as the desktop's own `zenity` or `kdialog` dialog — `kdialog`
 first under KDE and Plasma. iOS presents a `UIAlertController` and pumps the run
-loop so the call stays synchronous like the desktop backends. `alert(title,
+loop, with the renderer paused, so the call stays synchronous like the desktop
+hosts. `alert(title,
 text)` and `confirm(title, text)` wrap the two common cases.
 
 Android has no alert this layer can drive without a JVM callback, so
@@ -609,8 +614,8 @@ title bar `clickable: true` (or `draggable`) and call it on `.pointer_down`.
 `minimize_window` and `toggle_maximize_window` go behind the other buttons'
 callbacks the same way.
 `window_is_maximized` tells a maximize button which icon to show. These work
-for native and custom-rendered windows on macOS and Windows; Linux, Android and
-iOS keep their own frame and the calls report false.
+on macOS and Windows; Linux, Android and iOS keep their own frame and the calls
+report false.
 
 ## Timers
 
@@ -643,8 +648,8 @@ if !ui2.set_clipboard_text(token) {
 pasted := ui2.clipboard_text() or { '' }
 ```
 
-macOS uses `NSPasteboard`, iOS `UIPasteboard` and Windows the Win32 clipboard,
-for native and custom-rendered windows alike. Linux drives `wl-copy`/`wl-paste`
+macOS uses `NSPasteboard`, iOS `UIPasteboard` and Windows the Win32
+clipboard. Linux drives `wl-copy`/`wl-paste`
 under Wayland, or `xclip` or `xsel` under X11, so one of them has to be
 installed; Android has no clipboard this layer can reach. Check
 `clipboard_supported()` before offering a copy action.
@@ -686,8 +691,8 @@ on Linux. Linux requires a graphical session and one of those helpers;
 available on iOS or Android, where a document picker needs an app-specific
 asynchronous presentation callback.
 
-For Linux and custom-rendered applications, `FilePicker` provides an in-window
-picker with no `zenity` or `kdialog` dependency. It uses the same
+`FilePicker` provides an in-window picker with no `zenity` or `kdialog`
+dependency, for Linux or wherever a system dialog is unavailable. It uses the same
 `FileDialogConfig` for open, save, and folder modes. Keep the picker in app
 state and add `picker.render(ui2.bounds())` as the last screen child. Its
 controls attach callbacks directly. `FilePickerConfig.on_result` receives a
@@ -740,16 +745,17 @@ remembered — after handling the event, install the menu again with the new
 value. Either call may come before `run_window`; what was declared is installed
 as soon as there is a window to attach it to. `remove_tray()` undocks the icon.
 
-macOS builds an `NSMenu` main menu, keeping its own application menu with
-"Quit <app>" first, and an `NSStatusItem` for the tray, whose `icon` may name an
-SF Symbol as `symbol:<name>`. Windows builds an `HMENU` menu bar with an
-accelerator table, and a `Shell_NotifyIcon` notification area icon that opens
-its menu on either mouse button. The custom renderer has no platform menu bar,
-so it draws one across the top of the window — `bounds()` reserves that strip,
-so a screen laid out at y 0 starts below it — and it owns nothing outside its
-window, so `tray_supported()` is `false` there. iOS and Android have neither, so
-both calls are accepted and ignored; check `menu_bar_supported()` and
-`tray_supported()` before offering them in a shared UI.
+Menus are a host service. macOS builds an `NSMenu` main menu, keeping its own
+application menu with "Quit <app>" first, and an `NSStatusItem` for the tray,
+whose `icon` may name an SF Symbol as `symbol:<name>`; AppKit runs the
+shortcuts. Windows builds an `HMENU` menu bar in the window's frame, whose
+shortcuts the renderer matches, and a `Shell_NotifyIcon` notification area icon
+that opens its menu on either mouse button. Linux and Android have no platform
+menu bar, so the renderer draws one across the top of the window — `bounds()`
+reserves that strip, so a screen laid out at y 0 starts below it — and it owns
+nothing outside its window, so `tray_supported()` is `false` there. iOS has
+neither, so both calls are accepted and ignored; check `menu_bar_supported()`
+and `tray_supported()` before offering them in a shared UI.
 
 `validate_menus(...)` rejects an untitled menu, an empty leaf declaration, a
 duplicated id, a submenu with a callback, and a decorated separator, so a
@@ -766,7 +772,7 @@ Authored VML x/y and geometry expressions used in layout dimensions require a di
 
 Responsive layouts can combine wrapping, automatic Grid columns and conditional
 visibility with expressions such as `root.width < 600`. Flex/Grid layout is
-shared by native backends and the custom renderer.
+shared by every backend.
 See [modern layout](docs/modern-layout.md) for properties, intrinsic measurement,
 limits and the executable `examples/responsive_layout` example.
 
@@ -774,13 +780,12 @@ Retained layout and subtree updates are described in [Incremental layout](docs/i
 with a V/compiled-builder example in `examples/incremental_layout`.
 
 A label, button, checkbox, or dropdown whose text is wider than its frame ends
-in an ellipsis rather than running over whatever is beside it: the native
-backends hand their cells `NSLineBreakByTruncatingTail`, and the custom
-renderer shortens the line itself. Text fields and text areas are the
+in an ellipsis rather than running over whatever is beside it: the renderer
+shortens the line itself. Text fields and text areas are the
 exception, since they place the caret by measuring the whole string.
 
-`TextEditor` positions are Unicode rune offsets. Native text-area selection APIs
-use UTF-16 code-unit offsets. This is intentional; grapheme-cluster editing is
+`TextEditor` positions are Unicode rune offsets. Text-area selection ranges
+(`TextAreaSelectionRange`) use UTF-16 code-unit offsets. This is intentional; grapheme-cluster editing is
 outside the portable editor's current contract.
 
 Read-only text that an application paints itself (a transcript on a canvas,
@@ -824,8 +829,7 @@ An offset asked for before
 the element exists is taken up when it is first laid out. To scroll to content
 the event being handled has just added, call `request_refresh()` first: an
 offset past the current range, asked for while a rebuild is pending, is taken up
-again once that rebuild has laid out the new range. The iOS backend scrolls the
-same modes but does not expose these functions.
+again once that rebuild has laid out the new range.
 
 ## Fonts and text sizes
 
@@ -837,14 +841,14 @@ See [logical units](docs/logical-units.md) for migration and rounding rules.
 For affine presentation, exact clipping and pan/zoom, see
 [visual transforms](docs/visual-transforms.md).
 
-The custom desktop renderer uses vglyph/Pango for layout and shaping and
+The desktop renderer uses vglyph/Pango for layout and shaping and
 FreeType for rasterization. Its CPU measurement works before opening a window
 and uses the same font resolution, wrapping and logical sizes as drawing.
 Device DPI is applied separately for each drawing context. See
 [the text backend contract](docs/vglyph-text.md#measurement-and-units).
 
 The renderer picks a default text face from UI2's font discovery. `ui2` ships
-Roboto and Roboto Mono in `assets/fonts/`, giving custom windows the same
+Roboto and Roboto Mono in `assets/fonts/`, giving every window the same
 default text faces on each platform. These fonts are found directly while
 the module is on the build machine; to ship a binary elsewhere, copy
 `assets/fonts/` next to it or put the files in a `fonts/` directory beside it.
@@ -864,9 +868,10 @@ The bundled fonts and default discovery use static faces. vglyph can shape
 variable fonts, but UI2's public styles still expose the existing bold/italic
 flags; additional weight and variation controls need their own API.
 
-`TextStyle.font_family` names a family. The native backends hand the name to the
-platform's font manager; the custom desktop renderer registers a matching
-file from UI2's font directories or asks Pango/Fontconfig to resolve the family.
+`TextStyle.font_family` names a family. The desktop renderer registers a
+matching file from UI2's font directories or asks Pango/Fontconfig to resolve
+the family; Android and iOS look for a matching file in UI2's font directories
+and the system's.
 An unavailable family falls back through the default text face before symbol
 fonts.
 
@@ -897,7 +902,7 @@ remaining Fontstash paths:
 UI2_FONT_SYMBOLS=/usr/share/fonts/truetype/ancient-scripts/Symbola.ttf ./treeview
 ```
 
-Android custom and headless measurement still use Fontstash. Those paths
+Android, iOS and headless measurement use Fontstash. Those paths
 retain UI2's explicit symbol fallback chain, the font's ascender/descender
 conversion and monochrome emoji. Their `stb_truetype` rasterizer does not
 apply variable font axes or render bitmap/layered color emoji, so use static
@@ -905,7 +910,7 @@ outline fonts there.
 
 ## Images and assets
 
-Custom rendering supports fit modes, source crops, RGBA tint, rotation,
+The renderer supports fit modes, source crops, RGBA tint, rotation,
 context-owned atlases and explicit DPI variants. See [images and assets](docs/images-assets.md)
 and the `image_assets` example for the API and resource diagnostics.
 
@@ -914,8 +919,8 @@ and the `image_assets` example for the API and resource diagnostics.
 `ui2.chart` creates line, grouped bar, scatter, pie, and doughnut charts. Its
 `type`, `data`, and `options` configuration follows the basic shape of
 [Chart.js](https://www.chartjs.org/docs/latest/). It returns an ordinary
-`Element`, so it can be placed in any V-built layout on native or custom
-backends, without JavaScript or a web view.
+`Element`, so it can be placed in any V-built layout on any backend, without
+JavaScript or a web view.
 
 ```v okfmt
 sales := ui2.chart(
@@ -967,14 +972,13 @@ It composes views and labels, including scan-converted strips for lines and
 slices, and is intended for modest datasets and chart sizes.
 
 Run `v -b c run examples/charts/main.v` to see all five chart types in a layout that
-adapts to the window width. Add `-d ui2_custom_rendering` to try the custom
-renderer on macOS or Windows.
+adapts to the window width.
 
 ## Keyboard events
 
 Keyboard focus, Tab order, scopes, directional navigation and portable semantic
 hooks are documented in [Focus navigation](docs/focus-navigation.md). Try the
-[focus_navigation example](examples/focus_navigation/main.v) in native or custom mode.
+[focus_navigation example](examples/focus_navigation/main.v).
 
 Use `on_key_event` when a shortcut should follow a physical key across keyboard
 layouts. `KeyEvent.code` is a portable `KeyCode`; text entry still follows the
@@ -997,8 +1001,8 @@ ones held right now (`shift`, `ctrl`, `alt`, and `cmd` for Command or the
 Windows key), so a click handler can tell a Shift- or Cmd-click apart.
 
 The existing `on_key` callback remains available for normalized strings such as
-`cmd+n` and `up`. On AppKit those strings are now also derived from physical key
-codes for known keys, so command shortcuts are independent of the input source.
+`cmd+n` and `up`. The renderer derives those strings from physical key codes,
+so command shortcuts are independent of the input source.
 
 ## Examples
 
@@ -1031,7 +1035,7 @@ Typed-VML ports from `v-ui` include:
 - `v -b c run examples/demo_label/main.v` — the original minimal centered-label
   demonstration.
 - `v -b c run examples/group2/main.v` — two responsive groups with text fields,
-  a checkbox, native buttons, and validation feedback.
+  a checkbox, buttons, and validation feedback.
 - `v -b c run examples/logview/main.v` — append scan batches to a read-only log.
 - `v -b c run examples/nested_scrollview/main.v` — scroll a list of independently
   scrollable multiline text areas.
@@ -1048,14 +1052,14 @@ Typed-VML ports from `v-ui` include:
 - `v -b c run examples/demo_radio/main.v` — exclusive country choices that switch
   between compact horizontal and vertical layouts.
 - `v -b c run examples/demo_style_4colors/main.v` — select four-color palettes and
-  preview them across portable and native controls.
+  preview them across the controls.
 - `v -b c run examples/box_layout_inside_row/main.v` — proportional box layout
   inside an inset row, with switchable text-area bounds.
 - `v -b c run examples/rectangles_resizable/main.v` — four rounded color boxes that
   share the available width as the window resizes.
 - `v -b c run examples/accordion/main.v` — collapsible component pages with one
   active section at a time.
-- `v -b c run examples/tabs/main.v` — three keyed pages selected through a native
+- `v -b c run examples/tabs/main.v` — three keyed pages selected through a
   tab-style button bar.
 - `v -b c run examples/double_listbox/main.v` — transfer keyed values between two
   scrollable lists and inspect the result.
@@ -1063,11 +1067,11 @@ Typed-VML ports from `v-ui` include:
   a keyed, scrollable tree.
 - `v -b c run examples/dirbrowser/main.v` — browse and choose folders from the local
   filesystem.
-- `v -b c -d ui2_custom_rendering run examples/fontchooser/main.v` — apply font family, size, color, and
+- `v -b c run examples/fontchooser/main.v` — apply font family, size, color, and
   emphasis choices to an editable preview.
 - `v -b c run examples/rasterview/main.v` — show a bundled bitmap in a responsive
   image frame.
-- `v -b c run examples/resizable_menu_window/main.v` — resize a native context-menu
+- `v -b c run examples/resizable_menu_window/main.v` — resize a context-menu
   control between compact and stretched layouts.
 - `v -b c run examples/filebrowser/main.v` — browse folders, select files, and
   confirm or cancel the current selection.
@@ -1075,21 +1079,21 @@ Typed-VML ports from `v-ui` include:
   editable text and a scrollable data grid.
 - `v -b c run examples/row_layout/main.v` — experiment with row proportions,
   margins, spacing, and control height.
-- `v -b c -d ui2_custom_rendering run examples/demo_event/main.v` — inspect normalized pointer and keyboard
+- `v -b c run examples/demo_event/main.v` — inspect normalized pointer and keyboard
   events in a live event log.
-- `v -b c -d ui2_custom_rendering run examples/demo_chunkview/main.v` — compose nested styled text chunks
+- `v -b c run examples/demo_chunkview/main.v` — compose nested styled text chunks
   and toggle their visibility and alignment.
-- `v -b c -d ui2_custom_rendering run examples/cells/main.v` — edit a compact spreadsheet and recalculate
+- `v -b c run examples/cells/main.v` — edit a compact spreadsheet and recalculate
   dependent `sum` formulas.
 - `v -b c run examples/circle_drawer/main.v` — add and resize circles with
   selection-aware undo and redo.
 - `v -b c run examples/gg2048/main.v` — play a deterministic, responsive version
   of the 2048 tile game.
-- `v -b c -d ui2_custom_rendering run examples/editor/main.v` — browse, create, edit, and save text files
+- `v -b c run examples/editor/main.v` — browse, create, edit, and save text files
   from a responsive editor.
-- `v -b c -d ui2_custom_rendering run examples/calculate/main.v` — evaluate arithmetic expressions with
+- `v -b c run examples/calculate/main.v` — evaluate arithmetic expressions with
   precedence, unary operators, and parentheses.
-- `v -b c -d ui2_custom_rendering run examples/timer/main.v` — run, pause, resume, and restart a timer with
+- `v -b c run examples/timer/main.v` — run, pause, resume, and restart a timer with
   a draggable duration control.
 - `v -b c run examples/slider_textbox/main.v` — keep horizontal and vertical slider
   values synchronized with validated text fields.
@@ -1097,7 +1101,7 @@ Typed-VML ports from `v-ui` include:
   targets with cubic easing.
 - `v -b c run examples/gradient_texture/main.v` — generate an interactive HSV
   gradient from keyed color tiles.
-- `v -b c run examples/change_title/main.v` — validate a title and update the native
+- `v -b c run examples/change_title/main.v` — validate a title and update the
   desktop window caption.
 - `v -b c run examples/nested_clipping/main.v` — toggle a scroll viewport per box, or
   per quadrant, and watch the unclipped bars spill over their neighbours.
@@ -1108,12 +1112,12 @@ Typed-VML ports from `v-ui` include:
 - `v -b c run examples/colorbox/main.v` — pick a color from a hue strip and an HSV
   square, store it in a slot, and drive a rectangle's text with it.
 - `v -b c run examples/child_window/main.v` — open a movable child panel with its own
-  field, checkbox, and native greeting dialog.
+  field, checkbox, and system greeting dialog.
 - `v -b c run examples/accent_color/main.v` — drag three channels into an accent and
   derive a shade, a tint, and a readable font color from it.
-- `v -b c -d ui2_custom_rendering run examples/text_style/main.v` — apply a family found in this machine's
+- `v -b c run examples/text_style/main.v` — apply a family found in this machine's
   font trees, at a chosen size and emphasis, to an editable sample.
-- `v -b c -d ui2_custom_rendering run examples/canvas_layout_inside_row/main.v` — drag a rotatable logo
+- `v -b c run examples/canvas_layout_inside_row/main.v` — drag a rotatable logo
   across two panes and read its position in each pane's own coordinates.
 - `v -b c run examples/calculator_resizable/main.v` — a calculator whose keys, type,
   and spacing are all fractions of the window.
@@ -1123,9 +1127,8 @@ Typed-VML ports from `v-ui` include:
   separators, disabled and checked rows, and nested submenus.
 - `v -b c run examples/tray_icon/main.v` — a status area icon whose menu sets a
   status, toggles a setting, and docks or hides the icon again.
-- `v -b c run examples/custom_window/main.v` — a borderless desktop widget with
-  ui2-drawn chrome, draggable content, and genuinely transparent space between
-  its rounded surfaces on the native macOS and Windows backends.
+- `v -b c run examples/custom_window/main.v` — a window with a hidden title bar,
+  ui2-drawn chrome and draggable content on macOS and Windows.
 
 Run the calculator demo with:
 
@@ -1144,7 +1147,7 @@ Run the responsive users demo with:
 v -b c run examples/users/main.v
 ```
 
-It ports the native-widget users example from `v-ui`. The complete screen is
+It ports the users example from `v-ui`. The complete screen is
 declared in `examples/users/users.vml` and compiled with `$vml`; V only
 contains the typed model and business actions. The example includes validated
 text entry, password masking, country selection, toggles, a progress indicator,
@@ -1196,19 +1199,21 @@ vab run --device auto --name "ui2 counter" \
 
 ## Verification
 
-Run `make test` for portable and host-native tests. `make examples` compiles
-every example under `examples/` for the host platform and reports all failures
-at once; `make examples-custom` repeats that with the custom `gg` renderer.
-GitHub Actions runs focused desktop tests on Linux, macOS, and Windows,
-including native and custom profiles, for every push and pull request. These
-cover Counter, menus, compiled VML contracts, scrolling, text, and backend checks.
-`make check-macos`,
-`make check-ios`, `make check-android`, `make check-linux`, and
-`make check-windows` type-check each renderer; cross-target checks require their
-normal platform SDK/toolchain. `make check-custom` additionally type-checks the
-opt-in custom macOS and Windows builds.
-`make check-embedder-macos` checks the owned Metal embedder;
-`make test-embedder` runs its focused suites on a macOS host with GPU access.
+Run `make test` for portable and host tests. `make examples` compiles every
+example under `examples/` for the host platform and reports all failures at
+once. GitHub Actions runs focused desktop tests on Linux, macOS, and Windows
+for every push and pull request. These cover Counter, menus, compiled VML
+contracts, scrolling, text, and backend checks; the Linux job also typechecks
+the iOS, Android, headless and document-library builds.
+A Linux job runs the VML conformance suite (`scripts/vml-conformance.sh`) in
+shards: every example document built compiled and interpreted.
+`scripts/test-linux.sh` runs the Linux steps locally.
+`make check-macos`, `make check-ios`, `make check-android`, `make check-linux`,
+`make check-windows`, `make check-headless` and `make check-document`
+type-check each target, and `make check-backends` runs them all with
+`make check-embedder-macos`, which checks the owned Metal embedder.
+`make test-embedder` runs the embedder's focused suites on a macOS host with
+GPU access.
 
 `make screenshot EXAMPLE=<name>` renders one example and writes a single frame
 to a PNG, so a layout can be checked without a person watching the window:
@@ -1224,29 +1229,6 @@ recorder reads the presented framebuffer back, which only the GL backend
 implements, so the script builds macOS examples against GL instead of Metal.
 Text is a third wider at 96 dpi than it is on macOS, so a layout that only just
 fits in a macOS screenshot still has to be checked on Linux or Windows.
-
-The Windows backend also has an executable Wine smoke test. It creates every
-native widget kind, reads text back from the Win32 controls, verifies text-area
-selection, and closes itself with a non-zero exit status on failure:
-
-```sh
-smoke_dir="$(mktemp -d)"
-v -enable-globals -os windows \
-  -o "$smoke_dir/ui2-windows-smoke.exe" examples/windows_smoke/main.v
-mingw_sysroot="$(x86_64-w64-mingw32-gcc -print-sysroot)"
-mingw_runtime="$(find "$mingw_sysroot" -name libwinpthread-1.dll -type f -print -quit)"
-test -n "$mingw_runtime" && cp "$mingw_runtime" "$smoke_dir/"
-WINEARCH=win64 WINEPREFIX="$smoke_dir/prefix" \
-  wine "$smoke_dir/ui2-windows-smoke.exe"
-```
-
-A successful run prints `UI2_WINE_SMOKE_OK`. The runtime DLL copy is required
-by the default MinGW-w64 thread runtime; it should likewise be shipped beside
-applications unless the final executable is linked without that dependency.
-
-Native objects returned by `alloc` follow a +1 creation contract. Renderers
-release that ownership after a retaining parent/property accepts the object and
-remove observers, delegates, actions, menus, and pointer registries on unmount.
 
 ## License
 

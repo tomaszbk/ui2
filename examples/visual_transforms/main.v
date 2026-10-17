@@ -11,12 +11,6 @@ __global has_pointer = false
 __global dragging = false
 
 fn main() {
-	$if macos || windows {
-		$if !ui2_custom_rendering ? {
-			eprintln('Run with -d ui2_custom_rendering')
-			return
-		}
-	}
 	ui2.run_window('Visual transforms · drag the blue canvas, zoom at pointer', 920, 680, build)
 }
 

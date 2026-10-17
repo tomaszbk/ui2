@@ -785,7 +785,7 @@ fn test_measurer_identity_change_rearranges_inside_fixed_boundary() {
 }
 
 fn test_default_desktop_measurer_stabilizes_font_environment_before_paint() {
-	$if (linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
+	$if (linux || macos || windows) && !ui2_headless ? {
 		mut tree := LayoutTree{}
 		leaf := label('text', 'Hola ñ', Rect{}, TextStyle{ lines: 20 })
 		tree.replace(incremental_column('parent', rect(0, 0, 80, 100), [leaf])!)!

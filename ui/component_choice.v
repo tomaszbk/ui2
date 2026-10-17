@@ -135,8 +135,8 @@ fn choice_shape(frame Rect, radius f64, color u32, corners ChoiceCorners, vertic
 }
 
 // choice_ring draws a bordered rounded shape as two fills, the border color
-// under an inset fill. A BoxStyle border is square-cornered in the custom
-// renderer and clipped at the corners by AppKit, so this keeps both alike.
+// under an inset fill, because the renderer draws a BoxStyle border with
+// square corners.
 fn choice_ring(frame Rect, radius f64, border u32, fill u32, corners ChoiceCorners, vertical bool) []Element {
 	mut shapes := choice_shape(frame, radius, border, corners, vertical)
 	inner := rect(frame.x + 1, frame.y + 1, math.max(0.0, frame.width - 2), math.max(0.0,

@@ -43,8 +43,7 @@ starts a timer, so it is deterministic and is tested with a fake clock.
 `width` (382, GPUI Kit's), `margin` (16), `gap` (12), `animate` (true), `size`,
 `theme` and `on_notification fn (NotificationEvent)`. `notification_stacks` returns a list rather than one element:
 each stack is only as large as its notifications, so the rest of the window
-stays clickable and hoverable on AppKit and Windows, where a transparent view
-covering the window would take every click. Append the stacks after the other
+stays clickable and hoverable. Append the stacks after the other
 children so they are drawn on top.
 
 ### Example

@@ -309,12 +309,6 @@ fn feedback_draws_strips() bool {
 	return backend_feedback_strips
 }
 
-// feedback_parent_clips reports whether the renderer clips a view's children to
-// its rounded corners, as AppKit does by masking a layer with a corner radius.
-fn feedback_parent_clips() bool {
-	return backend_clips_rounded_children
-}
-
 // feedback_ring_pieces covers the stretch of a ring from turn `from` to turn
 // `to` (clockwise from twelve o'clock; a whole turn or more is the full ring)
 // with pieces split into `sectors` equal sectors. A single sector draws round

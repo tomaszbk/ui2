@@ -11,9 +11,7 @@ pub:
 	opacity  f64 = 1.0
 }
 
-// Gradient is a linear gradient across a view's box (buttons keep their solid fill,
-// since a native button draws its title beneath any gradient layer; make a
-// gradient button from a view with button_behavior). `angle` is in degrees, measured
+// Gradient is a linear gradient across a view's or a button's box. `angle` is in degrees, measured
 // clockwise from left-to-right: 0 runs left to right, 90 top to bottom. It
 // spans the box's projection onto that direction, corner to corner, the way
 // CSS linear-gradient does.
@@ -24,8 +22,7 @@ pub:
 }
 
 // BoxShadow is a drop shadow drawn beneath a box: offset by x and y, grown by
-// spread, and blurred over `blur` points. AppKit, UIKit and the custom renderer
-// draw it; Win32 child windows cannot, so Windows leaves it out.
+// spread, and blurred over `blur` points.
 pub struct BoxShadow {
 pub:
 	color   u32
@@ -174,15 +171,4 @@ fn gradient_position(line GradientLine, x f64, y f64) f64 {
 		return 0
 	}
 	return unit_clamp(((x - line.x0) * lx + (y - line.y0) * ly) / length2)
-}
-
-// box_rounded_border is the width of a box's border when it should follow the
-// box's rounded corners: a radius and the same width on all four sides. Square
-// boxes and uneven borders return 0 and keep their straight sides.
-fn box_rounded_border(box BoxStyle) f64 {
-	if box.radius <= 0 || box.border_left <= 0 || box.border_left != box.border_top
-		|| box.border_left != box.border_right || box.border_left != box.border_bottom {
-		return 0
-	}
-	return box.border_left
 }

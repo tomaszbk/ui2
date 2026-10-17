@@ -211,8 +211,7 @@ fn test_dialog_wraps_long_titles_and_descriptions() {
 		description: 'This action cannot be undone. This will permanently delete your account and remove your data from our servers.'
 	}) or { panic(err) }
 	assert long.description_lines >= 2
-	assert long.description.height == f64(long.description_lines) * font_line_height(14) +
-		dialog_wrap_slack
+	assert long.description.height == f64(long.description_lines) * font_line_height(14)
 	assert long.surface.height > short.surface.height
 	el := modal_dialog(DialogConfig{ ...dialogs_test_profile(true), description: 'one\ntwo\nthree' }) or {
 		panic(err)
@@ -232,10 +231,10 @@ fn test_dialog_wrap_estimate() {
 	assert dialog_line_count('a few words', 16, true, 1000) == 1
 	assert dialog_text_height(0, 14) == 0
 	assert dialog_text_height(1, 14) == font_line_height(14)
-	assert dialog_text_height(2, 14) == 2 * font_line_height(14) + dialog_wrap_slack
+	assert dialog_text_height(2, 14) == 2 * font_line_height(14)
 	$if macos {
-		// AppKit and the custom renderer both draw this on two lines; the estimate
-		// used to make it three and leave a blank line under it.
+		// The renderer draws this on two lines; the estimate used to make it
+		// three and leave a blank line under it.
 		geom := alert_dialog_layout(AlertDialogConfig{
 			...dialogs_test_alert()
 			description: 'This permanently deletes the project and everything in it. This action cannot be undone.'

@@ -1,4 +1,3 @@
-// vtest vflags: -d ui2_custom_rendering
 module main
 
 import os

@@ -1024,7 +1024,7 @@ fn test_dropdown_menu_converts_menu_bar_rows_and_entries() {
 	assert entries[0].id == 'copy' && entries[0].label == 'Copy' && entries[0].kind == .item
 	assert dropdown_menu_shortcut_text('not a shortcut++x') != ''
 	assert dropdown_menu_shortcut_text('') == ''
-	// Modifier symbols count as an em, so a hint like ⇧⌘S gets room on AppKit.
+	// Modifier symbols count as an em, so a hint like ⇧⌘S gets its room.
 	assert dropdown_menu_hint_width('⇧⌘S', 10) == 27
 	assert dropdown_menu_hint_width('Ctrl+Shift+S', 10) > dropdown_menu_hint_width('⇧⌘S', 10)
 }

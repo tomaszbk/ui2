@@ -2,11 +2,10 @@ module ui2
 
 import math
 
-// IconName lists GPUI Kit's Lucide icon names that have a counterpart every ui2
-// backend can draw: an SF Symbol on AppKit and UIKit that ui/symbols.v also maps
-// to a Material Icons glyph of the same meaning for the other renderers. The
-// first group is from GPUI's default component set, the second from the wider
-// Lucide catalog. `padlock` is Lucide's Lock, which is a V keyword.
+// IconName lists GPUI Kit's Lucide icon names that have a counterpart the
+// renderer can draw: an SF Symbols name that ui/symbols.v maps to a Material
+// Icons glyph of the same meaning. The first group is from GPUI's default
+// component set, the second from the wider Lucide catalog. `padlock` is Lucide's Lock, which is a V keyword.
 pub enum IconName {
 	a_large_small
 	case_sensitive
@@ -192,8 +191,7 @@ pub:
 	// uses the size preset: small 14, medium 16, large 24 (GPUI's xsmall is 12).
 	pixel_size f64
 	color      ?u32 // Defaults to the theme's foreground.
-	// rotation turns the icon clockwise, in degrees. The custom renderer draws
-	// symbols upright, so rotation is honored by AppKit and UIKit only.
+	// rotation turns the icon clockwise, in degrees, as Element.rotation.
 	rotation            f64
 	size                ComponentSize = .medium
 	accessibility_label string // Defaults to the icon's title.
