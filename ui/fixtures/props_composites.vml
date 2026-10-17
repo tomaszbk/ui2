@@ -67,15 +67,15 @@ Screen(id: "root") {
                 View()
             }
         }
-        TreeView(id: "tree", x: 0, y: 420, width: 300, height: 200) {
-            TreeNode(id: "n1", text: "Docs", expanded: true, on_toggle: app.hit("toggle")) {
-                TreeNode(id: "n11", title: "Intro", selected: true, on_select: app.hit("select"))
-                TreeNode(text: "Other", enabled: false)
+        Tree(id: "tree", x: 0, y: 420, width: 300, height: 200, value: app.name, on_change: app.hit("tree")) {
+            TreeItem(id: "n1", text: "Docs", icon: folder, expanded: true, on_change: app.hit("toggle")) {
+                TreeItem(id: "n11", value: "Ada", text: "Intro")
+                TreeItem(text: "Other", enabled: false)
             }
-            TreeNode(id: "n2", text: app.count)
+            TreeItem(id: "n2", text: app.count)
         }
-        TreeView(id: "tree2", x: 310, y: 420, width: 300, height: 200, row_height: 30, spacing: 4, indent: 20, disclosure_width: 24, row_background: #111111, row_corner_radius: 2, selected_background: #222222, disclosure_background: #333333, selected_color: #444444, disclosure_color: #555555, style: [foreground(#666666), font_size(13)]) {
-            TreeNode(id: "m1", text: "M1")
+        Tree(id: "tree2", x: 310, y: 420, width: 300, height: 200, style: [background(#FFFFFF)]) {
+            TreeItem(id: "m1", text: "M1")
         }
     }
 }

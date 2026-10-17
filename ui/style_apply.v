@@ -315,17 +315,3 @@ fn button_content_rect(el Element) Rect {
 	}
 	return rect(0, 0, el.frame.width, el.frame.height)
 }
-
-// Tree text belongs to the widget's generated rows, not its authored content.
-// Generic foreground refines normal rows; the selected/disclosure colors remain
-// their independently configured parts while sharing typography refinements.
-pub fn style_tree_view(config TreeViewConfig, patch StylePatch) !TreeViewConfig {
-	validate_style_patch(patch)!
-	typography := StylePatch{ text: StyleTextPatch{ ...patch.text, foreground: none } }
-	return TreeViewConfig{
-		...config
-		text_style:            apply_text_style(config.text_style, patch)!
-		selected_text_style:   apply_text_style(config.selected_text_style, typography)!
-		disclosure_text_style: apply_text_style(config.disclosure_text_style, typography)!
-	}
-}

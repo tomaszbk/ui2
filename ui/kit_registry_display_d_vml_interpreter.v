@@ -34,8 +34,8 @@ fn kit_display_widgets() map[string]VmlWidgetType {
 		'Pagination':      vml_widget[PaginationProps]()
 		'Carousel':        vml_widget[CarouselProps]()
 		'CarouselSlide':   vml_widget[CarouselSlideProps]()
-		'TreeView':        vml_widget[TreeViewProps]()
-		'TreeNode':        vml_widget[TreeNodeProps]()
+		'Tree':            vml_widget[TreeProps]()
+		'TreeItem':        vml_widget[TreeItemProps]()
 	}
 }
 
@@ -43,7 +43,7 @@ fn kit_display_widgets() map[string]VmlWidgetType {
 // `Tag.field`, which the registry test checks.
 fn kit_display_expected_bindables() []string {
 	return ['Accordion.value', 'Accordion.values', 'Clipboard.copied', 'Collapsible.open',
-		'Pagination.page', 'Tabs.value']
+		'Pagination.page', 'Tabs.value', 'Tree.value', 'TreeItem.expanded']
 }
 
 // kit_display_expected_parts are the fragment's part-only tags, which take no

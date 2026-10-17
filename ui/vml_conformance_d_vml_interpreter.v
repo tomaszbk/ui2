@@ -276,15 +276,10 @@ fn vml_conformance_layout(layout LayoutSpec) LayoutSpec {
 	return layout
 }
 
-fn vml_conformance_tree_node(node TreeViewNode) string {
-	return '${node.id}|${node.text}|${node.expanded}|${node.selected}|${node.enabled}|${vml_conformance_set(node.on_event)}${vml_conformance_set(node.on_toggle)}[${node.children.map(vml_conformance_tree_node(it)).join(',')}]'
-}
-
 fn vml_conformance_metadata(el Element) string {
 	metadata := el.compiled_metadata
 	if metadata == unsafe { nil } { return 'none' }
 	mut parts := []string{}
-	if node := metadata.tree { parts << 'tree ${vml_conformance_tree_node(node)}' }
 	if screen := metadata.screen { parts << 'screen ${screen.name}' }
 	if metadata.menu_document {
 		parts << 'menus ${vml_conformance_menus(metadata.menus).join(' ')}'

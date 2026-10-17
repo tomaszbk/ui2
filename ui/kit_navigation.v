@@ -1,9 +1,10 @@
 module ui2
 
 // The kit's navigation components: Tabs with its Tab panels, Breadcrumb
-// with its BreadcrumbItem parts, and Pagination. A Tabs keeps one tab stop:
-// its list takes the arrow keys and selects the neighboring tab, and its
-// triggers take clicks.
+// with its BreadcrumbItem parts, Pagination, and Tree with its TreeItem
+// children. A Tabs and a Tree keep one tab stop: it takes the arrow keys
+// and selects the neighboring tab or row, and the triggers and rows inside
+// take clicks.
 
 // ── Tabs ────────────────────────────────────────────────────────────
 
@@ -564,4 +565,266 @@ fn kit_page_choice(emitter VmlEmitter, page int) ElementCallback {
 			})
 		}
 	}
+}
+
+// ── Tree ────────────────────────────────────────────────────────────
+
+// TreeProps is the `Tree` tag: a row per shown TreeItem, indented by its
+// depth, with the item named by `value` selected. Clicking a row selects it
+// and expands or collapses it when it has children. Selecting emits a
+// change whose text is the item's value, and `value` is bindable. While the
+// tree has focus, the arrow keys, Home and End select and expand
+// (tree_key_move), and Enter and Space expand.
+pub struct TreeProps {
+	CommonProps
+pub mut:
+	value string
+}
+
+pub fn (p TreeProps) vml_container() {}
+
+// A Tree makes its rows from its items' records, so it is rebuilt when one
+// of them changes.
+pub fn (p TreeProps) vml_structure() VmlStructure {
+	return .sourced
+}
+
+pub fn (p TreeProps) vml_themed() {}
+
+pub fn (p TreeProps) child_placement(placement VmlPlacement) VmlPlacement {
+	return .preferred
+}
+
+// The tree is focusable, which needs an id.
+pub fn (p TreeProps) control_id_required() bool {
+	return true
+}
+
+pub fn (mut p TreeProps) apply_event(event ElementEvent) {
+	if event.kind == .change && event.text.len > 0 {
+		p.value = event.text
+	}
+}
+
+pub fn (p TreeProps) build(ctx VmlBuildContext) !Element {
+	t := ctx.tokens()
+	m := t.metrics(.medium)
+	enabled := p.enabled or { true }
+	mut items := []TreeItemRecord{cap: ctx.children.len}
+	for index in 0 .. ctx.children.len {
+		items << ctx.child_record[TreeItemRecord](index) or {
+			return error('Tree takes TreeItem children')
+		}
+	}
+	rows := tree_rows(items)
+	selected := rows.map(it.item.value).index(p.value)
+	emitter := ctx.emitter(p.element_callback())
+	mut children := []Element{cap: rows.len}
+	for index, row in rows {
+		children << kit_tree_row(t, m, ctx.part_id('row_${index}'), row, index == selected,
+			enabled, emitter)!
+	}
+	root := flex_with_rules(FlexConfig{
+		id:          ctx.id
+		frame:       ctx.frame
+		orientation: .vertical
+		padding:     kit_padding(0, t.space_xsmall)
+		box:         BoxStyle{
+			transparent: true
+			radius:      t.radius_small
+		}
+	}, children, []FlexRule{len: children.len})!
+	callback := p.element_callback()
+	return vml_handled(Element{
+		...root
+		focus_policy:       .focusable
+		keys:               ['up', 'down', 'left', 'right', 'home', 'end', 'enter', 'space']
+		accessibility_role: 'tree'
+		interaction_style:  kit_focus_interaction(t)
+	}, ctx, fn [callback, emitter, rows, selected] (event ElementEvent) {
+		if callback != unsafe { nil } {
+			callback(event)
+		}
+		if event.kind != .key_down {
+			return
+		}
+		move := tree_key_move(rows, selected, event.key)
+		if move.row >= 0 {
+			emitter.emit(ElementEvent{
+				kind: .change
+				id:   event.id
+				text: rows[move.row].item.value
+			})
+		}
+		if move.toggle && selected >= 0 {
+			item := rows[selected].item
+			item.toggle.emit(ElementEvent{
+				kind:    .change
+				checked: !item.expanded
+			})
+		}
+	})
+}
+
+// kit_tree_row is one row of a Tree: a chevron for an item with children
+// (a spacer for one without), its icon and its text, indented by depth. The
+// tree holds the focus, so a row only takes clicks.
+fn kit_tree_row(t KitTokens, m ControlMetrics, id string, row TreeRow, selected bool, enabled bool, tree VmlEmitter) !Element {
+	item := row.item
+	usable := enabled && item.enabled
+	foreground := if usable { t.text } else { t.disabled_text }
+	parent := item.children.len > 0
+	mut content := []Element{cap: 3}
+	content << if parent {
+		Element{
+			...kit_icon('', if item.expanded { IconName.chevron_down } else { .chevron_right },
+				m.icon, if usable { t.muted } else { t.disabled_text })
+			key:                 'chevron'
+			accessibility_label: ''
+		}
+	} else {
+		Element{
+			...kit_icon('', .none, m.icon, foreground)
+			key: 'spacer'
+		}
+	}
+	if item.icon != .none {
+		content << Element{
+			...kit_icon('', item.icon, m.icon, foreground)
+			key: 'icon'
+		}
+	}
+	content << Element{
+		...label('', item.text, Rect{}, TextStyle{
+			color:  foreground
+			size:   m.font_size
+			weight: if selected { 500 } else { 400 }
+		})
+		key: 'text'
+	}
+	mut rules := []FlexRule{len: content.len}
+	rules[rules.len - 1] = FlexRule{
+		grow:   1
+		shrink: 1
+	}
+	el := flex_with_rules(FlexConfig{
+		id:          id
+		orientation: .horizontal
+		gap:         t.space_xsmall
+		padding:     LayoutPadding{
+			left:   t.space_small + f64(row.depth) * (m.icon + t.space_xsmall)
+			right:  t.space_small
+			top:    t.space_xsmall
+			bottom: t.space_xsmall
+		}
+		align:       .center
+		box:         BoxStyle{
+			bg:          t.selection
+			transparent: !selected
+			radius:      t.radius_small
+		}
+	}, content, rules)!
+	value := item.value
+	expanded := item.expanded
+	toggle := item.toggle
+	mut state := []string{cap: 2}
+	if selected {
+		state << 'selected'
+	}
+	if parent {
+		state << if expanded { 'expanded' } else { 'collapsed' }
+	}
+	return Element{
+		...with_button_behavior(Element{
+			...el
+			accessibility_role:  'treeitem'
+			accessibility_label: item.text
+		})
+		enabled:             usable
+		focus_policy:        .unfocusable
+		accessibility_value: state.join(', ')
+		interaction_style:   if usable { kit_row_interaction(t) } else { InteractionStyle{} }
+		on_event:            fn [tree, toggle, value, selected, parent, expanded] (event ElementEvent) {
+			if event.kind != .click {
+				return
+			}
+			if !selected {
+				tree.emit(ElementEvent{
+					kind: .change
+					id:   event.id
+					text: value
+				})
+			}
+			if parent {
+				toggle.emit(ElementEvent{
+					kind:    .change
+					checked: !expanded
+				})
+			}
+		}
+	}
+}
+
+// TreeItemProps is the `TreeItem` tag, one item of a Tree: `icon` and
+// `text`, and its child TreeItems, shown while it is `expanded`. `value`
+// names it to the Tree and defaults to `text`. Expanding or collapsing it
+// emits a change whose checked is the new state, and `expanded` is
+// bindable.
+pub struct TreeItemProps {
+	CommonProps
+pub mut:
+	value    string
+	text     DisplayText = ''
+	icon     IconName
+	expanded bool
+}
+
+// TreeItemRecord is what a TreeItem tells its Tree: its row, its children,
+// and how the Tree expands or collapses it.
+pub struct TreeItemRecord {
+pub:
+	value    string
+	text     string
+	icon     IconName
+	expanded bool
+	enabled  bool = true
+	children []TreeItemRecord
+	toggle   VmlEmitter
+}
+
+pub fn (p TreeItemProps) vml_container() {}
+
+// An item reads its children's records, so it is rebuilt when one of them
+// changes.
+pub fn (p TreeItemProps) vml_structure() VmlStructure {
+	return .sourced
+}
+
+pub fn (mut p TreeItemProps) apply_event(event ElementEvent) {
+	if event.kind == .change {
+		p.expanded = event.checked
+	}
+}
+
+// An item is not shown itself: the Tree draws a row from its record. Its
+// element only carries the record and its children's elements.
+pub fn (p TreeItemProps) build(ctx VmlBuildContext) !Element {
+	mut children := []TreeItemRecord{cap: ctx.children.len}
+	for index in 0 .. ctx.children.len {
+		children << ctx.child_record[TreeItemRecord](index) or {
+			return error('TreeItem takes TreeItem children')
+		}
+	}
+	text := p.text.str()
+	return with_record(vml_handled(view(ctx.id, ctx.frame, BoxStyle{
+		transparent: true
+	}, ctx.children), ctx, p.element_callback()), TreeItemRecord{
+		value:    if p.value.len > 0 { p.value } else { text }
+		text:     text
+		icon:     p.icon
+		expanded: p.expanded
+		enabled:  p.enabled or { true }
+		children: children
+		toggle:   ctx.emitter(p.element_callback())
+	})
 }

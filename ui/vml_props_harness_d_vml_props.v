@@ -159,15 +159,10 @@ fn props_callbacks(el Element) string {
 	return parts.join(' ')
 }
 
-fn props_tree_node(node TreeViewNode) string {
-	return '${node.id}|${node.text}|${node.expanded}|${node.selected}|${node.enabled}|${props_set(node.on_event)}${props_set(node.on_toggle)}[${node.children.map(props_tree_node(it)).join(',')}]'
-}
-
 fn props_metadata(el Element) string {
 	metadata := el.compiled_metadata
 	if metadata == unsafe { nil } { return 'none' }
 	mut parts := []string{}
-	if node := metadata.tree { parts << 'tree ${props_tree_node(node)}' }
 	if screen := metadata.screen { parts << 'screen ${screen.name}' }
 	if metadata.menu_document { parts << 'menus ${metadata.menus.len}' }
 	for record in metadata.records { parts << 'record ${vml_record_text(record)}' }

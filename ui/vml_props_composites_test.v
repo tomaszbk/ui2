@@ -2,7 +2,7 @@
 module ui2
 
 // Golden equivalence of the composite props (Accordion, Collapsible, Tabs,
-// Carousel, ScreenManager, TreeView and their child declarations).
+// Carousel, ScreenManager, Tree and their child declarations).
 
 
 fn props_composites_compiled(mut app PropsApp, frame Rect) Element {
@@ -120,39 +120,33 @@ fn props_composites_tree(mut app PropsApp) PNode {
 				pn(ManagedScreenProps{ name: 'managed' }, children: [pn(ViewProps{})]),
 				pn(ScreenViewProps{}, id: 'sv', children: [pn(ViewProps{})]),
 			]),
-			pn(TreeViewProps{ x: 0, y: 420, width: 300, height: 200 }, id: 'tree', children: [
-				pn(TreeNodeProps{
-					text:      DisplayText('Docs')
+			pn(TreeProps{
+				x:         0
+				y:         420
+				width:     300
+				height:    200
+				value:     app.name
+				on_change: props_hit(mut app, 'tree')
+			}, id: 'tree', children: [
+				pn(TreeItemProps{
+					text:      'Docs'
+					icon:      .folder
 					expanded:  true
-					on_toggle: props_hit(mut app, 'toggle')
+					on_change: props_hit(mut app, 'toggle')
 				}, id: 'n1', children: [
-					pn(TreeNodeProps{
-						title:     'Intro'
-						selected:  true
-						on_select: props_hit(mut app, 'select')
-					}, id: 'n11'),
-					pn(TreeNodeProps{ text: DisplayText('Other'), enabled: false }),
+					pn(TreeItemProps{ value: 'Ada', text: 'Intro' }, id: 'n11'),
+					pn(TreeItemProps{ text: 'Other', enabled: false }),
 				]),
-				pn(TreeNodeProps{ text: DisplayText(app.count) }, id: 'n2'),
+				pn(TreeItemProps{ text: DisplayText(app.count) }, id: 'n2'),
 			]),
-			pn(TreeViewProps{
-				x:                     310
-				y:                     420
-				width:                 300
-				height:                200
-				row_height:            30
-				spacing:               4
-				indent:                20
-				disclosure_width:      24
-				row_background:        0x111111
-				row_corner_radius:     2
-				selected_background:   0x222222
-				disclosure_background: 0x333333
-				selected_color:        0x444444
-				disclosure_color:      0x555555
-				style:                 style_list([style_foreground(0x666666), style_font_size(13)])
+			pn(TreeProps{
+				x:      310
+				y:      420
+				width:  300
+				height: 200
+				style:  style_list([style_background(0xFFFFFF)])
 			}, id: 'tree2', children: [
-				pn(TreeNodeProps{ text: DisplayText('M1') }, id: 'm1'),
+				pn(TreeItemProps{ text: 'M1' }, id: 'm1'),
 			]),
 		]),
 	])

@@ -27,7 +27,7 @@ Column(id: "parts", width: 420, height: 900) {
     }
     Checkbox(id: "agree", text: "Agree", bind.checked: app.agree, width: 120, height: 24)
     Slider(bind.value: app.level, width: 120, height: 24)
-    TreeView(id: "tree", width: 200, height: 80) {
-        TreeNode(id: "n1", text: app.name, expanded: app.dark)
+    Tree(id: "tree", width: 200, height: 80) {
+        TreeItem(id: "n1", text: app.name, expanded: app.dark)
     }
 }

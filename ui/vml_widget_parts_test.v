@@ -2,7 +2,7 @@
 module ui2
 
 // Reactive structural widgets and parts (tabs, options, runs, message box
-// actions, menu items, tree nodes), an anchored overlay and bound controls
+// actions, menu items, tree items), an anchored overlay and bound controls
 // (fixtures/widget_parts.vml), written by hand in the shape of the generic
 // lowering. Events and model changes keep both documents equal.
 
@@ -154,16 +154,16 @@ fn w_parts_generic(mut app PropsApp) !Element {
 	level.bind('value', fn [mut app] (p SliderProps) ! {
 		app.level = vml_assign(app.level, p.value)
 	})!
-	mut tree := vml_child(mut root, mut owner, TreeViewProps{ width: 200, height: 80 },
+	mut tree := vml_child(mut root, mut owner, TreeProps{ width: 200, height: 80 },
 		id:   'tree'
 		path: '0.9'
 	)!
-	mut node := vml_child(mut tree, mut owner, TreeNodeProps{}, id: 'n1', path: '0.9.0')!
-	node.prop('text', fn [mut app, mut owner] (mut p TreeNodeProps) ! {
+	mut node := vml_child(mut tree, mut owner, TreeItemProps{}, id: 'n1', path: '0.9.0')!
+	node.prop('text', fn [mut app, mut owner] (mut p TreeItemProps) ! {
 		owner.watch_app()!
 		p.text = DisplayText(app.name)
 	})!
-	node.prop('expanded', fn [mut app, mut owner] (mut p TreeNodeProps) ! {
+	node.prop('expanded', fn [mut app, mut owner] (mut p TreeItemProps) ! {
 		owner.watch_app()!
 		p.expanded = app.dark
 	})!

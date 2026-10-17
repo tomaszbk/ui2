@@ -193,3 +193,95 @@ fn test_pagination_takes_whole_pages() {
 	p.apply_event(ElementEvent{ kind: .change, value: 0 })
 	assert p.page == 4
 }
+
+fn kit_tree_document() !Element {
+	return props_document(pn(ColumnProps{},
+		children: [
+			pn(TreeProps{ value: 'main.v' },
+				id:       'files'
+				children: [
+					pn(TreeItemProps{ text: 'src', icon: .folder, expanded: true },
+						children: [
+							pn(TreeItemProps{ text: 'main.v' }),
+							pn(TreeItemProps{ text: 'ui', icon: .folder },
+								children: [
+									pn(TreeItemProps{ text: 'app.v' }),
+								]
+							),
+						]
+					),
+					pn(TreeItemProps{ text: 'locked', enabled: false }),
+					pn(TreeItemProps{ value: 'readme', text: 'README.md' }),
+				]
+			),
+		]
+	), rect(0, 0, 300, 400))!
+}
+
+fn kit_tree_texts(tree Element) []string {
+	return tree.children.map(it.children.last().text)
+}
+
+fn test_tree_draws_a_row_per_shown_item() ! {
+	tree := kit_tree_document()!
+	t := kit_tokens(default_theme())
+	files := tree.children[0]
+	assert files.accessibility_role == 'tree' && files.focus_policy == .focusable
+	assert files.keys.len == 8
+	assert kit_tree_texts(files) == ['src', 'main.v', 'ui', 'locked', 'README.md']
+	src := files.children[0]
+	assert src.id.ends_with('files__row_0') && src.accessibility_role == 'treeitem'
+	assert src.focus_policy == .unfocusable && src.accessibility_value == 'expanded'
+	assert src.children.map(it.key) == ['chevron', 'icon', 'text']
+	assert src.children[0].image_path == 'symbol:' + IconName.chevron_down.symbol()
+	main := files.children[1]
+	assert main.children.map(it.key) == ['spacer', 'text']
+	assert main.accessibility_value == 'selected' && !main.box.transparent
+	assert main.box.bg == t.selection
+	// A child row is indented by one icon and gap.
+	assert main.layout.flex.padding.left - src.layout.flex.padding.left == 20
+	ui := files.children[2]
+	assert ui.accessibility_value == 'collapsed'
+	assert ui.children[0].image_path == 'symbol:' + IconName.chevron_right.symbol()
+	assert !files.children[3].enabled
+}
+
+fn test_tree_selects_and_expands_from_clicks_and_keys() ! {
+	tree := kit_tree_document()!
+	mut root := tree.compiled_node
+	root.mount()!
+	// A click on a parent selects it and expands it.
+	ui := root.element().children[0].children[2]
+	ui.on_event(ElementEvent{ kind: .click, id: ui.id })
+	files := root.element().children[0]
+	assert kit_tree_texts(files) == ['src', 'main.v', 'ui', 'app.v', 'locked', 'README.md']
+	assert files.children[2].accessibility_value == 'selected, expanded'
+	// Down selects the next row; Left from it goes back to its parent.
+	kit_key(files, 'down')
+	assert root.element().children[0].children[3].accessibility_value == 'selected'
+	kit_key(root.element().children[0], 'left')
+	assert root.element().children[0].children[2].accessibility_value == 'selected, expanded'
+	// Left again collapses it; End skips nothing and selects the last row.
+	kit_key(root.element().children[0], 'left')
+	assert kit_tree_texts(root.element().children[0]) == ['src', 'main.v', 'ui', 'locked', 'README.md']
+	kit_key(root.element().children[0], 'end')
+	assert root.element().children[0].children[4].accessibility_value == 'selected'
+	root.dispose_document()!
+}
+
+fn test_tree_items_take_tree_item_children() {
+	props_document(pn(TreeProps{},
+		id:       'bad'
+		children: [
+			pn(TreeItemProps{ text: 'a' },
+				children: [
+					pn(LabelProps{ text: 'not an item' }),
+				]
+			),
+		]
+	), rect(0, 0, 200, 200)) or {
+		assert err.msg().contains('TreeItem children')
+		return
+	}
+	assert false
+}

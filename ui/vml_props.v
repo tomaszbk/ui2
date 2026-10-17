@@ -56,7 +56,6 @@ pub type VmlPart = ManagedScreen
 	| MenuEntry
 	| MenuItem
 	| MessageBoxAction
-	| TreeViewNode
 	| VmlKeyframe
 	| VmlRecordPart
 	| VmlRun

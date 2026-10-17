@@ -2,7 +2,7 @@
 module ui2
 
 // Golden equivalence of hand-written props with the composite widget examples
-// used verbatim: tree view, screen manager, carousel.
+// used verbatim: screen manager, carousel.
 
 fn props_title(text string, frame Rect) PNode {
 	return pn(LabelProps{
@@ -32,117 +32,6 @@ fn props_page_label(text string, x f64, y f64, width f64, height f64, style Styl
 
 fn props_heading(color u32, size f64) StylePatch {
 	return style_list([style_foreground(color), style_font_size(size), style_weight(700)])
-}
-
-struct PropsTreeDemo {
-pub mut:
-	docs_open bool
-	selected  string = 'welcome'
-}
-
-pub fn (mut app PropsTreeDemo) toggle_docs() {
-	app.docs_open = !app.docs_open
-}
-
-pub fn (mut app PropsTreeDemo) select_welcome() {
-	app.selected = 'welcome'
-}
-
-pub fn (mut app PropsTreeDemo) select_installation() {
-	app.selected = 'installation'
-}
-
-pub fn (mut app PropsTreeDemo) select_license() {
-	app.selected = 'license'
-}
-
-fn props_tree_compiled(mut app PropsTreeDemo, frame Rect) Element {
-	return $vml('../examples/tree_view_widget/tree_view_widget.vml', frame)
-}
-
-fn props_tree_select(mut app PropsTreeDemo, selected string) ElementCallback {
-	return fn [mut app, selected] (e ElementEvent) {
-		app.selected = selected
-	}
-}
-
-fn props_tree_tree(mut app PropsTreeDemo, frame Rect) PNode {
-	return pn(ScreenProps{ style: style_list([style_background(0xF1F5F9)]) }, id: 'root', children: [
-		pn(AbsoluteProps{ style: props_transparent() }, children: [
-			props_title('Project', frame),
-			pn(ScrollProps{
-				x:      20
-				y:      56
-				width:  frame.width - 40
-				height: 240
-				style:  style_list([style_background(0xFFFFFF)])
-			}, id: 'navigation_scroll', children: [
-				pn(AbsoluteProps{ style: props_transparent() }, children: [
-					pn(TreeViewProps{
-						width:               frame.width - 40
-						height:              240
-						row_height:          38
-						spacing:             3
-						indent:              24
-						disclosure_width:    30
-						row_background:      0xFFFFFF
-						selected_background: 0xDBEAFE
-						selected_color:      0x1D4ED8
-						style:               style_list([style_foreground(0x334155)])
-					}, id: 'navigation', children: [
-						pn(TreeNodeProps{
-							text:      DisplayText('Documentation')
-							expanded:  app.docs_open
-							on_toggle: fn [mut app] (e ElementEvent) {
-								app.toggle_docs()
-							}
-						}, id: 'docs', children: [
-							pn(TreeNodeProps{
-								text:      DisplayText('Welcome')
-								selected:  app.selected == 'welcome'
-								on_select: props_tree_select(mut app, 'welcome')
-							}, id: 'welcome'),
-							pn(TreeNodeProps{
-								text:      DisplayText('Installation')
-								selected:  app.selected == 'installation'
-								on_select: props_tree_select(mut app, 'installation')
-							}, id: 'installation'),
-						]),
-						pn(TreeNodeProps{
-							text:      DisplayText('License')
-							selected:  app.selected == 'license'
-							on_select: props_tree_select(mut app, 'license')
-						}, id: 'license'),
-					]),
-				]),
-			]),
-			pn(LabelProps{
-				text:   'Selected: ${app.selected}'
-				x:      20
-				y:      310
-				width:  frame.width - 40
-				height: 24
-				style:  style_list([style_text_align(.center), style_foreground(0x166534)])
-			}),
-		]),
-	])
-}
-
-fn test_props_tree_view_example_matches_compiled_vml() {
-	for docs_open in [false, true] {
-		frame := rect(0, 0, 460, 360)
-		mut compiled_app := PropsTreeDemo{
-			docs_open: docs_open
-			selected:  'installation'
-		}
-		mut props_app := PropsTreeDemo{
-			docs_open: docs_open
-			selected:  'installation'
-		}
-		compiled := props_tree_compiled(mut compiled_app, frame)
-		built := props_document(props_tree_tree(mut props_app, frame), frame)!
-		assert_props_equal('tree view', compiled, built)
-	}
 }
 
 struct PropsScreensDemo {

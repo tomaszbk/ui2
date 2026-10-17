@@ -510,3 +510,97 @@ pub fn roving_index(enabled []bool, current int, key string, wrap bool) ?int {
 	}
 	return none
 }
+
+// ── Tree ────────────────────────────────────────────────────────────
+
+// TreeRow is a shown row of a tree: an item, its depth, and the row of its
+// parent, -1 at the top level.
+pub struct TreeRow {
+pub:
+	item   TreeItemRecord
+	depth  int
+	parent int = -1
+}
+
+// tree_rows flattens the shown part of a tree: each item, followed by the
+// rows of its children while it is expanded.
+pub fn tree_rows(items []TreeItemRecord) []TreeRow {
+	mut rows := []TreeRow{}
+	tree_append_rows(items, 0, -1, mut rows)
+	return rows
+}
+
+fn tree_append_rows(items []TreeItemRecord, depth int, parent int, mut rows []TreeRow) {
+	for item in items {
+		index := rows.len
+		rows << TreeRow{
+			item:   item
+			depth:  depth
+			parent: parent
+		}
+		if item.expanded {
+			tree_append_rows(item.children, depth + 1, index, mut rows)
+		}
+	}
+}
+
+// TreeKeyMove is what a key does in a tree: select another row, or expand
+// or collapse the selected one.
+pub struct TreeKeyMove {
+pub:
+	row    int = -1 // the row to select; -1 keeps the selection
+	toggle bool // expand or collapse the selected row
+}
+
+// tree_key_move is what a key does while row `current` is selected. Up,
+// Down, Home and End select among the enabled rows. Right expands a
+// collapsed parent and enters an expanded one; Left collapses an expanded
+// parent and otherwise selects the parent row. Enter and Space expand or
+// collapse a parent.
+pub fn tree_key_move(rows []TreeRow, current int, key string) TreeKeyMove {
+	if key in ['up', 'down', 'home', 'end'] {
+		return TreeKeyMove{
+			row: roving_index(rows.map(it.item.enabled), current, key, false) or { -1 }
+		}
+	}
+	if current < 0 || current >= rows.len {
+		return TreeKeyMove{}
+	}
+	row := rows[current]
+	parent := row.item.children.len > 0
+	match key {
+		'right' {
+			if parent && !row.item.expanded {
+				return TreeKeyMove{
+					toggle: true
+				}
+			}
+			if parent && current + 1 < rows.len && rows[current + 1].item.enabled {
+				return TreeKeyMove{
+					row: current + 1
+				}
+			}
+		}
+		'left' {
+			if parent && row.item.expanded {
+				return TreeKeyMove{
+					toggle: true
+				}
+			}
+			if row.parent >= 0 {
+				return TreeKeyMove{
+					row: row.parent
+				}
+			}
+		}
+		'enter', 'space' {
+			if parent {
+				return TreeKeyMove{
+					toggle: true
+				}
+			}
+		}
+		else {}
+	}
+	return TreeKeyMove{}
+}

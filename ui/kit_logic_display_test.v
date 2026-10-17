@@ -276,3 +276,60 @@ fn test_roving_index_skips_disabled_items() {
 	assert kit_roving([false, false], 0, 'right', true) == -1
 	assert kit_roving(enabled, 0, 'enter', true) == -1
 }
+
+fn kit_tree_fixture() []TreeItemRecord {
+	return [
+		TreeItemRecord{
+			value:    'src'
+			expanded: true
+			children: [
+				TreeItemRecord{
+					value: 'main.v'
+				},
+				TreeItemRecord{
+					value:    'ui'
+					children: [TreeItemRecord{
+						value: 'hidden.v'
+					}]
+				},
+			]
+		},
+		TreeItemRecord{
+			value:   'locked'
+			enabled: false
+		},
+		TreeItemRecord{
+			value: 'README'
+		},
+	]
+}
+
+fn test_tree_rows_flatten_the_expanded_items() {
+	rows := tree_rows(kit_tree_fixture())
+	assert rows.map(it.item.value) == ['src', 'main.v', 'ui', 'locked', 'README']
+	assert rows.map(it.depth) == [0, 1, 1, 0, 0]
+	assert rows.map(it.parent) == [-1, 0, 0, -1, -1]
+}
+
+fn test_tree_keys_move_select_and_toggle() {
+	rows := tree_rows(kit_tree_fixture())
+	// Down skips the disabled row and stops at the end.
+	assert tree_key_move(rows, 2, 'down').row == 4
+	assert tree_key_move(rows, 4, 'down').row == -1
+	assert tree_key_move(rows, -1, 'down').row == 0
+	assert tree_key_move(rows, 3, 'end').row == 4
+	// Right expands a collapsed parent, then enters an expanded one.
+	assert tree_key_move(rows, 2, 'right') == TreeKeyMove{
+		toggle: true
+	}
+	assert tree_key_move(rows, 0, 'right').row == 1
+	// Left collapses an expanded parent, or goes up to the parent.
+	assert tree_key_move(rows, 0, 'left') == TreeKeyMove{
+		toggle: true
+	}
+	assert tree_key_move(rows, 1, 'left').row == 0
+	assert tree_key_move(rows, 4, 'left') == TreeKeyMove{}
+	// Enter toggles a parent only.
+	assert tree_key_move(rows, 0, 'enter').toggle
+	assert !tree_key_move(rows, 1, 'space').toggle
+}

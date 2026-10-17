@@ -204,10 +204,10 @@ fn props_common_tree(mut app PropsApp) PNode {
 							pn(ViewProps{ width: 10, height: 100 }),
 						]
 					),
-					pn(TreeViewProps{ x: 320, y: 140, width: 100, height: 60, enabled: false, tooltip: 'tree' },
+					pn(TreeProps{ x: 320, y: 140, width: 100, height: 60, enabled: false, tooltip: 'tree' },
 						id:       'common_tree'
 						children: [
-							pn(TreeNodeProps{ text: DisplayText('n') }),
+							pn(TreeItemProps{ text: 'n' }),
 						]
 					),
 					pn(TabsProps{

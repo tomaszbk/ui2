@@ -240,21 +240,6 @@ fn test_theme_only_allocates_requested_sources_and_rejects_orphaned_custom_token
 	assert owner.runtime.stats() == SignalStats{}
 }
 
-fn test_tree_style_targets_owned_row_typography_without_replacing_part_colors() ! {
-	config := TreeViewConfig{
-		text_style:            TextStyle{ color: 0x111111, size: 14 }
-		selected_text_style:   TextStyle{ color: 0x222222, size: 14, bold: true }
-		disclosure_text_style: TextStyle{ color: 0x333333, size: 14 }
-	}
-	styled := style_tree_view(config, compose_styles([style_foreground(0), style_font_size(22),
-		style_italic(true)]))!
-	assert styled.text_style.color == 0
-	assert styled.text_style.size == 22 && styled.text_style.italic
-	assert styled.selected_text_style.color == 0x222222 && styled.selected_text_style.size == 22
-	assert styled.disclosure_text_style.color == 0x333333 && styled.disclosure_text_style.size == 22
-	assert style_tree_view(config, StylePatch{})! == config
-}
-
 fn test_style_text_enum_and_empty_string_composition_preserves_typed_values() ! {
 	patch := compose_styles([style_text_align(.right), style_text_valign(.top),
 		style_font_family('Inter'), style_text_align(.left), style_font_family('')])

@@ -32,8 +32,8 @@ Screen(id: "root") {
         Scroll(id: "common_scroll", x: 320, y: 90, width: 80, height: 40, on_scroll: app.hit("scrolled"), opacity: 0.5) {
             View(width: 10, height: 100)
         }
-        TreeView(id: "common_tree", x: 320, y: 140, width: 100, height: 60, enabled: false, tooltip: "tree") {
-            TreeNode(text: "n")
+        Tree(id: "common_tree", x: 320, y: 140, width: 100, height: 60, enabled: false, tooltip: "tree") {
+            TreeItem(text: "n")
         }
         Tabs(id: "common_tabs", x: 0, y: 320, width: 200, height: 100, accessibility_role: "tablist", rotation: 1) {
             Tab(text: "a", tooltip: "tab tip", opacity: 0.5) {

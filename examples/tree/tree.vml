@@ -1,0 +1,19 @@
+// A project tree. The Tree binds the selected file; the Documentation
+// folder binds whether it is expanded, and the src folder keeps its own.
+Screen(id: "root", style: [background(color.surface)]) {
+    Column(id: "page", gap: 12, style: [padding(20)]) {
+        Label(text: "Project", style: [font_size(typography.title), weight(700), foreground(color.text)])
+        Tree(id: "files", bind.value: app.selected) {
+            TreeItem(value: "docs", text: "Documentation", icon: folder, bind.expanded: app.docs_open) {
+                TreeItem(value: "welcome", text: "Welcome")
+                TreeItem(value: "installation", text: "Installation")
+            }
+            TreeItem(value: "src", text: "src", icon: folder, expanded: true) {
+                TreeItem(value: "main.v", text: "main.v")
+                TreeItem(value: "app.v", text: "app.v")
+            }
+            TreeItem(value: "license", text: "License")
+        }
+        Label(id: "status", text: "Selected: ${app.selected}", style: [foreground(color.muted)])
+    }
+}
