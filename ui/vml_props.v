@@ -156,10 +156,27 @@ pub fn (ctx VmlBuildContext) child_layout(index int) VmlLayoutItem {
 }
 
 // resolve_id maps a local id reference to the public id of the element in the
-// owner's namespace. Empty references stay empty.
+// owner's namespace. Empty references stay empty, and an id that is already a
+// public control id (a value read from state, a ref or an event) is kept, so
+// it is never namespaced twice.
 pub fn (ctx VmlBuildContext) resolve_id(id string) string {
-	if id.len == 0 || ctx.owner == unsafe { nil } { return id }
+	if id.len == 0 || ctx.owner == unsafe { nil } || vml_is_control_id(id) { return id }
 	return ctx.owner.control_id(id)
+}
+
+// vml_is_control_id reports whether id has the form control_id gives a
+// component-local id: `vml:<namespace>:<hex of the local id>`.
+fn vml_is_control_id(id string) bool {
+	if !id.starts_with('vml:') { return false }
+	colon := id.last_index_u8(`:`)
+	if colon < 5 || colon == id.len - 1 || (id.len - colon - 1) % 2 != 0 {
+		return false
+	}
+	for i in colon + 1 .. id.len {
+		c := id[i]
+		if !((c >= `0` && c <= `9`) || (c >= `a` && c <= `f`)) { return false }
+	}
+	return true
 }
 
 pub fn (ctx VmlBuildContext) runs() []VmlRun {
