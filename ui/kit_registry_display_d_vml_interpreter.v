@@ -29,6 +29,9 @@ fn kit_display_widgets() map[string]VmlWidgetType {
 		'AccordionItem':   vml_widget[AccordionItemProps]()
 		'Tabs':            vml_widget[TabsProps]()
 		'Tab':             vml_widget[TabProps]()
+		'Breadcrumb':      vml_widget[BreadcrumbProps]()
+		'BreadcrumbItem':  vml_widget[BreadcrumbItemProps]()
+		'Pagination':      vml_widget[PaginationProps]()
 		'Carousel':        vml_widget[CarouselProps]()
 		'CarouselSlide':   vml_widget[CarouselSlideProps]()
 		'TreeView':        vml_widget[TreeViewProps]()
@@ -39,11 +42,12 @@ fn kit_display_widgets() map[string]VmlWidgetType {
 // kit_display_expected_bindables are the fragment's bindable properties,
 // `Tag.field`, which the registry test checks.
 fn kit_display_expected_bindables() []string {
-	return ['Accordion.value', 'Accordion.values', 'Clipboard.copied', 'Collapsible.open', 'Tabs.value']
+	return ['Accordion.value', 'Accordion.values', 'Clipboard.copied', 'Collapsible.open',
+		'Pagination.page', 'Tabs.value']
 }
 
 // kit_display_expected_parts are the fragment's part-only tags, which take no
 // common properties.
 fn kit_display_expected_parts() []string {
-	return []
+	return ['BreadcrumbItem']
 }
