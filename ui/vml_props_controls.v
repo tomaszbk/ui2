@@ -203,6 +203,10 @@ pub mut:
 	max   f64 = 100
 }
 
+pub fn (p ProgressBarProps) vml_structure() VmlStructure {
+	return .generated
+}
+
 pub fn (p ProgressBarProps) build(ctx VmlBuildContext) !Element {
 	config := ProgressBarConfig{
 		id:    ctx.id
@@ -300,6 +304,10 @@ pub mut:
 	text_autoupdate bool
 }
 
+pub fn (p SpinnerProps) vml_structure() VmlStructure {
+	return .generated
+}
+
 pub fn (p SpinnerProps) build(ctx VmlBuildContext) !Element {
 	return vml_keyed(spinner(SpinnerConfig{
 		id:              ctx.id
@@ -324,6 +332,10 @@ pub mut:
 	text          DisplayText = ''
 	dialog_width  f64         = 300
 	dialog_height f64         = 150
+}
+
+pub fn (p MessageBoxProps) vml_structure() VmlStructure {
+	return .generated
 }
 
 pub fn (p MessageBoxProps) build(ctx VmlBuildContext) !Element {
@@ -351,6 +363,10 @@ pub mut:
 	down_background    u32  = 0x2563eb
 	down_color         u32  = 0xffffff
 	down_corner_radius f64  = 6
+}
+
+pub fn (p ToggleButtonProps) vml_structure() VmlStructure {
+	return .sourced
 }
 
 pub fn (p ToggleButtonProps) build(ctx VmlBuildContext) !Element {

@@ -13,6 +13,11 @@ pub mut:
 
 pub fn (p ScreenProps) vml_container() {}
 
+// A named Screen is a managed screen, rebuilt from its sources.
+pub fn (p ScreenProps) vml_structure() VmlStructure {
+	return if p.name != none { .sourced } else { .plain }
+}
+
 pub fn (p ScreenProps) build(ctx VmlBuildContext) !Element {
 	if name := p.name {
 		return vml_managed_screen(ctx, name)
@@ -44,6 +49,10 @@ pub mut:
 }
 
 pub fn (p ViewProps) vml_container() {}
+
+pub fn (p ViewProps) control_id_required() bool {
+	return p.overlay != none
+}
 
 pub fn (p ViewProps) build(ctx VmlBuildContext) !Element {
 	return vml_handled(view(ctx.id, ctx.frame, BoxStyle{}, ctx.children), ctx, p.element_callback())

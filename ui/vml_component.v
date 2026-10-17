@@ -33,6 +33,8 @@ mut:
 	theme_font_sizes map[string]&Signal[f64]
 	// Shared by every component of a document, like its signal runtime.
 	projections &VmlProjections
+	// The generic document whose root this owner declares (vml_widget_node.v).
+	widget_document &VmlDocument = unsafe { nil }
 }
 
 @[heap]
@@ -80,6 +82,10 @@ mut:
 	projection_queued bool
 	revision_pending  bool
 	visible_buffer    []&CompiledVmlNode
+	// The generic widget node that builds this declaration, and whether it
+	// has a change to commit when projections settle (vml_widget_node.v).
+	widget       &VmlNodeCore = unsafe { nil }
+	widget_dirty bool
 	// Per-call marks for set_children identity checks: (caller, serial).
 	check_serial   u64
 	attach_owner   voidptr
@@ -98,6 +104,9 @@ pub fn new_vml_component(name string) !&CompiledVmlComponent {
 pub struct VmlDocumentConfig {
 pub:
 	theme ?Theme
+	// A generic document whose frame is not explicit follows the viewport in
+	// the dimensions its root does not author.
+	follow_viewport bool
 }
 
 pub fn new_vml_document(name string, config VmlDocumentConfig) !&CompiledVmlComponent {

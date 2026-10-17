@@ -271,6 +271,20 @@ pub fn (mut scope SignalScope) effect(name string, run fn () !) !&SignalEffect {
 	return &SignalEffect{ node: node }
 }
 
+// effect_now creates an effect and runs it synchronously, also inside a batch,
+// a flush or another effect, so its first values are available to the caller
+// right away. Later runs follow the ordinary effect schedule. A failing first
+// run disposes the effect and returns the error.
+fn (mut scope SignalScope) effect_now(name string, run fn () !) ! {
+	if run == unsafe { nil } { return error('signals: effect callback is nil') }
+	mut node := scope.new_node(.effect, name)!
+	node.run = run
+	node.refresh() or {
+		node.dispose_node()
+		return err
+	}
+}
+
 pub fn (mut effect SignalEffect) retry() ! {
 	effect.node.require_alive()!
 	effect.node.runtime.require_action()!

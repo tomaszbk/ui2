@@ -1,29 +1,31 @@
 module ui2
 
-// Test harness for the VML props golden tests (ui/vml_props*_test.v); it is
-// compiled only with `-d vml_props`. A fixture is built twice: by `$vml(...)`,
-// and from hand-written props through the same retained runtime calls the
-// compiled code makes (owner.element, style, structural rebuild, child layout
-// rules, LayoutTree). The resolved trees must be equal on every authored and
-// derived field.
-
-interface VmlTestWidget {
-	common_props() CommonProps
-	validate() !
-	build(ctx VmlBuildContext) !Element
-	project(el Element, ctx VmlBuildContext) !Element
-	child_placement(placement VmlPlacement) VmlPlacement
-	child_input(frame Rect, child_count int) !Rect
-}
+// Test harness for the VML props golden tests (ui/vml_props*_test.v and
+// ui/vml_widget_*_test.v); it is compiled only with `-d vml_props`. A fixture
+// is built twice: by `$vml(...)`, and from hand-written props declared
+// through the generic node runtime (vml_widget_node.v), which retains,
+// styles, rebuilds and lays out the nodes. The resolved trees must be equal
+// on every authored and derived field.
 
 @[params]
 struct PCfg {
 	id   string
 	key  string
-	bind bool // a two-way binding gives the compiled element a callback
-	// overlays and bound nodes without an id get a generated control id
+	bind bool // a two-way binding (here a write-back that does nothing)
+	// Overlays get a generated control id; the runtime derives it from the
+	// props type (`control_id_required`), so this only documents the fixture.
 	generated bool
 	children  []PNode
+}
+
+// PParent is a type-erased parent handle: stored declarations call the
+// runtime's generic vml_child with it.
+struct PParent {
+	handle VmlParent
+}
+
+fn (mut p PParent) vml_parent() VmlParent {
+	return p.handle
 }
 
 struct PNode {
@@ -31,46 +33,42 @@ struct PNode {
 	id        string
 	key       string
 	bind      bool
-	generated bool
 	children  []PNode
-	common    CommonProps
+	element   bool
 	container bool
-	build     fn (VmlBuildContext) !Element  = unsafe { nil }
-	part      fn (VmlBuildContext) !VmlPart  = unsafe { nil }
-	placement fn (VmlPlacement) VmlPlacement = unsafe { nil }
-	input     fn (Rect, int) !Rect           = unsafe { nil }
-	// a named Screen is a managed screen and rebuilds structurally
-	screen_named bool
+	declare   fn (mut CompiledVmlComponent, ?PParent, VmlNodeOptions, bool) !PParent = unsafe { nil }
 }
+
+fn props_no_write[P](p P) ! {}
 
 fn pn[P](props P, cfg PCfg) PNode {
 	mut node := PNode{
-		tag:       P.name.all_after_last('.').trim_string_right('Props')
-		id:        cfg.id
-		key:       cfg.key
-		bind:      cfg.bind
-		generated: cfg.generated
-		children:  cfg.children
-	}
-	$if P is VmlTestWidget {
-		node = PNode{
-			...node
-			common:    props.common_props()
-			build:     fn [props] [P](ctx VmlBuildContext) !Element {
-				return vml_build_element(props, ctx)!
+		tag:      P.name.all_after_last('.').trim_string_right('Props')
+		id:       cfg.id
+		key:      cfg.key
+		bind:     cfg.bind
+		children: cfg.children
+		declare:  fn [props] [P](mut owner CompiledVmlComponent, parent ?PParent, o VmlNodeOptions, bind bool) !PParent {
+			mut n := if handle := parent {
+				mut host := PParent{
+					handle: handle.handle
+				}
+				vml_child(mut host, mut owner, props, o)!
+			} else {
+				vml_root(mut owner, props, o)!
 			}
-			placement: fn [props] [P](placement VmlPlacement) VmlPlacement {
-				return props.child_placement(placement)
+			if bind {
+				n.bind('bind', props_no_write[P])!
 			}
-			input:     fn [props] [P](frame Rect, count int) !Rect {
-				return props.child_input(frame, count)!
+			return PParent{
+				handle: n.vml_parent()
 			}
 		}
 	}
-	$if P is ScreenProps {
+	$if P is VmlElementProps {
 		node = PNode{
 			...node
-			screen_named: props.name != none
+			element: true
 		}
 	}
 	$if P is VmlContainer {
@@ -79,140 +77,33 @@ fn pn[P](props P, cfg PCfg) PNode {
 			container: true
 		}
 	}
-	$if P is VmlPartProps {
-		node = PNode{
-			...node
-			part: fn [props] [P](ctx VmlBuildContext) !VmlPart {
-				return props.part(ctx)!
-			}
-		}
-	}
 	return node
 }
 
-const props_structural_tags = ['Accordion', 'AccordionItem', 'TabbedPanel', 'Tab', 'TreeView',
-	'TreeNode', 'ScreenManager', 'ManagedScreen', 'ScreenView', 'Carousel', 'ToggleButton',
-	'MessageBox', 'ProgressBar', 'Spinner']
-
-const props_unsourced_tags = ['MessageBox', 'ProgressBar', 'Spinner']
-
-struct PHarness {
-mut:
-	owner &CompiledVmlComponent
-}
-
-fn props_identity(id string, path string) string {
-	return if id.len > 0 { id } else { '__vml_control_' + path.replace('.', '_') }
-}
-
-fn (mut h PHarness) part(n PNode) !VmlPart {
-	if n.part == unsafe { nil } { return error('${n.tag} is not a VML part') }
-	mut parts := []VmlPart{}
-	for child in n.children { parts << h.part(child)! }
-	return n.part(VmlBuildContext{
-		id:    n.id
-		key:   n.key
-		parts: parts
-		owner: h.owner
-	})!
-}
-
-// A binding without a handler still gives the compiled element a callback.
-fn props_declare(n PNode, ctx VmlBuildContext) !Element {
-	el := n.build(ctx)!
-	if n.bind && el.on_event == unsafe { nil } {
-		return Element{
-			...el
-			on_event: fn (event ElementEvent) {}
-		}
-	}
-	return el
-}
-
-fn (mut h PHarness) node(n PNode, path string, input Rect, placement VmlPlacement) !&CompiledVmlNode {
-	if n.build == unsafe { nil } { return error('${n.tag} is not an element') }
-	frame := n.common.resolve_frame(input, placement)
-	id := if n.id.len > 0 || !(n.bind || n.generated) { n.id } else { props_identity(n.id, path) }
-	identity := props_identity(n.id, path)
+// Unnamed children of a Flex, Row, Column or Grid are numbered among the
+// element children, like the compiled lowering.
+fn props_declare(n PNode, mut owner CompiledVmlComponent, parent ?PParent, path string) ! {
+	handle := n.declare(mut owner, parent, VmlNodeOptions{
+		id:   n.id
+		key:  n.key
+		path: path
+	}, n.bind)!
 	layout_parent := n.tag in ['Flex', 'Row', 'Column', 'Grid']
-	child_placement := n.placement(placement)
-	mut elements := []Element{}
-	mut layouts := []VmlLayoutItem{}
-	mut parts := []VmlPart{}
 	mut visible := 0
 	for index, child in n.children {
-		if child.build == unsafe { nil } || !n.container {
-			parts << h.part(child)!
-			continue
+		element_child := child.element && n.container
+		child_path := '${path}.${if layout_parent && element_child { visible } else { index }}'
+		if element_child {
+			visible++
 		}
-		child_path := '${path}.${if layout_parent { visible } else { index }}'
-		visible++
-		child_input := n.input(frame, n.children.len)!
-		mut child_node := h.node(child, child_path, child_input, child_placement)!
-		if n.tag in ['Flex', 'Row', 'Column'] {
-			child_node.set_child_layout(VmlChildLayout{ flex: child.common.flex_child(Element{}) })!
-		} else if n.tag == 'Grid' {
-			child_node.set_child_layout(VmlChildLayout{ grid: child.common.grid_span() })!
-		}
-		elements << child_node.element()
-		layouts << child.common.layout_item()
+		props_declare(child, mut owner, handle, child_path)!
 	}
-	ctx := VmlBuildContext{
-		id:            id
-		key:           n.key
-		frame:         frame
-		children:      elements
-		child_layouts: layouts
-		parts:         parts
-		owner:         h.owner
-	}
-	declaration := props_declare(n, ctx)!
-	authored_width := n.common.width != none
-	authored_height := n.common.height != none
-	inherited := placement in [.normal, .inherited_preferred]
-	mut node := h.owner.element(declaration,
-		identity:        identity
-		authored_width:  authored_width
-		authored_height: authored_height
-		inherit_width:   inherited && !authored_width
-		inherit_height:  inherited && !authored_height
-	)!
-	node.set_element_children(declaration.children)!
-	style := n.common.style
-	styled := style != StylePatch{}
-	if styled {
-		node.style(fn [style] () !StylePatch {
-			return style
-		})!
-	}
-	if n.tag in props_structural_tags || n.screen_named {
-		unsourced := n.tag in props_unsourced_tags
-		if !unsourced { node.set_sources(elements)! }
-		node.structure('@widget', fn [mut node, n, ctx, style, styled, unsourced] () !Element {
-			element := node.element()
-			children := if unsourced { []Element{} } else { node.child_elements()! }
-			rebuilt := props_declare(n, VmlBuildContext{
-				...ctx
-				key:      element.key
-				frame:    node.frame()!
-				children: children
-			})!
-			return if styled { apply_style(rebuilt, style)! } else { rebuilt }
-		})!
-	}
-	return node
 }
 
 fn props_document(root PNode, frame Rect) !Element {
-	mut h := PHarness{
-		owner: new_vml_document('root', VmlDocumentConfig{})!
-	}
-	node := h.node(root, '0', frame, .normal)!
-	element := node.element()
-	validate_element_tree(element)!
-	mut tree := LayoutTree{}
-	tree.replace(element)!
-	return tree.resolve(LayoutConstraints{}, measure_layout_text, LayoutEnvironment{})!
+	mut d := vml_document(frame)!
+	props_declare(root, mut d.owner, none, '0')!
+	return d.finish()!
 }
 
 // Comparison ignores runtime-only fields (mounted paths, retained owners,
@@ -226,6 +117,14 @@ fn props_normal(el Element) Element {
 		mounted_parent_path: ''
 		mounted_scroll_id:   ''
 		mounted_tooltip_key: ''
+		// The reset base of the compiled style effect: the compiled lowering
+		// sets it whenever a style is authored, props when it is not empty.
+		style_default_box:   none
+		// A reactive compiled ProgressBar also writes its value into the
+		// view's `value` after an update (a property effect the structural
+		// rebuild overwrites at layout); the bar itself draws its fill child.
+		value:               if el.accessibility_role == 'progressbar' { 0 } else { el.value }
+		layout:              props_normal_layout(el.layout)
 		compiled_source:     unsafe { nil }
 		motion_state:        unsafe { nil }
 		compiled_node:       unsafe { nil }
@@ -243,6 +142,23 @@ fn props_normal(el Element) Element {
 		}
 		children:            []
 	}
+}
+
+// Stack rules default to auto alignment for children without an entry, so a
+// list of default rules equals no list (when the runtime last projected the
+// rules depends on update order, not on the document).
+fn props_normal_layout(layout LayoutSpec) LayoutSpec {
+	if layout.stack.children.len > 0
+		&& layout.stack.children.all(it.align_x == .auto && it.align_y == .auto) {
+		return LayoutSpec{
+			...layout
+			stack: StackConfig{
+				...layout.stack
+				children: []
+			}
+		}
+	}
+	return layout
 }
 
 fn props_set(callback ElementCallback) string {
@@ -341,7 +257,7 @@ pub mut:
 	place        string = 'Work'
 	bold         bool   = true
 	msg_hidden   bool
-	current      int    = 1
+	current      int = 1
 	tab          int
 	screen       string = 'settings'
 	open         bool   = true

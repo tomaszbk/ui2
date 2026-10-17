@@ -15,17 +15,20 @@ mut:
 	// Nonzero while projections are being refreshed. A node marked meanwhile
 	// waits for that refresh to finish instead of starting a nested settle.
 	depth int
+	// The first generic widget commit that failed since the last settle; the
+	// settle reports it to the flush, like a failed property effect.
+	commit_error string
 }
 
 fn new_vml_projections(mut runtime SignalRuntime) &VmlProjections {
 	mut projections := &VmlProjections{}
 	runtime.settle = fn [mut projections] () ! {
-		projections.settle()
+		projections.settle()!
 	}
 	return projections
 }
 
-fn (mut projections VmlProjections) settle() {
+fn (mut projections VmlProjections) settle() ! {
 	projections.depth++
 	defer { projections.depth-- }
 	for projections.pending.len > 0 {
@@ -38,6 +41,11 @@ fn (mut projections VmlProjections) settle() {
 		}
 		round.clear()
 		projections.spare = unsafe { round }
+	}
+	if projections.commit_error.len > 0 {
+		message := projections.commit_error
+		projections.commit_error = ''
+		return error(message)
 	}
 }
 
@@ -75,9 +83,47 @@ fn (mut node CompiledVmlNode) mark_projection_dirty() {
 	}
 }
 
+// mark_widget_dirty schedules the commit of this node's generic widget
+// (vml_widget_node.v). Commits coalesce like projections: one per node when
+// the runtime settles, before the parent projects the node, or on a read.
+fn (mut node CompiledVmlNode) mark_widget_dirty() {
+	if node.widget_dirty { return }
+	node.widget_dirty = true
+	mut ancestor := node.parent
+	for ancestor != unsafe { nil } && !ancestor.descendant_dirty {
+		ancestor.descendant_dirty = true
+		ancestor = ancestor.parent
+	}
+	if !node.projection_queued {
+		node.projection_queued = true
+		mut projections := node.component.projections
+		projections.pending << node
+	}
+	mut runtime := node.component.runtime
+	runtime.settle_pending = true
+	if node.component.projections.depth == 0 {
+		runtime.flush_if_ready() or { eprintln('ui2 compiled VML widget update failed: ${err}') }
+	}
+}
+
+// commit_widget applies the widget's pending change. Reads made by the commit
+// are untracked: they belong to the widget, not to a running observer.
+fn (mut node CompiledVmlNode) commit_widget() {
+	node.widget_dirty = false
+	if node.widget == unsafe { nil } || node.component.is_disposed() { return }
+	mut widget := node.widget
+	mut runtime := node.component.runtime
+	runtime.untracked_depth++
+	widget.commit() or {
+		mut projections := node.component.projections
+		if projections.commit_error.len == 0 { projections.commit_error = err.msg() }
+	}
+	runtime.untracked_depth--
+}
+
 // ensure_projection brings this node's declaration up to date before a read.
 fn (node &CompiledVmlNode) ensure_projection() {
-	if !node.projection_dirty && !node.descendant_dirty { return }
+	if !node.projection_dirty && !node.descendant_dirty && !node.widget_dirty { return }
 	mut live := unsafe { &CompiledVmlNode(voidptr(node)) }
 	mut projections := live.component.projections
 	projections.depth++
@@ -95,11 +141,12 @@ fn (mut node CompiledVmlNode) refresh_projection_tree() {
 	if node.descendant_dirty {
 		node.descendant_dirty = false
 		for mut child in node.children {
-			if child.projection_dirty || child.descendant_dirty {
+			if child.projection_dirty || child.descendant_dirty || child.widget_dirty {
 				child.refresh_projection_tree()
 			}
 		}
 	}
+	if node.widget_dirty { node.commit_widget() }
 	if node.projection_dirty { node.refresh_projection() }
 }
 
@@ -124,6 +171,7 @@ fn (mut node CompiledVmlNode) settle_projection() {
 		node.projection_dirty = false
 		node.descendant_dirty = false
 		node.revision_pending = false
+		node.widget_dirty = false
 		return
 	}
 	node.refresh_projection_tree()

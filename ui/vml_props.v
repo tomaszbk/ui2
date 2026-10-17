@@ -284,6 +284,18 @@ pub fn (p CommonProps) common_props() CommonProps {
 	return p
 }
 
+// vml_structure is how the runtime reconciles the widget's element; widgets
+// whose constructor manufactures or reads its children override it.
+pub fn (p CommonProps) vml_structure() VmlStructure {
+	return .plain
+}
+
+// control_id_required reports whether the element needs a public id even when
+// none is authored (overlays are addressed by id).
+pub fn (p CommonProps) control_id_required() bool {
+	return false
+}
+
 pub fn (p CommonProps) layout_item() VmlLayoutItem {
 	return p.VmlLayoutItem
 }

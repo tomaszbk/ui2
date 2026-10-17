@@ -131,6 +131,10 @@ pub fn (p AccordionProps) child_input(frame Rect, child_count int) !Rect {
 	return rect(0, 0, geometry.content.width, geometry.content.height)
 }
 
+pub fn (p AccordionProps) vml_structure() VmlStructure {
+	return .sourced
+}
+
 pub fn (p AccordionProps) build(ctx VmlBuildContext) !Element {
 	return vml_keyed(accordion(p.config(ctx, vml_accordion_items(ctx.children)!))!, ctx)
 }
@@ -152,6 +156,10 @@ fn (p AccordionItemProps) item(ctx VmlBuildContext) AccordionItem {
 		on_event: p.on_select
 		enabled:  p.enabled or { true }
 	}
+}
+
+pub fn (p AccordionItemProps) vml_structure() VmlStructure {
+	return .sourced
 }
 
 pub fn (p AccordionItemProps) build(ctx VmlBuildContext) !Element {
@@ -198,6 +206,10 @@ pub fn (p TabbedPanelProps) child_input(frame Rect, child_count int) !Rect {
 	return rect(0, 0, geometry.content.width, geometry.content.height)
 }
 
+pub fn (p TabbedPanelProps) vml_structure() VmlStructure {
+	return .sourced
+}
+
 pub fn (p TabbedPanelProps) build(ctx VmlBuildContext) !Element {
 	return vml_keyed(tabbed_panel(TabbedPanelConfig{
 		id:                       ctx.id
@@ -233,6 +245,10 @@ fn (p TabProps) tab(ctx VmlBuildContext) TabbedPanelTab {
 	}
 }
 
+pub fn (p TabProps) vml_structure() VmlStructure {
+	return .sourced
+}
+
 pub fn (p TabProps) build(ctx VmlBuildContext) !Element {
 	return Element{
 		...vml_keyed(view(vml_view_id(ctx.id, '__content'), ctx.frame, BoxStyle{}, ctx.children),
@@ -259,6 +275,10 @@ pub mut:
 }
 
 pub fn (p CarouselProps) vml_container() {}
+
+pub fn (p CarouselProps) vml_structure() VmlStructure {
+	return .sourced
+}
 
 pub fn (p CarouselProps) build(ctx VmlBuildContext) !Element {
 	return vml_keyed(carousel(CarouselConfig{
@@ -292,6 +312,10 @@ pub mut:
 
 pub fn (p ScreenManagerProps) vml_container() {}
 
+pub fn (p ScreenManagerProps) vml_structure() VmlStructure {
+	return .sourced
+}
+
 pub fn (p ScreenManagerProps) build(ctx VmlBuildContext) !Element {
 	return vml_keyed(screen_manager(ScreenManagerConfig{
 		id:      ctx.id
@@ -309,6 +333,10 @@ pub mut:
 }
 
 pub fn (p ManagedScreenProps) vml_container() {}
+
+pub fn (p ManagedScreenProps) vml_structure() VmlStructure {
+	return .sourced
+}
 
 pub fn (p ManagedScreenProps) build(ctx VmlBuildContext) !Element {
 	return vml_managed_screen(ctx, p.name or { ctx.id })
@@ -328,6 +356,10 @@ pub mut:
 }
 
 pub fn (p ScreenViewProps) vml_container() {}
+
+pub fn (p ScreenViewProps) vml_structure() VmlStructure {
+	return .sourced
+}
 
 pub fn (p ScreenViewProps) build(ctx VmlBuildContext) !Element {
 	return vml_managed_screen(ctx, p.name or { ctx.id })
@@ -357,6 +389,10 @@ pub mut:
 }
 
 pub fn (p TreeViewProps) vml_container() {}
+
+pub fn (p TreeViewProps) vml_structure() VmlStructure {
+	return .sourced
+}
 
 pub fn (p TreeViewProps) build(ctx VmlBuildContext) !Element {
 	config := TreeViewConfig{
@@ -411,6 +447,10 @@ fn (p TreeNodeProps) node(ctx VmlBuildContext) !TreeViewNode {
 		enabled:   p.enabled or { true }
 		children:  vml_tree_nodes(ctx.children, 'TreeNode')!
 	}
+}
+
+pub fn (p TreeNodeProps) vml_structure() VmlStructure {
+	return .sourced
 }
 
 pub fn (p TreeNodeProps) build(ctx VmlBuildContext) !Element {
