@@ -188,8 +188,6 @@ module ui2
 //     embedder host instead of a sokol window.
 //   pub const backend_needs_host bool: there is no window; refreshes, element
 //     updates and control commands go through the host's handlers.
-//   const backend_feedback_strips bool: rounded rects are expensive, so
-//     feedback rings are drawn as scan-converted strips.
 //
 // Backend-specific extensions outside the contract, such as rich text
 // editing, render_stats or the embedder's host API, exist only on the custom

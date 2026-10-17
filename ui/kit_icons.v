@@ -1,12 +1,13 @@
 module ui2
 
-import math
-
 // IconName lists GPUI Kit's Lucide icon names that have a counterpart the
 // renderer can draw: an SF Symbols name that ui/symbols.v maps to a Material
 // Icons glyph of the same meaning. The first group is from GPUI's default
-// component set, the second from the wider Lucide catalog. `padlock` is Lucide's Lock, which is a V keyword.
+// component set, the second from the wider Lucide catalog, the third the
+// glyphs the kit's own controls draw. `none` draws nothing; `padlock` is
+// Lucide's Lock, which is a V keyword.
 pub enum IconName {
+	none
 	a_large_small
 	case_sensitive
 	chevrons_up_down
@@ -81,11 +82,29 @@ pub enum IconName {
 	tag
 	user_round_plus
 	users
+	arrow_down
+	arrow_left
+	arrow_right
+	arrow_up
+	bell
+	calendar
+	check
+	chevron_down
+	chevron_left
+	chevron_right
+	chevron_up
+	circle_alert
+	circle_check
+	circle_x
+	trash
+	triangle_alert
 }
 
-// symbol is the SF Symbol an icon draws as; symbol_known is true for each.
+// symbol is the SF Symbol an icon draws as; symbol_known is true for each
+// but none, which has no symbol.
 pub fn (name IconName) symbol() string {
 	return match name {
+		.none { '' }
 		.a_large_small { 'textformat.size' }
 		.case_sensitive { 'textformat' }
 		.chevrons_up_down, .move_vertical { 'arrow.up.and.down' }
@@ -93,7 +112,7 @@ pub fn (name IconName) symbol() string {
 		.close, .window_close { 'xmark' }
 		.copy { 'doc.on.doc' }
 		.dash, .minus, .window_minimize { 'minus' }
-		.delete { 'trash' }
+		.delete, .trash { 'trash' }
 		.ellipsis { 'ellipsis' }
 		.eye { 'eye' }
 		.eye_off { 'eye.slash' }
@@ -152,86 +171,49 @@ pub fn (name IconName) symbol() string {
 		.tag { 'tag' }
 		.user_round_plus { 'person.crop.circle.badge.plus' }
 		.users { 'person.2' }
+		.arrow_down { 'arrow.down' }
+		.arrow_left { 'arrow.left' }
+		.arrow_right { 'arrow.right' }
+		.arrow_up { 'arrow.up' }
+		.bell { 'bell' }
+		.calendar { 'calendar' }
+		.check { 'checkmark' }
+		.chevron_down { 'chevron.down' }
+		.chevron_left { 'chevron.left' }
+		.chevron_right { 'chevron.right' }
+		.chevron_up { 'chevron.up' }
+		.circle_alert { 'exclamationmark.circle' }
+		.circle_check { 'checkmark.circle' }
+		.circle_x { 'xmark.circle' }
+		.triangle_alert { 'exclamationmark.triangle' }
 	}
 }
 
 // title is the icon's name in words, its default accessibility label.
 pub fn (name IconName) title() string {
+	if name == .none {
+		return ''
+	}
 	words := name.str().replace('_', ' ')
 	return words[..1].to_upper() + words[1..]
 }
 
-// icon_names lists every IconName, in declaration order.
+// icon_names lists every IconName that draws, in declaration order.
 pub fn icon_names() []IconName {
 	mut names := []IconName{}
 	$for value in IconName.values {
-		names << value.value
+		if value.value != .none {
+			names << value.value
+		}
 	}
 	return names
 }
 
 // icon_pixel_size returns GPUI's icon size for a size preset.
-pub fn icon_pixel_size(size ComponentSize) f64 {
+pub fn icon_pixel_size(size ControlSize) f64 {
 	return match size {
 		.small { 14 }
 		.medium { 16 }
 		.large { 24 }
 	}
-}
-
-pub struct IconConfig {
-pub:
-	id    string
-	frame Rect
-	name  IconName
-	// symbol draws this SF Symbol instead of name. It must be a name
-	// symbol_known accepts, so it renders on every backend.
-	symbol string
-	// pixel_size is the icon's side, centered in frame and limited to it. Zero
-	// uses the size preset: small 14, medium 16, large 24 (GPUI's xsmall is 12).
-	pixel_size f64
-	color      ?u32 // Defaults to the theme's foreground.
-	// rotation turns the icon clockwise, in degrees, as Element.rotation.
-	rotation            f64
-	size                ComponentSize = .medium
-	accessibility_label string // Defaults to the icon's title.
-	theme               ComponentTheme
-}
-
-// named_icon draws a named icon as a symbol image tinted with its color. The
-// returned image is the icon's square, centered in frame. GPUI's Icon also
-// takes SVG paths and bytes; ui2 draws arbitrary files with image().
-pub fn named_icon(config IconConfig) !Element {
-	component_validate_frame(config.frame)!
-	feedback_validate_length('icon size', config.pixel_size)!
-	if !component_finite(config.rotation) {
-		return error('icon rotation must be finite')
-	}
-	symbol := if config.symbol.len > 0 { config.symbol } else { config.name.symbol() }
-	if !symbol_known(symbol) {
-		return error('icon symbol `${symbol}` is not drawn on every backend; see symbol_names()')
-	}
-	side := math.min(if config.pixel_size > 0 {
-		config.pixel_size
-	} else {
-		icon_pixel_size(config.size)
-	}, math.min(config.frame.width, config.frame.height))
-	color := config.color or { config.theme.foreground }
-	return component_finish(Element{
-		...image(config.id, 'symbol:' + symbol, rect(config.frame.x + (config.frame.width - side) / 2,
-			config.frame.y + (config.frame.height - side) / 2, side, side))
-		text_style:          TextStyle{
-			color: color
-			size:  side
-		}
-		rotation:            config.rotation
-		accessibility_role:  'img'
-		accessibility_label: if config.accessibility_label.len > 0 {
-			config.accessibility_label
-		} else if config.symbol.len > 0 {
-			config.symbol
-		} else {
-			config.name.title()
-		}
-	})
 }

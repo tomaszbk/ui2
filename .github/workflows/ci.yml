@@ -176,8 +176,8 @@ jobs:
           v ${{ matrix.compiler_flags }} test ui2/ui/vml_overlay_compiled_test.v ui2/ui/overlay_geometry_runtime_test.v ui2/ui/overlay_runtime_immediate_test.v ui2/ui/overlay_trigger_identity_test.v ui2/ui/shortcut_character_input_test.v
           v ${{ matrix.compiler_flags }} test ui2/examples/dialog ui2/examples/profile_dialog ui2/examples/overlays
 
-      - name: Test component catalog and primitives
-        run: v ${{ matrix.compiler_flags }} test ui2/ui/component_catalog_test.v
+      - name: Test the kit
+        run: v ${{ matrix.compiler_flags }} test ui2/ui/kit_logic_actions_test.v ui2/ui/kit_logic_display_test.v
 
       - name: Test immediate scrolling
         shell: bash

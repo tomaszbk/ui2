@@ -140,20 +140,6 @@ fn component_part_id(id string, part string) string {
 	return if id.len == 0 { '' } else { '${id}:component:${part}' }
 }
 
-// component_click adapts a handler to the callback of a part that activates by
-// click (a button or a view with button behavior). A nil handler leaves the
-// part without a callback, so it stays inert.
-fn component_click(handler fn ()) ElementCallback {
-	if voidptr(handler) == unsafe { nil } {
-		return unsafe { nil }
-	}
-	return fn [handler] (event ElementEvent) {
-		if event.kind == .click {
-			handler()
-		}
-	}
-}
-
 // component_absorb is the callback of a surface that takes presses only so they
 // stay with it instead of reaching what lies beneath it, such as a dismissing
 // backdrop. A view needs a callback before it takes pointer input at all.
@@ -172,26 +158,6 @@ fn component_forward_click(callback ElementCallback) ElementCallback {
 	}
 }
 
-fn component_box(bg u32, border u32, radius f64) BoxStyle {
-	return BoxStyle{
-		bg:            bg
-		radius:        radius
-		border_color:  border
-		border_left:   1
-		border_top:    1
-		border_right:  1
-		border_bottom: 1
-	}
-}
-
-fn component_text(text string, frame Rect, color u32, size f64, bold bool) Element {
-	return label('', text, frame, TextStyle{
-		color: color
-		size:  size
-		bold:  bold
-	})
-}
-
 fn component_finish(el Element) !Element {
 	validate_element_tree(el)!
 	return el
@@ -201,10 +167,4 @@ fn component_finish(el Element) !Element {
 // menus, hover cards, dialogs and sheets, as GPUI Kit's popups do.
 pub fn component_popup_shadow() BoxShadow {
 	return box_shadow(0x000000, 0.16, 24, 8)
-}
-
-// component_card_shadow is the lighter shadow of a surface that floats closer to
-// the page, such as a notification.
-pub fn component_card_shadow() BoxShadow {
-	return box_shadow(0x000000, 0.12, 16, 4)
 }
