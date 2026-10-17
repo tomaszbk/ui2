@@ -81,7 +81,7 @@ fn answer_notification(note ui2.NotificationEvent) {
 		// Retry here.
 	}
 	state.notes.schedule('toasts', state.notes.respond(note))
-	ui2.refresh()
+	ui2.request_refresh()
 }
 
 fn save(event ui2.ElementEvent) {
@@ -91,7 +91,7 @@ fn save(event ui2.ElementEvent) {
 		title:   'Saved'
 		message: 'Your changes have been saved.'
 	))
-	ui2.refresh()
+	ui2.request_refresh()
 }
 ```
 
@@ -232,7 +232,7 @@ fn copy_api_key() {
 	if state.clips.copy('api-key', 'sk-1234567890abcdef') {
 		// GPUI Kit's on_copied: here, a notification.
 		state.notes.schedule('toasts', state.notes.push(kind: .success, message: 'API key copied'))
-		ui2.refresh()
+		ui2.request_refresh()
 	}
 }
 ```

@@ -64,7 +64,7 @@ $if macos && ui2_custom_rendering ? && ui2_embedder ? && !ui2_headless ? {
 				area_frame_replacement = open_window('Replacement', 320, 300, area_frame_guard_root) or { panic(err) }
 				area_frame_window.close()
 			}
-			4 { refresh() }
+			4 { request_refresh() }
 			5 { focus('alternate') }
 			6 {
 				// Internal context lifetime fixture, distinct from public window

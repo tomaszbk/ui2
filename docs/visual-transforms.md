@@ -57,7 +57,7 @@ replaces the patch: retain your camera/transform in your application model too.
 
 A typed element callback that calls this setter is a presentation-only action
 and skips automatic rebuilding. If that callback also changes layout/model
-content, call `refresh()` explicitly. Ordinary callbacks retain automatic
+content, call `request_refresh()` explicitly. Ordinary callbacks retain automatic
 refresh behavior. Existing widget animation APIs remain separate.
 
 `visual_geometry(id)!` describes an element traversed in the **last presented**

@@ -54,7 +54,7 @@ fn (mut app FilesDroppedDemo) receive(paths []string, dropped_text string) {
 fn handle_files_drop(event ui2.DropEvent) {
 	mut state := unsafe { files_dropped_state }
 	state.receive(event.paths, event.text)
-	ui2.refresh()
+	ui2.request_refresh()
 }
 
 fn main() {

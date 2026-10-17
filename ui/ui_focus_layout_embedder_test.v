@@ -68,7 +68,7 @@ $if macos && ui2_custom_rendering ? && ui2_embedder ? && !ui2_headless ? {
 		declared := focus_layout_root()
 		if focus_layout_build_cancel {
 			focus_layout_build_cancel = false
-			refresh()
+			request_refresh()
 		}
 		if focus_layout_build_reenter {
 			focus_layout_build_reenter = false
@@ -158,7 +158,7 @@ $if macos && ui2_custom_rendering ? && ui2_embedder ? && !ui2_headless ? {
 		// Builder reentry also belongs to the next generation, independently of
 		// animation and focus-restoration callback reentry.
 		focus_layout_build_reenter = true
-		assert focus_layout_update(window, fn () { refresh() })
+		assert focus_layout_update(window, fn () { request_refresh() })
 		assert C.ui2_test_pump(window.app, embedder_pump) == 0
 		assert focus_layout_update(window, fn () {
 			assert (semantic_node('tail') or { panic('missing current tail') }).label == 'next generation ñ'
@@ -172,7 +172,7 @@ $if macos && ui2_custom_rendering ? && ui2_embedder ? && !ui2_headless ? {
 		focus_layout_tail = 'retained after canceled builder'
 		assert focus_layout_update(window, fn () {
 			refresh_element('tail', Element{kind: .label, id: 'tail', text: focus_layout_tail, frame: rect(0, 170, 120, 30)})
-			refresh()
+			request_refresh()
 		})
 		before_cancel_draws := window.app.scheduler.stats().draws
 		assert C.ui2_test_pump(window.app, embedder_pump) == 0

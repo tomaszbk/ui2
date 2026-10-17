@@ -138,7 +138,7 @@ fn handle_browser_event(event ui2.ElementEvent) {
 			browser.open(parts[1].int(), parts[2].int())
 			// The column just opened lies past the old end of the strip, so ask for
 			// the far end once the tree has it.
-			ui2.refresh()
+			ui2.request_refresh()
 			ui2.scroll_to_horizontal_offset('columns', browser.content_width())
 		}
 	}

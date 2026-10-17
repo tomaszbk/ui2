@@ -189,7 +189,7 @@ fn test_mounted_ide_editor_focus_preserves_draft_selection_and_composition() {
 					assert macos.msg_range(view, 'selectedRange') == composing_selection
 				}
 				ide_shortcut_task_pending = true
-				ui2.refresh()
+				ui2.request_refresh()
 			}
 			ide_shortcut_task_pending = true
 			ui2.run_windows()

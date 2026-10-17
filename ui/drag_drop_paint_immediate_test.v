@@ -16,7 +16,7 @@ $if macos && ui2_custom_rendering ? && !ui2_headless ? {
 		paint_drag_accepts++
 		if paint_drag_stage == 'accept' && paint_drag_accepts == 3 {
 			paint_drag_changed = true
-			refresh()
+			request_refresh()
 		}
 		return .move
 	}
@@ -27,7 +27,7 @@ $if macos && ui2_custom_rendering ? && !ui2_headless ? {
 		if (paint_drag_stage == 'enter' && event.kind == .drag_enter)
 			|| (paint_drag_stage == 'over' && event.kind == .drag_over) {
 			paint_drag_changed = true
-			refresh()
+			request_refresh()
 		}
 	}
 	fn paint_drag_build() Element {
@@ -63,7 +63,7 @@ $if macos && ui2_custom_rendering ? && !ui2_headless ? {
 				source = Element{...source, on_event: paint_drag_current}
 				target = Element{...target, on_event: paint_drag_current}
 			}
-			if paint_drag_change == 'disallow' { source = Element{...source, drag_source: DragSource{allowed: [.copy]}} }
+			if paint_drag_change == 'disallow' { source = Element{...source, drag_source: &DragSource{allowed: [.copy]}} }
 			if paint_drag_change == 'reject' { target = Element{...target, drop_target: DropTarget{accept: paint_drag_reject}} }
 			if paint_drag_change == 'withdraw' { target = Element{...target, drop_target: none} }
 			if paint_drag_change == 'rotation' { target = Element{...target,rotation:180} }
@@ -105,7 +105,7 @@ $if macos && ui2_custom_rendering ? && !ui2_headless ? {
 			HitTarget{...target, x: 100, y: 20, w: 60, h: 50}]
 		work := g_gg_app.scheduler.begin_frame(0) or { panic('missing mount') }
 		g_gg_app.scheduler.finish_frame(work)
-		assert RenderReason.surface !in g_gg_app.scheduler.stats().pending_reasons
+		assert !g_gg_app.scheduler.stats().pending_reasons.has(.surface)
 	}
 	fn test_paint_highlight_enter_over_and_final_accept_drop_before_next_frame() {
 		for anonymous in [false, true] {
@@ -149,7 +149,7 @@ $if macos && ui2_custom_rendering ? && !ui2_headless ? {
 	}
 	fn test_paint_unchanged_refresh_still_drops_before_frame() {
 		mount_paint_drag('', '', false)
-		refresh()
+		request_refresh()
 		handle_touch_down(20, 30)
 		handle_touch_up(120, 30)
 		assert paint_drag_events.filter(it.kind == .drop).len == 1

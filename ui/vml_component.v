@@ -10,16 +10,24 @@ pub:
 	namespace          string
 	identity_namespace string
 mut:
-	parent           &CompiledVmlComponent = unsafe { nil }
-	name             string
-	children         map[string]&CompiledVmlComponent
-	nodes            map[string]&CompiledVmlNode
-	values           map[string]voidptr
-	value_types      map[string]string
-	mount_hooks      map[string]fn () !
-	mount_order      []string
-	cleanup_keys     map[string]bool
+	parent        &CompiledVmlComponent = unsafe { nil }
+	name          string
+	children      map[string]&CompiledVmlComponent
+	nodes         map[string]&CompiledVmlNode
+	values        map[string]voidptr
+	value_types   map[string]string
+	mount_hooks   map[string]fn () !
+	mount_order   []string
+	unmount_hooks map[string]fn ()
+	unmount_order []string
+	cleanup_keys  map[string]bool
+	// mounted is true from the mount hooks until the unmount hooks run. The
+	// counts cover the mounted nodes of this component and its descendants:
+	// a component mounts with its first control and unmounts when no node,
+	// not even an empty fragment, is left in the mounted tree.
 	mounted          bool
+	mounted_nodes    int
+	mounted_controls int
 	disposed         bool
 	leaving          bool
 	publish          fn (string, Element)  = compiled_vml_publish
@@ -55,14 +63,20 @@ mut:
 	fragment_keys_ready  bool
 	presentation         &VmlPresentation   = unsafe { nil }
 	source_snapshot      &VmlSourceSnapshot = unsafe { nil }
-	parent               &CompiledVmlNode   = unsafe { nil }
-	children             []&CompiledVmlNode
-	children_revision    &Signal[u64]
-	source_children      []&CompiledVmlNode
-	source_owners        []&CompiledVmlNode
-	has_sources          bool
-	effects              map[string]&SignalEffect
-	mounted              bool
+	// The node owns its element's motion state and the runtime record that
+	// links it from the declaration (motion_presence.v).
+	motion_state      &ElementMotionState = unsafe { nil }
+	motion_runtime    &ElementRuntime     = unsafe { nil }
+	parent            &CompiledVmlNode    = unsafe { nil }
+	children          []&CompiledVmlNode
+	children_revision &Signal[u64]
+	source_children   []&CompiledVmlNode
+	source_owners     []&CompiledVmlNode
+	has_sources       bool
+	effects           map[string]&SignalEffect
+	mounted           bool
+	// A structural rebuild publishes and mounts its result once, at the end.
+	reconciling bool
 
 	frame_value      &Signal[Rect] = unsafe { nil }
 	viewport_width   bool
@@ -305,9 +319,9 @@ fn (mut component CompiledVmlComponent) owned_element(declaration Element, confi
 		)!
 		declaration:         Element{
 			...declaration
-			compiled_source: unsafe { nil }
-			id:              component.control_id(declaration.id)
-			children:        []
+			runtime:  unsafe { nil }
+			id:       component.control_id(declaration.id)
+			children: []
 		}
 		frame_value:         component.geometry(local_id, declaration.frame)!
 	}
@@ -344,7 +358,7 @@ pub fn (mut node CompiledVmlNode) set_element_children(declarations []Element) !
 pub fn (node &CompiledVmlNode) element() Element {
 	element := vml_present(node.constructor_source_element(), node.presentation)
 	if node.component.is_leaving() {
-		return Element{ ...element, presence_exiting: true, enabled: false }
+		return Element{ ...element, runtime: element.runtime.with_exiting(true), enabled: false }
 	}
 	return element
 }
@@ -417,8 +431,9 @@ fn (mut node CompiledVmlNode) reconcile_structure(replacement Element, publish b
 	before := node.element()
 	source_before := node.source_element()
 	was_mounted := node.mounted
-	node.mounted = false
-	defer { if !node.component.is_disposed() { node.mounted = was_mounted } }
+	was_reconciling := node.reconciling
+	node.reconciling = true
+	defer { node.reconciling = was_reconciling }
 	mut children := []&CompiledVmlNode{cap: replacement.children.len}
 	for index, element in replacement.children {
 		if element.compiled_node != unsafe { nil } {
@@ -435,23 +450,22 @@ fn (mut node CompiledVmlNode) reconcile_structure(replacement Element, publish b
 	}
 	node.declaration = node.update_motion(Element{
 		...replacement
-		compiled_source: unsafe { nil }
-		id:              node.declaration.id
-		key:             node.declaration.key
-		compiled_node:   &node
-		children:        node.declaration.children
+		id:            node.declaration.id
+		key:           node.declaration.key
+		compiled_node: &node
+		children:      node.declaration.children
 	})!
 	node.source_snapshot = unsafe { nil }
 	if node.component.is_disposed() { return }
 	node.set_children(children)!
 	changed := !vml_declaration_equal(before, node.element())
 	if changed || !vml_declaration_equal(source_before, node.source_element()) { node.propagate() }
-	if was_mounted { node.prepare_motion_mount()! }
-	node.mark_mounted(was_mounted)
+	node.reconciling = was_reconciling
 	if was_mounted {
-		for mut child in node.children {
-			if child.component.has_mounted_nodes() { child.component.mount()! }
-		}
+		node.prepare_motion_mount()!
+		mut attached := []&CompiledVmlComponent{}
+		node.mark_mounted(true, mut attached)
+		settle_mounts(mut attached)!
 	}
 	if publish && was_mounted && changed {
 		node.publish_structure()
@@ -490,11 +504,11 @@ fn (mut node CompiledVmlNode) replace_property(replacement Element) ! {
 	// Children, id and key are unchanged and were validated when attached,
 	// so only this element's own properties need checking.
 	validate_element_properties(replacement, 'root')!
-	node.declaration = node.update_motion(Element{ ...replacement, compiled_node: node, compiled_source: unsafe { nil } })!
+	node.declaration = node.update_motion(Element{ ...replacement, compiled_node: node })!
 	node.source_snapshot = unsafe { nil }
 	if node.component.is_disposed() { return }
 	node.propagate()
-	if node.mounted { node.publish_structure() }
+	if node.live() { node.publish_structure() }
 }
 
 fn (mut node CompiledVmlNode) notify_sources() {
@@ -528,11 +542,12 @@ pub fn (mut node CompiledVmlNode) set_children(children []&CompiledVmlNode) ! {
 	candidate := Element{ ...node.declaration, children: elements, layout: layout, compiled_node: node }
 	validate_element_tree(candidate)!
 	if node.is_fragment { node.validate_fragment_children(children)! }
+	mut changed := []&CompiledVmlComponent{}
 	for mut old in node.children {
 		if old !in children {
 			old.parent = unsafe { nil }
 			old.clear_presentation()
-			old.mark_mounted(false)
+			old.mark_mounted(false, mut changed)
 		}
 	}
 	if node.children != children { node.segments_current = false }
@@ -545,14 +560,15 @@ pub fn (mut node CompiledVmlNode) set_children(children []&CompiledVmlNode) ! {
 	node.source_snapshot = unsafe { nil }
 	if !node.has_sources { node.children_revision.set(node.children_revision.peek()! + 1)! }
 	node.propagate()
-	if node.mounted {
+	live := node.live()
+	if live {
 		for mut child in node.children {
 			child.prepare_motion_mount()!
-			child.mark_mounted(true)
+			child.mark_mounted(true, mut changed)
 		}
-		node.mount_visible_owners()!
-		node.publish_structure()
 	}
+	settle_mounts(mut changed)!
+	if live { node.publish_structure() }
 }
 
 // Identity checks mark this node's ancestors and the candidate children with
@@ -587,16 +603,52 @@ fn (mut node CompiledVmlNode) check_children(children []&CompiledVmlNode) ! {
 	}
 }
 
-fn (mut node CompiledVmlNode) mark_mounted(mounted bool) {
-	node.mounted = mounted
-	for mut child in node.children { child.mark_mounted(mounted) }
+// live reports whether changes to the node reach the mounted tree now. A
+// structural rebuild defers them until it completes.
+fn (node &CompiledVmlNode) live() bool {
+	return node.mounted && !node.reconciling
+}
+
+// mark_mounted sets the subtree's mounted state and counts the change on the
+// owning components and their ancestors. Components that gain their first
+// control or lose their last node are added to `changed`; settle_mounts then
+// runs their hooks.
+fn (mut node CompiledVmlNode) mark_mounted(mounted bool, mut changed []&CompiledVmlComponent) {
+	if node.mounted != mounted {
+		node.mounted = mounted
+		delta := if mounted { 1 } else { -1 }
+		mut owner := node.component
+		for owner != unsafe { nil } {
+			owner.mounted_nodes += delta
+			if !node.is_fragment { owner.mounted_controls += delta }
+			if (mounted && !node.is_fragment && owner.mounted_controls == 1)
+				|| (!mounted && owner.mounted_nodes == 0) {
+				changed << owner
+			}
+			owner = owner.parent
+		}
+	}
+	for mut child in node.children { child.mark_mounted(mounted, mut changed) }
+}
+
+// settle_mounts brings each changed component's lifecycle in line with its
+// mounted nodes: unmount hooks run for components that left the mounted tree,
+// then mount hooks for components that gained a control.
+fn settle_mounts(mut changed []&CompiledVmlComponent) ! {
+	for mut component in changed {
+		if component.mounted && !component.is_attached() { component.unmount() }
+	}
+	for mut component in changed {
+		if !component.mounted && component.has_mounted_nodes() { component.mount()! }
+	}
 }
 
 pub fn (mut node CompiledVmlNode) mount() ! {
 	node.component.require_alive()!
 	node.prepare_motion_mount()!
-	node.mark_mounted(true)
-	node.mount_visible_owners()!
+	mut changed := []&CompiledVmlComponent{}
+	node.mark_mounted(true, mut changed)
+	settle_mounts(mut changed)!
 }
 
 pub fn (mut component CompiledVmlComponent) on_mount(name string, action fn () !) ! {
@@ -608,6 +660,8 @@ pub fn (mut component CompiledVmlComponent) on_mount(name string, action fn () !
 	if component.mounted { component.runtime.untracked(action)! }
 }
 
+// on_cleanup runs `cleanup` once, when the component is disposed, after its
+// unmount hooks. Cleanups run in reverse registration order.
 pub fn (mut component CompiledVmlComponent) on_cleanup(name string, cleanup fn ()) ! {
 	component.require_alive()!
 	if name in component.cleanup_keys { return }
@@ -615,21 +669,59 @@ pub fn (mut component CompiledVmlComponent) on_cleanup(name string, cleanup fn (
 	component.cleanup_keys[name] = true
 }
 
+// on_unmount runs `action` each time the component unmounts: when its last
+// mounted node is detached, or when it is disposed while mounted. A component
+// that mounts again runs its mount hooks again. Unmount hooks run in reverse
+// registration order, after those of the component's descendants.
 pub fn (mut component CompiledVmlComponent) on_unmount(name string, action fn ()) ! {
+	component.require_alive()!
 	if action == unsafe { nil } { return error('compiled VML unmount callback is nil') }
-	component.on_cleanup('unmount:' + name, fn [component, action] () {
-		if component.mounted { action() }
-	})!
+	if name in component.unmount_hooks { return }
+	component.unmount_hooks[name] = action
+	component.unmount_order << name
 }
 
+// mount runs the mount hooks of a component that has mounted nodes, after its
+// parent's and before its descendants'.
 pub fn (mut component CompiledVmlComponent) mount() ! {
 	component.require_alive()!
 	if component.mounted || !component.has_mounted_nodes() { return }
+	if component.parent != unsafe { nil } && !component.parent.mounted {
+		mut parent := component.parent
+		parent.mount()!
+		if component.mounted { return }
+	}
 	component.mounted = true
 	for name in component.mount_order { component.runtime.untracked(component.mount_hooks[name])! }
 	for _, mut child in component.children {
 		if child.has_mounted_nodes() { child.mount()! }
 	}
+}
+
+// unmount runs the unmount hooks of a mounted component, after unmounting
+// descendants that left the mounted tree with it.
+fn (mut component CompiledVmlComponent) unmount() {
+	if !component.mounted { return }
+	for _, mut child in component.children {
+		if child.mounted && !child.is_attached() { child.unmount() }
+	}
+	component.mounted = false
+	mut runtime := component.runtime
+	runtime.untracked_depth++
+	for i := component.unmount_order.len - 1; i >= 0; i-- {
+		component.unmount_hooks[component.unmount_order[i]]()
+	}
+	runtime.untracked_depth--
+}
+
+// unmount_nodes detaches every node of the component and its descendants
+// from the mounted tree. A node already unmounted was reached from an
+// ancestor in the same walk, or was detached with its subtree before.
+fn (mut component CompiledVmlComponent) unmount_nodes(mut changed []&CompiledVmlComponent) {
+	for _, mut node in component.nodes {
+		if node.mounted { node.mark_mounted(false, mut changed) }
+	}
+	for _, mut child in component.children { child.unmount_nodes(mut changed) }
 }
 
 fn (component &CompiledVmlComponent) has_mount_hooks() bool {
@@ -638,25 +730,37 @@ fn (component &CompiledVmlComponent) has_mount_hooks() bool {
 	return false
 }
 
+// has_mounted_nodes reports whether a control of the component or of its
+// descendants is mounted. Empty attached fragments do not mount a scope until
+// one of their actual controls has been attached.
 fn (component &CompiledVmlComponent) has_mounted_nodes() bool {
-	if component.is_disposed() { return false }
-	for _, node in component.nodes { if node.mounted && !node.is_fragment { return true } }
-	for _, child in component.children { if child.has_mounted_nodes() { return true } }
-	return false
+	return component.mounted_controls > 0 && !component.is_disposed()
 }
 
+// is_attached reports whether any node of the component or of its
+// descendants, including an empty fragment, is in the mounted tree.
+fn (component &CompiledVmlComponent) is_attached() bool {
+	return component.mounted_nodes > 0 && !component.is_disposed()
+}
+
+// Disposing a mounted component unmounts it and its descendants first, so
+// unmount hooks still see live state, and then runs its cleanups.
 pub fn (mut component CompiledVmlComponent) dispose() ! {
 	if component.is_disposed() { return }
+	mut changed := []&CompiledVmlComponent{}
+	component.unmount_nodes(mut changed)
+	component.unmount()
+	settle_mounts(mut changed)!
 	component.scope.dispose()!
 	component.disposed = true
 	for _, mut node in component.nodes {
-		node.mark_mounted(false)
 		node.source_snapshot = unsafe { nil }
 		node.clear_presentation()
 	}
 	component.values.clear()
 	component.nodes.clear()
 	component.mount_hooks.clear()
+	component.unmount_hooks.clear()
 	component.children.clear()
 	if component.parent != unsafe { nil } { component.parent.children.delete(component.name) }
 	if component.parent == unsafe { nil } {

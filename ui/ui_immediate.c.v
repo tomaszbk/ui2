@@ -55,7 +55,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		clickable       bool
 		button_behavior bool
 		draggable       bool
-		drag_source ?DragSource
+		drag_source ?&DragSource
 		drop_target ?DropTarget
 		drag_generation u64
 		drag_mount_generation u64
@@ -262,6 +262,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	__global g_toggle_groups = map[string]string{}
 	__global g_toggle_allow_no_selection = map[string]bool{}
 	__global g_focused_field = ''
+	__global g_backend_text_focus = BackendTextFocus{}
 	// Like :focus-visible: a pointer press focuses quietly; keyboard input shows
 	// the focus ring again. Text editors always show their focus.
 	__global g_focus_visible = true
@@ -452,11 +453,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		return UiDispatcher{coordinator: g_gg_app.scheduler}
 	}
 
-	pub fn refresh() {
-		g_gg_app.scheduler.invalidate(.build)
-	}
-
-	// Custom refresh remains asynchronous; native refresh semantics are unchanged.
+	// request_refresh schedules a rebuild for the next frame.
 	pub fn request_refresh() {
 		g_gg_app.scheduler.invalidate(.build)
 	}
@@ -633,6 +630,17 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		set_custom_focus(id,true)
 	}
 
+	// set_backend_text_focus records the focus an input backend in another
+	// process owns, so this renderer paints it; an empty id clears it.
+	pub fn set_backend_text_focus(focus BackendTextFocus) {
+		g_backend_text_focus = focus
+		invalidate_custom_paint()
+	}
+
+	pub fn backend_text_focus() BackendTextFocus {
+		return g_backend_text_focus
+	}
+
 	fn custom_focus_ring_visible(el Element) bool {
 		return el.id.len > 0 && el.id == g_focused_field
 			&& (g_focus_visible || el.kind in [.text_field, .text_area])
@@ -722,7 +730,9 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	// scroll_to_offset puts a Scroll element at the given vertical offset. Before the
 	// element has been laid out its range is not known yet, so the offset is stored as
 	// asked and register_scroll_view_in_parent clamps it to the real range on the next frame.
-	// That is what lets a screen open where it was last left.
+	// That is what lets a screen open where it was last left. An offset past the
+	// current range, asked for while a rebuild is pending, is also taken up again on
+	// the next frame, so it can reach content that rebuild adds.
 	pub fn scroll_to_offset(id string, offset f64) {
 		if id.len == 0 {
 			return
@@ -730,7 +740,13 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		state_id := named_scroll_state_id(id)
 		wanted := if offset < 0 { 0.0 } else { offset }
 		if state_id in g_scroll_viewports {
-			set_scroll_offset(state_id, wanted, scroll_maximum(state_id))
+			maximum := scroll_maximum(state_id)
+			if wanted > maximum && g_gg_app.scheduler.build_pending() {
+				g_pending_scroll[state_id] = wanted
+			} else {
+				g_pending_scroll.delete(state_id)
+			}
+			set_scroll_offset(state_id, wanted, maximum)
 			return
 		}
 		// The view does not exist yet, so its range is unknown and the offset cannot be
@@ -746,14 +762,20 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		return scroll_state_offset_x(named_scroll_state_id(id))
 	}
 
-	// A request for an unmounted pane waits for its first layout, like the
-	// vertical API. Refresh the tree before scrolling to newly added content.
+	// A request for an unmounted pane waits for its first layout, and one past the
+	// range while a rebuild is pending is taken up again, like the vertical API.
 	pub fn scroll_to_horizontal_offset(id string, offset f64) {
 		if id.len == 0 { return }
 		state_id := named_scroll_state_id(id)
 		wanted := if offset < 0 { 0.0 } else { offset }
 		if state_id in g_scroll_viewports {
-			set_scroll_offset_x(state_id, wanted, scroll_maximum_x(state_id))
+			maximum := scroll_maximum_x(state_id)
+			if wanted > maximum && g_gg_app.scheduler.build_pending() {
+				g_pending_scroll_x[state_id] = wanted
+			} else {
+				g_pending_scroll_x.delete(state_id)
+			}
+			set_scroll_offset_x(state_id, wanted, maximum)
 			return
 		}
 		g_pending_scroll_x[state_id] = wanted
@@ -1083,7 +1105,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		stats := app.scheduler.stats()
 		if stats.suspended || app.suspended || app.iconified || app.building_declaration { return false }
 		if stats.in_flight { return dispatch.valid() }
-		if stats.generation!=app.declaration_generation && stats.pending_reasons.any(it in [.build,.worker,.animation_follow_up]) {
+		if stats.generation!=app.declaration_generation && stats.pending_reasons.has(.build | .worker | .animation_follow_up) {
 			if !build_custom_declaration(mut app,true) { return false }
 		}
 		if !app.has_root { return dispatch.valid() }
@@ -1868,8 +1890,8 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 				if owner := menu_owner { request_overlay_dismiss(owner, .selection) }
 			}
 			// A presentation setter already requested a paint; pure visual callbacks
-			// do not rebuild their retained layout. Mixed model changes call refresh().
-			if dispatch.valid() && revision == g_gg_app.presentation_revision { refresh() }
+			// do not rebuild their retained layout. Mixed model changes rebuild.
+			if dispatch.valid() && revision == g_gg_app.presentation_revision { request_refresh() }
 		}
 	}
 
@@ -2581,7 +2603,8 @@ fn page_focused_text_area(direction int) {
 	// Mounted targets retain their key across paint and scroll. Unmounted
 	// callers use their explicit id or their supplied drawing area.
 	fn tooltip_key(el Element, area Rect) string {
-		if el.mounted_tooltip_key.len > 0 { return el.mounted_tooltip_key }
+		mounted := el.mounted_tooltip_key()
+		if mounted.len > 0 { return mounted }
 		if el.id.len > 0 {
 			return '${el.kind}#${el.id}'
 		}
@@ -2825,7 +2848,8 @@ fn page_focused_text_area(direction int) {
 		geometry := element_hit_geometry(declared, area, transform, region)
 		inert := g_gg_app.ctx != unsafe { nil } && g_gg_app.ctx.overlay_inert
 		hovered := !inert && g_tooltip.pointer_in && hit_target_contains(geometry,g_tooltip.pointer_x,g_tooltip.pointer_y)
-		focused := !inert && (declared.focused || custom_focus_ring_visible(declared))
+		focused := !inert && ((declared.id.len > 0 && declared.id == g_backend_text_focus.id)
+			|| custom_focus_ring_visible(declared))
 		pressed_style_active := !inert && g_touch.down && declared.id.len > 0
 			&& (declared.id == g_touch.pressed_id || declared.id == g_touch.pointer_target.id)
 			&& (!g_touch.pointer_captured || declared.kind == g_touch.pointer_target.kind)
@@ -2889,7 +2913,7 @@ fn page_focused_text_area(direction int) {
 			ctx.clip_region = parent_clip
 			ctx.interaction_enabled = enabled && declared_el.presented_enabled()
 			ctx.opacity = opacity * declared_el.presented_opacity()
-			ctx.overlay_inert = inert || declared_el.overlay_inert
+			ctx.overlay_inert = inert || declared_el.overlay_inert()
 		}
 		defer { unsafe {
 			ctx.content_transform = outer
@@ -3143,8 +3167,8 @@ fn page_focused_text_area(direction int) {
 				x := el.frame.x + off_x
 				y := el.frame.y + off_y
 				pressed := g_toggle_values[el.id] or { el.checked }
-				box := if pressed { el.toggle_down_box } else { el.box }
-				style := if pressed { el.toggle_down_text_style } else { el.text_style }
+				box := if pressed { el.toggle_down_box() } else { el.box }
+				style := if pressed { el.toggle_down_text_style() } else { el.text_style }
 				if el.native_style && box.bg == unstyled_box_bg {
 					draw_button_bezel(ctx, x, y, el.frame.width, el.frame.height, box.radius,
 						el.enabled)
@@ -3167,8 +3191,8 @@ fn page_focused_text_area(direction int) {
 						w:                         el.frame.width
 						h:                         el.frame.height
 						toggle_button:             true
-						toggle_group:              el.toggle_group
-						toggle_allow_no_selection: el.toggle_allow_no_selection
+						toggle_group:              el.toggle_group()
+						toggle_allow_no_selection: el.toggle_allow_no_selection()
 					}, clip)
 				}
 			}

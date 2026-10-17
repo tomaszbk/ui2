@@ -65,7 +65,7 @@ fn test_unavailable_portal_blocks_authored_owner_explicit_owner_and_anchor_depen
 
 fn test_exiting_available_dialog_paints_its_backdrop_without_trapping_background() ! {
 	base := view('dialog', rect(0, 0, 160, 100), BoxStyle{}, []Element{})
-	dialog := with_overlay(Element{ ...base, presence_exiting: true },
+	dialog := with_overlay(Element{ ...base, runtime: &ElementRuntime{ exiting: true } },
 		OverlayConfig{ kind: .dialog, open: true })!
 	viewport := rect(0, 0, 400, 300)
 	mut tree := OverlayTree{}

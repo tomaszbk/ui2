@@ -83,8 +83,8 @@ fn test_nested_fragment_lists_flatten_keys_layout_rules_and_source_order() ! {
 	assert parent.children.len == 4 // two logical fragments and the neighbours
 	assert parent.element().children.len == 10
 	assert parent.element().children.all(it.kind != .view)
-	assert parent.element().layout.flex.children.map(it.basis) == [30.0, 20.0, 25.0, 20.0, 20.0,
-		20.0, 25.0, 20.0, 20.0, 50.0]
+	assert parent.element().layout.flex_rules.map(it.basis) == [30.0, 20.0, 25.0, 20.0, 20.0, 20.0,
+		25.0, 20.0, 20.0, 50.0]
 	keys := parent.element().children.map(it.key)
 	mut seen := map[string]bool{}
 	for key in keys {
@@ -272,7 +272,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			VmlFragmentItem{ id: 'x', text: 'a:x!' }])!
 		rows.update([VmlFragmentItem{ id: 'b' }, VmlFragmentItem{ id: 'a' }])!
 		work := app.scheduler.begin_frame(1) or { panic('missing retained frame') }
-		assert !work.build && work.reason_list() == [.layout]
+		assert !work.build && work.reasons == RenderReason.layout
 		resolved := resolve_custom_layout(mut app, work, vml_fragment_measure, take_custom_layout_patches(mut app))!
 		app.scheduler.finish_frame(work)
 		assert resolved.children.len == 10

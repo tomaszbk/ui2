@@ -9,6 +9,37 @@ pub:
 	align_y LayoutAlignment = .auto
 }
 
+// StackRule is a StackChild without its element: the alignment a container
+// retains for a child.
+struct StackRule {
+	align_x LayoutAlignment = .auto
+	align_y LayoutAlignment = .auto
+}
+
+fn stack_rule(child StackChild) StackRule {
+	return StackRule{ align_x: child.align_x, align_y: child.align_y }
+}
+
+fn (rule StackRule) stack_child() StackChild {
+	return StackChild{ align_x: rule.align_x, align_y: rule.align_y }
+}
+
+// stack_rules splits children into their rules and the sizes they lay out.
+fn stack_rules(children []StackChild) ([]StackRule, []Rect) {
+	mut rules := []StackRule{cap: children.len}
+	mut sizes := []Rect{cap: children.len}
+	for index in 0 .. children.len {
+		rules << stack_rule(children[index])
+		sizes << children[index].element.frame
+	}
+	return rules, sizes
+}
+
+// A child without a rule takes the container's alignment.
+fn stack_rule_at(rules []StackRule, index int) StackRule {
+	return if index < rules.len { rules[index] } else { StackRule{} }
+}
+
 pub struct StackConfig {
 pub:
 	id       string
@@ -20,9 +51,9 @@ pub:
 	children []StackChild
 }
 
-fn stack_validate(config StackConfig) ! {
+fn stack_validate(config StackConfig, sizes []Rect) ! {
 	stack_validate_container(config)!
-	for child in config.children { validate_layout_frame(child.element.frame)! }
+	for size in sizes { validate_layout_frame(size)! }
 }
 
 fn stack_validate_container(config StackConfig) ! {
@@ -48,41 +79,78 @@ fn stack_axis(start f64, available f64, preferred f64, alignment LayoutAlignment
 }
 
 pub fn stack_frames(config StackConfig) ![]Rect {
-	stack_validate(config)!
+	rules, sizes := stack_rules(config.children)
+	return stack_layout_frames(config, rules, sizes)
+}
+
+// stack_layout_frames places child sizes under their rules. The config's own
+// children are ignored.
+fn stack_layout_frames(config StackConfig, rules []StackRule, sizes []Rect) ![]Rect {
+	stack_validate(config, sizes)!
 	width := layout_max(0, config.frame.width - config.padding.left - config.padding.right)
 	height := layout_max(0, config.frame.height - config.padding.top - config.padding.bottom)
-	mut frames := []Rect{cap: config.children.len}
-	for child in config.children {
+	mut frames := []Rect{cap: sizes.len}
+	for index, size in sizes {
+		child := stack_rule_at(rules, index)
 		align_x := if child.align_x == .auto { config.align_x } else { child.align_x }
 		align_y := if child.align_y == .auto { config.align_y } else { child.align_y }
-		x, w := stack_axis(config.padding.left, width, child.element.frame.width, align_x)
-		y, h := stack_axis(config.padding.top, height, child.element.frame.height, align_y)
+		x, w := stack_axis(config.padding.left, width, size.width, align_x)
+		y, h := stack_axis(config.padding.top, height, size.height, align_y)
 		frames << rect(x, y, w, h)
 	}
 	return frames
 }
 
 pub fn stack_preferred_size(config StackConfig) !Rect {
-	stack_validate(config)!
+	_, sizes := stack_rules(config.children)
+	return stack_layout_preferred_size(config, sizes)
+}
+
+fn stack_layout_preferred_size(config StackConfig, sizes []Rect) !Rect {
+	stack_validate(config, sizes)!
 	mut width := 0.0
 	mut height := 0.0
-	for child in config.children {
-		width = layout_max(width, child.element.frame.width)
-		height = layout_max(height, child.element.frame.height)
+	for size in sizes {
+		width = layout_max(width, size.width)
+		height = layout_max(height, size.height)
 	}
 	return rect(0, 0, width + config.padding.left + config.padding.right,
 		height + config.padding.top + config.padding.bottom)
 }
 
+// stack places its children once and keeps their rules, without their
+// elements, in the returned element's layout.
 pub fn stack(config StackConfig) !Element {
-	frames := stack_frames(config)!
+	rules, sizes := stack_rules(config.children)
+	frames := stack_layout_frames(config, rules, sizes)!
 	mut children := []Element{cap: config.children.len}
 	for index, child in config.children {
 		children << Element{ ...layout_declared(child.element), frame: frames[index] }
 	}
+	return stack_view(config, children, rules)
+}
+
+// stack_with_rules lays out children whose rules the caller already holds,
+// one per child, without wrapping each child in a StackChild.
+fn stack_with_rules(config StackConfig, children []Element, rules []StackRule) !Element {
+	mut sizes := []Rect{cap: children.len}
+	for child in children { sizes << child.frame }
+	frames := stack_layout_frames(config, rules, sizes)!
+	mut laid := []Element{cap: children.len}
+	for index, child in children {
+		laid << Element{ ...layout_declared(child), frame: frames[index] }
+	}
+	return stack_view(config, laid, rules)
+}
+
+fn stack_view(config StackConfig, children []Element, rules []StackRule) Element {
 	return Element{
 		...view(config.id, config.frame, config.box, children)
 		layout_input: config.frame
-		layout:       LayoutSpec{ kind: .stack, stack: stack_layout_spec(config) }
+		layout:       LayoutSpec{
+			kind:        .stack
+			stack:       stack_layout_spec(config)
+			stack_rules: rules
+		}
 	}
 }

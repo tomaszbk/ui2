@@ -169,7 +169,7 @@ fn handle_menubar_event(event string) {
 		// The check marks live in the declaration, so re-install it.
 		ui2.set_menu_bar(state.menus())
 	}
-	ui2.refresh()
+	ui2.request_refresh()
 }
 
 fn main() {

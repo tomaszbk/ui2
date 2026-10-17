@@ -35,7 +35,7 @@ $if macos && ui2_custom_rendering ? && darwin_sokol_glcore33 ? && !ui2_headless 
 			1 { on_event(&gg.Event{typ: .unfocused}, g_gg_app) }
 			2 { quit() }
 			3 { update_custom_focus_tree(screen(0xffffff, [Element{kind: .button, id: 'replacement'}])) }
-			4 { refresh() }
+			4 { request_refresh() }
 			5 {
 				mut captured := g_gg_app.ctx
 				captured.destroy()
@@ -83,7 +83,7 @@ $if macos && ui2_custom_rendering ? && darwin_sokol_glcore33 ? && !ui2_headless 
 		if area_gl_mode == 3 {
 			assert semantic_tree().filter(it.id == 'edit').len == 0
 		}
-		refresh()
+		request_refresh()
 	}
 
 	fn area_gl_setup() {
@@ -92,7 +92,7 @@ $if macos && ui2_custom_rendering ? && darwin_sokol_glcore33 ? && !ui2_headless 
 		text_area_set_selection('edit', 1, 2)
 		// Render the local edit at the old range before asking it to scroll.
 		area_gl_phase = -1
-		refresh()
+		request_refresh()
 	}
 
 	fn area_gl_scroll_setup() {
@@ -100,7 +100,7 @@ $if macos && ui2_custom_rendering ? && darwin_sokol_glcore33 ? && !ui2_headless 
 		scroll_to_offset('edit', 100)
 		assert scroll_offset('edit') == 100
 		area_gl_phase = 1
-		refresh()
+		request_refresh()
 	}
 
 	fn area_gl_cleanup(app &GgApp) {

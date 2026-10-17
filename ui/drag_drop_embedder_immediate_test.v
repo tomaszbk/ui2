@@ -24,7 +24,7 @@ $if macos && ui2_custom_rendering ? && ui2_embedder ? && !ui2_headless ? {
 		embedder_drag_keys = 0
 		g_key_event_handler = embedder_drag_key
 		source := HitTarget{id: 'embedder-source', identity: 'source', x: 10, y: 20, w: 40, h: 40,
-			on_event: embedder_drag_record, button_behavior: true, drag_generation: 1, drag_source: DragSource{}}
+			on_event: embedder_drag_record, button_behavior: true, drag_generation: 1, drag_source: &DragSource{}}
 		target := HitTarget{id: 'embedder-target', identity: 'target', x: 100, y: 20, w: 60, h: 50,
 			on_event: embedder_drag_record, drag_generation: 2, drop_target: DropTarget{accept: embedder_drag_accept}}
 		g_hit_targets = [source, target]

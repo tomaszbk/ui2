@@ -36,7 +36,7 @@ fn load(event ui2.ElementEvent) {
 		spawn load_worker(dispatcher)
 	} $else {
 		g_idle_example_message = 'Run with -d ui2_custom_rendering for the dispatcher example'
-		ui2.refresh()
+		ui2.request_refresh()
 	}
 }
 

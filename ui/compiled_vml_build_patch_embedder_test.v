@@ -50,7 +50,7 @@ fn test_compiled_build_presents_current_value_in_one_frame() {
 		}
 		g_build_screen = compiled_vml_controller_build[CompiledBuildTickModel]
 		g_gg_app = &GgApp{ ctx: ctx, native_window: window }
-		refresh()
+		request_refresh()
 		on_frame(mut g_gg_app)
 		for _ in 0 .. 3 { on_frame(mut g_gg_app) }
 		assert (g_focus_navigation.node('counter') or { panic('counter') }).el.text == 'tick 0'

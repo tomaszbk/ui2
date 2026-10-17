@@ -65,7 +65,7 @@ fn transitions_callbacks() map[string]ui2.ElementCallback {
 	return {
 		'slide': fn (_event ui2.ElementEvent) {
 			handle_transitions_event('slide')
-			ui2.refresh()
+			ui2.request_refresh()
 		}
 	}
 }
@@ -85,7 +85,7 @@ fn handle_transitions_event(event string) {
 		y:          state.target_y
 		on_event:   transition_animation_event
 	).start('moving_tile')
-	ui2.refresh()
+	ui2.request_refresh()
 }
 
 fn main() {

@@ -139,46 +139,46 @@ fn canvas_layout_callbacks() map[string]ui2.ElementCallback {
 		'theme_dropdown': fn (event ui2.ElementEvent) {
 			mut state := unsafe { canvas_layout_state }
 			state.apply_theme(event.text)
-			ui2.refresh()
+			ui2.request_refresh()
 		}
 		'reset_tile':     fn (_event ui2.ElementEvent) {
 			mut state := unsafe { canvas_layout_state }
 			state.reset_tile()
-			ui2.refresh()
+			ui2.request_refresh()
 		}
 		'add_note':       fn (_event ui2.ElementEvent) {
 			mut state := unsafe { canvas_layout_state }
 			state.add_note()
-			ui2.refresh()
+			ui2.request_refresh()
 		}
 		'clear_notes':    fn (_event ui2.ElementEvent) {
 			mut state := unsafe { canvas_layout_state }
 			state.clear_notes()
-			ui2.refresh()
+			ui2.request_refresh()
 		}
 		'toggle_menu':    fn (_event ui2.ElementEvent) {
 			mut state := unsafe { canvas_layout_state }
 			state.toggle_menu()
-			ui2.refresh()
+			ui2.request_refresh()
 		}
 		'menu_delete':    fn (_event ui2.ElementEvent) {
 			mut state := unsafe { canvas_layout_state }
 			state.choose_menu_item('Delete all users')
-			ui2.refresh()
+			ui2.request_refresh()
 		}
 		'menu_export':    fn (_event ui2.ElementEvent) {
 			mut state := unsafe { canvas_layout_state }
 			state.choose_menu_item('Export users')
-			ui2.refresh()
+			ui2.request_refresh()
 		}
 		'menu_exit':      fn (_event ui2.ElementEvent) {
 			mut state := unsafe { canvas_layout_state }
 			state.choose_menu_item('Exit')
-			ui2.refresh()
+			ui2.request_refresh()
 		}
 		'about':          fn (_event ui2.ElementEvent) {
 			ui2.alert('Canvas layout', 'Built with V UI')
-			ui2.refresh()
+			ui2.request_refresh()
 		}
 		'canvas_tile':    fn (event ui2.ElementEvent) {
 			mut state := unsafe { canvas_layout_state }
@@ -190,14 +190,14 @@ fn canvas_layout_callbacks() map[string]ui2.ElementCallback {
 				}
 				else {}
 			}
-			ui2.refresh()
+			ui2.request_refresh()
 		}
 		'canvas_sheet':   fn (event ui2.ElementEvent) {
 			mut state := unsafe { canvas_layout_state }
 			if event.kind in [.pointer_down, .pointer_drag, .pointer_up] {
 				state.track_pointer(event.x, event.y, ui2.scroll_offset('canvas'))
 			}
-			ui2.refresh()
+			ui2.request_refresh()
 		}
 	}
 }

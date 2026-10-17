@@ -109,8 +109,8 @@ fn test_presentation_accepts_updated_child_snapshots_and_preserves_owned_structu
 		]
 	})!
 	stale := child.element()
-	assert stale.compiled_source == child.element().compiled_source
-	assert child.source_element().compiled_source == unsafe { nil }
+	assert stale.compiled_source() == child.element().compiled_source()
+	assert child.source_element().compiled_source() == unsafe { nil }
 	first.patch(fn (element Element) Element {
 		return Element{ ...element, text: 'live', frame: rect(1, 2, 3, 4) }
 	})!
@@ -120,7 +120,7 @@ fn test_presentation_accepts_updated_child_snapshots_and_preserves_owned_structu
 	mut parent := owner.element(Element{ kind: .view, id: 'parent', children: [Element{ ...stale, hidden: true }] })!
 	assert child.element().hidden
 	assert child.element().text == 'container live'
-	assert stale.compiled_source.value.text == 'container initial'
+	assert stale.compiled_source().value.text == 'container initial'
 	assert !child.source_element().hidden
 	assert child.element().children[0].text == 'live'
 	assert child.element().children[0].frame == rect(1, 2, 3, 4)
@@ -153,7 +153,7 @@ fn test_presentation_accepts_updated_child_snapshots_and_preserves_owned_structu
 	assert child.element().children[0].text == 'live'
 	owner.dispose()!
 	assert child.source_snapshot == unsafe { nil }
-	assert child.declaration.compiled_source == unsafe { nil }
+	assert child.declaration.compiled_source() == unsafe { nil }
 	assert child.presentation == unsafe { nil } || !child.presentation.active
 	assert owner.runtime.stats() == SignalStats{}
 }

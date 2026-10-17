@@ -19,7 +19,7 @@ const catalog_state = &CatalogState{}
 fn catalog_update(change fn (mut state CatalogState)) {
 	mut state := unsafe { catalog_state }
 	change(mut state)
-	ui2.refresh()
+	ui2.request_refresh()
 }
 
 fn catalog_navigate(target string) {

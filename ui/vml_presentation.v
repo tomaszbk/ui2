@@ -12,6 +12,10 @@ mut:
 struct VmlSourceSnapshot {
 	node  &CompiledVmlNode
 	value Element
+mut:
+	// The runtime record handed out with the snapshot: the node's own state
+	// plus a link back to this snapshot.
+	runtime &ElementRuntime = unsafe { nil }
 }
 
 // Composite constructors may decorate an authored root without changing its
@@ -19,20 +23,26 @@ struct VmlSourceSnapshot {
 // and by the next constructor invocation (an inactive slide is not authored hidden).
 fn (node &CompiledVmlNode) source_element() Element {
 	node.ensure_projection()
-	return Element{ ...node.declaration, compiled_node: node, compiled_source: unsafe { nil } }
+	return Element{ ...node.declaration, compiled_node: node }
 }
 
 fn (node &CompiledVmlNode) constructor_source_element() Element {
 	node.ensure_projection()
 	mut snapshot := node.source_snapshot
 	if snapshot == unsafe { nil } {
-		snapshot = &VmlSourceSnapshot{ node: node, value: node.source_element() }
+		value := node.source_element()
+		snapshot = &VmlSourceSnapshot{ node: node, value: value }
+		snapshot.runtime = if value.runtime == unsafe { nil } {
+			&ElementRuntime{ source: snapshot }
+		} else {
+			&ElementRuntime{ ...*value.runtime, source: snapshot }
+		}
 		// This memoizes an immutable value. Previously returned Elements retain
 		// their own baseline; declaration writes invalidate the memo explicitly.
 		// A read never walks or clones the unchanged descendant tree.
 		unsafe { node.source_snapshot = snapshot }
 	}
-	return Element{ ...snapshot.value, compiled_source: snapshot }
+	return Element{ ...snapshot.value, runtime: snapshot.runtime }
 }
 
 fn (mut node CompiledVmlNode) set_presentation(element Element, parent &CompiledVmlNode) ! {
@@ -47,13 +57,14 @@ fn (mut node CompiledVmlNode) set_presentation(element Element, parent &Compiled
 	if !vml_same_child_ownership(element.children, source.children) {
 		return error('compiled VML presentation cannot replace owned children')
 	}
-	baseline := if element.compiled_source == unsafe { nil } {
+	snapshot := element.compiled_source()
+	baseline := if snapshot == unsafe { nil } {
 		source
 	} else {
-		if element.compiled_source.node != &node {
+		if snapshot.node != &node {
 			return error('compiled VML presentation must preserve snapshot ownership')
 		}
-		element.compiled_source.value
+		snapshot.value
 	}
 	if vml_declaration_equal(baseline, element) {
 		node.clear_presentation()
@@ -61,8 +72,9 @@ fn (mut node CompiledVmlNode) set_presentation(element Element, parent &Compiled
 	}
 	if node.presentation == unsafe { nil } { node.presentation = &VmlPresentation{} }
 	mut presentation := node.presentation
-	presentation.source = Element{ ...baseline, children: [], compiled_source: unsafe { nil } }
-	presentation.decorated = Element{ ...element, children: [], compiled_source: unsafe { nil } }
+	// Runtime records follow the live source, never a projection.
+	presentation.source = Element{ ...baseline, children: [], runtime: unsafe { nil } }
+	presentation.decorated = Element{ ...element, children: [], runtime: unsafe { nil } }
 	presentation.active = true
 }
 
@@ -94,7 +106,7 @@ fn vml_present(source Element, presentation &VmlPresentation) Element {
 	// reconciled by the node graph; every other constructor-produced field follows
 	// the projection while untouched fields continue to follow their live source.
 	$for field in Element.fields {
-		if field.name !in ['id', 'key', 'kind', 'compiled_node', 'compiled_source', 'children'] {
+		if field.name !in ['id', 'key', 'kind', 'compiled_node', 'mount', 'runtime', 'children'] {
 			if presentation.decorated.$(field.name) != presentation.source.$(field.name) {
 				// `element` is a fresh value; this never mutates either source snapshot.
 				$if field.typ is $enum {

@@ -108,7 +108,7 @@ fn build() ui2.Element {
 			keyboard:    0
 		) or { panic(err) },
 		ui2.with_event(ui2.button('refresh', 'Refresh', ui2.rect(380, 96, 100, 34), box, style), fn (event ui2.ElementEvent) {
-			if event.kind == .click { ui2.refresh() }
+			if event.kind == .click { ui2.request_refresh() }
 		}),
 		ui2.with_event(ui2.button('worker', 'Worker', ui2.rect(496, 96, 112, 34), box, style), fn (event ui2.ElementEvent) {
 			if event.kind == .click { spawn delayed_update(ui2.ui_dispatcher()) }

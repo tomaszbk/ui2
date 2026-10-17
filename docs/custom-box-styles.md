@@ -45,8 +45,9 @@ State precedence is hover, focus, pressed; disabled uses only its declared patch
 These changes affect paint, preserving layout, identity, actions and editor state.
 
 In V, use `with_interaction_style(element, InteractionStyle{...})` with sparse
-`BoxStylePatch` values. Focus follows existing focused editors or the explicit
-`Element.focused` state. This API does not add keyboard focus traversal to views.
+`BoxStylePatch` values. Focus follows existing focused editors, or the element
+named by `set_backend_text_focus` when an input backend in another process owns
+text focus. This API does not add keyboard focus traversal to views.
 Hover uses the pointer's clipped region; a captured press applies while the pointer
 remains inside and the gesture has not become a drag. Touch presses work too.
 

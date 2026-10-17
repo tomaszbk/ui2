@@ -188,7 +188,7 @@ fn card_config() ui2.HoverCardConfig {
         children: [...]
         on_step:  fn (step ui2.HoverCardStep) {
             apply_card(step)
-            ui2.refresh()
+            ui2.request_refresh()
         }
     }
 }

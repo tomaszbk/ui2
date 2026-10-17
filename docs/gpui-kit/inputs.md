@@ -82,7 +82,7 @@ fn quantity_input(mut m Model, event ui2.NumberInputEvent) {
 	match event.kind {
 		.change {
 			m.quantity = ui2.number_input_sanitize(config, event.text)
-			// After refresh(): if m.quantity != event.text,
+			// After request_refresh(): if m.quantity != event.text,
 			// set_text(number_input_field_id('quantity'), m.quantity)
 		}
 		.submit {
@@ -164,7 +164,7 @@ fn code_edited(edit ui2.OtpInputEdit) {
 	unsafe {
 		model.code = edit.code
 	}
-	ui2.refresh()
+	ui2.request_refresh()
 	// The edited cell may still show what was typed (e.g. `35`).
 	cell := ui2.otp_input_cell_id('code', edit.cell)
 	expected := ui2.otp_input_cell_text(edit.code, edit.cell)

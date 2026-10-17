@@ -37,7 +37,7 @@ fn test_noop_keyed_list_keeps_captured_key_dependencies_and_rejects_errors_atomi
 	assert fixture.keys == 1 && fixture.builds == 1
 	pulse.set(1)!
 	assert fixture.keys == 2 && fixture.builds == 1
-	assert parent.element().compiled_source == baseline.compiled_source
+	assert parent.element().compiled_source() == baseline.compiled_source()
 	assert list.effect.node.dependencies.len == 2
 	assert list.effect.node.dependencies.any(it.node == suffix.node)
 	suffix.set('/two')!
@@ -52,7 +52,7 @@ fn test_noop_keyed_list_keeps_captured_key_dependencies_and_rejects_errors_atomi
 		assert err.msg().contains('duplicate')
 	}
 	assert list.nodes() == [second]
-	assert parent.element().compiled_source == unchanged.compiled_source
+	assert parent.element().compiled_source() == unchanged.compiled_source()
 	assert second.element().text == 'A' && fixture.builds == 2
 	owner.dispose()!
 }
@@ -99,7 +99,7 @@ fn test_unchanged_keyed_list_and_constructor_reads_allocate_nothing() ! {
 		for _ in 0 .. 128 {
 			list.update(items)!
 			parent.set_segment(list.segment, nodes)!
-			assert parent.element().compiled_source == baseline.compiled_source
+			assert parent.element().compiled_source() == baseline.compiled_source()
 			assert first_ref.element()!.text == 'A'
 		}
 		delta := gc_allocation_snapshot()!.delta_since(before)
@@ -113,7 +113,7 @@ fn test_unchanged_keyed_list_and_constructor_reads_allocate_nothing() ! {
 	assert first_ref.element()!.text == 'changed'
 	assert parent.element().children[0].text == 'changed'
 	assert baseline.children[0].text == 'A'
-	assert baseline.compiled_source.value.children[0].text == 'A'
+	assert baseline.compiled_source().value.children[0].text == 'A'
 	list.update([AllocationListItem{'b', 'ñ'}, AllocationListItem{'a', 'changed'}])!
 	assert list.nodes() == [nodes[1], nodes[0]]
 	assert first_ref.is_available()
@@ -141,7 +141,7 @@ fn test_child_identity_checks_reject_cycles_without_changing_the_tree() ! {
 		assert err.msg().contains('itself')
 	}
 	assert leaf.children.len == 0
-	assert voidptr(root.element().compiled_source) == voidptr(baseline.compiled_source)
+	assert voidptr(root.element().compiled_source()) == voidptr(baseline.compiled_source())
 	assert root.children == [branch] && branch.children == [leaf]
 	owner.dispose()!
 }
@@ -177,8 +177,8 @@ fn test_unchanged_constructor_geometry_preserves_source_snapshots() ! {
 		for _ in 0 .. 128 {
 			again := owner.element(declaration)!
 			assert voidptr(again) == voidptr(child)
-			assert voidptr(again.element().compiled_source) == voidptr(child_snapshot.compiled_source)
-			assert voidptr(parent.element().compiled_source) == voidptr(parent_snapshot.compiled_source)
+			assert voidptr(again.element().compiled_source()) == voidptr(child_snapshot.compiled_source())
+			assert voidptr(parent.element().compiled_source()) == voidptr(parent_snapshot.compiled_source())
 		}
 		delta := gc_allocation_snapshot()!.delta_since(before)
 		assert delta.allocated_bytes == 0

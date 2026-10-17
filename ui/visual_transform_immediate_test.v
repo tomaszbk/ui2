@@ -10,7 +10,7 @@ $if ( linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headl
 	fn transform_explicit_build_event(event ElementEvent) {
 		transform_callback_events << event
 		set_visual_transform('tile', VisualTransform{rotation: 30}) or { panic(err) }
-		refresh()
+		request_refresh()
 	}
 	fn transform_presentation_event(event ElementEvent) {
 		transform_callback_events << event
@@ -44,14 +44,14 @@ $if ( linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headl
 		on_event(&gg.Event{ typ: .mouse_up, mouse_x: 25, mouse_y: 32 }, g_gg_app)
 		assert transform_callback_events.map(it.kind) == [ElementEventKind.pointer_down, .pointer_drag, .pointer_up]
 		work := g_gg_app.scheduler.begin_frame(1) or { panic('missing paint') }
-		assert !work.build && work.draw && RenderReason.build !in work.reason_list()
+		assert !work.build && work.draw && !work.reasons.has(.build)
 		g_gg_app.scheduler.finish_frame(work)
 		assert !g_gg_app.scheduler.stats().pending
 		refresh_element('tile', Element{...tile, on_event: transform_explicit_build_event})
 		on_event(&gg.Event{typ: .mouse_down, mouse_x: 20, mouse_y: 30}, g_gg_app)
 		assert transform_callback_events.len == 4 && transform_callback_events.last().kind == .pointer_down
 		explicit := g_gg_app.scheduler.begin_frame(2) or { panic('explicit build') }
-		assert explicit.build && RenderReason.build in explicit.reason_list()
+		assert explicit.build && explicit.reasons.has(.build)
 		g_gg_app.scheduler.finish_frame(explicit)
 	}
 	fn test_rotated_targets_tooltips_and_scroll_use_exact_same_clip() {
@@ -162,7 +162,7 @@ $if ( linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headl
 		set_visual_transform('tile', VisualTransform{ rotation: 30, translate_x: 5 })!
 		assert g_gg_app.declared_root.children[0].frame == frame
 		work := g_gg_app.scheduler.begin_frame(1) or { panic('paint was not requested') }
-		assert !work.build && work.draw && work.reason_list() == [RenderReason.paint]
+		assert !work.build && work.draw && work.reasons == RenderReason.paint
 		g_gg_app.scheduler.finish_frame(work)
 		assert !g_gg_app.scheduler.stats().pending
 		assert g_gg_app.scheduler.begin_frame(2) == none

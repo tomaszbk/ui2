@@ -65,14 +65,14 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		assert !app.scheduler.stats().suspended
 		restored := scheduler_immediate_finish(mut app, 1_001)
 		assert restored.build && restored.draw
-		assert RenderReason.surface in restored.reason_list()
+		assert restored.reasons.has(.surface)
 		if _ := app.scheduler.begin_frame(1_002) {
 			assert false, 'the restored surface must return to idle'
 		}
 		on_event(&gg.Event{ typ: .resized }, app)
 		resized := scheduler_immediate_finish(mut app, 1_003)
 		assert resized.build && resized.draw
-		assert RenderReason.surface in resized.reason_list()
+		assert resized.reasons.has(.surface)
 	}
 
 	fn test_custom_scheduler_stationary_tooltip_deadline_and_unmount_cancellation() {
@@ -110,7 +110,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 			assert false, 'a resting tooltip must wait until its deadline'
 		}
 		timer := app.scheduler.begin_frame(1_500) or { panic('tooltip deadline did not wake') }
-		assert timer.reason_list() == [.timer]
+		assert timer.reasons == RenderReason.timer
 		assert !timer.build && timer.draw
 		update_tooltip(1_500)
 		assert g_tooltip.visible
@@ -173,7 +173,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		g_touch.start_time = renderer_now_ms() - 450
 		app.scheduler.set_deadline(custom_visual_deadline())
 		timer := app.scheduler.begin_frame(renderer_now_ms()) or { panic('long press deadline did not wake') }
-		assert timer.reason_list() == [.timer]
+		assert timer.reasons == RenderReason.timer
 		check_long_press()
 		check_long_press()
 		assert g_scheduler_element_events == [ElementEvent{ kind: .long_press, id: 'hold' }]
@@ -182,7 +182,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		app.scheduler.finish_frame(timer)
 		// The application handler runs during the visual frame; its requested
 		// model build must survive completion of that frame.
-		assert app.scheduler.stats().pending_reasons == [.build]
+		assert app.scheduler.stats().pending_reasons == RenderReason.build
 		scheduler_immediate_finish(mut app, renderer_now_ms())
 		if _ := app.scheduler.begin_frame(renderer_now_ms()) {
 			assert false, 'a completed long press must return to idle'
@@ -256,7 +256,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		assert g_focused_field == 'editor'
 		assert scroll_offset('editor') == 42
 		paint := scheduler_immediate_finish(mut app, 1)
-		assert paint.reason_list() == [.paint]
+		assert paint.reasons == RenderReason.paint
 		assert !paint.build && paint.draw
 		assert slider_value('volume') == 75
 		set_text('editor', 'replacement')
@@ -265,7 +265,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		assert g_focused_field == 'editor'
 		assert scroll_offset('editor') == 42
 		replacement := scheduler_immediate_finish(mut app, 2)
-		assert !replacement.build && replacement.reason_list() == [.paint]
+		assert !replacement.build && replacement.reasons == RenderReason.paint
 		set_text('missing', 'ignored')
 		set_slider_value('missing', 25)
 		if _ := app.scheduler.begin_frame(3) {
@@ -315,7 +315,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		// request another build even though the animation no longer needs frames.
 		follow_up := app.scheduler.begin_frame(2_001) or { panic('completion lost its model update') }
 		assert follow_up.build
-		assert follow_up.reason_list() == [.animation_follow_up]
+		assert follow_up.reasons == RenderReason.animation_follow_up
 		apply_custom_widget_animations_at(root, 2_001)
 		app.scheduler.finish_frame(follow_up)
 		assert g_scheduler_immediate_events == ['completed']

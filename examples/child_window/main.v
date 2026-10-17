@@ -99,32 +99,32 @@ fn child_window_callbacks() map[string]ui2.ElementCallback {
 		'create':         fn (_event ui2.ElementEvent) {
 			mut state := unsafe { child_window_state }
 			state.create_window()
-			ui2.refresh()
+			ui2.request_refresh()
 		}
 		'close':          fn (_event ui2.ElementEvent) {
 			mut state := unsafe { child_window_state }
 			state.close_window()
-			ui2.refresh()
+			ui2.request_refresh()
 		}
 		'greet':          fn (_event ui2.ElementEvent) {
 			mut state := unsafe { child_window_state }
 			state.greet()
-			ui2.refresh()
+			ui2.request_refresh()
 		}
 		'child_name':     fn (event ui2.ElementEvent) {
 			mut state := unsafe { child_window_state }
 			state.set_name(event.text)
-			ui2.refresh()
+			ui2.request_refresh()
 		}
 		'genre':          fn (event ui2.ElementEvent) {
 			mut state := unsafe { child_window_state }
 			state.woman = event.checked
-			ui2.refresh()
+			ui2.request_refresh()
 		}
 		'parent_input':   fn (event ui2.ElementEvent) {
 			mut state := unsafe { child_window_state }
 			state.parent_text = event.text
-			ui2.refresh()
+			ui2.request_refresh()
 		}
 		'child_titlebar': fn (event ui2.ElementEvent) {
 			mut state := unsafe { child_window_state }
@@ -136,7 +136,7 @@ fn child_window_callbacks() map[string]ui2.ElementCallback {
 				}
 				else {}
 			}
-			ui2.refresh()
+			ui2.request_refresh()
 		}
 	}
 }

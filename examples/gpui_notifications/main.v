@@ -41,7 +41,7 @@ fn (mut app Gallery) push(n ui2.Notification) {
 fn with_app(change fn (mut app Gallery)) {
 	mut app := unsafe { gallery }
 	change(mut app)
-	ui2.refresh()
+	ui2.request_refresh()
 }
 
 fn heading(text string, y f64, theme ui2.ComponentTheme) ui2.Element {

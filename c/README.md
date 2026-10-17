@@ -79,7 +79,7 @@ after element and keyboard callbacks. IDs identify live state and never select
 a handler. Event kinds distinguish clicks, changes, submission, scrolling and
 pointer gestures; the payload includes text, numeric value, checked state and
 coordinates where relevant.
-`ui2_refresh` requests a rebuild after other state changes.
+`ui2_request_refresh` requests a rebuild after other state changes.
 
 Use `ui2_create` for views, images, checkboxes, dropdowns, text fields, text areas,
 sliders, switches, and toggle buttons. Frames use logical pixels relative to

@@ -131,7 +131,7 @@ fn test_set_prop_on_a_built_node_commits_it() {
 	label.set_prop('opacity', f64(0.5))!
 	assert root.element().children[0].text == 'after'
 	assert root.element().children[0].opacity == 0.5
-	assert root.element().layout.flex.children[0].grow == 2
+	assert root.element().layout.flex_rules[0].grow == 2
 	assert label.get_prop('flex_grow')! is f64
 	root.dispose_document()!
 }

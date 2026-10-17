@@ -488,6 +488,13 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		return register_scroll_view_in_parent(named_scroll_state_id(id), if parent.len > 0 { named_scroll_state_id(parent) } else { '' }, frame, clip, height, enabled, scrollbar, persistent, scroll_test_target(id))
 	}
 
+	// settle_scroll_test_frame runs the frame that rebuilds what was requested, so
+	// nothing is pending.
+	fn settle_scroll_test_frame() {
+		if work := g_gg_app.scheduler.begin_frame(0) { g_gg_app.scheduler.finish_frame(work) }
+		assert !g_gg_app.scheduler.build_pending()
+	}
+
 	fn horizontal_scroll_test_pane() {
 		frame := rect(0, 0, 100, 100)
 		register_horizontal_test_scroll('columns', frame, frame, 0, true, false, false)
@@ -648,14 +655,16 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	fn test_scroll_to_horizontal_offset_uses_the_latest_mounted_range() {
 		reset_scroll_test_state()
 		horizontal_scroll_test_pane()
-		// An existing view clamps against its mounted range. Refresh a changed
-		// tree before asking to scroll to newly added content.
+		// With no rebuild pending, an existing view clamps against its mounted range
+		// and the request is spent.
+		settle_scroll_test_frame()
 		scroll_to_horizontal_offset('columns', 10_000)
 		assert scroll_horizontal_offset('columns') == 300
 		reset_scroll_frame()
 		frame := rect(0, 0, 100, 100)
 		register_horizontal_test_scroll('columns', frame, frame, 0, true, false, false)
 		assert register_scroll_view_width(named_scroll_state_id('columns'), 600, true, false, false) == 300
+		settle_scroll_test_frame()
 		scroll_to_horizontal_offset('columns', 10_000)
 		assert scroll_horizontal_offset('columns') == 500
 		// The request is spent, so a later frame leaves a position the user moved to alone.
@@ -668,6 +677,42 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		scroll_to_horizontal_offset('columns', 120)
 		assert scroll_horizontal_offset('columns') == 120
 		assert named_scroll_state_id('columns') !in g_pending_scroll_x
+	}
+
+	fn test_scroll_past_the_range_is_taken_up_again_after_a_pending_rebuild() {
+		reset_scroll_test_state()
+		horizontal_scroll_test_pane()
+		settle_scroll_test_frame()
+		// Opening a folder adds a column and asks for the far end of the strip.
+		request_refresh()
+		scroll_to_horizontal_offset('columns', 10_000)
+		assert scroll_horizontal_offset('columns') == 300
+		settle_scroll_test_frame()
+		reset_scroll_frame()
+		frame := rect(0, 0, 100, 100)
+		register_horizontal_test_scroll('columns', frame, frame, 0, true, false, false)
+		register_scroll_view_width(named_scroll_state_id('columns'), 600, true, false, false)
+		assert scroll_horizontal_offset('columns') == 500
+		assert named_scroll_state_id('columns') !in g_pending_scroll_x
+		// An offset inside the range is taken at once, rebuild or not.
+		request_refresh()
+		scroll_to_horizontal_offset('columns', 120)
+		assert scroll_horizontal_offset('columns') == 120
+		assert named_scroll_state_id('columns') !in g_pending_scroll_x
+		settle_scroll_test_frame()
+		reset_scroll_test_state()
+		register_scroll_view_in_parent(named_scroll_state_id('notes'), '', frame, frame, 400,
+			true, true, false, scroll_test_target('notes'))
+		settle_scroll_test_frame()
+		request_refresh()
+		scroll_to_offset('notes', 10_000)
+		assert scroll_offset('notes') == 300
+		settle_scroll_test_frame()
+		reset_scroll_frame()
+		register_scroll_view_in_parent(named_scroll_state_id('notes'), '', frame, frame, 700,
+			true, true, false, scroll_test_target('notes'))
+		assert scroll_offset('notes') == 600
+		assert named_scroll_state_id('notes') !in g_pending_scroll
 	}
 
 	fn test_sideways_state_goes_with_the_axis_and_with_the_pane() {

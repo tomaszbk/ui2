@@ -45,7 +45,7 @@ fn test_counter_tick_relayouts_and_reshapes_only_the_changed_label() {
 		frame_work_counter = 0
 		g_build_screen = frame_work_build
 		g_gg_app = &GgApp{ ctx: ctx, native_window: window }
-		refresh()
+		request_refresh()
 		on_frame(mut g_gg_app)
 		assert g_gg_app.scheduler.stats().draws == 1
 		assert g_focus_navigation.node('item-299') != none

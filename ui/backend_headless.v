@@ -97,7 +97,7 @@ $if ui2_headless ? && !ui2_document_library ? {
 	// next frame would. It reports whether it built.
 	pub fn headless_frame() bool {
 		if !g_headless.refresh_pending { return false }
-		refresh()
+		headless_rebuild()
 		return true
 	}
 
@@ -156,7 +156,7 @@ $if ui2_headless ? && !ui2_document_library ? {
 		configure_animation_driver(refresh_animation_frame, false)
 		publish_menu_context(title, unsafe { nil })
 		install_declared_menus()
-		refresh()
+		headless_rebuild()
 	}
 
 	pub fn quit() { g_headless.quit_requested = true }
@@ -165,9 +165,9 @@ $if ui2_headless ? && !ui2_document_library ? {
 
 	pub fn safe_area_top() f64 { return g_headless.safe_area_top }
 
-	// refresh rebuilds now. A refresh asked for while one builds waits for the
-	// next headless_frame.
-	pub fn refresh() {
+	// headless_rebuild builds and renders now. A rebuild asked for while one
+	// builds waits for the next headless_frame.
+	fn headless_rebuild() {
 		mut h := g_headless
 		if voidptr(h.build) == unsafe { nil } { return }
 		if h.rendering {
@@ -183,6 +183,7 @@ $if ui2_headless ? && !ui2_document_library ? {
 		h.rendering = false
 	}
 
+	// request_refresh schedules a rebuild for the next headless_frame.
 	pub fn request_refresh() {
 		mut h := g_headless
 		h.refresh_requests++
@@ -258,7 +259,7 @@ $if ui2_headless ? && !ui2_document_library ? {
 		if el.id.len > 0 && el.kind in [.text_field, .text_area, .dropdown, .slider, .checkbox, .switch_control, .toggle_button] {
 			mut h := g_headless
 			previous := h.controls[el.id] or { HeadlessControl{ kind: el.kind, text: el.text, declared_text: el.text, value: el.value, declared_value: el.value, checked: el.checked, declared_checked: el.checked, caret: text_area_utf16_length(el.text) } }
-			mut control := HeadlessControl{ ...previous, kind: el.kind, mounted: true, group: el.toggle_group, allow_no_selection: el.toggle_allow_no_selection }
+			mut control := HeadlessControl{ ...previous, kind: el.kind, mounted: true, group: el.toggle_group(), allow_no_selection: el.toggle_allow_no_selection() }
 			if previous.kind != el.kind || el.text != previous.declared_text {
 				control.text = el.text
 				control.caret = text_area_utf16_length(el.text)
@@ -559,7 +560,7 @@ $if ui2_headless ? && !ui2_document_library ? {
 			}
 			.toggle_button {
 				previous := toggle_button_pressed(id)
-				pressed := if el.toggle_group.len > 0 && previous && !el.toggle_allow_no_selection { true } else { !previous }
+				pressed := if el.toggle_group().len > 0 && previous && !el.toggle_allow_no_selection() { true } else { !previous }
 				set_toggle_button_pressed(id, pressed)
 				headless_emit(el, ElementEvent{ kind: .change, id: id, checked: pressed })
 			}
