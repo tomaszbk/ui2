@@ -103,11 +103,11 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 			return 0.0
 		}
 		$if android || ios {
-			family := text_font_file(style.font_family, style.bold, style.italic)
+			family := text_font_file(ctx, style.font_family, style.bold, style.italic)
 			ensure_family_fallbacks(ctx, family)
 			ctx.set_text_cfg(gg.TextCfg{
 				color: hex_color(style.color)
-				size: int(font_render_size(style.size, text_font_metrics(family)) + 0.5)
+				size: int(font_render_size(style.size, text_font_metrics(ctx, family)) + 0.5)
 				bold: style.bold
 				italic: style.italic
 				family: family

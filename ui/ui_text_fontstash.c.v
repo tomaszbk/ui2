@@ -2,7 +2,6 @@
 // Android and iOS draw text with gg/Fontstash: neither SDK ships the Pango,
 // HarfBuzz and Fontconfig stack that vglyph needs. Desktop builds never compile
 // this adapter.
-@[has_globals]
 module ui2
 
 $if (android || ios) && !ui2_headless ? && !ui2_document_library ? {
@@ -16,37 +15,38 @@ $if (android || ios) && !ui2_headless ? && !ui2_document_library ? {
 	// returns without touching the font state at all, leaving the string drawn
 	// in whatever the previous element used. An unknown family therefore has to
 	// come back empty so the default font is used instead.
-	fn text_font_file(family string, bold bool, italic bool) string {
+	fn text_font_file(ctx &DrawContext, family string, bold bool, italic bool) string {
 		if family.len == 0 {
 			return ''
 		}
+		mut drawing := unsafe { ctx }
 		key := '${family}:${bold}:${italic}'
-		if path := g_font_family_files[key] {
+		if path := drawing.font_family_files[key] {
 			return path
 		}
 		mut path := ''
 		if os.is_file(family) {
 			path = family
 		} else {
-			if !g_font_indexed {
+			if !drawing.font_indexed {
 				mut dirs := font_bundle_dirs()
 				dirs << font_system_dirs()
-				g_font_files = font_index(dirs)
-				g_font_indexed = true
+				drawing.font_files = font_index(dirs)
+				drawing.font_indexed = true
 			}
-			path = font_lookup(g_font_files, family, bold, italic)
+			path = font_lookup(drawing.font_files, family, bold, italic)
 			if path.len == 0 && (bold || italic) {
 				// A family with no bold or italic file of its own still reads
 				// better in its regular weight than in the default font.
-				path = font_lookup(g_font_files, family, false, false)
+				path = font_lookup(drawing.font_files, family, false, false)
 			}
 			if path.len == 0 && font_is_mono_family(family) {
 				// Falling back to the proportional default would break the
 				// column alignment the element asked for in the first place.
-				path = font_mono_path(g_font_files, family, bold, italic)
+				path = font_mono_path(drawing.font_files, family, bold, italic)
 			}
 		}
-		g_font_family_files[key] = path
+		drawing.font_family_files[key] = path
 		return path
 	}
 
@@ -65,34 +65,36 @@ $if (android || ios) && !ui2_headless ? && !ui2_document_library ? {
 		if !ctx.font_inited || ctx.ft == unsafe { nil } || ctx.ft.fons == unsafe { nil } {
 			return
 		}
+		mut drawing := unsafe { ctx }
 		fons := ctx.ft.fons
-		if g_font_symbol_fons != voidptr(fons) {
-			g_font_symbol_fons = voidptr(fons)
+		if drawing.symbol_fons != voidptr(fons) {
+			drawing.symbol_fons = voidptr(fons)
 			w.clear_text_area_layouts()
-			g_font_symbol_ids = []int{}
-			g_font_symbol_bases = map[int]bool{}
+			drawing.symbol_font_ids = []int{}
+			drawing.symbol_font_bases = map[int]bool{}
 			for path in font_symbol_paths() {
 				bytes := os.read_bytes(path) or { continue }
 				id := fons.add_font_mem(path, bytes, true)
 				if id != fontstash.invalid {
-					g_font_symbol_ids << id
+					drawing.symbol_font_ids << id
 				}
 			}
 		}
 		for base in [ctx.ft.font_normal, ctx.ft.font_bold, ctx.ft.font_mono, ctx.ft.font_italic] {
-			add_symbol_fallbacks(fons, base)
+			add_symbol_fallbacks(mut drawing, base)
 		}
 	}
 
 	// add_symbol_fallbacks attaches the chain to one font, once. fontstash gives
 	// a font a fixed number of fallback slots and appends to them blindly, so
 	// registering the same face twice would spend them for nothing.
-	fn add_symbol_fallbacks(fons &fontstash.Context, base int) {
-		if base == fontstash.invalid || g_font_symbol_ids.len == 0 || base in g_font_symbol_bases {
+	fn add_symbol_fallbacks(mut ctx DrawContext, base int) {
+		if base == fontstash.invalid || ctx.symbol_font_ids.len == 0 || base in ctx.symbol_font_bases {
 			return
 		}
-		g_font_symbol_bases[base] = true
-		for id in g_font_symbol_ids {
+		ctx.symbol_font_bases[base] = true
+		fons := ctx.ft.fons
+		for id in ctx.symbol_font_ids {
 			if id != base {
 				fons.add_fallback_font(base, id)
 			}
@@ -105,7 +107,7 @@ $if (android || ios) && !ui2_headless ? && !ui2_document_library ? {
 	// id in that map before any glyph is rasterized from it, which is the only
 	// moment the fallbacks can still be attached.
 	fn ensure_family_fallbacks(ctx &DrawContext, path string) {
-		if path.len == 0 || g_font_symbol_ids.len == 0 || !ctx.font_inited {
+		if path.len == 0 || ctx.symbol_font_ids.len == 0 || !ctx.font_inited {
 			return
 		}
 		mut id := ctx.ft.fonts_map[path]
@@ -119,20 +121,22 @@ $if (android || ios) && !ui2_headless ? && !ui2_document_library ? {
 				ctx.ft.fonts_map[path] = id
 			}
 		}
-		add_symbol_fallbacks(ctx.ft.fons, id)
+		mut drawing := unsafe { ctx }
+		add_symbol_fallbacks(mut drawing, id)
 	}
 
 	// text_font_metrics reports the metrics to size a string with: the chosen
 	// family's own, or the window font's when the element declared none.
-	fn text_font_metrics(path string) FontMetrics {
+	fn text_font_metrics(ctx &DrawContext, path string) FontMetrics {
 		if path.len == 0 {
-			return g_font_metrics
+			return ctx.font_metrics
 		}
-		if metrics := g_font_family_metrics[path] {
+		if metrics := ctx.font_family_metrics[path] {
 			return metrics
 		}
-		metrics := font_file_metrics(path) or { g_font_metrics }
-		g_font_family_metrics[path] = metrics
+		metrics := font_file_metrics(path) or { ctx.font_metrics }
+		mut drawing := unsafe { ctx }
+		drawing.font_family_metrics[path] = metrics
 		return metrics
 	}
 
@@ -186,11 +190,11 @@ $if (android || ios) && !ui2_headless ? && !ui2_document_library ? {
 		if selected.len == 0 || w <= 0 {
 			return
 		}
-		family := text_font_file(style.font_family, style.bold, style.italic)
+		family := text_font_file(ctx, style.font_family, style.bold, style.italic)
 		ensure_family_fallbacks(ctx, family)
 		ctx.set_text_cfg(gg.TextCfg{
 			color: hex_color(style.color)
-			size: int(font_render_size(style.size, text_font_metrics(family)) + 0.5)
+			size: int(font_render_size(style.size, text_font_metrics(ctx, family)) + 0.5)
 			bold: style.bold
 			italic: style.italic
 			family: family
@@ -220,11 +224,11 @@ $if (android || ios) && !ui2_headless ? && !ui2_document_library ? {
 		frame := rect(x, y, el.frame.width, el.frame.height)
 		content := text_area_content_rect(frame, el.padding_left, !el.disable_scroll)
 		style := el.text_style
-		family := text_font_file(style.font_family, style.bold, style.italic)
+		family := text_font_file(ctx, style.font_family, style.bold, style.italic)
 		ensure_family_fallbacks(ctx, family)
 		cfg := gg.TextCfg{
 			color: hex_color(style.color)
-			size: int(font_render_size(style.size, text_font_metrics(family)) + 0.5)
+			size: int(font_render_size(style.size, text_font_metrics(ctx, family)) + 0.5)
 			bold: style.bold
 			italic: style.italic
 			family: family

@@ -1,6 +1,5 @@
 // vfmt off
 // Keep gg imports out of the headless and document builds.
-@[has_globals]
 module ui2
 
 $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_document_library ? {

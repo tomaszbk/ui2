@@ -5,7 +5,6 @@
 // its public methods and the headless_* methods below: headless_frame
 // rebuilds after a refresh request, headless_key delivers a key press, and
 // the window's public fields expose the counters and live control values.
-@[has_globals]
 module ui2
 
 $if !(android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_document_library ? {
@@ -85,6 +84,8 @@ $if ui2_headless ? && !ui2_document_library ? {
 		close_hooks []fn ()
 		menus       MenuDeclarations
 		timers      &TimerRuntime = &TimerRuntime{}
+		// The modifier keys key_modifiers reports where the OS has none.
+		event_modifiers KeyModifiers
 	}
 
 	fn (mut app App) open_backend_window(config WindowConfig) !&Window {

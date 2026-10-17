@@ -1,7 +1,6 @@
 // vfmt off
 // Keep the imports inside the backend block, so the builds without the
 // renderer (headless, document library) never compile gg and sokol.
-@[has_globals]
 module ui2
 
 $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_document_library ? {
@@ -157,6 +156,8 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 		os_window voidptr
 		// Pending `after` callbacks (timer.v).
 		timers &TimerRuntime = &TimerRuntime{}
+		// The modifier keys of the last event (key_modifiers.v).
+		event_modifiers KeyModifiers
 		// The menu bar and tray the window declared (menu.v), and the drawn
 		// menu bar's state (menu_custom.c.v): menu_open_path holds one element
 		// per open panel, [m] for menu m's own list and [m, r] for the submenu
@@ -368,16 +369,6 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 	const tooltip_shadow = u32(0xdbe2ea)
 	const tooltip_text_color = u32(0x1f2937)
 
-	$if android || ios {
-		__global g_font_metrics = FontMetrics{}
-		__global g_font_files = map[string]string{}
-		__global g_font_indexed = false
-		__global g_font_family_files = map[string]string{}
-		__global g_font_family_metrics = map[string]FontMetrics{}
-		__global g_font_symbol_ids = []int{}
-		__global g_font_symbol_bases = map[int]bool{}
-		__global g_font_symbol_fons = voidptr(unsafe { nil })
-	}
 
 	// Map values are copied byte-for-byte when an existing key is replaced.
 	// Unlike keys, their nested strings are not released by map.set. The text
@@ -502,11 +493,6 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 	fn (mut w Window) run_sokol() {
 		// Pick the bundled font before constructing either drawing adapter.
 		font_regular, font_bold := font_paths()
-		$if android || ios {
-			if font_regular.len > 0 {
-				g_font_metrics = font_file_metrics(font_regular) or { FontMetrics{} }
-			}
-		}
 		w.ctx = gg_draw_context(gg.new_context(
 			bg_color: hex_color(0xf4f6f8)
 			font_path: font_regular
@@ -531,6 +517,11 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 			max_dropped_files: 32
 			max_dropped_file_path_length: 4096
 		))
+		$if android || ios {
+			if font_regular.len > 0 {
+				w.ctx.font_metrics = font_file_metrics(font_regular) or { FontMetrics{} }
+			}
+		}
 		w.ctx.inner.run()
 	}
 
@@ -1477,7 +1468,7 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 		}
 		// The modifier keys of the last event, for key_modifiers on platforms
 		// with no other way to ask.
-		g_key_modifiers = KeyModifiers{
+		w.event_modifiers = KeyModifiers{
 			shift: e.modifiers & u32(gg.Modifier.shift) != 0
 			ctrl: e.modifiers & u32(gg.Modifier.ctrl) != 0
 			alt: e.modifiers & u32(gg.Modifier.alt) != 0
@@ -2857,7 +2848,7 @@ fn (mut w Window) page_focused_text_area(direction int) {
 			// Measured with the configuration draw_text_in_box draws with, so no
 			// line that fits here is shortened when it is drawn.
 			ctx.set_text_cfg(gg.TextCfg{
-				size: int(font_render_size(style.size, text_font_metrics('')) + 0.5)
+				size: int(font_render_size(style.size, text_font_metrics(ctx, '')) + 0.5)
 				align: .left
 				vertical_align: .middle
 			})
@@ -4244,11 +4235,11 @@ fn (mut w Window) page_focused_text_area(direction int) {
 				.center { int(x + w / 2) }
 				.right { int(x + w) }
 			}
-			family := text_font_file(style.font_family, style.bold, style.italic)
+			family := text_font_file(ctx, style.font_family, style.bold, style.italic)
 			ensure_family_fallbacks(ctx, family)
 			cfg := gg.TextCfg{
 				color: hex_color(style.color)
-				size: int(font_render_size(style.size, text_font_metrics(family)) + 0.5)
+				size: int(font_render_size(style.size, text_font_metrics(ctx, family)) + 0.5)
 				bold: style.bold
 				italic: style.italic
 				family: family

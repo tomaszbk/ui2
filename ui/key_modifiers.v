@@ -1,4 +1,3 @@
-@[has_globals]
 module ui2
 
 // KeyModifiers are the modifier keys held at a moment. `cmd` is Command on Apple
@@ -13,10 +12,8 @@ pub:
 
 // key_modifiers reports the modifier keys held right now. Pointer events do not
 // carry them, so a click handler asks here to tell a Shift- or Cmd-click apart.
-pub fn key_modifiers() KeyModifiers {
-	return host_key_modifiers()
+// Where the platform has no way to ask, these are the modifiers of the last
+// event the window received.
+pub fn (w &Window) key_modifiers() KeyModifiers {
+	return host_key_modifiers(w.event_modifiers)
 }
-
-// g_key_modifiers holds the modifier keys of the last event the custom
-// renderer received, for platforms that have no other way to ask.
-__global g_key_modifiers = KeyModifiers{}

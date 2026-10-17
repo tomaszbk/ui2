@@ -2,7 +2,6 @@
 // The custom renderer's side of the backend contract (backend.v): its
 // capability constants and the hooks that do not belong to its window, input,
 // scrolling or text files.
-@[has_globals]
 module ui2
 
 $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_document_library ? {

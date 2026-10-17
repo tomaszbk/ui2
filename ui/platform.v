@@ -99,7 +99,9 @@ module ui2
 //
 // ## Key modifiers (key_modifiers_*)
 //
-//   fn host_key_modifiers() KeyModifiers
+//   fn host_key_modifiers(last_event KeyModifiers) KeyModifiers: the
+//     modifiers held now, or last_event, those of the last event the window
+//     received, where the platform cannot be asked
 //
 // ## Safe area (safe_area_*)
 //

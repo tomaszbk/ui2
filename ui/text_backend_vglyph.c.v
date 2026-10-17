@@ -120,6 +120,8 @@ $if (linux || macos || windows) && !ui2_headless ? && !ui2_document_library ? {
 	// Fontconfig application-font registration is process-wide in vglyph. Guard
 	// it, including CPU measurements, and register each file once; GPU resources
 	// and shaping contexts remain per window. No worker touches a window context.
+	// The CPU engine measures text for layout, which has no window: it runs
+	// before any window exists, and its fonts are the process's registration.
 	__global g_text_font_mutex = sync.new_mutex()
 	__global g_text_registered_fonts = map[string]string{}
 	__global g_text_font_generation = 0

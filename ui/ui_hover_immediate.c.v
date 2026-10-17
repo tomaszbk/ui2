@@ -1,6 +1,5 @@
 // vfmt off
 // Keep gg-dependent hover tracking out of the native and headless builds.
-@[has_globals]
 module ui2
 
 $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_document_library ? {

@@ -82,6 +82,10 @@ const scanner_metadata_types = [
 	},
 ]
 
+// The scanner's view controller, capture session and their Objective-C
+// delegate callbacks are created through the runtime functions below, which
+// reach V without context, so the scan in progress is kept once per process;
+// UIKit presents one scanner at a time.
 __global g_scan_callback = ScanCallback(unsafe { nil })
 __global g_scanner_vc = macos.Id(unsafe { nil })
 __global g_scanner_session = macos.Id(unsafe { nil })
