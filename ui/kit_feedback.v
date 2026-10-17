@@ -146,8 +146,10 @@ pub fn (p ProgressCircleProps) validate() ! {
 
 pub fn (p ProgressCircleProps) build(ctx VmlBuildContext) !Element {
 	t := ctx.tokens()
-	preset := progress_circle_diameter(p.size)
-	side := math.min(p.width or { preset }, p.height or { preset })
+	// An authored width or height alone sets the diameter; with both, the
+	// smaller one does.
+	width := p.width or { p.height or { progress_circle_diameter(p.size) } }
+	side := math.min(width, p.height or { width })
 	stroke := progress_circle_thickness(side)
 	radius := math.max(0.0, (side - stroke) / 2)
 	percent := progress_percent(p.value / p.max * 100)
@@ -237,7 +239,7 @@ pub fn (p SkeletonProps) vml_themed() {}
 
 pub fn (p SkeletonProps) build(ctx VmlBuildContext) !Element {
 	t := ctx.tokens()
-	height := p.height or { if p.circle { 40.0 } else { 16.0 } }
+	height := p.height or { if p.circle { p.width or { 40.0 } } else { 16.0 } }
 	width := p.width or { if p.circle { height } else { ctx.frame.width } }
 	el := view(ctx.id, rect(ctx.frame.x, ctx.frame.y, width, height), BoxStyle{
 		bg:     t.track
@@ -395,7 +397,7 @@ pub fn (p ClipboardProps) build(ctx VmlBuildContext) !Element {
 	copied := p.copied
 	// A copy sets `copied`, and the first one in a row clears it two seconds
 	// later. The handlers see the click, then the changes.
-	on_event := fn [emitter, handler, value, copied] (event ElementEvent) {
+	on_copy := fn [emitter, handler, value, copied] (event ElementEvent) {
 		if handler != unsafe { nil } {
 			handler(event)
 		}
@@ -421,5 +423,5 @@ pub fn (p ClipboardProps) build(ctx VmlBuildContext) !Element {
 		...el
 		accessibility_label: if caption.len > 0 { caption } else { 'Copy' }
 		accessibility_value: if p.copied { 'Copied' } else { '' }
-	}, ctx, on_event)
+	}, ctx, on_copy)
 }

@@ -49,6 +49,13 @@ pub fn (app &App) windows() []&Window {
 	return app.windows.clone()
 }
 
+// str names a window without its contents. A window holds its backend's
+// renderer and C library state, which has no printable form, and an event or
+// a retained element tree reaches its window, so printing one prints this.
+pub fn (w &Window) str() string {
+	return 'Window{}'
+}
+
 // run runs the windows until the last one closes. Backends without an event
 // loop return at once.
 pub fn (mut app App) run() {

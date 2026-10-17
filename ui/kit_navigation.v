@@ -880,13 +880,13 @@ pub fn (p CarouselProps) build(ctx VmlBuildContext) !Element {
 	// The slides share one cell; a slide's own motion crossfades it with the
 	// one it replaces.
 	mut slides := []Element{cap: count}
-	mut label := ''
+	mut slide_label := ''
 	for index, child in ctx.children {
 		record := ctx.child_record[CarouselSlideRecord](index) or {
 			return error('Carousel takes CarouselSlide children')
 		}
 		if index == current {
-			label = record.label
+			slide_label = record.label
 		}
 		slides << Element{
 			...child
@@ -942,7 +942,7 @@ pub fn (p CarouselProps) build(ctx VmlBuildContext) !Element {
 		focus_policy:        .focusable
 		keys:                ['left', 'right', 'home', 'end']
 		accessibility_role:  'group'
-		accessibility_value: kit_slide_value(current, count, label)
+		accessibility_value: kit_slide_value(current, count, slide_label)
 		interaction_style:   kit_focus_interaction(t)
 	}, ctx, fn [callback, emitter, current, previous, next, count] (event ElementEvent) {
 		if callback != unsafe { nil } {
@@ -970,12 +970,12 @@ pub fn (p CarouselProps) build(ctx VmlBuildContext) !Element {
 
 // kit_slide_value is a carousel's accessibility value: which slide it shows,
 // and that slide's label when it has one.
-fn kit_slide_value(current int, count int, label string) string {
+fn kit_slide_value(current int, count int, name string) string {
 	if count == 0 {
 		return 'No slides'
 	}
 	position := 'Slide ${current + 1} of ${count}'
-	return if label.len > 0 { '${position}: ${label}' } else { position }
+	return if name.len > 0 { '${position}: ${name}' } else { position }
 }
 
 // kit_slide_choice is the click handler of a carousel button: it emits the

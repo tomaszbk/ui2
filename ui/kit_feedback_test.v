@@ -108,8 +108,9 @@ fn test_spinner_skeleton_and_shimmer() ! {
 	assert first.children.map(it.key) == ['band', 'cover']
 	assert first.children.all(it.opacity == 0)
 	assert kit_timeline(first.children[0]).repeat == motion_forever
-	last := text.children[2]
-	assert last.children[0].frame.width == 120
+	// The last line is three fifths of the width, up to the flex rounding.
+	last := text.children[2].children[0].frame.width
+	assert last > 119.999 && last < 120.001
 	assert tree.children[5].children.len == 1 && tree.children[5].children[0].frame.width == 100
 }
 
