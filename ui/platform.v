@@ -32,8 +32,8 @@ module ui2
 //
 // ## Window and event loop
 //
-// The renderer opens its window with gg (ui_immediate.c.v run_window), whose
-// sokol_app owns the event loop on every OS; on iOS sokol_app runs
+// The renderer opens its window with gg (ui_immediate.c.v Window.run_sokol),
+// whose sokol_app owns the event loop on every OS, one window per process; on iOS sokol_app runs
 // UIApplicationMain itself, which is why the renderer defines SOKOL_NO_ENTRY
 // there. Once the window exists the renderer publishes its native handle (an
 // NSWindow, an HWND, or nil) to menu.v with publish_menu_context and installs

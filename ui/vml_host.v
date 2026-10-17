@@ -25,22 +25,31 @@ pub fn (mut component CompiledVmlComponent) set_command_handler(handler fn (VmlH
 
 fn (component &CompiledVmlComponent) dispatch_command(command VmlHostCommand) ! {
 	component.require_alive()!
-	component.command_handler(command)!
-}
-
-fn compiled_vml_host_command(command VmlHostCommand) ! {
+	if component.command_handler != unsafe { nil } {
+		component.command_handler(command)!
+		return
+	}
 	if backend_needs_host {
 		return error('compiled VML ref command requires an attached host command handler')
 	}
+	mut w := component.host_window()
+	if w == unsafe { nil } {
+		return error('compiled VML ref command requires a mounted document')
+	}
 	match command.kind {
-		.focus { focus(command.id) }
-		.set_text { set_text(command.id, command.text) }
+		.focus { w.focus(command.id) }
+		.set_text { w.set_text(command.id, command.text) }
 	}
 }
 
-fn compiled_vml_request_refresh() {
+// compiled_vml_request_refresh rebuilds the window a compiled callback's
+// event happened in.
+fn compiled_vml_request_refresh(event ElementEvent) {
 	if backend_needs_host {
 		panic('compiled VML document library refresh requires a host publisher')
 	}
-	request_refresh()
+	mut w := event.window
+	if w != unsafe { nil } {
+		w.request_refresh()
+	}
 }

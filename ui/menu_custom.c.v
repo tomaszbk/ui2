@@ -410,7 +410,7 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 		return true
 	}
 
-	fn menu_bar_handle_up(x f64, y f64) bool {
+	fn (mut w Window) menu_bar_handle_up(x f64, y f64) bool {
 		swallow := g_menu_swallow_up
 		g_menu_swallow_up = false
 		if !menu_bar_drawn() {
@@ -419,7 +419,7 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 		if hit := menu_bar_hit_at(x, y) {
 			if !hit.is_title && hit.enabled && !hit.has_items {
 				close_menu_bar()
-				emit_menu_callback(hit.on_select, hit.id)
+				w.emit_menu_callback(hit.on_select, hit.id)
 			}
 			return true
 		}
@@ -430,7 +430,7 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 	// asked before the window's own key handler, so a menu shortcut wins over
 	// an app binding on the same chord. A host menu that runs its own key
 	// equivalents has taken the key before the window sees it.
-	fn menu_bar_handle_key(e &gg.Event) bool {
+	fn (mut w Window) menu_bar_handle_key(e &gg.Event) bool {
 		if menu_bar_open() && e.key_code == .escape {
 			close_menu_bar()
 			return true
@@ -446,7 +446,7 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 		for m in bar_menus {
 			item := find_menu_shortcut(m.items, pressed) or { continue }
 			close_menu_bar()
-			emit_menu_callback(item.on_select, item.id)
+			w.emit_menu_callback(item.on_select, item.id)
 			return true
 		}
 		return false

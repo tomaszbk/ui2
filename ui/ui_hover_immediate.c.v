@@ -49,7 +49,7 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 	// enclosing hoverable entry, which the caller restores when it is done with
 	// the element's children. Regions before the first hoverable element are
 	// beneath every one of them, so nothing is recorded until one is painted.
-	fn enter_hover_element(el Element, path string, area Rect, clip Rect, inert bool) int {
+	fn (mut w Window) enter_hover_element(el Element, path string, area Rect, clip Rect, inert bool) int {
 		outer := g_hover.current
 		if !inert {
 			if target := hover_target(path, el) {
@@ -61,9 +61,9 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 			}
 		}
 		if g_hover.entries.len > 0 {
-			region := current_clip_region(clip)
-			transform := current_content_transform()
-			visible := retained_paint_clip(region, area, transform).bounds()
+			region := w.current_clip_region(clip)
+			transform := w.current_content_transform()
+			visible := w.retained_paint_clip(region, area, transform).bounds()
 			if visible.width > 0 && visible.height > 0 {
 				g_hover.regions << HoverRegion{
 					frame:             visible
@@ -138,20 +138,20 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 	// update_hover reports hover changes to the elements' callbacks. A callback
 	// that changes the model is rendered by the refresh it asks for, as after
 	// any other pointer event.
-	fn update_hover() {
+	fn (mut w Window) update_hover() {
 		events := take_hover_events()
 		if events.len == 0 {
 			return
 		}
-		dispatch := custom_input_dispatch(g_gg_app)
+		dispatch := w.custom_input_dispatch()
 		for pending in events {
 			if !dispatch.valid() {
 				return
 			}
-			pending.fire()
+			pending.fire(w)
 		}
 		if dispatch.valid() {
-			request_refresh()
+			w.request_refresh()
 		}
 	}
 }

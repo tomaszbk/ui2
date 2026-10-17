@@ -212,8 +212,8 @@ $if (android || ios) && !ui2_headless ? && !ui2_document_library ? {
 		}
 	}
 
-	fn draw_legacy_text_area_content(ctx &DrawContext, el Element, value string, x f64, y f64, clip Rect, scroll_parent_id string) {
-		dispatch := custom_input_dispatch(g_gg_app)
+	fn (mut w Window) draw_legacy_text_area_content(ctx &DrawContext, el Element, value string, x f64, y f64, clip Rect, scroll_parent_id string) {
+		dispatch := w.custom_input_dispatch()
 		root := g_focus_navigation.root_revision
 		mut editor := g_text_editors[el.id] or { text_editor(value.clone()) }
 		shown := editor.text
@@ -243,7 +243,7 @@ $if (android || ios) && !ui2_headless ? && !ui2_document_library ? {
 		// Read-only means not editable, not unscrollable. disable_scroll only
 		// hides the scroller, matching Element's documented/native behavior.
 		scroll_id := text_area_scroll_id(el)
-		offset := register_scroll_view_in_parent(scroll_id, scroll_parent_id, frame, clip, content_height, el.enabled,
+		offset := w.register_scroll_view_in_parent(scroll_id, scroll_parent_id, frame, clip, content_height, el.enabled,
 			!el.disable_scroll, el.persistent_scrollbars, HitTarget{ id: el.id, on_event: el.on_event })
 		if !custom_frame_current(dispatch, ctx) || g_focus_navigation.root_revision != root { return }
 		text_clip := intersect_rect(content, clip)
@@ -280,7 +280,7 @@ $if (android || ios) && !ui2_headless ? && !ui2_document_library ? {
 					if editor.selection.caret >= line_range.start && editor.selection.caret <= line_range.end {
 						prefix := lines[index].runes()[..editor.selection.caret - line_range.start].string()
 						caret_x := line_origin + f64(ctx.text_width_f(prefix))
-						g_gg_app.text_caret = rect(caret_x, text_y - line_height / 2, 2, line_height)
+						w.text_caret = rect(caret_x, text_y - line_height / 2, 2, line_height)
 					}
 				}
 			}
@@ -435,16 +435,10 @@ $if (android || ios) && !ui2_headless ? && !ui2_document_library ? {
 		return runes[..from].string(), runes[from..to].string()
 	}
 
-	// Text measurement hooks of the backend contract (backend.v). Before the gg
-	// context has fonts, measurement falls back to the CPU Fontstash context.
+	// Text measurement hooks of the backend contract (backend.v). Layout runs
+	// without a window, so it measures with the process's CPU Fontstash
+	// context, which loads the same fonts and fallbacks as the window's.
 	fn backend_measure_text(text string, style TextStyle, max_width f64) !LayoutSize {
-		ctx := g_gg_app.ctx
-		if !g_gg_app.scheduler.is_closed() && ctx != unsafe { nil } && ctx.font_inited {
-			ensure_symbol_fallbacks(ctx)
-			return layout_measure_text_lines(text, style, max_width, font_line_height(style.size), fn [ctx, style] (line string) f64 {
-				return menu_text_width(ctx, line, style)
-			})
-		}
 		return layout_measure_cpu_text(text, style, max_width)
 	}
 
@@ -453,16 +447,8 @@ $if (android || ios) && !ui2_headless ? && !ui2_document_library ? {
 		if element.kind != .text_area {
 			return measure_layout_text(content, element.text_style, max_width)
 		}
-		style := element.text_style
-		layout_validate_text_measurement(style, max_width)!
-		ctx := g_gg_app.ctx
-		if !g_gg_app.scheduler.is_closed() && ctx != unsafe { nil } && ctx.font_inited {
-			ensure_symbol_fallbacks(ctx)
-			return layout_measure_text_area_lines(content, style, max_width, font_line_height(style.size), fn [ctx, style] (line string) f64 {
-				return menu_text_width(ctx, line, style)
-			})
-		}
-		return layout_measure_cpu_fontstash(content, style, max_width, true)
+		layout_validate_text_measurement(element.text_style, max_width)!
+		return layout_measure_cpu_fontstash(content, element.text_style, max_width, true)
 	}
 
 	fn backend_layout_environment(environment LayoutEnvironment) LayoutEnvironment { return environment }

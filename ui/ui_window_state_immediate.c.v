@@ -28,11 +28,6 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 	@[heap]
 	struct CustomWindowState {
 	mut:
-		build_screen BuildFn = unsafe { nil }
-		key_handler KeyFn = unsafe { nil }
-		key_event_handler KeyEventFn = unsafe { nil }
-		drop_handler DropFn = unsafe { nil }
-		key_consumed bool
 		input_generation u64
 		keyboard CustomKeyboardState
 		text_values map[string]string
@@ -164,11 +159,6 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 	}
 
 	fn (mut state CustomWindowState) capture() {
-		state.build_screen = g_build_screen
-		state.key_handler = g_key_handler
-		state.key_event_handler = g_key_event_handler
-		state.drop_handler = g_drop_handler
-		state.key_consumed = g_key_consumed
 		state.keyboard = g_custom_keyboard
 		state.text_values = g_text_values
 		state.text_props = g_text_props
@@ -241,11 +231,6 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 	}
 
 	fn (state &CustomWindowState) restore() {
-		g_build_screen = state.build_screen
-		g_key_handler = state.key_handler
-		g_key_event_handler = state.key_event_handler
-		g_drop_handler = state.drop_handler
-		g_key_consumed = state.key_consumed
 		g_custom_keyboard = state.keyboard
 		g_text_values = state.text_values
 		g_text_props = state.text_props

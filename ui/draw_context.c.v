@@ -501,7 +501,6 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 	fn (mut ctx DrawContext) destroy() {
 		if ctx.destroyed || ctx.destroying { return }
 		ctx.destroying=true
-		if g_gg_app.ctx==&ctx { cancel_touch() }
 		ctx.activate()
 		$if !(android || ios) {
 			if ctx.text_renderer != unsafe { nil } { ctx.text_renderer.free() }

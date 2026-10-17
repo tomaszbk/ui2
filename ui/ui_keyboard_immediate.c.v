@@ -37,45 +37,45 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 		}
 	}
 
-	// A key belongs to the captured app, scheduler and mounted window. The
-	// generation is owned by the window, never copied by capture/restore.
-	// Blur, teardown, another key or a window switch invalidates continuations,
-	// even if a nested callback restores the same window before returning.
+	// A key belongs to its window, that window's scheduler and its mounted
+	// state. The generation is owned by the state, never copied by
+	// capture/restore. Blur, teardown, another key or a window switch
+	// invalidates continuations, even if a nested callback restores the same
+	// window before returning.
 	struct CustomInputDispatch {
-		app &GgApp
+		window &Window
 		scheduler &FrameCoordinator
-		window &CustomWindowState
+		state &CustomWindowState
 		generation u64
 	}
 
-	fn custom_input_dispatch(app &GgApp) CustomInputDispatch {
+	fn (mut w Window) custom_input_dispatch() CustomInputDispatch {
 		if g_active_custom_window_state == unsafe { nil } {
 			adopt_custom_window_state()
 		}
 		return CustomInputDispatch{
-			app: app
-			scheduler: app.scheduler
-			window: g_active_custom_window_state
+			window: w
+			scheduler: w.scheduler
+			state: g_active_custom_window_state
 			generation: g_active_custom_window_state.input_generation
 		}
 	}
 
-	fn begin_custom_input_dispatch(app &GgApp) CustomInputDispatch {
-		custom_input_dispatch(app)
+	fn (mut w Window) begin_custom_input_dispatch() CustomInputDispatch {
+		w.custom_input_dispatch()
 		g_active_custom_window_state.input_generation++
-		return custom_input_dispatch(app)
+		return w.custom_input_dispatch()
 	}
 
 	fn (dispatch CustomInputDispatch) owner_current() bool {
 		mut scheduler := dispatch.scheduler
-		return voidptr(dispatch.app) == voidptr(g_gg_app)
-			&& voidptr(dispatch.window) == voidptr(g_active_custom_window_state)
-			&& voidptr(dispatch.scheduler) == voidptr(dispatch.app.scheduler)
+		return voidptr(dispatch.state) == voidptr(g_active_custom_window_state)
+			&& voidptr(dispatch.scheduler) == voidptr(dispatch.window.scheduler)
 			&& !scheduler.is_closed()
 	}
 
 	fn (dispatch CustomInputDispatch) valid() bool {
-		return dispatch.owner_current() && dispatch.generation == dispatch.window.input_generation
+		return dispatch.owner_current() && dispatch.generation == dispatch.state.input_generation
 	}
 
 	fn own_custom_activation(code KeyCode) {
@@ -90,7 +90,7 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 		g_custom_keyboard = CustomKeyboardState{}
 	}
 
-	fn custom_key_down(event &gg.Event, skip_dispatch bool, composing bool, dispatch CustomInputDispatch) bool {
+	fn (mut w Window) custom_key_down(event &gg.Event, skip_dispatch bool, composing bool, dispatch CustomInputDispatch) bool {
 		// Invalidation claims the event: callers and the native text host must
 		// not reinterpret it as an editor command in a different context.
 		if !dispatch.valid() { return true }
@@ -99,24 +99,24 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 		if !skip_dispatch {
 			if consumed {
 				// Observers still receive owned repeats, before any new menu.
-				dispatch_key_event(event, dispatch)
+				w.dispatch_key_event(event, dispatch)
 				if !dispatch.valid() { return true }
 			} else {
-				consumed = drawn_popup_menu_key(immediate_key_event(event))
-				if !consumed { consumed = overlay_key(immediate_key_event(event), event.key_repeat) }
-				if !consumed { consumed = menu_bar_handle_key(event) }
+				consumed = w.drawn_popup_menu_key(immediate_key_event(event))
+				if !consumed { consumed = w.overlay_key(immediate_key_event(event), event.key_repeat) }
+				if !consumed { consumed = w.menu_bar_handle_key(event) }
 				if !dispatch.valid() { return true }
 				if !consumed && g_open_dropdown.len > 0 {
-					consumed = handle_dropdown_key(event.key_code)
+					consumed = w.handle_dropdown_key(event.key_code)
 					if !dispatch.valid() { return true }
 				}
 				if !consumed {
-					consumed = dispatch_key_event(event, dispatch)
+					consumed = w.dispatch_key_event(event, dispatch)
 					if !dispatch.valid() { return true }
 				}
 			}
 			if !consumed && !composing {
-				consumed = handle_focus_key(immediate_key_event(event), event.key_repeat)
+				consumed = w.handle_focus_key(immediate_key_event(event), event.key_repeat)
 				if !dispatch.valid() { return true }
 			}
 		}
@@ -127,11 +127,11 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 		return consumed
 	}
 
-	fn custom_character_input(app &GgApp, character u32) CustomInputDispatch {
-		dispatch := begin_custom_input_dispatch(app)
+	fn (mut w Window) custom_character_input(character u32) CustomInputDispatch {
+		dispatch := w.begin_custom_input_dispatch()
 		if dispatch.valid() {
-			app.scheduler.invalidate(.build)
-			if !custom_consumed_character(character) { handle_char_input(character) }
+			w.scheduler.invalidate(.build)
+			if !custom_consumed_character(character) { w.handle_char_input(character) }
 		}
 		return dispatch
 	}

@@ -6,88 +6,60 @@ $if macos && ui2_embedder ? && !ui2_headless ? && !ui2_document_library ? {
 	import gg
 	import sokol.gfx
 
-	// Capture the dispatcher while creating the window. Its lifetime never
-	// changes when another window becomes active, and workers only use post.
-	pub struct CustomWindow {
-		app &GgApp = unsafe { nil }
-	}
-
-	// Native userData is an opaque pointer outside the V collector's roots.
-	// A shown window owns its app even if callers retain only its dispatcher.
-	__global g_embedder_live_apps = []&GgApp{}
-
-	pub fn open_window(title string, width int, height int, build BuildFn) !CustomWindow {
-		return open_embedder_window(title, width, height, 0, 0, build)
-	}
-
-	pub fn run_windows() {
-		C.ui2_embedder_run()
-	}
-
-	pub fn (window CustomWindow) dispatcher() UiDispatcher {
-		if window.app == unsafe { nil } { return UiDispatcher{} }
-		return UiDispatcher{coordinator: window.app.scheduler}
-	}
-
-	// Main-thread operations can be directed at a window from another window's
-	// handler. Activation is scoped, including nested callbacks during close.
-	pub fn (window CustomWindow) update(task fn ()) bool {
+	// update runs task for this window on the main thread and requests its
+	// build. Activation is scoped, including nested callbacks during close.
+	// It returns false for a closed window or a call from another thread.
+	pub fn (mut w Window) update(task fn ()) bool {
 		if !C.ui2_embedder_is_main_thread() { return false }
-		if window.app == unsafe { nil } || window.app.scheduler.is_closed() { return false }
-		mut app := window.app
-		previous_app := g_gg_app
-		previous_state := activate_custom_window_state(window.app.window_state)
-		g_gg_app = window.app
-		app.callback_depth++
+		if w.scheduler.is_closed() { return false }
+		previous_state := activate_custom_window_state(w.window_state)
+		w.callback_depth++
 		defer {
-			finish_embedder_callback(window.app)
+			w.finish_embedder_callback()
 			activate_custom_window_state(previous_state)
-			g_gg_app = previous_app
 		}
 		task()
-		window.app.scheduler.invalidate(.build)
+		w.scheduler.invalidate(.build)
 		return true
 	}
 
-	pub fn (window CustomWindow) close() {
-		if window.app != unsafe { nil } && !window.app.scheduler.is_closed() {
-			C.ui2_embedder_close(window.app.native_window)
-		}
-	}
-
 	// The borrowed NSWindow is for main-thread platform integrations only.
-	pub fn (window CustomWindow) native_handle() voidptr {
+	pub fn (w &Window) native_handle() voidptr {
 		if !C.ui2_embedder_is_main_thread() { return unsafe { nil } }
-		if window.app == unsafe { nil } || window.app.scheduler.is_closed() { return unsafe { nil } }
-		return C.ui2_embedder_native_window(window.app.native_window)
+		if w.scheduler.is_closed() { return unsafe { nil } }
+		return C.ui2_embedder_native_window(w.native_window)
 	}
 
-	fn open_embedder_window(title string, width int, height int, min_width int, min_height int,
-		build BuildFn) !CustomWindow {
+	// Native userData is an opaque pointer outside the V collector's roots: the
+	// app's window list keeps a shown window alive until it closes.
+	fn (mut app App) open_embedder_window(config WindowConfig) !&Window {
 		if !C.ui2_embedder_is_main_thread() { return error('windows must be created on the main thread') }
-		if width <= 0 || height <= 0 { return error('window dimensions must be positive') }
-		previous_app := g_gg_app
 		first := g_active_custom_window_state == unsafe { nil }
 		state := if first { adopt_custom_window_state() } else { new_custom_window_state() }
 		previous_state := activate_custom_window_state(state)
-		mut app := if first { g_gg_app } else { &GgApp{
-			scheduler: new_frame_coordinator()
-		} }
-		app.window_state = state
-		g_gg_app = app
 		defer {
 			activate_custom_window_state(previous_state)
-			g_gg_app = previous_app
 		}
-		g_build_screen = build
-		set_window_wake(backend_invalidate)
-		publish_menu_context(title, unsafe { nil })
+		mut w := &Window{
+			app: app
+			title: config.title
+			width: config.width
+			height: config.height
+			min_width: config.min_width
+			min_height: config.min_height
+			build: config.build
+			window_state: state
+		}
+		set_window_wake(fn [mut app] (reason RenderReason) {
+			for mut window in app.windows { window.backend_invalidate(reason) }
+		})
+		w.publish_menu_context(config.title, unsafe { nil })
 		font_regular, font_bold := font_paths()
 		device := C.ui2_embedder_metal_device()
 		if device == unsafe { nil } { return error('a main-thread Metal device is required') }
-		app.ctx = new_surface_draw_context(gg.Config{
-			width: width
-			height: height
+		w.ctx = new_surface_draw_context(gg.Config{
+			width: config.width
+			height: config.height
 			font_path: font_regular
 			custom_bold_font_path: font_bold
 			bg_color: hex_color(0xf4f6f8)
@@ -95,13 +67,12 @@ $if macos && ui2_embedder ? && !ui2_headless ? && !ui2_document_library ? {
 			defaults: gfx.EnvironmentDefaults{color_format: .bgra8, depth_format: .@none, sample_count: 1}
 			metal: gfx.MetalEnvironment{device: device}
 		})!
-		g_embedder_live_apps << app
-		app.native_window = C.ui2_embedder_create(&C.ui2_embedder_config{
-			title: title.str
-			width: width
-			height: height
-			min_width: min_width
-			min_height: min_height
+		w.native_window = C.ui2_embedder_create(&C.ui2_embedder_config{
+			title: config.title.str
+			width: config.width
+			height: config.height
+			min_width: config.min_width
+			min_height: config.min_height
 			resizable: true
 			visible: false
 		}, &C.ui2_embedder_callbacks{
@@ -109,113 +80,101 @@ $if macos && ui2_embedder ? && !ui2_headless ? && !ui2_document_library ? {
 			event: embedder_event
 			text: embedder_text
 			closed: embedder_closed
-		}, app)
-		if app.native_window == unsafe { nil } {
-			cleanup_embedder_app(app)
+		}, w)
+		if w.native_window == unsafe { nil } {
+			w.cleanup_embedder_window()
 			return error('could not create the native window on the main thread')
 		}
-		handle := app.native_window
-		app.scheduler.set_presentation_required(false)
-		app.scheduler.set_wakeup(fn [handle] () { C.ui2_embedder_wakeup(handle) })
+		handle := w.native_window
+		w.scheduler.set_presentation_required(false)
+		w.scheduler.set_wakeup(fn [handle] () { C.ui2_embedder_wakeup(handle) })
 		// The embedder has made NSApp and the window by now, so the host can
 		// install the declared menus over the embedder's default ones.
-		publish_menu_context('', C.ui2_embedder_native_window(handle))
-		install_declared_menus()
+		w.publish_menu_context('', C.ui2_embedder_native_window(handle))
+		w.install_declared_menus()
 		C.ui2_embedder_show(handle)
-		return CustomWindow{app: app}
+		return w
 	}
 
-	fn finish_embedder_callback(app &GgApp) {
-		mut current := unsafe { app }
-		current.callback_depth--
-		if current.callback_depth == 0 && current.cleanup_pending {
-			cleanup_embedder_app(current)
+	fn (mut w Window) finish_embedder_callback() {
+		w.callback_depth--
+		if w.callback_depth == 0 && w.cleanup_pending {
+			w.cleanup_embedder_window()
 		}
 	}
 
-	fn cleanup_embedder_app(app &GgApp) {
-		mut current := unsafe { app }
-		if current.ctx == unsafe { nil } { return }
-		mut drawing := current.ctx
-		on_cleanup(current)
+	fn (mut w Window) cleanup_embedder_window() {
+		if w.ctx == unsafe { nil } { return }
+		mut drawing := w.ctx
+		on_cleanup(w)
 		drawing.destroy()
-		discard_custom_window_state(current.window_state)
-		current.composition = TextComposition{}
-		current.cleanup_pending = false
-		for index, live in g_embedder_live_apps {
-			if live == app {
-				g_embedder_live_apps.delete(index)
-				break
-			}
-		}
+		discard_custom_window_state(w.window_state)
+		w.composition = TextComposition{}
+		w.cleanup_pending = false
+		mut app := w.app
+		app.forget_window(w)
 	}
 
 	fn embedder_closed(data voidptr) {
-		mut app := unsafe { &GgApp(data) }
-		previous_app := g_gg_app
-		previous_state := activate_custom_window_state(app.window_state)
-		g_gg_app = app
+		mut w := unsafe { &Window(data) }
+		previous_state := activate_custom_window_state(w.window_state)
 		defer {
 			activate_custom_window_state(previous_state)
-			g_gg_app = previous_app
 		}
-		cancel_touch()
+		w.cancel_touch()
 		reset_custom_keyboard()
-		app.scheduler.close()
-		app.cleanup_pending = true
-		if app.callback_depth == 0 { cleanup_embedder_app(app) }
+		w.scheduler.close()
+		w.cleanup_pending = true
+		if w.callback_depth == 0 { w.cleanup_embedder_window() }
 	}
 
 	fn embedder_pump(data voidptr) i64 {
-		mut app := unsafe { &GgApp(data) }
-		if app.scheduler.is_closed() { return -1 }
-		previous_app := g_gg_app
-		previous_state := activate_custom_window_state(app.window_state)
-		g_gg_app = app
-		app.callback_depth++
+		mut w := unsafe { &Window(data) }
+		if w.scheduler.is_closed() { return -1 }
+		previous_state := activate_custom_window_state(w.window_state)
+		w.callback_depth++
 		defer {
-			finish_embedder_callback(app)
+			w.finish_embedder_callback()
 			activate_custom_window_state(previous_state)
-			g_gg_app = previous_app
 		}
 		now := renderer_now_ms()
-		interval := C.ui2_embedder_frame_interval(app.native_window)
-		wake_at := app.scheduler.next_wake(now, app.last_frame, interval)
+		interval := C.ui2_embedder_frame_interval(w.native_window)
+		wake_at := w.scheduler.next_wake(now, w.last_frame, interval)
 		if wake_at >= 0 && wake_at <= now {
-			dispatch := custom_input_dispatch(app)
-			ctx := app.ctx
-			drain_custom_tasks(mut app)
-			if app.scheduler.is_closed() { return -1 }
-			if !dispatch.valid() || app.ctx != ctx { return 0 }
-			if app.surface_retry_at > now { return app.surface_retry_at - now }
+			dispatch := w.custom_input_dispatch()
+			ctx := w.ctx
+			w.drain_custom_tasks()
+			if w.scheduler.is_closed() { return -1 }
+			if !dispatch.valid() || w.ctx != ctx { return 0 }
+			if w.surface_retry_at > now { return w.surface_retry_at - now }
 			mut metrics := C.ui2_embedder_surface{}
-			C.ui2_embedder_metrics(app.native_window, &metrics)
-			app.ctx.set_surface(metrics.width, metrics.height, metrics.dpi_scale, gfx.Swapchain{})
-			draws := app.scheduler.stats().draws
-			on_frame(mut app)
-			if app.scheduler.is_closed() { return -1 }
+			C.ui2_embedder_metrics(w.native_window, &metrics)
+			w.ctx.set_surface(metrics.width, metrics.height, metrics.dpi_scale, gfx.Swapchain{})
+			draws := w.scheduler.stats().draws
+			on_frame(mut w)
+			if w.scheduler.is_closed() { return -1 }
 			if custom_frame_current(dispatch, ctx) {
-				if app.scheduler.stats().draws != draws {
-					app.last_frame = renderer_now_ms()
+				if w.scheduler.stats().draws != draws {
+					w.last_frame = renderer_now_ms()
 				}
-				sync_embedder_text(app)
+				w.sync_embedder_text()
 			}
 		}
-		next := app.scheduler.next_wake(renderer_now_ms(), app.last_frame, interval)
+		next := w.scheduler.next_wake(renderer_now_ms(), w.last_frame, interval)
 		if next < 0 { return -1 }
-		if app.surface_retry_at > renderer_now_ms() { return app.surface_retry_at - renderer_now_ms() }
+		if w.surface_retry_at > renderer_now_ms() { return w.surface_retry_at - renderer_now_ms() }
 		return if next <= renderer_now_ms() { i64(0) } else { next - renderer_now_ms() }
 	}
 
-	fn acquire_embedder_surface(mut app GgApp) bool {
+	fn (mut w Window) acquire_embedder_surface() bool {
 		mut surface := C.ui2_embedder_surface{}
-		if !C.ui2_embedder_acquire_frame(app.native_window, &surface) {
-			app.surface_retry_at = renderer_now_ms() + C.ui2_embedder_frame_interval(app.native_window)
-			app.scheduler.invalidate(.surface)
+		if !C.ui2_embedder_acquire_frame(w.native_window, &surface) {
+			w.surface_retry_at = renderer_now_ms() + C.ui2_embedder_frame_interval(w.native_window)
+			w.scheduler.invalidate(.surface)
 			return false
 		}
-		app.surface_retry_at = -1
-		app.ctx.set_surface(surface.width, surface.height, surface.dpi_scale, gfx.Swapchain{
+		w.surface_retry_at = -1
+		w.ctx.set_surface(surface.width, surface.height, surface.dpi_scale, gfx.Swapchain{
 			width: surface.framebuffer_width
 			height: surface.framebuffer_height
 			sample_count: 1
@@ -227,16 +186,13 @@ $if macos && ui2_embedder ? && !ui2_headless ? && !ui2_document_library ? {
 	}
 
 	fn embedder_event(data voidptr, native &C.ui2_embedder_event) bool {
-		mut app := unsafe { &GgApp(data) }
-		if app.scheduler.is_closed() { return false }
-		previous_app := g_gg_app
-		previous_state := activate_custom_window_state(app.window_state)
-		g_gg_app = app
-		app.callback_depth++
+		mut w := unsafe { &Window(data) }
+		if w.scheduler.is_closed() { return false }
+		previous_state := activate_custom_window_state(w.window_state)
+		w.callback_depth++
 		defer {
-			finish_embedder_callback(app)
+			w.finish_embedder_callback()
 			activate_custom_window_state(previous_state)
-			g_gg_app = previous_app
 		}
 		mut event := gg.Event{
 			typ: match native.kind {
@@ -257,116 +213,113 @@ $if macos && ui2_embedder ? && !ui2_headless ? && !ui2_document_library ? {
 			scroll_x: native.scroll_x
 			scroll_y: native.scroll_y
 		}
-		dispatch_context := custom_input_dispatch(app)
-		if event.typ in [.resized, .restored, .resumed] { app.surface_retry_at = -1 }
+		dispatch_context := w.custom_input_dispatch()
+		if event.typ in [.resized, .restored, .resumed] { w.surface_retry_at = -1 }
 		if event.typ == .mouse_down {
 			if event.mouse_button == .right {
-				custom_context_press(app, f64(event.mouse_x), f64(event.mouse_y))
-				if dispatch_context.valid() { sync_embedder_text(app) }
+				w.custom_context_press(f64(event.mouse_x), f64(event.mouse_y))
+				if dispatch_context.valid() { w.sync_embedder_text() }
 				return false
 			}
-			dispatch := custom_mouse_down(app, f64(event.mouse_x), f64(event.mouse_y))
-			if dispatch.valid() { sync_embedder_text(app) }
+			dispatch := w.custom_mouse_down(f64(event.mouse_x), f64(event.mouse_y))
+			if dispatch.valid() { w.sync_embedder_text() }
 			return false
 		} else if event.typ == .key_down {
-			app.scheduler.invalidate(.build)
-			if drag_owned_escape(event.key_code) { return true }
+			w.scheduler.invalidate(.build)
+			if w.drag_owned_escape(event.key_code) { return true }
 			g_tooltip.dismiss()
-			dispatch := begin_custom_input_dispatch(app)
-			if custom_key_down(&event, native.skip_dispatch,
-				native.text_input && app.composition.field_id.len > 0, dispatch) {
-				if dispatch.valid() { sync_embedder_text(app) }
+			dispatch := w.begin_custom_input_dispatch()
+			if w.custom_key_down(&event, native.skip_dispatch,
+				native.text_input && w.composition.field_id.len > 0, dispatch) {
+				if dispatch.valid() { w.sync_embedder_text() }
 				return true
 			}
 			if !dispatch.valid() { return true }
 			// Readonly editors still own navigation and selection. The editor
 			// handler guards mutations; Cocoa text input remains editable-only.
 			if !native.text_input {
-				handle_key_down(event.key_code, event.modifiers)
+				w.handle_key_down(event.key_code, event.modifiers)
 			}
 			if !dispatch.valid() { return true }
-			sync_embedder_text(app)
+			w.sync_embedder_text()
 			return false
 		} else if event.typ == .char {
-			if g_focused_field.len > 0 && !app.editable_fields[g_focused_field] { return false }
-			dispatch := custom_character_input(app, event.char_code)
-			if dispatch.valid() { sync_embedder_text(app) }
+			if g_focused_field.len > 0 && !w.editable_fields[g_focused_field] { return false }
+			dispatch := w.custom_character_input(event.char_code)
+			if dispatch.valid() { w.sync_embedder_text() }
 			return false
 		} else if event.typ == .files_dropped {
-			if voidptr(g_drop_handler) != unsafe { nil } && native.paths != unsafe { nil } && native.path_count > 0 {
+			if voidptr(w.drop_handler) != unsafe { nil } && native.paths != unsafe { nil } && native.path_count > 0 {
 				mut paths := []string{cap: native.path_count}
 				for index in 0 .. native.path_count {
 					paths << unsafe { cstring_to_vstring(native.paths[index]) }
 				}
-				g_drop_handler(DropEvent{paths: paths, x: f64(native.x), y: f64(native.y)})
+				w.drop_handler(DropEvent{window: w, paths: paths, x: f64(native.x), y: f64(native.y)})
 				if !dispatch_context.valid() { return false }
-				app.scheduler.invalidate(.build)
+				w.scheduler.invalidate(.build)
 			}
 		} else {
-			on_event(&event, app)
+			on_event(&event, w)
 		}
-		if dispatch_context.valid() { sync_embedder_text(app) }
+		if dispatch_context.valid() { w.sync_embedder_text() }
 		return false
 	}
 
 	fn embedder_text(data voidptr, native &C.ui2_embedder_text_event) {
-		mut app := unsafe { &GgApp(data) }
-		if app.scheduler.is_closed() { return }
-		previous_app := g_gg_app
-		previous_state := activate_custom_window_state(app.window_state)
-		g_gg_app = app
-		app.callback_depth++
+		mut w := unsafe { &Window(data) }
+		if w.scheduler.is_closed() { return }
+		previous_state := activate_custom_window_state(w.window_state)
+		w.callback_depth++
 		defer {
-			finish_embedder_callback(app)
+			w.finish_embedder_callback()
 			activate_custom_window_state(previous_state)
-			g_gg_app = previous_app
 		}
-		dispatch := begin_custom_input_dispatch(app)
+		dispatch := w.begin_custom_input_dispatch()
 		id := g_focused_field
 		// NSTextInputClient text/IME deliveries have their own provenance and
 		// must never inherit a pending Sokol character from a physical key.
 		g_custom_keyboard.pending = .invalid
-		if id.len == 0 || id !in g_active_fields || !app.editable_fields[id] { return }
+		if id.len == 0 || id !in g_active_fields || !w.editable_fields[id] { return }
 		mut editor := g_text_editors[id] or { text_editor((g_text_values[id] or { '' }).clone()) }
 		value := if native.text == unsafe { nil } { '' } else { unsafe { cstring_to_vstring(native.text) } }
 		if native.kind == 2 {
-			app.composition.update(id, editor, value, native.selection_start, native.selection_length,
+			w.composition.update(id, editor, value, native.selection_start, native.selection_length,
 				native.replacement_start, native.replacement_length)
-			app.scheduler.invalidate(.paint)
+			w.scheduler.invalidate(.paint)
 		} else {
 			if native.kind == 3 {
-				if app.composition.field_id != id { return }
-				app.composition.finish(mut editor)
+				if w.composition.field_id != id { return }
+				w.composition.finish(mut editor)
 			} else {
-				app.composition.commit(mut editor, value, native.replacement_start, native.replacement_length)
+				w.composition.commit(mut editor, value, native.replacement_start, native.replacement_length)
 			}
 			replace_text_value(id, editor.text)
 			replace_text_editor(id, editor)
-			fire_field_change(id)
+			w.fire_field_change(id)
 			if !dispatch.valid() { return }
-			app.scheduler.invalidate(.build)
+			w.scheduler.invalidate(.build)
 		}
-		if dispatch.valid() { sync_embedder_text(app) }
+		if dispatch.valid() { w.sync_embedder_text() }
 	}
 
-	fn custom_composition_editor(id string, editor TextEditor) TextEditor {
-		if g_gg_app.composition.field_id != id { return editor }
-		return g_gg_app.composition.display(editor)
+	fn (mut w Window) custom_composition_editor(id string, editor TextEditor) TextEditor {
+		if w.composition.field_id != id { return editor }
+		return w.composition.display(editor)
 	}
 
-	fn sync_embedder_text(app &GgApp) {
+	fn (mut w Window) sync_embedder_text() {
 		id := g_focused_field
 		editor := g_text_editors[id] or { TextEditor{} }
-		display := custom_composition_editor(id, editor)
+		display := w.custom_composition_editor(id, editor)
 		start, end := display.selection.ordered()
-		marked := app.composition.field_id == id && id.len > 0 && app.composition.mark_length > 0
-		caret := app.text_caret
-		C.ui2_embedder_sync_text(app.native_window, id.len > 0 && id in g_active_fields && app.editable_fields[id],
+		marked := w.composition.field_id == id && id.len > 0 && w.composition.mark_length > 0
+		caret := w.text_caret
+		C.ui2_embedder_sync_text(w.native_window, id.len > 0 && id in g_active_fields && w.editable_fields[id],
 			display.text.str, rune_offset_to_utf16(display.text, start),
 			rune_offset_to_utf16(display.text, end) - rune_offset_to_utf16(display.text, start),
-			if marked { rune_offset_to_utf16(display.text, app.composition.start + app.composition.mark_start) } else { -1 },
-			if marked { rune_offset_to_utf16(app.composition.text, app.composition.mark_start + app.composition.mark_length)
-				- rune_offset_to_utf16(app.composition.text, app.composition.mark_start) } else { 0 },
+			if marked { rune_offset_to_utf16(display.text, w.composition.start + w.composition.mark_start) } else { -1 },
+			if marked { rune_offset_to_utf16(w.composition.text, w.composition.mark_start + w.composition.mark_length)
+				- rune_offset_to_utf16(w.composition.text, w.composition.mark_start) } else { 0 },
 			caret.x, caret.y, caret.width, caret.height)
 	}
 }

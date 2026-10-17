@@ -33,14 +33,14 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 	// Publish every mounted Scroll before focus restoration can call user code.
 	// Nested public scroll calls then see the same handlers and logical ranges
 	// as the current focus registry, including panes culled by painting.
-	fn sync_mounted_scroll_views() {
+	fn (mut w Window) sync_mounted_scroll_views() {
 		selected := g_text_values[g_open_dropdown] or { '' }
-		if g_gg_app.pointer_geometry_serial == g_focus_navigation.geometry_serial
+		if w.pointer_geometry_serial == g_focus_navigation.geometry_serial
 			&& g_focus_navigation.geometry_serial > 0
-			&& g_gg_app.pointer_popup_owner == g_open_dropdown
-			&& g_gg_app.pointer_popup_scroll == g_dropdown_scroll
-			&& g_gg_app.pointer_popup_selected == selected
-			&& g_hit_targets.len >= g_gg_app.mounted_hit_count { return }
+			&& w.pointer_popup_owner == g_open_dropdown
+			&& w.pointer_popup_scroll == g_dropdown_scroll
+			&& w.pointer_popup_selected == selected
+			&& g_hit_targets.len >= w.mounted_hit_count { return }
 		// Mounted identities change with declarations, not with sampled motion.
 		// Enumerating keys is only needed when a source tree changes.
 		if g_drag_registry.root_revision != g_focus_navigation.root_revision {
@@ -75,7 +75,7 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 		mut owner_count := 0
 		g_dropdown_popup.mounted=false
 		for node in g_focus_navigation.nodes {
-			publish_mounted_pointer(node,mut mounted_hits,mut mounted_owners)
+			w.publish_mounted_pointer(node,mut mounted_hits,mut mounted_owners)
 			if !node.hidden && node.enabled && (node.el.drag_source!=none || node.el.drop_target!=none)
 				&& node.pointer_owner_identity in mounted_owners
 				&& mounted_owners[node.pointer_owner_identity].pointer_publication==g_drag_registry.pointer_publication {
@@ -83,8 +83,8 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 			}
 			if node.el.kind==.dropdown && node.el.id==g_open_dropdown && !node.hidden && node.enabled {
 				options := node.menu_options_snapshot()
-				ctx := g_gg_app.ctx
-				window := if ctx!=unsafe { nil } { rect(0,0,f64(ctx.width),f64(ctx.height)) } else { bounds() }
+				ctx := w.ctx
+				window := if ctx!=unsafe { nil } { rect(0,0,f64(ctx.width),f64(ctx.height)) } else { w.bounds() }
 				visible := node.clip.intersect(paint_transformed_clip(node.local_frame,node.transform)).bounds()
 				if options.len>0 && visible.width>0 && visible.height>0 {
 					track_dropdown_popup_for(node.el,node.local_frame,node.transform,options,g_text_values[node.el.id] or { node.el.text },window)
@@ -117,12 +117,12 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 		}
 		unsafe { g_drag_registry.owners=mounted_owners }
 		g_drag_registry.root_revision=g_focus_navigation.root_revision
-		if g_open_dropdown.len>0 && !g_dropdown_popup.mounted { close_dropdown() }
+		if g_open_dropdown.len>0 && !g_dropdown_popup.mounted { w.close_dropdown() }
 		// Popup rows are window overlays; all tree targets came from the same
 		// mounted frames/affine/clip above, including offscreen declarations.
 		if g_dropdown_popup.mounted && g_open_dropdown.len>0 {
-			ctx := g_gg_app.ctx
-			window := if ctx!=unsafe { nil } { rect(0,0,f64(ctx.width),f64(ctx.height)) } else { bounds() }
+			ctx := w.ctx
+			window := if ctx!=unsafe { nil } { rect(0,0,f64(ctx.width),f64(ctx.height)) } else { w.bounds() }
 			list := dropdown_list_frame(g_dropdown_popup,window)
 			for i, _ in g_dropdown_popup.options {
 				target := dropdown_row_target(g_dropdown_popup,i,list)
@@ -133,17 +133,17 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 			}
 		}
 		unsafe { g_hit_targets=mounted_hits }
-		g_gg_app.mounted_hit_count = mounted_hits.len
-		g_gg_app.pointer_geometry_serial = g_focus_navigation.geometry_serial
-		g_gg_app.pointer_popup_owner = g_open_dropdown
-		g_gg_app.pointer_popup_scroll = g_dropdown_scroll
-		g_gg_app.pointer_popup_selected = g_text_values[g_open_dropdown] or { '' }
+		w.mounted_hit_count = mounted_hits.len
+		w.pointer_geometry_serial = g_focus_navigation.geometry_serial
+		w.pointer_popup_owner = g_open_dropdown
+		w.pointer_popup_scroll = g_dropdown_scroll
+		w.pointer_popup_selected = g_text_values[g_open_dropdown] or { '' }
 	}
 
 	fn custom_scroll_dispatch_current(dispatch CustomInputDispatch, ctx &DrawContext, root u64) bool {
-		return dispatch.valid() && voidptr(dispatch.app.ctx) == voidptr(ctx)
+		return dispatch.valid() && voidptr(dispatch.window.ctx) == voidptr(ctx)
 			&& (ctx == unsafe { nil } || !ctx.destroyed)
-			&& !dispatch.app.iconified && !dispatch.app.suspended
+			&& !dispatch.window.iconified && !dispatch.window.suspended
 			&& g_focus_navigation.root_revision == root
 	}
 
@@ -165,9 +165,9 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 		return if content_width > frame.width { content_width - frame.width } else { 0.0 }
 	}
 
-	fn register_scroll_view_in_parent(id string, parent_id string, frame Rect, clip Rect, content_height f64, enabled bool, show_scrollbar bool, persistent bool, target HitTarget) f64 {
-		dispatch := custom_input_dispatch(g_gg_app)
-		ctx := dispatch.app.ctx
+	fn (mut w Window) register_scroll_view_in_parent(id string, parent_id string, frame Rect, clip Rect, content_height f64, enabled bool, show_scrollbar bool, persistent bool, target HitTarget) f64 {
+		dispatch := w.custom_input_dispatch()
+		ctx := dispatch.window.ctx
 		build_pending := dispatch.scheduler.build_pending()
 		root := g_focus_navigation.root_revision
 		focused := g_focused_field
@@ -175,9 +175,9 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 			return 0.0
 		}
 		g_active_scrolls[id] = true
-		g_scroll_targets[id] = HitTarget{ ...target, local_frame: frame, content_transform: current_content_transform(), clip_region: current_clip_region(clip), has_geometry: true }
+		g_scroll_targets[id] = HitTarget{ ...target, local_frame: frame, content_transform: w.current_content_transform(), clip_region: w.current_clip_region(clip), has_geometry: true }
 		g_scroll_viewports[id] = frame
-		g_scroll_transforms[id] = current_content_transform()
+		g_scroll_transforms[id] = w.current_content_transform()
 		g_scroll_content_h[id] = content_height
 		if parent_id.len > 0 {
 			g_scroll_parents[id] = parent_id
@@ -191,11 +191,11 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 			requested = pending
 			g_pending_scroll.delete(id)
 		}
-		set_scroll_offset(id, requested, scroll_maximum(id))
+		w.set_scroll_offset(id, requested, scroll_maximum(id))
 		if !custom_scroll_dispatch_current(dispatch, ctx, root)
 			|| (!build_pending && dispatch.scheduler.build_pending()) || g_focused_field != focused { return 0 }
 		offset := scroll_state_offset(id)
-		area := retained_paint_clip(current_clip_region(clip), frame, current_content_transform()).bounds()
+		area := w.retained_paint_clip(w.current_clip_region(clip), frame, w.current_content_transform()).bounds()
 		if enabled && area.width > 0 && area.height > 0 {
 			g_scroll_areas[id] = area
 			g_scroll_order << unsafe { id }
@@ -211,13 +211,13 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 	// follows register_scroll_view_in_parent, which is what makes the viewport known,
 	// and a pane that does not scroll sideways passes no width, so a mode changed
 	// between rebuilds leaves no offset behind.
-	fn register_scroll_view_width(id string, content_width f64, show_scrollbar bool, persistent bool, beside_vertical bool) f64 {
+	fn (mut w Window) register_scroll_view_width(id string, content_width f64, show_scrollbar bool, persistent bool, beside_vertical bool) f64 {
 		if id.len == 0 {
 			return 0.0
 		}
 		frame := g_scroll_viewports[id] or { return 0.0 }
-		dispatch := custom_input_dispatch(g_gg_app)
-		ctx := dispatch.app.ctx
+		dispatch := w.custom_input_dispatch()
+		ctx := dispatch.window.ctx
 		root := g_focus_navigation.root_revision
 		focused := g_focused_field
 		build_pending := dispatch.scheduler.build_pending()
@@ -227,7 +227,7 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 			requested = pending
 			g_pending_scroll_x.delete(id)
 		}
-		set_scroll_offset_x(id, requested, scroll_maximum_x(id))
+		w.set_scroll_offset_x(id, requested, scroll_maximum_x(id))
 		if !custom_scroll_dispatch_current(dispatch, ctx, root) || (!build_pending && dispatch.scheduler.build_pending()) || g_focused_field != focused { return 0 }
 		offset := scroll_state_offset_x(id)
 		if show_scrollbar && id in g_scroll_areas {
@@ -310,9 +310,9 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 	// captures this chain on pointer-down so frame culling cannot sever it.
 	// Wheel/drag vectors are window-logical. Consume each pane's local vertical
 	// component and pass the remaining window vector to its ancestors.
-	fn apply_scroll_vector(chain []string, dx f64, dy f64) {
-		dispatch := custom_input_dispatch(g_gg_app)
-		ctx := dispatch.app.ctx
+	fn (mut w Window) apply_scroll_vector(chain []string, dx f64, dy f64) {
+		dispatch := w.custom_input_dispatch()
+		ctx := dispatch.window.ctx
 		root := g_focus_navigation.root_revision
 		mut remaining := Point{dx, dy}
 		for id in chain {
@@ -322,10 +322,10 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 			transform := g_scroll_transforms[id] or { ContentTransform{} }
 			local := transform.inverse_vector(remaining.x, remaining.y)
 			before_x := scroll_state_offset_x(id)
-			set_scroll_offset_x(id, before_x + local.x, scroll_maximum_x(id))
+			w.set_scroll_offset_x(id, before_x + local.x, scroll_maximum_x(id))
 			if !custom_scroll_dispatch_current(dispatch, ctx, root) { return }
 			before := scroll_state_offset(id)
-			set_scroll_offset(id, before + local.y, scroll_maximum(id))
+			w.set_scroll_offset(id, before + local.y, scroll_maximum(id))
 			if !custom_scroll_dispatch_current(dispatch, ctx, root) { return }
 			consumed := transform.vector(scroll_state_offset_x(id) - before_x, scroll_state_offset(id) - before)
 			remaining = Point{remaining.x - consumed.x, remaining.y - consumed.y}
@@ -377,20 +377,20 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 		}
 	}
 
-	fn begin_scrollbar_drag(x f64, y f64) bool {
+	fn (mut w Window) begin_scrollbar_drag(x f64, y f64) bool {
 		// A pane's scrollers are drawn over its children, so where a column reaches
 		// under the scroller of the strip it sits in, the strip's is the one the
 		// pointer is on. Try the panes from the outside in.
 		for index := g_touch.scroll_chain.len - 1; index >= 0; index-- {
 			id := g_touch.scroll_chain[index]
-			if begin_horizontal_scrollbar_drag(id, x, y) || begin_vertical_scrollbar_drag(id, x, y) {
+			if w.begin_horizontal_scrollbar_drag(id, x, y) || w.begin_vertical_scrollbar_drag(id, x, y) {
 				return true
 			}
 		}
 		return false
 	}
 
-	fn begin_vertical_scrollbar_drag(id string, x f64, y f64) bool {
+	fn (mut w Window) begin_vertical_scrollbar_drag(id string, x f64, y f64) bool {
 		bar := g_scrollbar_geometries[id] or { return false }
 		transform := g_scroll_transforms[id] or { ContentTransform{} }
 		if !(g_scroll_targets[id] or { HitTarget{} }).clip_region.contains(x, y) { return false }
@@ -408,12 +408,12 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 			g_touch.scrollbar_grab_y = ly - bar.thumb.y
 		} else {
 			g_touch.scrollbar_grab_y = bar.thumb.height / 2
-			drag_scrollbar_at(x, y)
+			w.drag_scrollbar_at(x, y)
 		}
 		return true
 	}
 
-	fn begin_horizontal_scrollbar_drag(id string, x f64, y f64) bool {
+	fn (mut w Window) begin_horizontal_scrollbar_drag(id string, x f64, y f64) bool {
 		bar := g_scrollbar_geometries_x[id] or { return false }
 		transform := g_scroll_transforms[id] or { ContentTransform{} }
 		if !(g_scroll_targets[id] or { HitTarget{} }).clip_region.contains(x, y) { return false }
@@ -430,18 +430,18 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 			g_touch.scrollbar_grab_x = lx - bar.thumb.x
 		} else {
 			g_touch.scrollbar_grab_x = bar.thumb.width / 2
-			drag_scrollbar_at(x, y)
+			w.drag_scrollbar_at(x, y)
 		}
 		return true
 	}
 
-	fn drag_scrollbar_at(x f64, y f64) {
+	fn (mut w Window) drag_scrollbar_at(x f64, y f64) {
 		transform := g_scroll_transforms[g_touch.scroll_id] or { ContentTransform{} }
 		lx, ly := transform.inverse(x, y)
-		drag_scrollbar_local(lx, ly)
+		w.drag_scrollbar_local(lx, ly)
 	}
 
-	fn drag_scrollbar_local(x f64, y f64) {
+	fn (mut w Window) drag_scrollbar_local(x f64, y f64) {
 		id := g_touch.scroll_id
 		if g_touch.scrollbar_horizontal {
 			bar := g_scrollbar_geometries_x[id] or { return }
@@ -450,7 +450,7 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 				return
 			}
 			maximum := scroll_maximum_x(id)
-			set_scroll_offset_x(id, (x - bar.track.x - g_touch.scrollbar_grab_x) / travel * maximum,
+			w.set_scroll_offset_x(id, (x - bar.track.x - g_touch.scrollbar_grab_x) / travel * maximum,
 				maximum)
 			return
 		}
@@ -460,7 +460,7 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 			return
 		}
 		maximum := scroll_maximum(id)
-		set_scroll_offset(id, (y - bar.track.y - g_touch.scrollbar_grab_y) / travel * maximum,
+		w.set_scroll_offset(id, (y - bar.track.y - g_touch.scrollbar_grab_y) / travel * maximum,
 			maximum)
 	}
 
@@ -583,11 +583,11 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 		return true
 	}
 
-	fn draw_text_area_content(ctx &DrawContext, el Element, value string, x f64, y f64, clip Rect, scroll_parent_id string) {
+	fn (mut w Window) draw_text_area_content(ctx &DrawContext, el Element, value string, x f64, y f64, clip Rect, scroll_parent_id string) {
 		$if android || ios {
-			draw_legacy_text_area_content(ctx, el, value, x, y, clip, scroll_parent_id)
+			w.draw_legacy_text_area_content(ctx, el, value, x, y, clip, scroll_parent_id)
 		} $else {
-			draw_shaped_text_area(ctx, el, value, x, y, clip, scroll_parent_id)
+			w.draw_shaped_text_area(ctx, el, value, x, y, clip, scroll_parent_id)
 		}
 	}
 	$if !(android || ios) {
@@ -613,13 +613,13 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 	}
 
 	$if !(android || ios) {
-		fn draw_shaped_text_area(ctx &DrawContext, el Element, value string, x f64, y f64, clip Rect,
+		fn (mut w Window) draw_shaped_text_area(ctx &DrawContext, el Element, value string, x f64, y f64, clip Rect,
 			scroll_parent_id string) {
-			dispatch := custom_input_dispatch(g_gg_app)
+			dispatch := w.custom_input_dispatch()
 			root := g_focus_navigation.root_revision
 			mut editor := g_text_editors[el.id] or { text_editor(value.clone()) }
 			$if macos && ui2_embedder ? {
-				editor = custom_composition_editor(el.id, editor)
+				editor = w.custom_composition_editor(el.id, editor)
 			}
 			frame := rect(x, y, el.frame.width, el.frame.height)
 			content := text_area_content_rect(frame, el.padding_left, !el.disable_scroll)
@@ -633,7 +633,7 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 			remember_shaped_text_area(el.id, shaped, content.width, style)
 			content_height := shaped.size.height + text_area_vertical_padding * 2
 			scroll_id := text_area_scroll_id(el)
-			offset := register_scroll_view_in_parent(scroll_id, scroll_parent_id, frame, clip,
+			offset := w.register_scroll_view_in_parent(scroll_id, scroll_parent_id, frame, clip,
 				content_height, el.enabled, !el.disable_scroll, el.persistent_scrollbars, HitTarget{ id: el.id, on_event: el.on_event })
 			// Range clamping can call user code. The shaped text belongs to the
 			// captured context; selection, caret and drawing cannot outlive it.
@@ -656,13 +656,13 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 				ctx.draw_shaped_clipped(shaped, content.x, top, text_clip)
 				if g_focused_field == el.id {
 					cursor := shaped.cursor(editor.selection.caret)
-					g_gg_app.text_caret = current_presentation_rect(rect(content.x + cursor.x, top + cursor.y, 2, cursor.height))
+					w.text_caret = w.current_presentation_rect(rect(content.x + cursor.x, top + cursor.y, 2, cursor.height))
 					caret := rect(content.x + cursor.x, top + cursor.y, 2, cursor.height)
 					if caret.y + caret.height > text_clip.y && caret.y < text_clip.y + text_clip.height {
 						draw_rect(ctx, caret.x, caret.y, caret.width, caret.height, style.color, 0)
 					}
 					$if macos && ui2_embedder ? {
-						composition := g_gg_app.composition
+						composition := w.composition
 						if composition.field_id == el.id {
 							start := composition.start + composition.mark_start
 							for marked in ctx.shaped_selection(shaped, start, start + composition.mark_length) {

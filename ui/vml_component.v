@@ -30,8 +30,12 @@ mut:
 	mounted_controls int
 	disposed         bool
 	leaving          bool
-	publish          fn (string, Element)  = compiled_vml_publish
-	command_handler  fn (VmlHostCommand) ! = compiled_vml_host_command
+	// A host relays updates and commands through these; without one they go
+	// to the window that mounted the document (vml_publish.v).
+	publish         fn (string, Element)  = unsafe { nil }
+	command_handler fn (VmlHostCommand) ! = unsafe { nil }
+	// window is the window that mounted this document; set on its root.
+	window           &Window = unsafe { nil }
 	app_revision     &Signal[u64]
 	theme            Theme
 	theme_colors     map[string]&Signal[u32]

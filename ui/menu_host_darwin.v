@@ -479,5 +479,5 @@ fn ui2_menu_item_chosen(_self voidptr, _cmd voidptr, sender voidptr) {
 	st := macos_menu_state()
 	pointer := u64(sender)
 	binding := st.bar_ids[pointer] or { st.tray_ids[pointer] or { return } }
-	emit_menu_callback(binding.on_event, binding.id)
+	emit_host_menu_callback(binding.on_event, binding.id)
 }

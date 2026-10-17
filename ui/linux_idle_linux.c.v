@@ -35,48 +35,48 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 		}
 	}
 
-	fn setup_linux_idle(mut app GgApp) {
+	fn (mut w Window) setup_linux_idle() {
 		// The pinned Sokol default is X11/GLX (also usable under XWayland).
 		// Reject other hosts rather than silently reverting to periodic polling.
 		if C.sapp_x11_get_display() == unsafe { nil } {
 			panic('ui2: Linux idle wait requires the Sokol X11 host')
 		}
 		signal := new_linux_wake_signal()
-		app.linux_signal = signal
+		w.linux_signal = signal
 		interval := i64(sapp.frame_duration() * 1000)
-		app.frame_interval = if interval > 0 { interval } else { 1 }
-		app.scheduler.set_wakeup(fn [signal] () { signal.send() })
+		w.frame_interval = if interval > 0 { interval } else { 1 }
+		w.scheduler.set_wakeup(fn [signal] () { signal.send() })
 	}
 
-	fn wait_linux_idle(mut app GgApp) {
+	fn (mut w Window) wait_linux_idle() {
 		// A nested callback must let the outer flush finish before it can wait
 		// or deliver tasks. next_wake deliberately suppresses nested scheduling.
-		if app.linux_signal == unsafe { nil } || app.scheduler.is_flushing() { return }
+		if w.linux_signal == unsafe { nil } || w.scheduler.is_flushing() { return }
 		// Sokol consumes WM_DELETE_WINDOW before this frame but dispatches its
 		// cancellable quit request afterwards. Let it reach that dispatch/cleanup.
 		if C.ui2_linux_host_close_pending() { return }
 		// Retain Sokol's measured presentation cadence. Samples spanning idle
 		// waits are not refresh intervals; keep the last usable sample instead.
 		sample := i64(sapp.frame_duration() * 1000)
-		if sample > 0 && sample <= 100 { app.frame_interval = sample }
+		if sample > 0 && sample <= 100 { w.frame_interval = sample }
 		for {
 			// Drain BEFORE checking scheduler state. A concurrent post either is
 			// observed by next_wake or leaves a readable eventfd for poll.
-			C.ui2_linux_signal_drain(app.linux_signal.fd)
+			C.ui2_linux_signal_drain(w.linux_signal.fd)
 			now := renderer_now_ms()
-			wake_at := app.scheduler.next_wake(now, app.last_frame, app.frame_interval)
+			wake_at := w.scheduler.next_wake(now, w.last_frame, w.frame_interval)
 			if wake_at >= 0 && wake_at <= now { return }
 			delay := if wake_at < 0 { i64(-1) } else { wake_at - now }
 			// Recheck on every retry, including worker wakes, deadlines and EINTR.
 			if C.ui2_linux_host_close_pending() { return }
-			outcome := C.ui2_linux_wait(C.sapp_x11_get_display(), app.linux_signal.fd, delay)
-			app.scheduler.record_wait(outcome)
+			outcome := C.ui2_linux_wait(C.sapp_x11_get_display(), w.linux_signal.fd, delay)
+			w.scheduler.record_wait(outcome)
 			if outcome == -1 { panic('ui2: Linux event wait failed') }
 			if outcome > 0 && outcome & 1 != 0 {
 				// Sokol dispatches the event on the following iteration. This
 				// callback still swaps, so always repaint the complete retained tree.
 				// In particular Expose must repaint even without a model mutation.
-				app.scheduler.invalidate(.paint)
+				w.scheduler.invalidate(.paint)
 				return
 			}
 			// EINTR, worker signals and expired waits re-read the absolute deadline.

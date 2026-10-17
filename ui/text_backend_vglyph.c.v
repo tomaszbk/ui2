@@ -728,9 +728,12 @@ $if (linux || macos || windows) && !ui2_headless ? && !ui2_document_library ? {
 		return measure_layout_text(content, element.text_style, max_width)
 	}
 
+	// A window passes its text context generation in the environment it lays
+	// out with (Window.text_layout_environment); other layouts measure with
+	// the process's CPU text engine.
 	fn backend_layout_environment(environment LayoutEnvironment) LayoutEnvironment {
-		context_version := if g_gg_app.ctx != unsafe { nil } && g_gg_app.ctx.text != unsafe { nil } {
-			g_gg_app.ctx.text.environment_version
+		context_version := if environment.backend_context {
+			environment.backend_context_version
 		} else if g_cpu_text_engine != unsafe { nil } {
 			g_cpu_text_engine.environment_version
 		} else {

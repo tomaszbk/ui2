@@ -13,7 +13,7 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 		source HitTarget
 		target HitTarget
 		operation DragOperation
-		dispatch CustomInputDispatch = CustomInputDispatch{app:unsafe { nil },scheduler:unsafe { nil },window:unsafe { nil }}
+		dispatch CustomInputDispatch = CustomInputDispatch{window:unsafe { nil },scheduler:unsafe { nil },state:unsafe { nil }}
 		context &DrawContext = unsafe { nil }
 		preview_transform ContentTransform
 	}
@@ -35,7 +35,7 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 		return if target.id.len > 0 { 'id:' + target.id } else { 'path:' + target.identity }
 	}
 
-	fn publish_mounted_pointer(node FocusNode, mut hits []HitTarget, mut owners map[string]HitTarget) {
+	fn (mut w Window) publish_mounted_pointer(node FocusNode, mut hits []HitTarget, mut owners map[string]HitTarget) {
 		if node.hidden || !node.enabled { return }
 		el := node.el
 		interactive := el.kind in [.button,.toggle_button,.checkbox,.dropdown,.text_field,.text_area,.slider,.switch_control]
@@ -48,11 +48,11 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 		// Current selected-asset validity belongs to the same resource owner as
 		// paint. Logical metadata alone must not make a placeholder interactive.
 		if el.kind==.image {
-			if g_gg_app.ctx==unsafe { nil } { return }
-			mut ctx := g_gg_app.ctx
+			if w.ctx==unsafe { nil } { return }
+			mut ctx := w.ctx
 			ctx.prepare_image(el,f64(ctx.scale)*node.transform.footprint_scale()) or { return }
 		}
-		mut target := custom_focus_target(node)
+		mut target := w.custom_focus_target(node)
 		if el.drag_source!=none || el.drop_target!=none {
 			key := drag_owner_key(target)
 			old := g_drag_registry.owners[key] or { HitTarget{} }
@@ -78,33 +78,33 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 		return owner
 	}
 
-	fn current_drag_geometry(captured HitTarget) HitTarget {
-		return current_pointer_target(captured) or { captured }
+	fn (mut w Window) current_drag_geometry(captured HitTarget) HitTarget {
+		return w.current_pointer_target(captured) or { captured }
 	}
 
-	pub fn drag_active() bool { return g_touch.drag.active }
+	pub fn (mut w Window) drag_active() bool { return g_touch.drag.active }
 
-	pub fn cancel_drag() { cancel_drag_session(.cancelled) }
+	pub fn (mut w Window) cancel_drag() { w.cancel_drag_session(.cancelled) }
 
 	// Dispatch this before menu, focus and ordinary key handling in every host.
-	fn drag_owned_escape(key gg.KeyCode) bool {
+	fn (mut w Window) drag_owned_escape(key gg.KeyCode) bool {
 		if key != .escape || (!g_touch.drag.active && !g_touch.drag.pending) { return false }
-		cancel_drag_session(.escape)
+		w.cancel_drag_session(.escape)
 		return true
 	}
 
-	fn begin_drag_candidate(target HitTarget) {
+	fn (mut w Window) begin_drag_candidate(target HitTarget) {
 		source := target.drag_source or { return }
 		captured := HitTarget{...target,
 			drag_source: &DragSource{...source, allowed: source.allowed.clone()}}
 		g_drag_registry.serial++
 		g_touch.drag = DragSession{pending: true, source: captured, token: g_drag_registry.serial,
-			dispatch:custom_input_dispatch(g_gg_app),context:g_gg_app.ctx}
+			dispatch:w.custom_input_dispatch(),context:w.ctx}
 	}
 
-	fn drag_offer(session DragSession, target HitTarget, x f64, y f64) DragOffer {
+	fn (mut w Window) drag_offer(session DragSession, target HitTarget, x f64, y f64) DragOffer {
 		source := session.source.drag_source or { return DragOffer{} }
-		geometry := current_drag_geometry(session.source)
+		geometry := w.current_drag_geometry(session.source)
 		sx, sy := geometry.content_transform.inverse(x, y)
 		tx, ty := target.content_transform.inverse(x, y)
 		return DragOffer{payload: source.payload, allowed: source.allowed,
@@ -112,69 +112,69 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 			source_x: sx, source_y: sy, target_x: tx, target_y: ty}
 	}
 
-	fn emit_drag(kind ElementEventKind, recipient HitTarget, session DragSession, target HitTarget,
+	fn (mut w Window) emit_drag(kind ElementEventKind, recipient HitTarget, session DragSession, target HitTarget,
 		x f64, y f64, operation DragOperation, reason DragCancelReason) {
-		geometry := current_drag_geometry(recipient)
+		geometry := w.current_drag_geometry(recipient)
 		lx, ly := geometry.content_transform.inverse(x, y)
-		fire_target_event(recipient, ElementEvent{kind: kind, id: recipient.id, x: lx, y: ly,
-			drag: DragEvent{offer: drag_offer(session, target, x, y), operation: operation, reason: reason}})
+		w.fire_target_event(recipient, ElementEvent{kind: kind, id: recipient.id, x: lx, y: ly,
+			drag: DragEvent{offer: w.drag_offer(session, target, x, y), operation: operation, reason: reason}})
 	}
 
 	fn owns_drag_token(token u64) bool {
 		return g_touch.down && (g_touch.drag.active || g_touch.drag.pending) && g_touch.drag.token==token
 	}
 
-	fn same_drag_session(token u64) bool {
+	fn (mut w Window) same_drag_session(token u64) bool {
 		if !owns_drag_token(token) { return false }
 		session := g_touch.drag
 		stats := session.dispatch.scheduler.stats()
-		if !session.dispatch.valid() || voidptr(session.dispatch.app.ctx)!=voidptr(session.context)
-			|| stats.suspended || session.dispatch.app.iconified || session.dispatch.app.suspended {
-			cancel_drag_session(.cancelled)
+		if !session.dispatch.valid() || voidptr(session.dispatch.window.ctx)!=voidptr(session.context)
+			|| stats.suspended || session.dispatch.window.iconified || session.dispatch.window.suspended {
+			w.cancel_drag_session(.cancelled)
 			return false
 		}
 		return true
 	}
 
-	fn drag_session_current(session DragSession) bool {
-		if !session.dispatch.valid() && voidptr(session.dispatch.window)!=voidptr(g_active_custom_window_state) {
+	fn (mut w Window) drag_session_current(session DragSession) bool {
+		if !session.dispatch.valid() && voidptr(session.dispatch.state)!=voidptr(g_active_custom_window_state) {
 			// A window switch moved capture into its owning snapshot. Retire that
 			// gesture without touching input in the newly active window.
-			mut window := session.dispatch.window
-			if window.touch.drag.token==session.token { window.touch=TouchState{} }
+			mut state := session.dispatch.state
+			if state.touch.drag.token==session.token { state.touch=TouchState{} }
 			return false
 		}
-		return same_drag_session(session.token)
+		return w.same_drag_session(session.token)
 	}
 
 	// Shared hit membership is authoritative. A top ordinary control blocks the
 	// drop surface below it; no separate bounding-box/shape test lives here.
-	fn drag_destination(x f64, y f64) HitTarget {
-		target := hit_test(x, y)
+	fn (mut w Window) drag_destination(x f64, y f64) HitTarget {
+		target := w.hit_test(x, y)
 		owner := current_drag_owner(target) or { return HitTarget{} }
 		if owner.drop_target == none { return HitTarget{} }
 		return HitTarget{...target, on_event: owner.on_event,
 			drag_source: owner.drag_source, drop_target: owner.drop_target}
 	}
 
-	fn accepted_drag_operation(session DragSession, target HitTarget, x f64, y f64) DragOperation {
+	fn (mut w Window) accepted_drag_operation(session DragSession, target HitTarget, x f64, y f64) DragOperation {
 		destination := target.drop_target or { return .none }
 		source := session.source.drag_source or { return .none }
 		owner := current_drag_owner(session.source) or { return .none }
 		current_source := owner.drag_source or { return .none }
-		operation := destination.accept(drag_offer(session, target, x, y))
-		if !drag_session_current(session) { return .none }
+		operation := destination.accept(w.drag_offer(session, target, x, y))
+		if !w.drag_session_current(session) { return .none }
 		latest := current_drag_owner(session.source) or { return .none }
 		latest_source := latest.drag_source or { return .none }
 		return if operation in source.allowed && operation in current_source.allowed && operation in latest_source.allowed { operation } else { DragOperation.none }
 	}
 
-	fn update_drag_destination(x f64, y f64, send_over bool) {
+	fn (mut w Window) update_drag_destination(x f64, y f64, send_over bool) {
 		if !g_touch.drag.active { return }
 		session := g_touch.drag
-		current := drag_destination(x, y)
-		operation := accepted_drag_operation(session, current, x, y)
-		if !drag_session_current(session) { return }
+		current := w.drag_destination(x, y)
+		operation := w.accepted_drag_operation(session, current, x, y)
+		if !w.drag_session_current(session) { return }
 		changed := current.drag_generation != session.target.drag_generation
 			|| drag_owner_key(current) != drag_owner_key(session.target)
 		if changed {
@@ -184,32 +184,32 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 			g_touch.drag.operation = .none
 		}
 		if changed && session.target.drop_target != none {
-			emit_drag(.drag_leave, session.target, session, session.target, x, y, session.operation, .none)
-			if !drag_session_current(session) { return }
+			w.emit_drag(.drag_leave, session.target, session, session.target, x, y, session.operation, .none)
+			if !w.drag_session_current(session) { return }
 		}
 		g_touch.drag.target = current
 		g_touch.drag.operation = operation
 		if changed && current.drop_target != none {
-			emit_drag(.drag_enter, current, session, current, x, y, operation, .none)
-			if !drag_session_current(session) { return }
+			w.emit_drag(.drag_enter, current, session, current, x, y, operation, .none)
+			if !w.drag_session_current(session) { return }
 		}
 		if current.drop_target != none && (send_over || changed || operation != session.operation) {
-			emit_drag(.drag_over, current, session, current, x, y, operation, .none)
-			if !drag_session_current(session) { return }
+			w.emit_drag(.drag_over, current, session, current, x, y, operation, .none)
+			if !w.drag_session_current(session) { return }
 		}
 	}
 
 	// Returns true whenever drag-drop owns this gesture, including its threshold
 	// phase. Scrollbar/slider capture was already selected by pointer-down.
-	fn move_drag_session(x f64, y f64) bool {
+	fn (mut w Window) move_drag_session(x f64, y f64) bool {
 		if !g_touch.drag.pending && !g_touch.drag.active { return false }
-		if !reconcile_drag_release(g_touch.drag.token) { return true }
+		if !w.reconcile_drag_release(g_touch.drag.token) { return true }
 		owner := current_drag_owner(g_touch.drag.source) or {
-			cancel_drag_session(.source_removed)
+			w.cancel_drag_session(.source_removed)
 			return true
 		}
 		if owner.drag_source == none {
-			cancel_drag_session(.source_removed)
+			w.cancel_drag_session(.source_removed)
 			return true
 		}
 		if g_touch.drag.pending {
@@ -224,15 +224,15 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 			g_touch.drag.active = true
 			g_touch.moved = true
 			g_touch.pressed_id = ''
-			g_touch.drag.preview_transform = current_drag_geometry(g_touch.drag.source).content_transform
+			g_touch.drag.preview_transform = w.current_drag_geometry(g_touch.drag.source).content_transform
 			session := g_touch.drag
-			emit_drag(.drag_start, session.source, session, HitTarget{}, x, y, .none, .none)
-			if !drag_session_current(session) { return true }
+			w.emit_drag(.drag_start, session.source, session, HitTarget{}, x, y, .none, .none)
+			if !w.drag_session_current(session) { return true }
 		}
 		session := g_touch.drag
-		update_drag_destination(x, y, true)
-		if !drag_session_current(session) { return true }
-		invalidate_custom_paint()
+		w.update_drag_destination(x, y, true)
+		if !w.drag_session_current(session) { return true }
+		w.invalidate_custom_paint()
 		return true
 	}
 
@@ -251,46 +251,46 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 		return true
 	}
 
-	fn reconcile_drag_release(token u64) bool {
-		if !same_drag_session(token) { return false }
+	fn (mut w Window) reconcile_drag_release(token u64) bool {
+		if !w.same_drag_session(token) { return false }
 		dispatch := g_touch.drag.dispatch
-		if !sync_custom_input_geometry(dispatch) {
-			if owns_drag_token(token) { cancel_drag_session(.cancelled) }
+		if !w.sync_custom_input_geometry(dispatch) {
+			if owns_drag_token(token) { w.cancel_drag_session(.cancelled) }
 			return false
 		}
-		if !same_drag_session(token) { return false }
+		if !w.same_drag_session(token) { return false }
 		owner := current_drag_owner(g_touch.drag.source) or {
-			cancel_drag_session(.source_removed)
+			w.cancel_drag_session(.source_removed)
 			return false
 		}
-		if owner.drag_source==none { cancel_drag_session(.source_removed); return false }
+		if owner.drag_source==none { w.cancel_drag_session(.source_removed); return false }
 		return true
 	}
 
-	fn release_drag_session(x f64, y f64) bool {
+	fn (mut w Window) release_drag_session(x f64, y f64) bool {
 		if !g_touch.drag.active && !g_touch.drag.pending { return false }
-		mut app := g_gg_app
+		mut app := w
 		if app.releasing_drag { return true }
 		app.releasing_drag = true
 		defer { app.releasing_drag = false }
 		token := g_touch.drag.token
-		if !reconcile_drag_release(token) { return true }
+		if !w.reconcile_drag_release(token) { return true }
 		// A release beyond threshold counts even if the host coalesced all moves.
-		move_drag_session(x, y)
-		if !reconcile_drag_release(token) { return true }
+		w.move_drag_session(x, y)
+		if !w.reconcile_drag_release(token) { return true }
 		if g_touch.drag.pending {
 			g_touch.drag = DragSession{}
 			return false // a short press may activate the source's normal tap
 		}
-		update_drag_destination(x, y, false)
-		if !reconcile_drag_release(token) { return true }
+		w.update_drag_destination(x, y, false)
+		if !w.reconcile_drag_release(token) { return true }
 		session := g_touch.drag
-		current := drag_destination(x, y)
-		operation := accepted_drag_operation(session, current, x, y)
+		current := w.drag_destination(x, y)
+		operation := w.accepted_drag_operation(session, current, x, y)
 		// accept is also user code. Reconcile once, without a callback loop, then
 		// require the accepted declaration and operation to remain authoritative.
-		if !reconcile_drag_release(token) { return true }
-		final_target := drag_destination(x, y)
+		if !w.reconcile_drag_release(token) { return true }
+		final_target := w.drag_destination(x, y)
 		owner := current_drag_owner(session.source) or { return true }
 		current_source := owner.drag_source or { return true }
 		accepted := current.drop_target or { DropTarget{} }
@@ -302,54 +302,54 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 			&& same_drag_hit_declaration(current,final_target)
 		g_touch = TouchState{} // clear capture before terminal callbacks/reentrancy
 		if valid {
-			emit_drag(.drop, final_target, session, final_target, x, y, operation, .none)
+			w.emit_drag(.drop, final_target, session, final_target, x, y, operation, .none)
 			if !session.dispatch.valid() { return true }
-			emit_drag(.drag_leave, final_target, session, final_target, x, y, operation, .none)
+			w.emit_drag(.drag_leave, final_target, session, final_target, x, y, operation, .none)
 			if !session.dispatch.valid() { return true }
-			emit_drag(.drag_end, session.source, session, final_target, x, y, operation, .none)
+			w.emit_drag(.drag_end, session.source, session, final_target, x, y, operation, .none)
 		} else {
 			if session.target.drop_target != none {
-				emit_drag(.drag_leave, session.target, session, session.target, x, y, .none, .invalid_target)
+				w.emit_drag(.drag_leave, session.target, session, session.target, x, y, .none, .invalid_target)
 				if !session.dispatch.valid() { return true }
 			}
-			emit_drag(.drag_cancel, session.source, session, HitTarget{}, x, y, .none, .invalid_target)
+			w.emit_drag(.drag_cancel, session.source, session, HitTarget{}, x, y, .none, .invalid_target)
 		}
-		invalidate_custom_paint()
+		w.invalidate_custom_paint()
 		return true
 	}
 
-	fn cancel_drag_session(reason DragCancelReason) {
+	fn (mut w Window) cancel_drag_session(reason DragCancelReason) {
 		if !g_touch.drag.active && !g_touch.drag.pending { return }
 		session := g_touch.drag
 		x := g_touch.current_x
 		y := g_touch.current_y
 		g_touch = TouchState{}
-		dispatch := custom_input_dispatch(g_gg_app)
-		if session.active && session.dispatch.window==dispatch.window && session.dispatch.app==dispatch.app && dispatch.valid() {
+		dispatch := w.custom_input_dispatch()
+		if session.active && session.dispatch.state==dispatch.state && session.dispatch.window==dispatch.window && dispatch.valid() {
 			if session.target.drop_target != none {
-				emit_drag(.drag_leave, session.target, session, session.target, x, y, session.operation, reason)
+				w.emit_drag(.drag_leave, session.target, session, session.target, x, y, session.operation, reason)
 				if !dispatch.valid() { return }
 			}
-			emit_drag(.drag_cancel, session.source, session, session.target, x, y, .none, reason)
+			w.emit_drag(.drag_cancel, session.source, session, session.target, x, y, .none, reason)
 		}
-		invalidate_custom_paint()
+		w.invalidate_custom_paint()
 	}
 
-	fn sync_drag_session() {
+	fn (mut w Window) sync_drag_session() {
 		if !g_touch.drag.pending && !g_touch.drag.active { return }
-		if !same_drag_session(g_touch.drag.token) { return }
+		if !w.same_drag_session(g_touch.drag.token) { return }
 		owner := current_drag_owner(g_touch.drag.source) or {
-			cancel_drag_session(.source_removed)
+			w.cancel_drag_session(.source_removed)
 			return
 		}
 		if owner.drag_source == none {
-			cancel_drag_session(.source_removed)
+			w.cancel_drag_session(.source_removed)
 			return
 		}
-		geometry := current_drag_geometry(g_touch.drag.source)
+		geometry := w.current_drag_geometry(g_touch.drag.source)
 		g_touch.drag.source = HitTarget{...g_touch.drag.source,
 			content_transform: geometry.content_transform, x: geometry.x, y: geometry.y, w: geometry.w, h: geometry.h}
-		update_drag_destination(g_touch.current_x, g_touch.current_y, false)
+		w.update_drag_destination(g_touch.current_x, g_touch.current_y, false)
 	}
 
 	fn drag_preview_element(preview DragPreview) Element {

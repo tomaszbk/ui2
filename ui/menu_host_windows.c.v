@@ -241,7 +241,7 @@ fn windows_bool(value bool) int {
 fn ui2_host_menu_command(command u32) {
 	st := windows_menu_state()
 	item := st.bar_commands[command] or { return }
-	emit_menu_callback(item.on_select, item.id)
+	emit_host_menu_callback(item.on_select, item.id)
 }
 
 // ui2_host_tray_message answers a click on the notification area icon. The
@@ -254,7 +254,7 @@ fn ui2_host_tray_message(mouse_message u32) {
 	}
 	if cfg.menu.len == 0 {
 		if mouse_message == win_wm_lbutton_up {
-			emit_menu_callback(cfg.on_event, cfg.id)
+			emit_host_menu_callback(cfg.on_event, cfg.id)
 		}
 		return
 	}
@@ -269,5 +269,5 @@ fn ui2_host_tray_message(mouse_message u32) {
 	_ := windows_fill_menu(menu, cfg.menu, mut commands, win_menu_command_base)
 	chosen := commands[C.ui2_host_tray_popup(window, menu)] or { MenuItem{} }
 	C.ui2_host_menu_destroy(menu)
-	emit_menu_callback(chosen.on_select, chosen.id)
+	emit_host_menu_callback(chosen.on_select, chosen.id)
 }

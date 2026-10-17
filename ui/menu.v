@@ -109,6 +109,9 @@ mut:
 	// Platform menus use the published application name and native window.
 	app_name string = 'App'
 	window   voidptr
+	// owner is the window whose menus the host shows; native menu commands
+	// are delivered to it.
+	owner &Window = unsafe { nil }
 }
 
 const menu_state_singleton = &MenuState{}
@@ -117,27 +120,37 @@ fn menu_state() &MenuState {
 	return unsafe { menu_state_singleton }
 }
 
-// publish_menu_context is called by each backend's run_window before the first
-// menu is built.
-fn publish_menu_context(app_name string, window voidptr) {
+// publish_menu_context is called by each backend as a window opens, before
+// the first menu is built.
+fn (mut w Window) publish_menu_context(app_name string, window voidptr) {
 	mut st := menu_state()
 	if app_name.len > 0 {
 		st.app_name = app_name
 	}
 	st.window = window
+	st.owner = w
 }
 
-fn emit_menu_callback(callback ElementCallback, id string) {
+// emit_host_menu_callback delivers a native menu command to the window whose
+// menus the host shows.
+fn emit_host_menu_callback(callback ElementCallback, id string) {
+	mut owner := menu_state().owner
+	if owner != unsafe { nil } {
+		owner.emit_menu_callback(callback, id)
+	}
+}
+
+fn (mut w Window) emit_menu_callback(callback ElementCallback, id string) {
 	if voidptr(callback) != unsafe { nil } {
-		dispatch := backend_input_dispatch()
+		dispatch := w.backend_input_dispatch()
 		if !dispatch.valid() {
 			return
 		}
-		callback(ElementEvent{ kind: .click, id: id })
+		callback(ElementEvent{ window: w, kind: .click, id: id })
 		if !dispatch.valid() {
 			return
 		}
-		request_refresh()
+		w.request_refresh()
 	}
 }
 
@@ -149,9 +162,9 @@ fn menu_app_name() string {
 // Backends call it once there is something to attach a menu to. The menu bar
 // is installed even when nothing was declared, because macOS still needs its
 // application menu.
-fn install_declared_menus() {
+fn (mut w Window) install_declared_menus() {
 	st := menu_state()
-	backend_set_menu_bar(st.menus)
+	w.backend_set_menu_bar(st.menus)
 	if st.tray_visible {
 		backend_set_tray(st.tray)
 	}
@@ -210,10 +223,10 @@ pub fn disabled(item MenuItem) MenuItem {
 // set_menu_bar installs the application's top level menu bar, replacing any
 // previous one. Call it before or after run_window: menus declared before the
 // window exists are installed as the application finishes launching.
-pub fn set_menu_bar(menus []Menu) {
+pub fn (mut w Window) set_menu_bar(menus []Menu) {
 	mut st := menu_state()
 	st.menus = menus.clone()
-	backend_set_menu_bar(st.menus)
+	w.backend_set_menu_bar(st.menus)
 }
 
 // menu_bar reports the menu bar last passed to set_menu_bar.
