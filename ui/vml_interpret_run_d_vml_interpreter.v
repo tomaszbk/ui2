@@ -1232,7 +1232,6 @@ fn vml_element_read(data voidptr, name string) ?VmlValue {
 		'value' { VmlValue(el.value) }
 		'hidden' { VmlValue(el.hidden) }
 		'enabled' { VmlValue(el.enabled) }
-		'focused' { VmlValue(el.focused) }
 		'frame' { VmlValue(VmlObject(vml_reflect(el.frame))) }
 		else { none }
 	}

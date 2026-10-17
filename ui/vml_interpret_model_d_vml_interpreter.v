@@ -363,11 +363,12 @@ fn vml_model_option[O](value O) !VmlValue {
 	} $else $if O is ?bool {
 		if v := value { return VmlValue(v) }
 	} $else $if O is ?OverlayPoint {
-		if v := value { return VmlValue(VmlObject(vml_model_object(v))) }
+		// The payload type is named: inferred from `v`, it would be the option.
+		if v := value { return VmlValue(VmlObject(vml_model_object[OverlayPoint](v))) }
 	} $else $if O is ?MotionConfig {
-		if v := value { return VmlValue(VmlObject(vml_model_object(v))) }
+		if v := value { return VmlValue(VmlObject(vml_model_object[MotionConfig](v))) }
 	} $else $if O is ?OverlayConfig {
-		if v := value { return VmlValue(VmlObject(vml_model_object(v))) }
+		if v := value { return VmlValue(VmlObject(vml_model_object[OverlayConfig](v))) }
 	} $else {
 		return error('VML cannot read the option ${typeof[O]().name}')
 	}

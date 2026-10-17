@@ -261,6 +261,35 @@ Column {
 	root.dispose_document()!
 }
 
+fn test_optional_struct_fields_reach_overlay_properties() ! {
+	mut app := &InterpApp{
+		point: OverlayPoint{
+			x: 3.5
+			y: 4
+		}
+	}
+	mut root := interp_build('Column {
+	Button(id: "anchor", text: "Open")
+	ContextMenu(id: "menu", width: 120, height: 80, anchor: "anchor", open: app.flag, point: app.point) {
+		Label(text: "Item")
+	}
+}',
+		mut app)!
+	menu := interp_find(root.element(), 'menu')?
+	config := menu.overlay?
+	assert config.point? == OverlayPoint{
+		x: 3.5
+		y: 4
+	}
+	app.point = none
+	root.component.invalidate_app()!
+	updated := interp_find(root.element(), 'menu')?.overlay?
+	if _ := updated.point {
+		assert false, 'the point was unset'
+	}
+	root.dispose_document()!
+}
+
 fn test_styles_and_theme_tokens() ! {
 	mut app := &InterpApp{}
 	mut root := interp_build('style card = [background(#102030), padding(spacing.medium)]

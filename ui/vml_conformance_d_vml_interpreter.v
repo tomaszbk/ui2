@@ -204,13 +204,11 @@ fn vml_conformance_flatten(el Element, path string, mut out []VmlConformanceNode
 	}
 }
 
-// Fields that are runtime state rather than the resolved declaration: mount
-// bookkeeping, retained owners, motion and overlay state, and the children
-// (compared one by one).
+// Fields that are runtime state rather than the resolved declaration: the
+// mount and runtime records, the retained owner, and the children (compared
+// one by one).
 fn vml_conformance_skipped(name string) bool {
-	return name.starts_with('mounted_') || name.starts_with('overlay_')
-		|| name in ['children', 'compiled_node', 'compiled_source', 'motion_state', 'presence_exiting',
-			'style_default_box']
+	return name in ['children', 'compiled_node', 'mount', 'runtime']
 }
 
 fn vml_conformance_set(callback ElementCallback) string {
@@ -219,12 +217,11 @@ fn vml_conformance_set(callback ElementCallback) string {
 
 // vml_conformance_fields renders the compared fields of one element. Fields
 // are found by reflection, so the check follows Element as it changes.
-// Callbacks compare by presence and metadata by its records. Two fields are
+// Callbacks compare by presence and metadata by its records. One field is
 // normalized as in the props golden tests (vml_props_harness), because the
 // compiled lowering and the generic node runtime that the interpreter
-// declares through write them differently without a visible effect: the
-// style reset base above (`style_default_box`), and the value a reactive
-// ProgressBar view mirrors from its fill child. A Checkbox's accessibility
+// declares through write it differently without a visible effect: the value
+// a reactive ProgressBar view mirrors from its fill child. A Checkbox's accessibility
 // value is derived from `checked` (compared): the compiled lowering's
 // property effect patches `checked` alone and leaves the value computed at
 // build time, while the generic runtime rebuilds both.
@@ -265,7 +262,7 @@ fn vml_conformance_menu_entries(el Element) string {
 fn vml_conformance_overlay(el Element) string {
 	config := el.overlay or { return 'overlay=none' }
 	normalized := OverlayConfig{
-		...config
+		...*config
 		on_open:    unsafe { nil }
 		on_dismiss: unsafe { nil }
 	}
@@ -275,14 +272,11 @@ fn vml_conformance_overlay(el Element) string {
 // Stack rules default to auto alignment for children without an entry, so a
 // list of default rules equals no list.
 fn vml_conformance_layout(layout LayoutSpec) LayoutSpec {
-	if layout.stack.children.len > 0
-		&& layout.stack.children.all(it.align_x == .auto && it.align_y == .auto) {
+	if layout.stack_rules.len > 0
+		&& layout.stack_rules.all(it.align_x == .auto && it.align_y == .auto) {
 		return LayoutSpec{
 			...layout
-			stack: StackConfig{
-				...layout.stack
-				children: []
-			}
+			stack_rules: []
 		}
 	}
 	return layout

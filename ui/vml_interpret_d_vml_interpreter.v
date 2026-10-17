@@ -309,7 +309,9 @@ pub fn run_vml[T](config VmlRunConfig[T]) ! {
 	build := fn [mut interpreter, mut model, update] [T]() Element {
 		compiled_vml_begin_snapshot()
 		defer { compiled_vml_end_snapshot() }
-		if update != unsafe { nil } { update(mut model) }
+		// As in run_compiled_vml, a frame that shows a document just built
+		// from the updated model does not update it again.
+		if !interpreter.fresh && update != unsafe { nil } { update(mut model) }
 		return interpreter.next_frame()
 	}
 	$if macos || windows || linux {
@@ -347,14 +349,16 @@ fn (mut i VmlInterpreter) next_frame() Element {
 }
 
 // vml_watch polls the document's files and asks for a build when one changes;
-// the build reloads the document on the UI thread.
+// the build reloads the document on the UI thread. While `stale` is set the
+// watcher leaves the file table alone, which the reload then replaces.
 fn vml_watch(interpreter &VmlInterpreter) {
 	mut watched := unsafe { interpreter }
 	for !watched.stop {
 		time.sleep(300 * time.millisecond)
 		if !watched.stale && watched.changed() {
 			watched.stale = true
-			request_animation_refresh(false)
+			// A timer is the thread-safe way to ask the UI thread for a build.
+			after(0, fn () {})
 		}
 	}
 }
