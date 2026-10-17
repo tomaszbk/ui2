@@ -36,10 +36,28 @@ fn next_vml_owner_id() string {
 	return ids.next.str()
 }
 
+// Length-prefixed names compose unambiguously: a nested namespace grows by
+// the name and its length, instead of re-encoding its parent at every level.
+fn vml_identity_segment(name string) string {
+	return '${name.len}:${name}'
+}
+
 // Private identity belongs to one retained owner lifetime. It is independent
 // from authored ids and sibling keys, and never contains a memory address.
+// It is composed once, when the node is created.
 pub fn (node &CompiledVmlNode) identity() string {
-	return '/compiled:' + node.component.identity_namespace + '/' + node.local_id.bytes().hex()
+	return node.identity_value
+}
+
+// identity_path is the identity encoded for reconciliation paths, whose
+// segments must not contain the path separator. It is encoded once per node.
+fn (node &CompiledVmlNode) identity_path() string {
+	if node.identity_hex.len == 0 {
+		unsafe {
+			node.identity_hex = node.identity_value.bytes().hex()
+		}
+	}
+	return node.identity_hex
 }
 
 fn (node &CompiledVmlNode) internal_identity(element Element, index int) string {

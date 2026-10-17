@@ -332,13 +332,38 @@ fn reset_style_layout(current LayoutSpec, base LayoutSpec) LayoutSpec {
 	}
 }
 
+// The unstyled fields a style effect restores before applying its patch. The
+// effect retains only these, not a copy of the whole source declaration.
+struct VmlStyleBase {
+	box               BoxStyle
+	text_style        TextStyle
+	interaction_style InteractionStyle
+	layout            LayoutSpec
+	padding_left      f64
+	content_padding   ?LayoutPadding
+	slider_style      SliderStyle
+	switch_style      SwitchStyle
+}
+
 // Register once per retained node. Replacing a style is authoritative: dropping
 // a field restores the original constructor default rather than the previous
 // theme's value. Non-presentation data always comes from the live declaration.
 pub fn (mut node CompiledVmlNode) style(compute fn () !StylePatch) ! {
 	if compute == unsafe { nil } { return error('compiled VML style callback is nil') }
+	node.component.require_alive()!
+	// Preferred-size passes register the same declaration again.
+	if 'style' in node.effects { return }
 	source := node.source_element()
-	base := Element{ ...source, box: source.style_default_box or { source.box } }
+	base := &VmlStyleBase{
+		box:               source.style_default_box or { source.box }
+		text_style:        source.text_style
+		interaction_style: source.interaction_style
+		layout:            source.layout
+		padding_left:      source.padding_left
+		content_padding:   source.content_padding
+		slider_style:      source.slider_style
+		switch_style:      source.switch_style
+	}
 	node.effect('style', fn [base, compute] (element Element) !Element {
 		patch := compute()!
 		unstyled := Element{

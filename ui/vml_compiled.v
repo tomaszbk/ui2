@@ -56,16 +56,24 @@ fn compiled_vml_controller_build[T]() Element {
 	compiled_vml_begin_snapshot()
 	defer { compiled_vml_end_snapshot() }
 	if controller.update != unsafe { nil } { controller.update(mut controller.model) }
+	mut built := false
 	if controller.node == unsafe { nil } {
 		declaration := controller.build(mut controller.model)
 		if declaration.compiled_node == unsafe { nil } { return declaration }
 		controller.node = declaration.compiled_node
 		mut live := compiled_vml_runtime()
 		live.root = controller.node
+		built = true
 	}
 	controller.node.update_viewport(vml_bounds()) or { eprintln('ui2 compiled VML viewport failed: ${err}') }
 	controller.node.mount() or { eprintln('ui2 compiled VML mount failed: ${err}') }
-	controller.node.component.invalidate_app() or { eprintln('ui2 compiled VML app update failed: ${err}') }
+	// A later build is requested after code outside compiled callbacks ran
+	// (input handlers, tasks, refresh), which may have changed the model. A
+	// document built by this call has just read the current model, unless a
+	// mount hook has run since.
+	if !built || controller.node.component.has_mount_hooks() {
+		controller.node.component.invalidate_app() or { eprintln('ui2 compiled VML app update failed: ${err}') }
+	}
 	return controller.node.element()
 }
 }

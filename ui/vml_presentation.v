@@ -18,10 +18,12 @@ struct VmlSourceSnapshot {
 // owner. Keep that projection separate from the source used by property effects
 // and by the next constructor invocation (an inactive slide is not authored hidden).
 fn (node &CompiledVmlNode) source_element() Element {
+	node.ensure_projection()
 	return Element{ ...node.declaration, compiled_node: node, compiled_source: unsafe { nil } }
 }
 
 fn (node &CompiledVmlNode) constructor_source_element() Element {
+	node.ensure_projection()
 	mut snapshot := node.source_snapshot
 	if snapshot == unsafe { nil } {
 		snapshot = &VmlSourceSnapshot{ node: node, value: node.source_element() }

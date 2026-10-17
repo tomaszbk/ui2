@@ -53,6 +53,17 @@ pub fn flex_justify(value string) !FlexJustify {
 }
 
 fn flex_validate(config FlexConfig) ! {
+	flex_validate_container(config)!
+	mut totals := flex_validation_totals(config)
+	for child in config.children {
+		flex_validate_child(child, child.element.frame, config.gap, mut totals)!
+	}
+	flex_validate_totals(totals)!
+}
+
+// The container, child and total checks are separate so retained layouts can
+// validate rules against child frames without materializing FlexChild copies.
+fn flex_validate_container(config FlexConfig) ! {
 	if config.align == .auto {
 		return error('flex layout alignment must be start, center, end, or stretch')
 	}
@@ -73,41 +84,55 @@ fn flex_validate(config FlexConfig) ! {
 		|| config.padding.bottom < 0 {
 		return error('flex layout padding cannot be negative')
 	}
-	mut total_width := config.padding.left + config.padding.right
-	mut total_height := config.padding.top + config.padding.bottom
-	for child in config.children {
-		for value in [child.element.frame.x, child.element.frame.y, child.element.frame.width,
-			child.element.frame.height, child.basis, child.grow, child.shrink, child.minimum_width,
-			child.minimum_height, child.maximum_width, child.maximum_height]! {
-			if !layout_finite(value) {
-				return error('flex child sizes, bounds, and weights must be finite')
-			}
-		}
-		if child.element.frame.width < 0 || child.element.frame.height < 0
-			|| (child.basis < 0 && child.basis != -1) {
-			return error('flex child dimensions and basis cannot be negative (basis accepts -1)')
-		}
-		if child.grow < 0 || child.shrink < 0 {
-			return error('flex child grow and shrink cannot be negative')
-		}
-		if child.minimum_width < 0 || child.minimum_height < 0
-			|| (child.maximum_width < 0 && child.maximum_width != -1)
-			|| (child.maximum_height < 0 && child.maximum_height != -1) {
-			return error('flex child bounds cannot be negative (maximum accepts -1)')
-		}
-		if child.maximum_width >= 0 && child.minimum_width > child.maximum_width {
-			return error('flex child minimum width cannot exceed its maximum width')
-		}
-		if child.maximum_height >= 0 && child.minimum_height > child.maximum_height {
-			return error('flex child minimum height cannot exceed its maximum height')
-		}
-		// Reject arithmetic overflow as well as explicitly non-finite inputs.
-		total_width += layout_max(child.element.frame.width, layout_max(child.minimum_width,
-			layout_max(child.maximum_width, child.basis))) + config.gap
-		total_height += layout_max(child.element.frame.height, layout_max(child.minimum_height,
-			layout_max(child.maximum_height, child.basis))) + config.gap
+}
+
+struct FlexValidationTotals {
+mut:
+	width  f64
+	height f64
+}
+
+fn flex_validation_totals(config FlexConfig) FlexValidationTotals {
+	return FlexValidationTotals{
+		width:  config.padding.left + config.padding.right
+		height: config.padding.top + config.padding.bottom
 	}
-	if !layout_finite(total_width) || !layout_finite(total_height) {
+}
+
+fn flex_validate_child(child FlexChild, frame Rect, gap f64, mut totals FlexValidationTotals) ! {
+	for value in [frame.x, frame.y, frame.width, frame.height, child.basis, child.grow,
+		child.shrink, child.minimum_width, child.minimum_height, child.maximum_width,
+		child.maximum_height]! {
+		if !layout_finite(value) {
+			return error('flex child sizes, bounds, and weights must be finite')
+		}
+	}
+	if frame.width < 0 || frame.height < 0 || (child.basis < 0 && child.basis != -1) {
+		return error('flex child dimensions and basis cannot be negative (basis accepts -1)')
+	}
+	if child.grow < 0 || child.shrink < 0 {
+		return error('flex child grow and shrink cannot be negative')
+	}
+	if child.minimum_width < 0 || child.minimum_height < 0
+		|| (child.maximum_width < 0 && child.maximum_width != -1)
+		|| (child.maximum_height < 0 && child.maximum_height != -1) {
+		return error('flex child bounds cannot be negative (maximum accepts -1)')
+	}
+	if child.maximum_width >= 0 && child.minimum_width > child.maximum_width {
+		return error('flex child minimum width cannot exceed its maximum width')
+	}
+	if child.maximum_height >= 0 && child.minimum_height > child.maximum_height {
+		return error('flex child minimum height cannot exceed its maximum height')
+	}
+	// Reject arithmetic overflow as well as explicitly non-finite inputs.
+	totals.width += layout_max(frame.width, layout_max(child.minimum_width, layout_max(child.maximum_width,
+		child.basis))) + gap
+	totals.height += layout_max(frame.height, layout_max(child.minimum_height, layout_max(child.maximum_height,
+		child.basis))) + gap
+}
+
+fn flex_validate_totals(totals FlexValidationTotals) ! {
+	if !layout_finite(totals.width) || !layout_finite(totals.height) {
 		return error('flex layout total size exceeds the supported range')
 	}
 }

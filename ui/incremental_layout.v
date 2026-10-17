@@ -199,16 +199,14 @@ pub fn (mut tree LayoutTree) patch_compiled(owner &CompiledVmlNode, element Elem
 	if owner == unsafe { nil } || element.compiled_node != owner {
 		return error('compiled subtree replacement must preserve its owner')
 	}
-	mut target := &RetainedLayoutNode{}
-	mut found := false
+	mut target := unsafe { &RetainedLayoutNode(nil) }
 	for _, node in tree.nodes {
 		if node.declaration.compiled_node == owner {
-			if found { return error('compiled declaration is mounted more than once') }
+			if target != unsafe { nil } { return error('compiled declaration is mounted more than once') }
 			target = node
-			found = true
 		}
 	}
-	if !found { return error('compiled declaration is not mounted') }
+	if target == unsafe { nil } { return error('compiled declaration is not mounted') }
 	if target.declaration.id != element.id || target.declaration.key != element.key {
 		return error('compiled subtree replacement must preserve id and key')
 	}
@@ -329,7 +327,7 @@ fn layout_child_identity(element Element, parent string) string {
 	} else if element.key.len > 0 {
 		parent + '/key:' + element.key.bytes().hex()
 	} else if element.compiled_node != unsafe { nil } {
-		parent + '/compiled:' + element.compiled_node.identity().bytes().hex()
+		parent + '/compiled:' + element.compiled_node.identity_path()
 	} else {
 		''
 	}
@@ -350,7 +348,9 @@ fn (mut tree LayoutTree) reconcile(element Element, known string, parent string)
 	flags := layout_metric_flags(element)
 	mut node := tree.nodes[identity] or {
 		tree.serial++
-		created := &RetainedLayoutNode{ identity: identity, generation: tree.serial }
+		// A new node starts with the element's kind, so it is not replaced
+		// again below; its declaration is still unmounted and fully dirty.
+		created := &RetainedLayoutNode{ identity: identity, generation: tree.serial, declaration: Element{ kind: element.kind } }
 		tree.nodes[identity] = created
 		created
 	}
@@ -366,9 +366,12 @@ fn (mut tree LayoutTree) reconcile(element Element, known string, parent string)
 	for child in element.children {
 		child_id := layout_child_identity(child, identity)
 		// Snapshot versions before the recursive call mutates retained nodes.
-		old := tree.nodes[child_id] or { &RetainedLayoutNode{} }
-		previous_version := old.version
-		previous_subtree := old.subtree_version
+		mut previous_version := u64(0)
+		mut previous_subtree := u64(0)
+		if old := tree.nodes[child_id] {
+			previous_version = old.version
+			previous_subtree = old.subtree_version
+		}
 		resolved := tree.reconcile(child, child_id, identity)
 		current := tree.nodes[resolved] or { panic('missing layout child') }
 		children << resolved
