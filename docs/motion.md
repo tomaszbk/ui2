@@ -190,6 +190,12 @@ not play, except that a held finite timeline shows its final values. Exits still
 perform unmount and cleanup exactly once. Turning it off does not restart a
 finished transition; loops resume.
 
+The kit's loading indicators and placeholders (`Spinner`, a loading `Progress`
+or `ProgressCircle`, `Skeleton` and `Shimmer`) are looping timelines, so under
+reduced motion they stand still and request no frames. The kit's disclosure
+and carousel transitions show their end at once. See
+[the kit's feedback controls](kit/display.md#feedback).
+
 ## Compiled VML
 
 A `motion` property takes the same configuration from an application method:

@@ -15,6 +15,10 @@ Row(gap: 8, align_items: center) {
 }
 ```
 
+The controls are documented by group:
+
+- [Display, feedback, disclosure and navigation](display.md)
+
 ## Conventions
 
 A control is a props struct embedding `CommonProps`, with typed enums for its
@@ -144,9 +148,9 @@ element's own callback.
 
 | Event | Payload | Controls |
 |---|---|---|
-| `.change` | `text` | Select, Tabs, Radio, single Accordion |
+| `.change` | `text` | Select, Tabs, Tree, Radio, Accordion |
 | `.change` | `value` | Slider, Rating, NumberInput, Pagination, Carousel |
-| `.change` | `checked` | Checkbox, Switch, Toggle, Collapsible |
+| `.change` | `checked` | Checkbox, Switch, Toggle, Collapsible, TreeItem, Clipboard |
 | `.open`, `.dismiss` | sets `open` | popups |
 | `.submit` | | Dialog Enter |
 
