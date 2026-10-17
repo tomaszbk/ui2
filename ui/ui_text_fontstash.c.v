@@ -61,14 +61,14 @@ $if (android || ios) && !ui2_headless ? && !ui2_document_library ? {
 	// builds a new one whenever the window is recreated, on an Android resume
 	// among others, so the loaded faces are tracked against the context they
 	// came from rather than behind a flag that a new context would not clear.
-	fn ensure_symbol_fallbacks(ctx &DrawContext) {
+	fn (mut w Window) ensure_symbol_fallbacks(ctx &DrawContext) {
 		if !ctx.font_inited || ctx.ft == unsafe { nil } || ctx.ft.fons == unsafe { nil } {
 			return
 		}
 		fons := ctx.ft.fons
 		if g_font_symbol_fons != voidptr(fons) {
 			g_font_symbol_fons = voidptr(fons)
-			clear_text_area_layouts()
+			w.clear_text_area_layouts()
 			g_font_symbol_ids = []int{}
 			g_font_symbol_bases = map[int]bool{}
 			for path in font_symbol_paths() {
@@ -215,7 +215,7 @@ $if (android || ios) && !ui2_headless ? && !ui2_document_library ? {
 	fn (mut w Window) draw_legacy_text_area_content(ctx &DrawContext, el Element, value string, x f64, y f64, clip Rect, scroll_parent_id string) {
 		dispatch := w.custom_input_dispatch()
 		root := w.navigation.root_revision
-		mut editor := g_text_editors[el.id] or { text_editor(value.clone()) }
+		mut editor := w.text_editors[el.id] or { text_editor(value.clone()) }
 		shown := editor.text
 		frame := rect(x, y, el.frame.width, el.frame.height)
 		content := text_area_content_rect(frame, el.padding_left, !el.disable_scroll)
@@ -232,7 +232,7 @@ $if (android || ios) && !ui2_headless ? && !ui2_document_library ? {
 			vertical_align: .middle
 		}
 		ctx.set_text_cfg(cfg)
-		lines := text_area_lines(el.id, shown, content.width, style, cfg.size, fn [ctx] (line string) f64 {
+		lines := w.text_area_lines(el.id, shown, content.width, style, cfg.size, fn [ctx] (line string) f64 {
 			return f64(ctx.text_width_f(line))
 		})
 		line_ranges := text_area_line_rune_ranges(shown, lines)
@@ -296,9 +296,9 @@ $if (android || ios) && !ui2_headless ? && !ui2_document_library ? {
 	}
 
 
-	fn text_area_lines(id string, value string, width f64, style TextStyle, rendered_size int, measure fn (string) f64) []string {
+	fn (mut w Window) text_area_lines(id string, value string, width f64, style TextStyle, rendered_size int, measure fn (string) f64) []string {
 		if id.len > 0 {
-			if cached := g_text_area_layouts[id] {
+			if cached := w.text_area_layouts[id] {
 				if cached.text == value && cached.width == width && cached.style == style
 					&& cached.rendered_size == rendered_size {
 					return cached.lines
@@ -307,7 +307,7 @@ $if (android || ios) && !ui2_headless ? && !ui2_document_library ? {
 		}
 		lines := wrap_text_area_lines(value, width, measure)
 		if id.len > 0 {
-			replace_text_area_layout(id, TextAreaLayout{
+			w.replace_text_area_layout(id, TextAreaLayout{
 				text: value
 				width: width
 				style: style

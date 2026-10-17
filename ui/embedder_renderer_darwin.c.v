@@ -279,8 +279,8 @@ $if macos && ui2_embedder ? && !ui2_headless ? && !ui2_document_library ? {
 		// NSTextInputClient text/IME deliveries have their own provenance and
 		// must never inherit a pending Sokol character from a physical key.
 		w.keyboard.pending = .invalid
-		if id.len == 0 || id !in g_active_fields || !w.editable_fields[id] { return }
-		mut editor := g_text_editors[id] or { text_editor((g_text_values[id] or { '' }).clone()) }
+		if id.len == 0 || id !in w.active_fields || !w.editable_fields[id] { return }
+		mut editor := w.text_editors[id] or { text_editor((w.text_values[id] or { '' }).clone()) }
 		value := if native.text == unsafe { nil } { '' } else { unsafe { cstring_to_vstring(native.text) } }
 		if native.kind == 2 {
 			w.composition.update(id, editor, value, native.selection_start, native.selection_length,
@@ -293,8 +293,8 @@ $if macos && ui2_embedder ? && !ui2_headless ? && !ui2_document_library ? {
 			} else {
 				w.composition.commit(mut editor, value, native.replacement_start, native.replacement_length)
 			}
-			replace_text_value(id, editor.text)
-			replace_text_editor(id, editor)
+			w.replace_text_value(id, editor.text)
+			w.replace_text_editor(id, editor)
 			w.fire_field_change(id)
 			if !dispatch.valid() { return }
 			w.scheduler.invalidate(.build)
@@ -309,12 +309,12 @@ $if macos && ui2_embedder ? && !ui2_headless ? && !ui2_document_library ? {
 
 	fn (mut w Window) sync_embedder_text() {
 		id := w.focused_field
-		editor := g_text_editors[id] or { TextEditor{} }
+		editor := w.text_editors[id] or { TextEditor{} }
 		display := w.custom_composition_editor(id, editor)
 		start, end := display.selection.ordered()
 		marked := w.composition.field_id == id && id.len > 0 && w.composition.mark_length > 0
 		caret := w.text_caret
-		C.ui2_embedder_sync_text(w.native_window, id.len > 0 && id in g_active_fields && w.editable_fields[id],
+		C.ui2_embedder_sync_text(w.native_window, id.len > 0 && id in w.active_fields && w.editable_fields[id],
 			display.text.str, rune_offset_to_utf16(display.text, start),
 			rune_offset_to_utf16(display.text, end) - rune_offset_to_utf16(display.text, start),
 			if marked { rune_offset_to_utf16(display.text, w.composition.start + w.composition.mark_start) } else { -1 },

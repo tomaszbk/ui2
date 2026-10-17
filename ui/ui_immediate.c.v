@@ -200,6 +200,59 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 		backend_text_focus BackendTextFocus
 		focus_visible bool = true
 		navigation &FocusManager = &FocusManager{}
+		// The editable field the iOS on-screen keyboard was last shown for.
+		ios_keyboard_field string
+		// Text editing, by element id: committed values, declared values,
+		// editors, kinds and laid-out text area lines of the mounted text
+		// controls, and the selection set for a text area without an editor.
+		text_values map[string]string
+		text_props map[string]string
+		text_editors map[string]TextEditor
+		text_kinds map[string]Kind
+		text_area_layouts map[string]TextAreaLayout
+		text_area_selections map[string]TextAreaSelectionRange
+		// Live control values by element id, and the declared values that
+		// replace them only when the declaration changes.
+		slider_values map[string]f64
+		slider_declared map[string]f64
+		slider_specs map[string]SliderSpec
+		switch_values map[string]bool
+		switch_declared map[string]bool
+		checkbox_values map[string]bool
+		checkbox_declared map[string]bool
+		toggle_values map[string]bool
+		toggle_declared map[string]bool
+		toggle_groups map[string]string
+		toggle_allow_no_selection map[string]bool
+		// The ids of the controls the last frame mounted; the state of the
+		// others is pruned.
+		active_fields map[string]bool
+		active_sliders map[string]bool
+		active_switches map[string]bool
+		active_checkboxes map[string]bool
+		active_toggles map[string]bool
+		active_scrolls map[string]bool
+		// Scroll views by element id. Viewports are full layout boxes; areas
+		// are their visible, hittable parts, so that nested panes overscroll
+		// against the clipped height. Offsets asked for before a view mounted
+		// wait in pending_scroll, apart from scroll_offsets, which
+		// prune_unmounted_state drops for every view missing from a frame.
+		// The sideways axis keeps the same state in maps of its own, so a pane
+		// that only scrolls vertically pays nothing for it.
+		scroll_targets map[string]HitTarget
+		scroll_offsets map[string]f64
+		scroll_content_h map[string]f64
+		scroll_areas map[string]Rect
+		scroll_transforms map[string]ContentTransform
+		scroll_viewports map[string]Rect
+		pending_scroll map[string]f64
+		scroll_order []string
+		scroll_parents map[string]string
+		scrollbar_geometries map[string]ScrollbarGeometry
+		scroll_offsets_x map[string]f64
+		scroll_content_w map[string]f64
+		pending_scroll_x map[string]f64
+		scrollbar_geometries_x map[string]ScrollbarGeometry
 		// Run as the window closes, before its drawing context is destroyed:
 		// documents mounted in it drop their subscriptions there.
 		close_hooks []fn ()
@@ -286,32 +339,6 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 	const tooltip_shadow = u32(0xdbe2ea)
 	const tooltip_text_color = u32(0x1f2937)
 
-	__global g_text_values = map[string]string{}
-	__global g_text_props = map[string]string{}
-	__global g_text_editors = map[string]TextEditor{}
-	__global g_text_kinds = map[string]Kind{}
-	__global g_slider_values = map[string]f64{}
-	__global g_slider_declared = map[string]f64{}
-	__global g_slider_specs = map[string]SliderSpec{}
-	__global g_switch_values = map[string]bool{}
-	__global g_switch_declared = map[string]bool{}
-	__global g_checkbox_values = map[string]bool{}
-	__global g_checkbox_declared = map[string]bool{}
-	__global g_toggle_values = map[string]bool{}
-	__global g_toggle_declared = map[string]bool{}
-	__global g_toggle_groups = map[string]string{}
-	__global g_toggle_allow_no_selection = map[string]bool{}
-	__global g_scroll_targets = map[string]HitTarget{}
-	__global g_scroll_offsets = map[string]f64{}
-	__global g_scroll_content_h = map[string]f64{}
-	__global g_scroll_areas = map[string]Rect{}
-	__global g_scroll_transforms = map[string]ContentTransform{}
-	__global g_active_fields = map[string]bool{}
-	__global g_active_sliders = map[string]bool{}
-	__global g_active_switches = map[string]bool{}
-	__global g_active_checkboxes = map[string]bool{}
-	__global g_active_toggles = map[string]bool{}
-	__global g_active_scrolls = map[string]bool{}
 	$if android || ios {
 		__global g_font_metrics = FontMetrics{}
 		__global g_font_files = map[string]string{}
@@ -343,26 +370,26 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 	}
 
 	@[manualfree]
-	fn replace_text_value(id string, value string) {
+	fn (mut w Window) replace_text_value(id string, value string) {
 		owned := value.clone()
-		if previous := g_text_values[id] {
+		if previous := w.text_values[id] {
 			free_owned_string(previous)
 		}
-		g_text_values[id] = owned
+		w.text_values[id] = owned
 	}
 
 	@[manualfree]
-	fn replace_text_prop(id string, value string) {
+	fn (mut w Window) replace_text_prop(id string, value string) {
 		owned := value.clone()
-		if previous := g_text_props[id] {
+		if previous := w.text_props[id] {
 			free_owned_string(previous)
 		}
-		g_text_props[id] = owned
+		w.text_props[id] = owned
 	}
 
 	@[manualfree]
-	fn replace_text_editor(id string, editor TextEditor) {
-		if previous := g_text_editors[id] {
+	fn (mut w Window) replace_text_editor(id string, editor TextEditor) {
+		if previous := w.text_editors[id] {
 			// Caret-only updates retain the editor's text allocation. Releasing
 			// it in that case would leave the replacement editor pointing at
 			// freed memory.
@@ -370,25 +397,25 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 				free_owned_string(previous.text)
 			}
 		}
-		g_text_editors[id] = editor
+		w.text_editors[id] = editor
 	}
 
 	@[manualfree]
-	fn forget_text_state(id string) {
-		if value := g_text_values[id] {
+	fn (mut w Window) forget_text_state(id string) {
+		if value := w.text_values[id] {
 			free_owned_string(value)
 		}
-		if prop := g_text_props[id] {
+		if prop := w.text_props[id] {
 			free_owned_string(prop)
 		}
-		if editor := g_text_editors[id] {
+		if editor := w.text_editors[id] {
 			free_owned_string(editor.text)
 		}
-		g_text_values.delete(id)
-		g_text_props.delete(id)
-		g_text_editors.delete(id)
-		g_text_kinds.delete(id)
-		forget_text_area_layout(id)
+		w.text_values.delete(id)
+		w.text_props.delete(id)
+		w.text_editors.delete(id)
+		w.text_kinds.delete(id)
+		w.forget_text_area_layout(id)
 	}
 
 	// ── Public API ─────────────────────────────────────────────────────
@@ -586,18 +613,18 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 		// release the previous allocation. Callers, in particular QML bindings,
 		// may retain the returned value after the next edit, so give them their
 		// own copy rather than exposing the map's storage.
-		return (g_text_values[id] or { '' }).clone()
+		return (w.text_values[id] or { '' }).clone()
 	}
 
 	pub fn (mut w Window) set_text(id string, t string) {
-		if id !in g_active_fields {
+		if id !in w.active_fields {
 			return
 		}
-		replace_text_value(id, t)
-		if (g_text_kinds[id] or { Kind.dropdown }) in [.text_field, .text_area] {
-			mut editor := g_text_editors[id] or { text_editor(t.clone()) }
+		w.replace_text_value(id, t)
+		if (w.text_kinds[id] or { Kind.dropdown }) in [.text_field, .text_area] {
+			mut editor := w.text_editors[id] or { text_editor(t.clone()) }
 			editor.set_text(t.clone())
-			replace_text_editor(id, editor)
+			w.replace_text_editor(id, editor)
 		}
 		if w.composition.field_id == id {
 			w.composition = TextComposition{}
@@ -608,75 +635,75 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 	// slider_value returns the live value currently displayed by a mounted
 	// slider, including a value changed by pointer input before the next build.
 	pub fn (mut w Window) slider_value(id string) f64 {
-		return g_slider_values[id] or { 0 }
+		return w.slider_values[id] or { 0 }
 	}
 
 	pub fn (mut w Window) set_slider_value(id string, value f64) {
-		if id !in g_active_sliders {
+		if id !in w.active_sliders {
 			return
 		}
-		spec := g_slider_specs[id] or { return }
-		g_slider_values[id] = slider_clamped_value(value, spec.min, spec.max)
+		spec := w.slider_specs[id] or { return }
+		w.slider_values[id] = slider_clamped_value(value, spec.min, spec.max)
 		w.invalidate_custom_paint()
 	}
 
 	// switch_active returns the live value, including a pointer change made
 	// before the declarative tree is rebuilt.
 	pub fn (mut w Window) switch_active(id string) bool {
-		return g_switch_values[id] or { false }
+		return w.switch_values[id] or { false }
 	}
 
 	pub fn (mut w Window) set_switch_active(id string, active bool) {
-		if id !in g_active_switches {
+		if id !in w.active_switches {
 			return
 		}
-		g_switch_values[id] = active
+		w.switch_values[id] = active
 		w.invalidate_custom_paint()
 	}
 
 	// checkbox_checked returns the live value currently displayed by a mounted
 	// checkbox, including a value changed by pointer input before the next build.
-	fn checkbox_checked(id string) bool {
-		return g_checkbox_values[id] or { false }
+	fn (mut w Window) checkbox_checked(id string) bool {
+		return w.checkbox_values[id] or { false }
 	}
 
 	pub fn (mut w Window) toggle_button_pressed(id string) bool {
-		return g_toggle_values[id] or { false }
+		return w.toggle_values[id] or { false }
 	}
 
 	pub fn (mut w Window) set_toggle_button_pressed(id string, pressed bool) {
-		if id !in g_active_toggles {
+		if id !in w.active_toggles {
 			return
 		}
 		if pressed {
-			release_custom_toggle_group(id)
+			w.release_custom_toggle_group(id)
 		}
-		g_toggle_values[id] = pressed
+		w.toggle_values[id] = pressed
 		w.invalidate_custom_paint()
 	}
 
 	pub fn (mut w Window) toggle_button_group_members(id string) []string {
-		group := g_toggle_groups[id] or { return [] }
+		group := w.toggle_groups[id] or { return [] }
 		if group.len == 0 {
 			return [id]
 		}
 		mut members := []string{}
-		for member, member_group in g_toggle_groups {
-			if member_group == group && member in g_active_toggles {
+		for member, member_group in w.toggle_groups {
+			if member_group == group && member in w.active_toggles {
 				members << member
 			}
 		}
 		return members
 	}
 
-	fn release_custom_toggle_group(id string) {
-		group := g_toggle_groups[id] or { return }
+	fn (mut w Window) release_custom_toggle_group(id string) {
+		group := w.toggle_groups[id] or { return }
 		if group.len == 0 {
 			return
 		}
-		for member, member_group in g_toggle_groups {
+		for member, member_group in w.toggle_groups {
 			if member != id && member_group == group {
-				g_toggle_values[member] = false
+				w.toggle_values[member] = false
 			}
 		}
 	}
@@ -767,19 +794,19 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 	}
 
 	pub fn (mut w Window) insert_text_area_text(id string, value string) {
-		if id !in g_active_fields || (g_text_kinds[id] or { Kind.screen }) != .text_area {
+		if id !in w.active_fields || (w.text_kinds[id] or { Kind.screen }) != .text_area {
 			return
 		}
-		mut editor := g_text_editors[id] or { text_editor((g_text_values[id] or { '' }).clone()) }
+		mut editor := w.text_editors[id] or { text_editor((w.text_values[id] or { '' }).clone()) }
 		editor.insert_text(value)
-		replace_text_value(id, editor.text)
-		replace_text_editor(id, editor)
+		w.replace_text_value(id, editor.text)
+		w.replace_text_editor(id, editor)
 		w.fire_field_change(id)
 		w.invalidate_custom_paint()
 	}
 
 	pub fn (mut w Window) scroll_offset(id string) f64 {
-		return scroll_state_offset(named_scroll_state_id(id))
+		return w.scroll_state_offset(named_scroll_state_id(id))
 	}
 
 	// scroll_to_offset puts a Scroll element at the given vertical offset. Before the
@@ -794,12 +821,12 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 		}
 		state_id := named_scroll_state_id(id)
 		wanted := if offset < 0 { 0.0 } else { offset }
-		if state_id in g_scroll_viewports {
-			maximum := scroll_maximum(state_id)
+		if state_id in w.scroll_viewports {
+			maximum := w.scroll_maximum(state_id)
 			if wanted > maximum && w.scheduler.build_pending() {
-				g_pending_scroll[state_id] = wanted
+				w.pending_scroll[state_id] = wanted
 			} else {
-				g_pending_scroll.delete(state_id)
+				w.pending_scroll.delete(state_id)
 			}
 			w.set_scroll_offset(state_id, wanted, maximum)
 			return
@@ -807,14 +834,14 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 		// The view does not exist yet, so its range is unknown and the offset cannot be
 		// stored as a live position: the next frame rendered without the view would
 		// prune it. Hold the request until the view registers and can clamp it.
-		g_pending_scroll[state_id] = wanted
+		w.pending_scroll[state_id] = wanted
 		w.invalidate_custom_paint()
 	}
 
 	// scroll_horizontal_offset returns how far a Scroll element is scrolled sideways.
 	// It stays zero for one whose scroll_mode leaves the horizontal axis out.
 	pub fn (mut w Window) scroll_horizontal_offset(id string) f64 {
-		return scroll_state_offset_x(named_scroll_state_id(id))
+		return w.scroll_state_offset_x(named_scroll_state_id(id))
 	}
 
 	// A request for an unmounted pane waits for its first layout, and one past the
@@ -823,37 +850,37 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 		if id.len == 0 { return }
 		state_id := named_scroll_state_id(id)
 		wanted := if offset < 0 { 0.0 } else { offset }
-		if state_id in g_scroll_viewports {
-			maximum := scroll_maximum_x(state_id)
+		if state_id in w.scroll_viewports {
+			maximum := w.scroll_maximum_x(state_id)
 			if wanted > maximum && w.scheduler.build_pending() {
-				g_pending_scroll_x[state_id] = wanted
+				w.pending_scroll_x[state_id] = wanted
 			} else {
-				g_pending_scroll_x.delete(state_id)
+				w.pending_scroll_x.delete(state_id)
 			}
 			w.set_scroll_offset_x(state_id, wanted, maximum)
 			return
 		}
-		g_pending_scroll_x[state_id] = wanted
+		w.pending_scroll_x[state_id] = wanted
 		w.invalidate_custom_paint()
 	}
 
 	pub fn (mut w Window) scroll_to_rect(id string, x f64, y f64, width f64, height f64) {
 		state_id := named_scroll_state_id(id)
-		area := g_scroll_viewports[state_id] or { return }
+		area := w.scroll_viewports[state_id] or { return }
 		dispatch := w.custom_input_dispatch()
 		ctx := dispatch.window.ctx
 		root := w.navigation.root_revision
-		current := scroll_state_offset(state_id)
+		current := w.scroll_state_offset(state_id)
 		mut next := current
 		if y < current { next = y }
 		else if y + height > current + area.height { next = y + height - area.height }
-		w.set_scroll_offset(state_id, next, scroll_maximum(state_id))
+		w.set_scroll_offset(state_id, next, w.scroll_maximum(state_id))
 		if !w.custom_scroll_dispatch_current(dispatch, ctx, root) { return }
-		current_x := scroll_state_offset_x(state_id)
+		current_x := w.scroll_state_offset_x(state_id)
 		mut next_x := current_x
 		if x < current_x { next_x = x }
 		else if x + width > current_x + area.width { next_x = x + width - area.width }
-		w.set_scroll_offset_x(state_id, next_x, scroll_maximum_x(state_id))
+		w.set_scroll_offset_x(state_id, next_x, w.scroll_maximum_x(state_id))
 	}
 
 	pub fn clipboard_has_image() bool {
@@ -956,7 +983,11 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 			ctx.destroy()
 		}
 		w.ctx = unsafe { nil }
-		clear_text_area_layouts()
+		// Text state owns clones of its strings; release them with the window.
+		for id in w.text_values.keys() { w.forget_text_state(id) }
+		for id in w.text_props.keys() { w.forget_text_state(id) }
+		for id in w.text_editors.keys() { w.forget_text_state(id) }
+		w.clear_text_area_layouts()
 		w.declared_root = Element{}
 		w.controls_root = Element{}
 		w.controls_initialized = false
@@ -1279,7 +1310,7 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 				scheduler.invalidate(.layout)
 			}
 		}
-		$if android || ios { ensure_symbol_fallbacks(ctx) }
+		$if android || ios { w.ensure_symbol_fallbacks(ctx) }
 		if work.build && !w.build_custom_declaration(false) { return }
 		if !custom_frame_current(dispatch, ctx) {
 			return
@@ -1304,7 +1335,7 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 		g_tooltip_targets.clear()
 		g_tooltip_owners = 0
 		w.text_caret = Rect{}
-		g_scroll_order.clear()
+		w.scroll_order.clear()
 		// Paint-time clamping can also notify user code before another pane is
 		// painted. Keep every mounted Scroll available to nested public calls.
 		w.sync_mounted_scroll_views()
@@ -1407,15 +1438,13 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 	}
 
 	$if ios {
-		__global g_ios_keyboard_field = ''
-
 		// An iPhone has no keyboard of its own, so sokol's on-screen one follows
 		// the focused editable field. It is shown or hidden only when that field
 		// changes, which leaves the user free to dismiss it.
 		fn (mut w Window) sync_ios_keyboard() {
-			field := if w.focused_field in g_active_fields && w.editable_fields[w.focused_field] { w.focused_field } else { '' }
-			if field == g_ios_keyboard_field { return }
-			g_ios_keyboard_field = field
+			field := if w.focused_field in w.active_fields && w.editable_fields[w.focused_field] { w.focused_field } else { '' }
+			if field == w.ios_keyboard_field { return }
+			w.ios_keyboard_field = field
 			sapp.show_keyboard(field.len > 0)
 		}
 	}
@@ -1641,7 +1670,7 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 			return dispatch
 		}
 		w.touch.scroll_id = w.scroll_hit_test(x, y)
-		w.touch.scroll_chain = scroll_ancestor_chain(w.touch.scroll_id)
+		w.touch.scroll_chain = w.scroll_ancestor_chain(w.touch.scroll_id)
 		if w.begin_scrollbar_drag(x, y) {
 			return dispatch
 		}
@@ -1710,7 +1739,7 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 		if id.len == 0 {
 			return
 		}
-		w.apply_scroll_vector(scroll_ancestor_chain(id), -delta_x * 48, -delta_y * 48)
+		w.apply_scroll_vector(w.scroll_ancestor_chain(id), -delta_x * 48, -delta_y * 48)
 	}
 
 	fn clamped_scroll_offset(requested f64, maximum f64) f64 {
@@ -1726,24 +1755,24 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 
 	fn (mut w Window) set_scroll_offset(id string, requested f64, maximum f64) {
 		next := clamped_scroll_offset(requested, maximum)
-		previous := g_scroll_offsets[id] or { 0.0 }
-		g_scroll_offsets[id] = next
+		previous := w.scroll_offsets[id] or { 0.0 }
+		w.scroll_offsets[id] = next
 		if next != previous {
 			w.invalidate_custom_paint()
-			target := g_scroll_targets[id] or { HitTarget{} }
-			w.fire_target_event(target, ElementEvent{ kind: .scroll, id: target.id, value: next, x: scroll_state_offset_x(id), y: next })
+			target := w.scroll_targets[id] or { HitTarget{} }
+			w.fire_target_event(target, ElementEvent{ kind: .scroll, id: target.id, value: next, x: w.scroll_state_offset_x(id), y: next })
 		}
 	}
 
 	fn (mut w Window) set_scroll_offset_x(id string, requested f64, maximum f64) {
 		next := clamped_scroll_offset(requested, maximum)
-		previous := g_scroll_offsets_x[id] or { 0.0 }
-		g_scroll_offsets_x[id] = next
+		previous := w.scroll_offsets_x[id] or { 0.0 }
+		w.scroll_offsets_x[id] = next
 		if next != previous {
 			w.invalidate_custom_paint()
-			target := g_scroll_targets[id] or { HitTarget{} }
-			w.fire_target_event(target, ElementEvent{ kind: .scroll, id: target.id, value: scroll_state_offset(id),
-				x: next, y: scroll_state_offset(id) })
+			target := w.scroll_targets[id] or { HitTarget{} }
+			w.fire_target_event(target, ElementEvent{ kind: .scroll, id: target.id, value: w.scroll_state_offset(id),
+				x: next, y: w.scroll_state_offset(id) })
 		}
 	}
 
@@ -1852,21 +1881,21 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 		if target.text_field {
 			if !w.navigation.can_focus(target.id) { return }
 			w.focused_field = target.id
-			mut editor := g_text_editors[target.id] or {
-				text_editor((g_text_values[target.id] or { '' }).clone())
+			mut editor := w.text_editors[target.id] or {
+				text_editor((w.text_values[target.id] or { '' }).clone())
 			}
 			editor.set_caret(rune_len(editor.text))
-			replace_text_editor(target.id, editor)
+			w.replace_text_editor(target.id, editor)
 			return
 		}
 		if target.text_area {
 			if !w.navigation.can_focus(target.id) { return }
 			w.focused_field = target.id
-			mut editor := g_text_editors[target.id] or {
-				text_editor((g_text_values[target.id] or { '' }).clone())
+			mut editor := w.text_editors[target.id] or {
+				text_editor((w.text_values[target.id] or { '' }).clone())
 			}
 			editor.set_caret(rune_len(editor.text))
-			replace_text_editor(target.id, editor)
+			w.replace_text_editor(target.id, editor)
 			return
 		}
 		if target.dropdown {
@@ -1997,9 +2026,9 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 			return
 		}
 		next := w.slider_target_value(target, x, y)
-		previous := g_slider_values[target.id] or { target.slider_spec.min }
+		previous := w.slider_values[target.id] or { target.slider_spec.min }
 		if target.id.len > 0 {
-			g_slider_values[target.id] = next
+			w.slider_values[target.id] = next
 		}
 		if next != previous {
 			w.fire_target_event(target, ElementEvent{ kind: .change, id: target.id, value: next })
@@ -2012,7 +2041,7 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 		}
 		previous := if target.id.len > 0 { w.switch_active(target.id) } else { target.switch_state }
 		if target.id.len > 0 {
-			g_switch_values[target.id] = active
+			w.switch_values[target.id] = active
 		}
 		if active != previous {
 			w.fire_target_event(target, ElementEvent{ kind: .change, id: target.id, checked: active })
@@ -2023,9 +2052,9 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 		if !target.checkbox {
 			return
 		}
-		previous := if target.id.len > 0 { checkbox_checked(target.id) } else { target.checkbox_state }
+		previous := if target.id.len > 0 { w.checkbox_checked(target.id) } else { target.checkbox_state }
 		if target.id.len > 0 {
-			g_checkbox_values[target.id] = !previous
+			w.checkbox_values[target.id] = !previous
 		}
 		w.fire_target_event(target, ElementEvent{ kind: .change, id: target.id, checked: !previous })
 	}
@@ -2041,9 +2070,9 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 		}
 		if target.id.len > 0 {
 			if pressed {
-				release_custom_toggle_group(target.id)
+				w.release_custom_toggle_group(target.id)
 			}
-			g_toggle_values[target.id] = pressed
+			w.toggle_values[target.id] = pressed
 		}
 		w.fire_target_event(target, ElementEvent{ kind: .change, id: target.id, checked: pressed })
 	}
@@ -2164,7 +2193,7 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 	}
 
 	fn (mut w Window) handle_char_input(ch u32) {
-		if w.focused_field.len == 0 || w.focused_field !in g_text_editors {
+		if w.focused_field.len == 0 || w.focused_field !in w.text_editors {
 			return
 		}
 		focused_node := w.navigation.node(w.focused_field) or { return }
@@ -2176,39 +2205,39 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 		if ch < 32 || ch == 127 || ch > 0x10ffff || (ch >= 0xd800 && ch <= 0xdfff) {
 			return
 		}
-		mut editor := g_text_editors[w.focused_field] or {
-			text_editor((g_text_values[w.focused_field] or { '' }).clone())
+		mut editor := w.text_editors[w.focused_field] or {
+			text_editor((w.text_values[w.focused_field] or { '' }).clone())
 		}
 		editor.insert_text(rune(ch).str())
-		replace_text_value(w.focused_field, editor.text)
-		replace_text_editor(w.focused_field, editor)
+		w.replace_text_value(w.focused_field, editor.text)
+		w.replace_text_editor(w.focused_field, editor)
 		w.fire_field_change(w.focused_field)
 	}
 
 	fn (mut w Window) handle_key_down(key gg.KeyCode, modifiers u32) {
 		dispatch := w.custom_input_dispatch()
 		if !dispatch.valid() { return }
-		if w.focused_field.len == 0 || w.focused_field !in g_text_editors {
+		if w.focused_field.len == 0 || w.focused_field !in w.text_editors {
 			return
 		}
 		focused_node := w.navigation.node(w.focused_field) or { return }
 		if focused_node.el.kind !in [.text_field, .text_area] { return }
-		mut editor := g_text_editors[w.focused_field] or {
-			text_editor((g_text_values[w.focused_field] or { '' }).clone())
+		mut editor := w.text_editors[w.focused_field] or {
+			text_editor((w.text_values[w.focused_field] or { '' }).clone())
 		}
 		if key in [.backspace, .delete, .enter, .kp_enter] && !(w.editable_fields[w.focused_field] or { true }) { return }
 		if key == .backspace {
 			if editor.backspace() {
-				replace_text_value(w.focused_field, editor.text)
-				replace_text_editor(w.focused_field, editor)
+				w.replace_text_value(w.focused_field, editor.text)
+				w.replace_text_editor(w.focused_field, editor)
 				w.fire_field_change(w.focused_field)
 				if !dispatch.valid() { return }
 			}
 		}
 		if key == .delete {
 			if editor.delete_forward() {
-				replace_text_value(w.focused_field, editor.text)
-				replace_text_editor(w.focused_field, editor)
+				w.replace_text_value(w.focused_field, editor.text)
+				w.replace_text_editor(w.focused_field, editor)
 				w.fire_field_change(w.focused_field)
 				if !dispatch.valid() { return }
 			}
@@ -2245,7 +2274,7 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 		if focused_text_area && (navigation_key == 'up' || navigation_key == 'down') {
 			if w.move_focused_text_area_caret(mut editor, if navigation_key == 'up' { -1 } else { 1 },
 				modifiers & u32(gg.Modifier.shift) != 0) {
-				g_text_editors[w.focused_field] = editor
+				w.text_editors[w.focused_field] = editor
 			}
 			return
 		}
@@ -2253,7 +2282,7 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 			&& !primary_modifier {
 			if w.move_focused_text_area_line_boundary(mut editor, navigation_key == 'end',
 				modifiers & u32(gg.Modifier.shift) != 0) {
-				g_text_editors[w.focused_field] = editor
+				w.text_editors[w.focused_field] = editor
 			}
 			return
 		}
@@ -2265,13 +2294,13 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 		navigation_modifier := if navigation_key == 'a' { primary_modifier } else { word_modifier }
 		if navigation_key.len > 0 && apply_text_editor_navigation(mut editor, navigation_key,
 			modifiers & u32(gg.Modifier.shift) != 0, navigation_modifier) {
-			g_text_editors[w.focused_field] = editor
+			w.text_editors[w.focused_field] = editor
 		}
 		if key == .enter || key == .kp_enter {
 			if focused_text_area {
 				editor.insert_text('\n')
-				replace_text_value(w.focused_field, editor.text)
-				replace_text_editor(w.focused_field, editor)
+				w.replace_text_value(w.focused_field, editor.text)
+				w.replace_text_editor(w.focused_field, editor)
 				w.fire_field_change(w.focused_field)
 				return
 			}
@@ -2317,9 +2346,9 @@ fn text_navigation_boundary_modifier(super_ bool) bool {
 
 fn (mut w Window) page_focused_text_area(direction int) {
 		state_id := named_scroll_state_id(w.focused_field)
-		viewport := g_scroll_viewports[state_id] or { return }
-		w.set_scroll_offset(state_id, scroll_state_offset(state_id) + f64(direction) * viewport.height,
-			scroll_maximum(state_id))
+		viewport := w.scroll_viewports[state_id] or { return }
+		w.set_scroll_offset(state_id, w.scroll_state_offset(state_id) + f64(direction) * viewport.height,
+			w.scroll_maximum(state_id))
 	}
 
 	fn (mut w Window) fire_field_change(id string) {
@@ -2378,7 +2407,7 @@ fn (mut w Window) page_focused_text_area(direction int) {
 
 	fn (mut w Window) commit_dropdown(id string, on_event ElementCallback, value string) {
 		w.close_dropdown()
-		replace_text_value(id, value)
+		w.replace_text_value(id, value)
 		w.fire_target_event(HitTarget{ id: id, on_event: on_event }, ElementEvent{ kind: .change, id: id, text: value })
 	}
 
@@ -2854,77 +2883,77 @@ fn (mut w Window) page_focused_text_area(direction int) {
 
 	fn (mut w Window) prune_unmounted_state() {
 		mut stale_fields := []string{}
-		for id, _ in g_text_values {
-			if id !in g_active_fields {
+		for id, _ in w.text_values {
+			if id !in w.active_fields {
 				stale_fields << id
 			}
 		}
 		for id in stale_fields {
-			forget_text_state(id)
-			forget_portable_text_area_selection(id)
+			w.forget_text_state(id)
+			w.text_area_selections.delete(id)
 			if w.focused_field == id {
 				w.focused_field = ''
 			}
 		}
 		mut stale_sliders := []string{}
-		for id, _ in g_slider_values {
-			if id !in g_active_sliders {
+		for id, _ in w.slider_values {
+			if id !in w.active_sliders {
 				stale_sliders << id
 			}
 		}
 		for id in stale_sliders {
-			g_slider_values.delete(id)
-			g_slider_declared.delete(id)
-			g_slider_specs.delete(id)
+			w.slider_values.delete(id)
+			w.slider_declared.delete(id)
+			w.slider_specs.delete(id)
 		}
 		mut stale_switches := []string{}
-		for id, _ in g_switch_values {
-			if id !in g_active_switches {
+		for id, _ in w.switch_values {
+			if id !in w.active_switches {
 				stale_switches << id
 			}
 		}
 		for id in stale_switches {
-			g_switch_values.delete(id)
-			g_switch_declared.delete(id)
+			w.switch_values.delete(id)
+			w.switch_declared.delete(id)
 		}
 		mut stale_checkboxes := []string{}
-		for id, _ in g_checkbox_values {
-			if id !in g_active_checkboxes {
+		for id, _ in w.checkbox_values {
+			if id !in w.active_checkboxes {
 				stale_checkboxes << id
 			}
 		}
 		for id in stale_checkboxes {
-			g_checkbox_values.delete(id)
-			g_checkbox_declared.delete(id)
+			w.checkbox_values.delete(id)
+			w.checkbox_declared.delete(id)
 		}
 		mut stale_toggles := []string{}
-		for id, _ in g_toggle_values {
-			if id !in g_active_toggles {
+		for id, _ in w.toggle_values {
+			if id !in w.active_toggles {
 				stale_toggles << id
 			}
 		}
 		for id in stale_toggles {
-			g_toggle_values.delete(id)
-			g_toggle_declared.delete(id)
-			g_toggle_groups.delete(id)
-			g_toggle_allow_no_selection.delete(id)
+			w.toggle_values.delete(id)
+			w.toggle_declared.delete(id)
+			w.toggle_groups.delete(id)
+			w.toggle_allow_no_selection.delete(id)
 		}
 		mut stale_scrolls := []string{}
-		for id, _ in g_scroll_offsets {
-			if id !in g_active_scrolls {
+		for id, _ in w.scroll_offsets {
+			if id !in w.active_scrolls {
 				stale_scrolls << id
 			}
 		}
 		for id in stale_scrolls {
-			g_scroll_offsets.delete(id)
-			g_scroll_content_h.delete(id)
-			g_scroll_transforms.delete(id)
-			g_scroll_offsets_x.delete(id)
-			g_scroll_content_w.delete(id)
+			w.scroll_offsets.delete(id)
+			w.scroll_content_h.delete(id)
+			w.scroll_transforms.delete(id)
+			w.scroll_offsets_x.delete(id)
+			w.scroll_content_w.delete(id)
 		}
-		for id in g_text_area_layouts.keys() {
-			if id !in g_active_fields || (g_text_kinds[id] or { Kind.screen }) != .text_area {
-				forget_text_area_layout(id)
+		for id in w.text_area_layouts.keys() {
+			if id !in w.active_fields || (w.text_kinds[id] or { Kind.screen }) != .text_area {
+				w.forget_text_area_layout(id)
 			}
 		}
 	}
@@ -3162,7 +3191,7 @@ fn (mut w Window) page_focused_text_area(direction int) {
 					child_screen_x := child.frame.x - scroll_x
 					child_screen_y := child.frame.y - scroll_y
 					if !subtree_has_visual_transform(child) && (child_screen_y + child.frame.height < 0 || child_screen_y > el.frame.height || child_screen_x + child.frame.width < 0 || child_screen_x > el.frame.width) {
-						retain_culled_scroll_state(child, reconciliation_child_key(path, index, child))
+						w.retain_culled_scroll_state(child, reconciliation_child_key(path, index, child))
 						continue
 					}
 					w.render_element(ctx, child, x - scroll_x, y - scroll_y, child_clip, child_scroll_parent_id, reconciliation_child_key(path,index,child))
@@ -3267,7 +3296,7 @@ fn (mut w Window) page_focused_text_area(direction int) {
 			.toggle_button {
 				x := el.frame.x + off_x
 				y := el.frame.y + off_y
-				pressed := g_toggle_values[el.id] or { el.checked }
+				pressed := w.toggle_values[el.id] or { el.checked }
 				box := if pressed { el.toggle_down_box() } else { el.box }
 				style := if pressed { el.toggle_down_text_style() } else { el.text_style }
 				if el.native_style && box.bg == unstyled_box_bg {
@@ -3300,7 +3329,7 @@ fn (mut w Window) page_focused_text_area(direction int) {
 			.checkbox {
 				x := el.frame.x + off_x
 				y := el.frame.y + off_y
-				checked := g_checkbox_values[el.id] or { el.checked }
+				checked := w.checkbox_values[el.id] or { el.checked }
 				box_size := if el.frame.height < 18 { el.frame.height } else { 18.0 }
 				box_y := y + (el.frame.height - box_size) / 2
 				fill := if checked {
@@ -3345,7 +3374,7 @@ fn (mut w Window) page_focused_text_area(direction int) {
 			.dropdown {
 				x := el.frame.x + off_x
 				y := el.frame.y + off_y
-				selected := g_text_values[el.id] or { el.text }
+				selected := w.text_values[el.id] or { el.text }
 				list_open := el.enabled && el.id.len > 0 && g_open_dropdown == el.id
 				expanded := list_open || (el.enabled && el.id.len > 0 && w.popup_menu_owner == el.id)
 				draw_control_surface(ctx, x, y, el.frame.width, el.frame.height, el.box,
@@ -3399,11 +3428,11 @@ fn (mut w Window) page_focused_text_area(direction int) {
 				} else {
 					f64(0)
 				}
-				current_text := g_text_values[el.id] or { el.text }
-				mut editor := g_text_editors[el.id] or { text_editor(current_text.clone()) }
+				current_text := w.text_values[el.id] or { el.text }
+				mut editor := w.text_editors[el.id] or { text_editor(current_text.clone()) }
 				if editor.text != current_text {
 					editor.set_text(current_text.clone())
-					replace_text_editor(el.id, editor)
+					w.replace_text_editor(el.id, editor)
 				}
 				$if macos && ui2_embedder ? {
 					editor = w.custom_composition_editor(el.id, editor)
@@ -3476,7 +3505,7 @@ fn (mut w Window) page_focused_text_area(direction int) {
 			.text_area {
 				x := el.frame.x + off_x
 				y := el.frame.y + off_y
-				current_text := g_text_values[el.id] or { el.text }
+				current_text := w.text_values[el.id] or { el.text }
 				draw_control_surface(ctx, x, y, el.frame.width, el.frame.height, el.box,
 					w.focused_field == el.id, el.enabled)
 				w.draw_text_area_content(ctx, el, current_text, x, y, clip, scroll_parent_id)
@@ -3499,7 +3528,7 @@ fn (mut w Window) page_focused_text_area(direction int) {
 				y := el.frame.y + off_y
 				frame := rect(x, y, el.frame.width, el.frame.height)
 				spec := slider_spec(el)
-				current := g_slider_values[el.id] or { el.value }
+				current := w.slider_values[el.id] or { el.value }
 				normalized := slider_value_normalized(current, spec.min, spec.max)
 				track_width := if el.slider_style.track_width > 0 {
 					el.slider_style.track_width
@@ -3569,7 +3598,7 @@ fn (mut w Window) page_focused_text_area(direction int) {
 			.switch_control {
 				frame := rect(el.frame.x + off_x, el.frame.y + off_y, el.frame.width,
 					el.frame.height)
-				active := g_switch_values[el.id] or { el.checked }
+				active := w.switch_values[el.id] or { el.checked }
 				track := switch_track_frame(frame)
 				thumb := switch_thumb_frame(track, active)
 				track_color := if el.enabled {

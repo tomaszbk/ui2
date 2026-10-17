@@ -369,7 +369,7 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 		}
 		w.focus(id)
 		node := w.navigation.node(id) or { return }
-		selected := g_text_values[id] or { node.el.text }
+		selected := w.text_values[id] or { node.el.text }
 		w.popup_menu_owner = id
 		w.invalidate_custom_paint()
 		w.show_popup_menu(PopupMenuConfig{

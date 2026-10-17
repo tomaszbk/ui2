@@ -28,43 +28,6 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 	@[heap]
 	struct CustomWindowState {
 	mut:
-		text_values map[string]string
-		text_props map[string]string
-		text_editors map[string]TextEditor
-		text_kinds map[string]Kind
-		text_area_selections map[string]TextAreaSelectionRange
-		text_area_layouts map[string]TextAreaLayout
-		slider_values map[string]f64
-		slider_declared map[string]f64
-		slider_specs map[string]SliderSpec
-		switch_values map[string]bool
-		switch_declared map[string]bool
-		checkbox_values map[string]bool
-		checkbox_declared map[string]bool
-		toggle_values map[string]bool
-		toggle_declared map[string]bool
-		toggle_groups map[string]string
-		toggle_allow_no_selection map[string]bool
-		scroll_targets map[string]HitTarget
-		scroll_offsets_x map[string]f64
-		scroll_offsets map[string]f64
-		scroll_content_w map[string]f64
-		scroll_content_h map[string]f64
-		scroll_areas map[string]Rect
-		scroll_transforms map[string]ContentTransform
-		scroll_viewports map[string]Rect
-		pending_scroll_x map[string]f64
-		pending_scroll map[string]f64
-		scroll_order []string
-		scroll_parents map[string]string
-		scrollbar_geometries_x map[string]ScrollbarGeometry
-		scrollbar_geometries map[string]ScrollbarGeometry
-		active_fields map[string]bool
-		active_sliders map[string]bool
-		active_switches map[string]bool
-		active_checkboxes map[string]bool
-		active_toggles map[string]bool
-		active_scrolls map[string]bool
 		legacy_fonts CustomFontState
 		open_dropdown string
 		dropdown_popup DropdownPopup
@@ -128,15 +91,6 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 	// resource caches. Disposing one window also leaves a nested caller intact.
 	fn discard_custom_window_state(state &CustomWindowState) {
 		previous := activate_custom_window_state(state)
-		for id in g_text_values.keys() {
-			forget_text_state(id)
-		}
-		for id in g_text_props.keys() {
-			forget_text_state(id)
-		}
-		for id in g_text_editors.keys() {
-			forget_text_state(id)
-		}
 		empty := new_custom_window_state()
 		empty.restore()
 		mut owned := unsafe { state }
@@ -145,43 +99,6 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 	}
 
 	fn (mut state CustomWindowState) capture() {
-		state.text_values = g_text_values
-		state.text_props = g_text_props
-		state.text_editors = g_text_editors
-		state.text_kinds = g_text_kinds
-		state.text_area_selections = portable_text_area_selections
-		state.text_area_layouts = g_text_area_layouts
-		state.slider_values = g_slider_values
-		state.slider_declared = g_slider_declared
-		state.slider_specs = g_slider_specs
-		state.switch_values = g_switch_values
-		state.switch_declared = g_switch_declared
-		state.checkbox_values = g_checkbox_values
-		state.checkbox_declared = g_checkbox_declared
-		state.toggle_values = g_toggle_values
-		state.toggle_declared = g_toggle_declared
-		state.toggle_groups = g_toggle_groups
-		state.toggle_allow_no_selection = g_toggle_allow_no_selection
-		state.scroll_targets = g_scroll_targets
-		state.scroll_offsets_x = g_scroll_offsets_x
-		state.scroll_offsets = g_scroll_offsets
-		state.scroll_content_w = g_scroll_content_w
-		state.scroll_content_h = g_scroll_content_h
-		state.scroll_areas = g_scroll_areas
-		state.scroll_transforms = g_scroll_transforms
-		state.scroll_viewports = g_scroll_viewports
-		state.pending_scroll_x = g_pending_scroll_x
-		state.pending_scroll = g_pending_scroll
-		state.scroll_order = g_scroll_order
-		state.scroll_parents = g_scroll_parents
-		state.scrollbar_geometries_x = g_scrollbar_geometries_x
-		state.scrollbar_geometries = g_scrollbar_geometries
-		state.active_fields = g_active_fields
-		state.active_sliders = g_active_sliders
-		state.active_switches = g_active_switches
-		state.active_checkboxes = g_active_checkboxes
-		state.active_toggles = g_active_toggles
-		state.active_scrolls = g_active_scrolls
 		$if android || ios {
 			state.legacy_fonts.font_metrics = g_font_metrics
 			state.legacy_fonts.font_files = g_font_files
@@ -208,43 +125,6 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 	}
 
 	fn (state &CustomWindowState) restore() {
-		g_text_values = state.text_values
-		g_text_props = state.text_props
-		g_text_editors = state.text_editors
-		g_text_kinds = state.text_kinds
-		portable_text_area_selections = state.text_area_selections
-		g_text_area_layouts = state.text_area_layouts
-		g_slider_values = state.slider_values
-		g_slider_declared = state.slider_declared
-		g_slider_specs = state.slider_specs
-		g_switch_values = state.switch_values
-		g_switch_declared = state.switch_declared
-		g_checkbox_values = state.checkbox_values
-		g_checkbox_declared = state.checkbox_declared
-		g_toggle_values = state.toggle_values
-		g_toggle_declared = state.toggle_declared
-		g_toggle_groups = state.toggle_groups
-		g_toggle_allow_no_selection = state.toggle_allow_no_selection
-		g_scroll_targets = state.scroll_targets
-		g_scroll_offsets_x = state.scroll_offsets_x
-		g_scroll_offsets = state.scroll_offsets
-		g_scroll_content_w = state.scroll_content_w
-		g_scroll_content_h = state.scroll_content_h
-		g_scroll_areas = state.scroll_areas
-		g_scroll_transforms = state.scroll_transforms
-		g_scroll_viewports = state.scroll_viewports
-		g_pending_scroll_x = state.pending_scroll_x
-		g_pending_scroll = state.pending_scroll
-		g_scroll_order = state.scroll_order
-		g_scroll_parents = state.scroll_parents
-		g_scrollbar_geometries_x = state.scrollbar_geometries_x
-		g_scrollbar_geometries = state.scrollbar_geometries
-		g_active_fields = state.active_fields
-		g_active_sliders = state.active_sliders
-		g_active_switches = state.active_switches
-		g_active_checkboxes = state.active_checkboxes
-		g_active_toggles = state.active_toggles
-		g_active_scrolls = state.active_scrolls
 		$if android || ios {
 			g_font_metrics = state.legacy_fonts.font_metrics
 			g_font_files = state.legacy_fonts.font_files

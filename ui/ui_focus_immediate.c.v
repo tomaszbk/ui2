@@ -4,15 +4,15 @@ module ui2
 $if (android || ios || linux || macos || windows) && !ui2_headless ?&& !ui2_document_library ? {
 	fn (mut w Window) focus_manager() &FocusManager { return w.navigation }
 
-	fn custom_focus_offsets(el Element, path string, mut offsets map[string]f64, mut offsets_x map[string]f64) {
+	fn (mut w Window) custom_focus_offsets(el Element, path string, mut offsets map[string]f64, mut offsets_x map[string]f64) {
 		current_path := if el.overlay_host() { overlay_host_path } else { path }
 		if el.kind == .scroll {
-			x, y := scroll_mode_offset(el.scroll_mode, scroll_state_offset_x(scroll_view_state_id(el, path)), scroll_state_offset(scroll_view_state_id(el, path)))
+			x, y := scroll_mode_offset(el.scroll_mode, w.scroll_state_offset_x(scroll_view_state_id(el, path)), w.scroll_state_offset(scroll_view_state_id(el, path)))
 			offsets[path] = y
 			offsets_x[path] = x
 		}
 		for i, child in el.children {
-			custom_focus_offsets(child, reconciliation_child_key(current_path, i, child), mut offsets, mut offsets_x)
+			w.custom_focus_offsets(child, reconciliation_child_key(current_path, i, child), mut offsets, mut offsets_x)
 		}
 	}
 
@@ -20,11 +20,11 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ?&& !ui2_docu
 		if w.navigation.geometry_revision != w.navigation.root_revision || w.navigation.geometry_serial == 0 {
 			w.focus_offsets.clear()
 			w.focus_offsets_x.clear()
-			custom_focus_offsets(w.navigation.root, 'root', mut w.focus_offsets, mut w.focus_offsets_x)
+			w.custom_focus_offsets(w.navigation.root, 'root', mut w.focus_offsets, mut w.focus_offsets_x)
 		} else {
 			for node in w.navigation.nodes {
 				if node.el.kind == .scroll {
-					x, y := scroll_mode_offset(node.el.scroll_mode, scroll_state_offset_x(scroll_view_state_id(node.el, node.path)), scroll_state_offset(scroll_view_state_id(node.el, node.path)))
+					x, y := scroll_mode_offset(node.el.scroll_mode, w.scroll_state_offset_x(scroll_view_state_id(node.el, node.path)), w.scroll_state_offset(scroll_view_state_id(node.el, node.path)))
 					w.focus_offsets[node.path] = y
 					w.focus_offsets_x[node.path] = x
 				}
@@ -70,17 +70,17 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ?&& !ui2_docu
 		for request in w.navigation.reveals(id) {
 			pane := w.navigation.path_node(request.path) or { continue }
 			state_id := scroll_view_state_id(pane.el, pane.path)
-			g_pending_scroll.delete(state_id)
-			g_pending_scroll_x.delete(state_id)
-			before := scroll_state_offset(state_id)
+			w.pending_scroll.delete(state_id)
+			w.pending_scroll_x.delete(state_id)
+			before := w.scroll_state_offset(state_id)
 			next := focus_reveal_offset(before, pane.el.frame.height, request.rect)
-			w.set_scroll_offset(state_id, next, scroll_maximum(state_id))
+			w.set_scroll_offset(state_id, next, w.scroll_maximum(state_id))
 			if !w.custom_scroll_dispatch_current(dispatch, ctx, root) || w.focused_field != id {
 				return
 			}
-			before_x := scroll_state_offset_x(state_id)
+			before_x := w.scroll_state_offset_x(state_id)
 			next_x := focus_reveal_offset(before_x, pane.el.frame.width, rect(request.rect.y, request.rect.x, request.rect.height, request.rect.width))
-			w.set_scroll_offset_x(state_id, next_x, scroll_maximum_x(state_id))
+			w.set_scroll_offset_x(state_id, next_x, w.scroll_maximum_x(state_id))
 			if !w.custom_scroll_dispatch_current(dispatch, ctx, root) || w.focused_field != id {
 				return
 			}
@@ -141,9 +141,9 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ?&& !ui2_docu
 		target := w.custom_focus_target(node)
 		if action in [.increment, .decrement] && node.el.kind == .slider {
 			spec := slider_spec(node.el)
-			before := g_slider_values[id] or { node.el.value }
+			before := w.slider_values[id] or { node.el.value }
 			value := semantic_slider_step(before, spec, action)
-			g_slider_values[id] = value
+			w.slider_values[id] = value
 			if value != before {
 				w.fire_target_event(target, ElementEvent{ kind: .change, id: id, value: value })
 			}
@@ -154,7 +154,7 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ?&& !ui2_docu
 		match node.el.kind {
 			.checkbox { w.commit_checkbox(target) }
 			.switch_control {
-				w.commit_switch(target, !(g_switch_values[id] or { node.el.checked }))
+				w.commit_switch(target, !(w.switch_values[id] or { node.el.checked }))
 			}
 			.toggle_button { w.commit_toggle_button(target) }
 			.dropdown {
@@ -178,14 +178,14 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ?&& !ui2_docu
 			mut value := node.value
 			mut checked := node.state.checked
 			if el.el.kind in [.text_field, .text_area, .dropdown] && !el.el.secure && el.el.accessibility_value.len == 0 {
-				value = (g_text_values[node.id] or { value }).clone()
+				value = (w.text_values[node.id] or { value }).clone()
 			}
 			if el.el.kind == .slider && el.el.accessibility_value.len == 0 {
-				value = (g_slider_values[node.id] or { el.el.value }).str()
+				value = (w.slider_values[node.id] or { el.el.value }).str()
 			}
-			if el.el.kind == .checkbox { checked = g_checkbox_values[node.id] or { checked } }
-			if el.el.kind == .switch_control { checked = g_switch_values[node.id] or { checked } }
-			if el.el.kind == .toggle_button { checked = g_toggle_values[node.id] or { checked } }
+			if el.el.kind == .checkbox { checked = w.checkbox_values[node.id] or { checked } }
+			if el.el.kind == .switch_control { checked = w.switch_values[node.id] or { checked } }
+			if el.el.kind == .toggle_button { checked = w.toggle_values[node.id] or { checked } }
 			if el.el.kind in [.checkbox, .switch_control, .toggle_button] {
 				if el.el.accessibility_value.len == 0 {
 					value = if checked { 'checked' } else { 'unchecked' }
@@ -212,13 +212,13 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ?&& !ui2_docu
 		w.controls_root = root
 		w.controls_initialized = true
 		w.controls_prune_pending = true
-		g_active_fields.clear()
+		w.active_fields.clear()
 		w.editable_fields.clear()
-		g_active_sliders.clear()
-		g_active_switches.clear()
-		g_active_checkboxes.clear()
-		g_active_toggles.clear()
-		g_active_scrolls.clear()
+		w.active_sliders.clear()
+		w.active_switches.clear()
+		w.active_checkboxes.clear()
+		w.active_toggles.clear()
+		w.active_scrolls.clear()
 		w.sync_mounted_focus_controls(root, 'root')
 	}
 
@@ -234,7 +234,7 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ?&& !ui2_docu
 		enabled := ancestor_enabled && el.presented_enabled() && !el.presented_hidden() && !el.overlay_inert()
 		w.sync_mounted_control(Element{ ...el, enabled: enabled })
 		if el.kind == .scroll {
-			g_active_scrolls[scroll_view_state_id(el, path)] = true
+			w.active_scrolls[scroll_view_state_id(el, path)] = true
 		}
 		for i, child in el.children {
 			w.sync_mounted_focus_control_subtree(child, reconciliation_child_key(path, i, child), enabled)
@@ -242,31 +242,31 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ?&& !ui2_docu
 	}
 
 	fn (mut w Window) sync_mounted_control(el Element) {
-		kind_changed := el.id in g_text_kinds && (g_text_kinds[el.id] or { el.kind }) != el.kind
+		kind_changed := el.id in w.text_kinds && (w.text_kinds[el.id] or { el.kind }) != el.kind
 		if kind_changed {
 			// Remove the old editor before pruning, even when the replacement is
 			// not a text control. Its eligible id can still own navigation focus.
-			forget_text_state(el.id)
-			forget_portable_text_area_selection(el.id)
+			w.forget_text_state(el.id)
+			w.text_area_selections.delete(el.id)
 			w.editable_fields.delete(el.id)
-			g_active_fields.delete(el.id)
+			w.active_fields.delete(el.id)
 			if w.composition.field_id == el.id {
 				w.composition = TextComposition{}
 			}
 			if g_open_dropdown == el.id { w.close_dropdown() }
 		}
 		if el.kind in [.text_field, .text_area, .dropdown] {
-			previous := g_text_props[el.id] or { el.text }
-			if kind_changed || el.id !in g_text_values || (el.text != previous && (g_text_values[el.id] or { '' }) != el.text) {
+			previous := w.text_props[el.id] or { el.text }
+			if kind_changed || el.id !in w.text_values || (el.text != previous && (w.text_values[el.id] or { '' }) != el.text) {
 				if w.composition.field_id == el.id {
 					w.composition = TextComposition{}
 				}
-				replace_text_value(el.id, el.text)
-				if el.kind != .dropdown { replace_text_editor(el.id, text_editor(el.text.clone())) }
+				w.replace_text_value(el.id, el.text)
+				if el.kind != .dropdown { w.replace_text_editor(el.id, text_editor(el.text.clone())) }
 			}
-			if el.id !in g_text_props || el.text != previous { replace_text_prop(el.id, el.text) }
-			g_text_kinds[el.id] = el.kind
-			g_active_fields[el.id] = true
+			if el.id !in w.text_props || el.text != previous { w.replace_text_prop(el.id, el.text) }
+			w.text_kinds[el.id] = el.kind
+			w.active_fields[el.id] = true
 			if el.kind != .dropdown {
 				w.editable_fields[el.id] = el.enabled && !el.readonly
 				if (!el.enabled || el.readonly) && w.composition.field_id == el.id {
@@ -277,38 +277,38 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ?&& !ui2_docu
 		if el.id.len == 0 { return }
 		match el.kind {
 			.checkbox {
-				if el.id !in g_checkbox_values || (g_checkbox_declared[el.id] or { el.checked }) != el.checked {
-					g_checkbox_values[el.id] = el.checked
+				if el.id !in w.checkbox_values || (w.checkbox_declared[el.id] or { el.checked }) != el.checked {
+					w.checkbox_values[el.id] = el.checked
 				}
-				g_checkbox_declared[el.id] = el.checked
-				g_active_checkboxes[el.id] = true
+				w.checkbox_declared[el.id] = el.checked
+				w.active_checkboxes[el.id] = true
 			}
 			.switch_control {
-				if el.id !in g_switch_values || (g_switch_declared[el.id] or { el.checked }) != el.checked {
-					g_switch_values[el.id] = el.checked
+				if el.id !in w.switch_values || (w.switch_declared[el.id] or { el.checked }) != el.checked {
+					w.switch_values[el.id] = el.checked
 				}
-				g_switch_declared[el.id] = el.checked
-				g_active_switches[el.id] = true
+				w.switch_declared[el.id] = el.checked
+				w.active_switches[el.id] = true
 			}
 			.toggle_button {
-				g_toggle_groups[el.id] = el.toggle_group()
-				g_toggle_allow_no_selection[el.id] = el.toggle_allow_no_selection()
-				if el.id !in g_toggle_values || (g_toggle_declared[el.id] or { el.checked }) != el.checked {
-					g_toggle_values[el.id] = el.checked
+				w.toggle_groups[el.id] = el.toggle_group()
+				w.toggle_allow_no_selection[el.id] = el.toggle_allow_no_selection()
+				if el.id !in w.toggle_values || (w.toggle_declared[el.id] or { el.checked }) != el.checked {
+					w.toggle_values[el.id] = el.checked
 				}
-				g_toggle_declared[el.id] = el.checked
-				g_active_toggles[el.id] = true
-				if g_toggle_values[el.id] or { false } { release_custom_toggle_group(el.id) }
+				w.toggle_declared[el.id] = el.checked
+				w.active_toggles[el.id] = true
+				if w.toggle_values[el.id] or { false } { w.release_custom_toggle_group(el.id) }
 			}
 			.slider {
 				spec := slider_spec(el)
-				if el.id !in g_slider_values || (g_slider_declared[el.id] or { el.value }) != el.value {
-					g_slider_values[el.id] = slider_clamped_value(el.value, spec.min, spec.max)
+				if el.id !in w.slider_values || (w.slider_declared[el.id] or { el.value }) != el.value {
+					w.slider_values[el.id] = slider_clamped_value(el.value, spec.min, spec.max)
 				}
-				g_slider_values[el.id] = slider_clamped_value(g_slider_values[el.id] or { el.value }, spec.min, spec.max)
-				g_slider_specs[el.id] = spec
-				g_slider_declared[el.id] = el.value
-				g_active_sliders[el.id] = true
+				w.slider_values[el.id] = slider_clamped_value(w.slider_values[el.id] or { el.value }, spec.min, spec.max)
+				w.slider_specs[el.id] = spec
+				w.slider_declared[el.id] = el.value
+				w.active_sliders[el.id] = true
 			}
 			else {}
 		}

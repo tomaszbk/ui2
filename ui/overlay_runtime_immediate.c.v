@@ -13,14 +13,14 @@ $if (linux || macos || windows) && !ui2_headless ? && !ui2_document_library ? {
 			if tree.has_overlays {
 				w.overlay_offsets.clear()
 				w.overlay_offsets_x.clear()
-				custom_focus_offsets(root, 'root', mut w.overlay_offsets, mut w.overlay_offsets_x)
+				w.custom_focus_offsets(root, 'root', mut w.overlay_offsets, mut w.overlay_offsets_x)
 			}
 		} else if tree.has_overlays {
 			for node in tree.geometry.nodes {
 				if node.el.kind == .scroll {
 					id := scroll_view_state_id(node.el, node.path)
-					w.overlay_offsets[node.path] = scroll_state_offset(id)
-					w.overlay_offsets_x[node.path] = scroll_state_offset_x(id)
+					w.overlay_offsets[node.path] = w.scroll_state_offset(id)
+					w.overlay_offsets_x[node.path] = w.scroll_state_offset_x(id)
 				}
 			}
 		}

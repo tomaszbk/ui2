@@ -32,19 +32,19 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 	}
 
 	pub fn (mut w Window) control_checked(id string) bool {
-		if id in g_active_checkboxes { return checkbox_checked(id) }
-		if id in g_active_switches { return w.switch_active(id) }
-		if id in g_active_toggles { return w.toggle_button_pressed(id) }
+		if id in w.active_checkboxes { return w.checkbox_checked(id) }
+		if id in w.active_switches { return w.switch_active(id) }
+		if id in w.active_toggles { return w.toggle_button_pressed(id) }
 		return false
 	}
 
 	pub fn (mut w Window) set_control_checked(id string, value bool) {
-		if id in g_active_checkboxes {
-			g_checkbox_values[id] = value
+		if id in w.active_checkboxes {
+			w.checkbox_values[id] = value
 			w.invalidate_custom_paint()
 		}
-		if id in g_active_switches { w.set_switch_active(id, value) }
-		if id in g_active_toggles { w.set_toggle_button_pressed(id, value) }
+		if id in w.active_switches { w.set_switch_active(id, value) }
+		if id in w.active_toggles { w.set_toggle_button_pressed(id, value) }
 	}
 
 	fn backend_control_insets(element Element) ?LayoutPadding { return custom_renderer_insets(element) }
