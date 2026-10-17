@@ -39,7 +39,7 @@ pub:
 }
 
 // ClipboardFeedback remembers which copy buttons have just copied and forgets
-// each after `duration` seconds, using `after`. Keep it in heap-allocated
+// each after `duration` seconds, using the window's `after`. Keep it in heap-allocated
 // application state, since its timers hold its address.
 pub struct ClipboardFeedback {
 pub:
@@ -56,21 +56,21 @@ pub fn (feedback &ClipboardFeedback) copied(id string) bool {
 // copy copies value to the system clipboard and, when that succeeds, shows the
 // copied state of the button id; it reports whether it copied. Copying again
 // restarts the feedback, so a value that has changed since can be copied
-// without waiting.
-pub fn (mut feedback ClipboardFeedback) copy(id string, value string) bool {
+// without waiting. w is the window that shows the button.
+pub fn (mut feedback ClipboardFeedback) copy(mut w Window, id string, value string) bool {
 	if !set_clipboard_text(value) {
 		return false
 	}
-	feedback.show(id)
+	feedback.show(mut w, id)
 	return true
 }
 
-// show marks id as copied for `duration` seconds.
-pub fn (mut feedback ClipboardFeedback) show(id string) {
+// show marks id as copied in w for `duration` seconds.
+pub fn (mut feedback ClipboardFeedback) show(mut w Window, id string) {
 	if previous := feedback.timers[id] {
-		cancel_timer(previous)
+		w.cancel_timer(previous)
 	}
-	feedback.timers[id] = after(feedback.duration, fn [mut feedback, id] () {
+	feedback.timers[id] = w.after(feedback.duration, fn [mut feedback, id] () {
 		feedback.timers.delete(id)
 	})
 }

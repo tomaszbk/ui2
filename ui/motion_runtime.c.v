@@ -124,6 +124,8 @@ fn (element &Element) presentation_moves() bool {
 @[heap]
 struct MotionTree {
 mut:
+	// The window whose elements move, which their states belong to.
+	window           &Window = unsafe { nil }
 	states           map[string]&ElementMotionState
 	previous         Element
 	initialized      bool
@@ -262,7 +264,7 @@ fn (mut tree MotionTree) prepare_node(element Element, previous Element, path st
 		if state == unsafe { nil } {
 			mut created := new_motion_state_for(element, element.motion or {
 				motion_target_config(owner)
-			})!
+			}, tree.window)!
 			created.target_timeline = targeted
 			created.sync_timeline(created.now())!
 			state = created

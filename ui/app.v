@@ -22,7 +22,8 @@ pub:
 @[heap]
 pub struct App {
 mut:
-	windows []&Window
+	windows        []&Window
+	reduced_motion bool
 }
 
 pub fn new_app() &App {
@@ -52,6 +53,34 @@ pub fn (app &App) windows() []&Window {
 // loop return at once.
 pub fn (mut app App) run() {
 	app.run_backend()
+}
+
+// set_reduced_motion applies a reduced motion preference to every element of
+// every window, as MotionConfig.reduced_motion does to one: transitions and
+// layout changes show their end at once and timelines do not play, except
+// that a held finite timeline shows its final values. Call it from the UI
+// thread, for example when the platform's accessibility setting changes.
+// Components draw their resting presentation only for the configurations
+// that ask for it (their reduce_motion field).
+pub fn (mut app App) set_reduced_motion(reduced bool) {
+	if app.reduced_motion == reduced {
+		return
+	}
+	app.reduced_motion = reduced
+	for mut w in app.windows {
+		w.backend_invalidate(.build)
+	}
+}
+
+// reduced_motion reports the preference set_reduced_motion applies.
+pub fn (app &App) reduced_motion() bool {
+	return app.reduced_motion
+}
+
+// prefers_reduced_motion reports whether the app that runs w asks for less
+// motion.
+fn (w &Window) prefers_reduced_motion() bool {
+	return w != unsafe { nil } && w.app != unsafe { nil } && w.app.reduced_motion
 }
 
 fn (mut app App) forget_window(w &Window) {

@@ -299,9 +299,6 @@ pub fn run_vml[T](config VmlRunConfig[T]) ! {
 		interpreter.stop = true
 		interpreter.dispose()
 	}
-	if config.watch {
-		spawn vml_watch(interpreter)
-	}
 	update := config.update
 	mut app := new_app()
 	mut w := app.new_window(
@@ -324,6 +321,9 @@ pub fn run_vml[T](config VmlRunConfig[T]) ! {
 		interpreter.stop = true
 		interpreter.dispose()
 	})
+	if config.watch {
+		spawn vml_watch(interpreter, w)
+	}
 	app.run()
 }
 
@@ -351,17 +351,18 @@ fn (mut i VmlInterpreter) next_frame(mut w Window) Element {
 	return root.element()
 }
 
-// vml_watch polls the document's files and asks for a build when one changes;
-// the build reloads the document on the UI thread. While `stale` is set the
-// watcher leaves the file table alone, which the reload then replaces.
-fn vml_watch(interpreter &VmlInterpreter) {
+// vml_watch polls the document's files and asks window for a build when one
+// changes; the build reloads the document on the UI thread. While `stale` is
+// set the watcher leaves the file table alone, which the reload then replaces.
+fn vml_watch(interpreter &VmlInterpreter, window &Window) {
 	mut watched := unsafe { interpreter }
+	mut w := unsafe { window }
 	for !watched.stop {
 		time.sleep(300 * time.millisecond)
 		if !watched.stale && watched.changed() {
 			watched.stale = true
-			// A timer is the thread-safe way to ask the UI thread for a build.
-			after(0, fn () {})
+			// Invalidation is the thread-safe way to ask the UI thread for a build.
+			w.backend_invalidate(.build)
 		}
 	}
 }

@@ -156,6 +156,8 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 		// attaches menus and popup menus to.
 		native_window voidptr
 		os_window voidptr
+		// Pending `after` callbacks (timer.v).
+		timers &TimerRuntime = &TimerRuntime{}
 		// The menu bar and tray the window declared (menu.v), and the drawn
 		// menu bar's state (menu_custom.c.v): menu_open_path holds one element
 		// per open panel, [m] for menu m's own list and [m, r] for the submenu
@@ -469,7 +471,11 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 		if app.windows.len > 0 {
 			return error('this host runs one window per process; the macOS embedder (-d ui2_embedder) runs several')
 		}
-		return &Window{
+		return new_custom_window(app, config)
+	}
+
+	fn new_custom_window(app &App, config WindowConfig) &Window {
+		mut w := &Window{
 			app: app
 			title: config.title
 			width: config.width
@@ -478,6 +484,8 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 			min_height: config.min_height
 			build: config.build
 		}
+		w.motion_tree.window = w
+		return w
 	}
 
 	fn (mut app App) run_backend() {
@@ -493,7 +501,6 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 	}
 
 	fn (mut w Window) run_sokol() {
-		set_window_wake(fn [mut w] (reason RenderReason) { w.backend_invalidate(reason) })
 		// Pick the bundled font before constructing either drawing adapter.
 		font_regular, font_bold := font_paths()
 		$if android || ios {
@@ -1040,7 +1047,6 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 		w.overlay_triggers.clear()
 		w.editable_fields.clear()
 		w.motion_tree.dispose()
-		set_window_wake(unsafe { nil })
 		w.tooltip = TooltipState{}
 		w.touch = TouchState{}
 		w.navigation = &FocusManager{}
@@ -1281,7 +1287,7 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 		if !dispatch.valid() { return }
 		// `after` callbacks run on the UI thread before the frame begins, so the
 		// build this asks for already sees what they changed.
-		if run_due_timers_now() && dispatch.valid() { w.scheduler.invalidate(.build) }
+		if w.run_due_timers() && dispatch.valid() { w.scheduler.invalidate(.build) }
 		if !dispatch.valid() { return }
 		mut ctx := w.ctx
 		if !ctx.owns_surface {

@@ -32,7 +32,9 @@ $if ui2_document_library ? {
 	@[heap]
 	pub struct Window {
 	mut:
-		menus MenuDeclarations
+		app    &App = unsafe { nil }
+		menus  MenuDeclarations
+		timers &TimerRuntime = &TimerRuntime{}
 	}
 
 	fn (mut app App) open_backend_window(_config WindowConfig) !&Window { document_without_window('new_window') }

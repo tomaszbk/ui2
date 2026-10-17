@@ -84,6 +84,7 @@ $if ui2_headless ? && !ui2_document_library ? {
 		revision    u64
 		close_hooks []fn ()
 		menus       MenuDeclarations
+		timers      &TimerRuntime = &TimerRuntime{}
 	}
 
 	fn (mut app App) open_backend_window(config WindowConfig) !&Window {
@@ -95,7 +96,6 @@ $if ui2_headless ? && !ui2_document_library ? {
 			min_height: config.min_height
 			build: config.build
 		}
-		set_window_wake(fn [mut w] (reason RenderReason) { w.backend_invalidate(reason) })
 		w.install_declared_menus()
 		w.headless_rebuild()
 		return w
@@ -175,7 +175,7 @@ $if ui2_headless ? && !ui2_document_library ? {
 		}
 		w.rendering = true
 		w.refresh_pending = false
-		run_due_timers_now()
+		w.run_due_timers()
 		declared := w.build(mut w)
 		w.builds++
 		w.headless_render(declared)

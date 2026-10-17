@@ -87,6 +87,9 @@ pub fn (config MotionConfig) validate() ! {
 @[heap]
 struct ElementMotionState {
 mut:
+	// The window that shows the element: its app's reduced motion
+	// preference applies, and handles wake it.
+	window          &Window = unsafe { nil }
 	controller      MotionController
 	config          MotionConfig
 	target          MotionValues
@@ -153,18 +156,18 @@ fn element_motion_paint(element Element) MotionPaint {
 	}
 }
 
-fn new_element_motion_state(element Element) !&ElementMotionState {
+fn new_element_motion_state(element Element, window &Window) !&ElementMotionState {
 	config := element.motion or { return error('element motion requires a configuration') }
-	return new_motion_state_for(element, config)!
+	return new_motion_state_for(element, config, window)!
 }
 
 // new_motion_state_for also serves elements a timeline targets without a
 // configuration of their own.
-fn new_motion_state_for(element Element, config MotionConfig) !&ElementMotionState {
+fn new_motion_state_for(element Element, config MotionConfig, window &Window) !&ElementMotionState {
 	config.validate()!
 	target := element_motion_values(element)
 	target.validate()!
-	reduced := config.reduced_motion || g_motion_reduced
+	reduced := config.reduced_motion || window.prefers_reduced_motion()
 	if !reduced {
 		if config.enter_transition.duration > 0 {
 			validate_motion_path(config.enter.over(target), target)!
@@ -179,6 +182,7 @@ fn new_motion_state_for(element Element, config MotionConfig) !&ElementMotionSta
 		reduced_motion: reduced
 	})!
 	mut state := &ElementMotionState{
+		window:          window
 		controller:      controller
 		config:          config
 		target:          target
@@ -193,7 +197,7 @@ fn new_motion_state_for(element Element, config MotionConfig) !&ElementMotionSta
 }
 
 fn (state &ElementMotionState) reduced() bool {
-	return state.config.reduced_motion || g_motion_reduced
+	return state.config.reduced_motion || state.window.prefers_reduced_motion()
 }
 
 fn (state &ElementMotionState) effective_timeline() MotionTimeline {
@@ -247,7 +251,7 @@ fn (mut state ElementMotionState) configure(config MotionConfig) ! {
 		state.controller = new_motion_controller(MotionControllerConfig{
 			initial:        config.enter.over(state.target)
 			clock:          config.clock
-			reduced_motion: config.reduced_motion || g_motion_reduced
+			reduced_motion: config.reduced_motion || state.window.prefers_reduced_motion()
 		})!
 	}
 	if state.config.handle != config.handle {
@@ -571,7 +575,7 @@ fn (mut node CompiledVmlNode) update_motion(element Element) !Element {
 	}
 	if motion_state == unsafe { nil } {
 		if _ := element.motion {
-			motion_state = new_element_motion_state(element)!
+			motion_state = new_element_motion_state(element, node.component.host_window())!
 			node.motion_state = motion_state
 			node.component.on_cleanup('motion:' + node.local_id, fn [mut node] () {
 				if node.motion_state != unsafe { nil } {

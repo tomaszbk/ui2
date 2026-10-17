@@ -40,19 +40,8 @@ $if macos && ui2_embedder ? && !ui2_headless ? && !ui2_document_library ? {
 		defer {
 			activate_custom_window_state(previous_state)
 		}
-		mut w := &Window{
-			app: app
-			title: config.title
-			width: config.width
-			height: config.height
-			min_width: config.min_width
-			min_height: config.min_height
-			build: config.build
-			window_state: state
-		}
-		set_window_wake(fn [mut app] (reason RenderReason) {
-			for mut window in app.windows { window.backend_invalidate(reason) }
-		})
+		mut w := new_custom_window(app, config)
+		w.window_state = state
 		font_regular, font_bold := font_paths()
 		device := C.ui2_embedder_metal_device()
 		if device == unsafe { nil } { return error('a main-thread Metal device is required') }

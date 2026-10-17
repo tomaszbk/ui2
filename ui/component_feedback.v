@@ -36,10 +36,11 @@ enum FeedbackChannel {
 }
 
 // feedback_animates reports whether a feedback component can move: the
-// renderer presents motion and neither the component nor the application
-// (set_reduced_motion) asks for less.
+// renderer presents motion and its configuration does not ask for less. An
+// application that prefers reduced motion (App.set_reduced_motion) passes
+// that preference in the configuration to get the resting presentation.
 fn feedback_animates(reduce_motion bool) bool {
-	return backend_supports_motion && !reduce_motion && !reduced_motion()
+	return backend_supports_motion && !reduce_motion
 }
 
 // feedback_motion plays timeline on part. Declared values change at once, as

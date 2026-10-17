@@ -7,8 +7,8 @@ import time
 // application owns a NotificationList and changes it from its callbacks (such as
 // NotificationStackConfig.on_notification); every change returns the timers it
 // needs (auto-hide, enter and exit transitions) as data, so the model stays
-// deterministic and testable, and schedule() turns them into `after`/
-// `cancel_timer` calls. notification_stacks (component_notifications_view.v)
+// deterministic and testable, and schedule() turns them into the window's
+// `after`/`cancel_timer` calls. notification_stacks (component_notifications_view.v)
 // draws the list.
 
 // notification_default_duration is how long, in seconds, a notification stays
@@ -159,7 +159,8 @@ mut:
 // NotificationList is the application-owned list of notifications, oldest first.
 // Keep it in heap-allocated application state: schedule() hands its address to
 // the timers it starts. Change its notifications only through its methods, and
-// pass every []NotificationTimer they return to schedule(). The settings may
+// pass every []NotificationTimer they return to schedule(), with the window
+// that shows the list. The settings may
 // change at any time; placement applies to notifications pushed afterwards.
 pub struct NotificationList {
 pub mut:
@@ -517,22 +518,23 @@ pub fn (mut list NotificationList) fire(timer NotificationTimer) []NotificationT
 	return []NotificationTimer{}
 }
 
-// schedule carries out timer requests: it starts each `.start` timer with
-// `after` and feeds it back to fire() when due, and cancels `.cancel` ones.
-// The cards and slots move with their own motion, which ends with their
-// elements. Call it from a callback, never from a build.
-pub fn (mut list NotificationList) schedule(timers []NotificationTimer) {
+// schedule carries out timer requests in w, the window that shows the list:
+// it starts each `.start` timer with w.after and feeds it back to fire() when
+// due, and cancels `.cancel` ones. The cards and slots move with their own
+// motion, which ends with their elements. Call it from a callback, never from
+// a build.
+pub fn (mut list NotificationList) schedule(mut w Window, timers []NotificationTimer) {
 	for timer in timers {
 		match timer.op {
 			.start {
-				list.timer_ids[timer.token] = after(timer.seconds, fn [mut list, timer] () {
+				list.timer_ids[timer.token] = w.after(timer.seconds, fn [mut list, mut w, timer] () {
 					list.timer_ids.delete(timer.token)
-					list.schedule(list.fire(timer))
+					list.schedule(mut w, list.fire(timer))
 				})
 			}
 			.cancel {
 				if timer_id := list.timer_ids[timer.token] {
-					cancel_timer(timer_id)
+					w.cancel_timer(timer_id)
 					list.timer_ids.delete(timer.token)
 				}
 			}
