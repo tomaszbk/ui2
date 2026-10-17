@@ -45,8 +45,8 @@ Screen(id: "root") {
                 View()
             }
         }
-        Carousel(id: "car2", x: 620, y: 110, width: 200, height: 100, index: app.current, direction: left, loop: true, min_move: 0.3, ignore_perpendicular_swipes: true) {
-            CarouselSlide {
+        Carousel(id: "car2", x: 620, y: 110, width: 200, height: 100, index: app.current, loop: true, on_change: app.hit("carousel")) {
+            CarouselSlide(accessibility_label: "First", gap: 4) {
                 View()
             }
             CarouselSlide {

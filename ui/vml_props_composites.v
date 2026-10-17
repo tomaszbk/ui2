@@ -1,10 +1,10 @@
 module ui2
 
-// Composite controls: Carousel and ScreenManager, with the typed child
-// declarations they read (CarouselSlide, ManagedScreen/ScreenView). A child
-// declaration is an element carrying its record in compiled_metadata, so a
-// parent rebuild sees the same records. Like the existing constructors, composites keep the root
-// element their constructor returns: element events are not attached.
+// The ScreenManager composite, with the page declarations it reads
+// (ManagedScreen/ScreenView). A page declaration is an element carrying its
+// record in compiled_metadata, so a parent rebuild sees the same records. Like
+// the existing constructors, ScreenManager keeps the root element its
+// constructor returns: element events are not attached.
 
 fn vml_managed_screen(ctx VmlBuildContext, name string) Element {
 	return Element{
@@ -29,46 +29,6 @@ fn vml_managed_screens(children []Element) ![]ManagedScreen {
 		}
 	}
 	return screens
-}
-
-// CarouselProps shows one CarouselSlide at a time.
-pub struct CarouselProps {
-	CommonProps
-pub mut:
-	index                       int
-	direction                   CarouselDirection
-	loop                        bool
-	min_move                    f64 = 0.2
-	ignore_perpendicular_swipes bool
-}
-
-pub fn (p CarouselProps) vml_container() {}
-
-pub fn (p CarouselProps) vml_structure() VmlStructure {
-	return .sourced
-}
-
-pub fn (p CarouselProps) build(ctx VmlBuildContext) !Element {
-	return vml_keyed(carousel(CarouselConfig{
-		id:                          ctx.id
-		frame:                       ctx.frame
-		index:                       p.index
-		direction:                   p.direction
-		loop:                        p.loop
-		min_move:                    p.min_move
-		ignore_perpendicular_swipes: p.ignore_perpendicular_swipes
-		slides:                      ctx.children
-	})!, ctx)
-}
-
-pub struct CarouselSlideProps {
-	CommonProps
-}
-
-pub fn (p CarouselSlideProps) vml_container() {}
-
-pub fn (p CarouselSlideProps) build(ctx VmlBuildContext) !Element {
-	return vml_keyed(view(ctx.id, ctx.frame, BoxStyle{}, ctx.children), ctx)
 }
 
 // ScreenManagerProps shows the page named `current` (the first when empty).

@@ -5,7 +5,6 @@ import math
 
 enum SlotComposite {
 	screen_manager
-	carousel
 }
 
 __global slot_events = []ElementEvent{}
@@ -84,7 +83,6 @@ fn slot_composite(kind SlotComposite, frame Rect, content Element) !Element {
 				screens: [ManagedScreen{ name: 'first', content: content }]
 			)!
 		}
-		.carousel { carousel(id: 'composite', frame: frame, slides: [content])! }
 	}
 }
 
@@ -129,7 +127,7 @@ fn slot_resolve(mut tree LayoutTree) !Element {
 fn slot_expected(kind SlotComposite, width f64, height f64) Rect {
 	// Public contracts, without calling any composite geometry helper.
 	return match kind {
-		.screen_manager, .carousel { rect(0, 0, width, height) }
+		.screen_manager { rect(0, 0, width, height) }
 	}
 }
 
@@ -218,37 +216,10 @@ fn test_screen_manager_grid_slot_resize() { slot_resize_fixture(.screen_manager,
 
 fn test_screen_manager_stack_slot_resize() { slot_resize_fixture(.screen_manager, .stack)! }
 
-fn test_carousel_flex_slot_resize() { slot_resize_fixture(.carousel, .flex)! }
-
-fn test_carousel_grid_slot_resize() { slot_resize_fixture(.carousel, .grid)! }
-
-fn test_carousel_stack_slot_resize() { slot_resize_fixture(.carousel, .stack)! }
-
-fn test_selected_content_slots_follow_headers_and_carousel_keeps_slide_generation() {
+fn test_screen_manager_selected_content_fills_its_slot() {
 	content := slot_content(.flex)!
 	other := stack(StackConfig{ id: 'other', frame: rect(7, 9, 40, 30) })!
 	mut tree := LayoutTree{}
-	for current in [0, 1, 0] {
-		tree.replace(carousel(
-			id:     'gallery'
-			frame:  rect(0, 0, 320, 200)
-			index:  current
-			slides: [content, other]
-		)!)!
-		resolved := slot_resolve(mut tree)!
-		slot_rect(resolved.children[current].frame, rect(0, 0, 320, 200))
-		assert !resolved.children[current].hidden && resolved.children[1 - current].hidden
-		assert resolved.accessibility_value == 'Slide ${current + 1} of 2'
-		generation := (tree.identity('content') or { panic('missing identity') }).generation
-		tree.replace(carousel(
-			id:     'gallery'
-			frame:  rect(0, 0, 320, 200)
-			index:  1 - current
-			slides: [content, other]
-		)!)!
-		_ = slot_resolve(mut tree)!
-		assert (tree.identity('content') or { panic('missing identity') }).generation == generation
-	}
 	for current in [0, 1] {
 		screens := screen_manager(
 			id:      'screens'
@@ -355,7 +326,7 @@ $if macos && !ui2_headless ? {
 			g_gg_app = previous_app
 			previous_window.restore()
 		}
-		for composite in [SlotComposite.screen_manager, .carousel] {
+		for composite in [SlotComposite.screen_manager] {
 			for layout in [LayoutKind.flex, .grid, .stack] {
 				mut app := &GgApp{ scheduler: new_frame_coordinator() }
 				g_gg_app = app

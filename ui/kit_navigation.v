@@ -1,10 +1,11 @@
 module ui2
 
 // The kit's navigation components: Tabs with its Tab panels, Breadcrumb
-// with its BreadcrumbItem parts, Pagination, and Tree with its TreeItem
-// children. A Tabs and a Tree keep one tab stop: it takes the arrow keys
-// and selects the neighboring tab or row, and the triggers and rows inside
-// take clicks.
+// with its BreadcrumbItem parts, Pagination, Tree with its TreeItem
+// children, and Carousel with its CarouselSlide children. A Tabs, a Tree
+// and a Carousel keep one tab stop: it takes the arrow keys and selects the
+// neighboring tab, row or slide, and the triggers and rows inside take
+// clicks.
 
 // ── Tabs ────────────────────────────────────────────────────────────
 
@@ -827,4 +828,242 @@ pub fn (p TreeItemProps) build(ctx VmlBuildContext) !Element {
 		children: children
 		toggle:   ctx.emitter(p.element_callback())
 	})
+}
+
+// ── Carousel ────────────────────────────────────────────────────────
+
+// CarouselProps is the `Carousel` tag: one CarouselSlide child at a time,
+// the one at `index`, above previous and next buttons and a dot per slide.
+// With `loop` the buttons wrap around. Showing another slide emits a change
+// whose value is its index, and `index` is bindable. While the carousel has
+// focus, Left and Right show the previous and next slide, Home and End the
+// first and last.
+pub struct CarouselProps {
+	CommonProps
+pub mut:
+	index int
+	loop  bool
+}
+
+pub fn (p CarouselProps) vml_container() {}
+
+// A Carousel shows one of its slides, so it is rebuilt when they change.
+pub fn (p CarouselProps) vml_structure() VmlStructure {
+	return .sourced
+}
+
+pub fn (p CarouselProps) vml_themed() {}
+
+pub fn (p CarouselProps) child_placement(placement VmlPlacement) VmlPlacement {
+	return .preferred
+}
+
+// The carousel is focusable, which needs an id.
+pub fn (p CarouselProps) control_id_required() bool {
+	return true
+}
+
+pub fn (mut p CarouselProps) apply_event(event ElementEvent) {
+	if event.kind == .change {
+		p.index = int(event.value)
+	}
+}
+
+pub fn (p CarouselProps) build(ctx VmlBuildContext) !Element {
+	t := ctx.tokens()
+	count := ctx.children.len
+	enabled := p.enabled or { true }
+	current := carousel_index(p.index, count, p.loop)
+	previous := carousel_previous(current, count, p.loop)
+	next := carousel_next(current, count, p.loop)
+	emitter := ctx.emitter(p.element_callback())
+	// The slides share one cell; a slide's own motion crossfades it with the
+	// one it replaces.
+	mut slides := []Element{cap: count}
+	mut label := ''
+	for index, child in ctx.children {
+		record := ctx.child_record[CarouselSlideRecord](index) or {
+			return error('Carousel takes CarouselSlide children')
+		}
+		if index == current {
+			label = record.label
+		}
+		slides << Element{
+			...child
+			hidden: child.hidden || index != current
+		}
+	}
+	viewport := stack_with_rules(StackConfig{
+		id:      ctx.part_id('viewport')
+		align_x: .stretch
+		align_y: .stretch
+	}, slides, []StackRule{len: slides.len})!
+	controls := flex_with_rules(FlexConfig{
+		id:          ctx.part_id('controls')
+		orientation: .horizontal
+		gap:         t.space_small
+		justify:     .center
+		align:       .center
+	}, [
+		kit_button(ctx, 'previous', ButtonProps{
+			icon:                .chevron_left
+			variant:             .outline
+			size:                .small
+			enabled:             enabled && previous != current
+			accessibility_label: 'Previous slide'
+			on_click:            kit_slide_choice(emitter, previous)
+		})!,
+		kit_carousel_dots(t, ctx.part_id('dots'), count, current)!,
+		kit_button(ctx, 'next', ButtonProps{
+			icon:                .chevron_right
+			variant:             .outline
+			size:                .small
+			enabled:             enabled && next != current
+			accessibility_label: 'Next slide'
+			on_click:            kit_slide_choice(emitter, next)
+		})!,
+	], []FlexRule{len: 3})!
+	root := flex_with_rules(FlexConfig{
+		id:          ctx.id
+		frame:       ctx.frame
+		orientation: .vertical
+		gap:         t.space_small
+		box:         BoxStyle{
+			transparent: true
+			radius:      t.radius_medium
+		}
+	}, [viewport, controls], [FlexRule{
+		grow:   1
+		shrink: 1
+	}, FlexRule{}])!
+	callback := p.element_callback()
+	return vml_handled(Element{
+		...root
+		focus_policy:        .focusable
+		keys:                ['left', 'right', 'home', 'end']
+		accessibility_role:  'group'
+		accessibility_value: kit_slide_value(current, count, label)
+		interaction_style:   kit_focus_interaction(t)
+	}, ctx, fn [callback, emitter, current, previous, next, count] (event ElementEvent) {
+		if callback != unsafe { nil } {
+			callback(event)
+		}
+		if event.kind != .key_down || count == 0 {
+			return
+		}
+		target := match event.key {
+			'left' { previous }
+			'right' { next }
+			'home' { 0 }
+			'end' { count - 1 }
+			else { current }
+		}
+		if target != current {
+			emitter.emit(ElementEvent{
+				kind:  .change
+				id:    event.id
+				value: f64(target)
+			})
+		}
+	})
+}
+
+// kit_slide_value is a carousel's accessibility value: which slide it shows,
+// and that slide's label when it has one.
+fn kit_slide_value(current int, count int, label string) string {
+	if count == 0 {
+		return 'No slides'
+	}
+	position := 'Slide ${current + 1} of ${count}'
+	return if label.len > 0 { '${position}: ${label}' } else { position }
+}
+
+// kit_slide_choice is the click handler of a carousel button: it emits the
+// change to slide index.
+fn kit_slide_choice(emitter VmlEmitter, index int) ElementCallback {
+	return fn [emitter, index] (event ElementEvent) {
+		if event.kind == .click {
+			emitter.emit(ElementEvent{
+				kind:  .change
+				id:    event.id
+				value: f64(index)
+			})
+		}
+	}
+}
+
+// kit_carousel_dots is a carousel's position: a dot per slide, the current
+// one in the accent color, drawn as two vector shapes.
+fn kit_carousel_dots(t KitTokens, id string, count int, current int) !Element {
+	side := 6.0
+	gap := 6.0
+	mut others := VectorPath{}
+	mut active := VectorPath{}
+	for index in 0 .. count {
+		dot := kit_arc_path(f64(index) * (side + gap) + side / 2, side / 2, side / 2, 0, 1)
+		if index == current {
+			active.commands << dot.commands
+			active.close()
+		} else {
+			others.commands << dot.commands
+			others.close()
+		}
+	}
+	mut shapes := []VectorShape{cap: 2}
+	if others.commands.len > 0 {
+		shapes << prepare_vector_shape(others, VectorStyle{
+			fill: t.track
+		})!
+	}
+	if active.commands.len > 0 {
+		shapes << prepare_vector_shape(active, VectorStyle{
+			fill: t.accent
+		})!
+	}
+	width := if count > 0 { f64(count) * (side + gap) - gap } else { 0.0 }
+	return Element{
+		...vector_canvas(
+			id:     id
+			frame:  rect(0, 0, width, side)
+			shapes: shapes
+		)!
+		accessibility_role: 'img'
+	}
+}
+
+// CarouselSlideProps is the `CarouselSlide` tag, one slide of a Carousel:
+// its children laid out in a column like Column's. It fades and slides in
+// from the right when it is shown, and out to the left when it is hidden.
+// Its `accessibility_label` names it in the Carousel's value.
+pub struct CarouselSlideProps {
+	CommonProps
+	VmlFlexFields
+}
+
+// CarouselSlideRecord is what a CarouselSlide tells its Carousel.
+pub struct CarouselSlideRecord {
+pub:
+	label string
+}
+
+pub fn (p CarouselSlideProps) vml_container() {}
+
+pub fn (p CarouselSlideProps) child_placement(placement VmlPlacement) VmlPlacement {
+	return .preferred
+}
+
+pub fn (p CarouselSlideProps) build(ctx VmlBuildContext) !Element {
+	slide := p.VmlFlexFields.build_flex(p.CommonProps, .vertical, ctx)!
+	return with_record(with_motion(slide, kit_motion_slide()), CarouselSlideRecord{
+		label: p.accessibility_label or { '' }
+	})
+}
+
+// kit_motion_slide fades a slide in from the right when it is shown, and out
+// to the left when it is hidden.
+fn kit_motion_slide() MotionConfig {
+	return motion_compose(motion_enter(MotionStyle{ opacity: 0, translate_x: 24 }), motion_exit(MotionStyle{
+		opacity:     0
+		translate_x: -24
+	}), motion_duration(0.25), motion_easing(.out_cubic))
 }

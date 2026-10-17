@@ -333,3 +333,15 @@ fn test_tree_keys_move_select_and_toggle() {
 	assert tree_key_move(rows, 0, 'enter').toggle
 	assert !tree_key_move(rows, 1, 'space').toggle
 }
+
+fn test_carousel_index_clamps_or_loops() {
+	assert carousel_index(-2, 3, false) == 0
+	assert carousel_index(8, 3, false) == 2
+	assert carousel_index(-1, 3, true) == 2
+	assert carousel_index(7, 3, true) == 1
+	assert carousel_index(4, 0, true) == 0
+	assert carousel_next(2, 3, false) == 2
+	assert carousel_next(2, 3, true) == 0
+	assert carousel_previous(0, 3, false) == 0
+	assert carousel_previous(0, 3, true) == 2
+}

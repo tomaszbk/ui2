@@ -285,3 +285,100 @@ fn test_tree_items_take_tree_item_children() {
 	}
 	assert false
 }
+
+fn kit_carousel_document(loop bool) !Element {
+	return props_document(pn(ColumnProps{},
+		children: [
+			pn(CarouselProps{ index: 1, loop: loop },
+				id:       'gallery'
+				children: [
+					pn(CarouselSlideProps{ accessibility_label: 'One' },
+						children: [
+							pn(LabelProps{ text: 'one' }),
+						]
+					),
+					pn(CarouselSlideProps{},
+						children: [
+							pn(LabelProps{ text: 'two' }),
+						]
+					),
+					pn(CarouselSlideProps{ accessibility_label: 'Three' }),
+				]
+			),
+		]
+	), rect(0, 0, 300, 300))!
+}
+
+fn test_carousel_shows_one_slide_above_its_controls() ! {
+	tree := kit_carousel_document(false)!
+	gallery := tree.children[0]
+	assert gallery.accessibility_role == 'group' && gallery.focus_policy == .focusable
+	assert gallery.keys == ['left', 'right', 'home', 'end']
+	assert gallery.accessibility_value == 'Slide 2 of 3'
+	viewport := gallery.children[0]
+	assert viewport.id.ends_with('gallery__viewport')
+	assert viewport.children.map(it.hidden) == [true, false, true]
+	assert viewport.children[1].children[0].text == 'two'
+	// A slide fades in from the right and out to the left.
+	slide := viewport.children[1].motion or { MotionConfig{} }
+	entering := slide.enter.translate_x or { 0 }
+	leaving := slide.exit.translate_x or { 0 }
+	assert entering == 24 && leaving == -24
+	controls := gallery.children[1]
+	assert controls.id.ends_with('gallery__controls') && controls.children.len == 3
+	assert controls.children[0].accessibility_label == 'Previous slide'
+	assert controls.children[1].accessibility_role == 'img'
+	assert controls.children[2].accessibility_label == 'Next slide'
+	assert controls.children[0].enabled && controls.children[2].enabled
+}
+
+fn test_carousel_moves_from_its_buttons_and_keys() ! {
+	tree := kit_carousel_document(false)!
+	mut root := tree.compiled_node
+	root.mount()!
+	next := root.element().children[0].children[1].children[2]
+	next.on_event(ElementEvent{ kind: .click, id: next.id })
+	last := root.element().children[0]
+	assert last.accessibility_value == 'Slide 3 of 3: Three'
+	assert last.children[0].children.map(it.hidden) == [true, true, false]
+	// Without loop, the last slide has no next one.
+	assert !last.children[1].children[2].enabled
+	kit_key(last, 'right')
+	assert root.element().children[0].accessibility_value == 'Slide 3 of 3: Three'
+	kit_key(root.element().children[0], 'home')
+	first := root.element().children[0]
+	assert first.accessibility_value == 'Slide 1 of 3: One' && !first.children[1].children[0].enabled
+	kit_key(first, 'left')
+	assert root.element().children[0].accessibility_value == 'Slide 1 of 3: One'
+	root.dispose_document()!
+}
+
+fn test_looping_carousel_wraps_around() ! {
+	tree := kit_carousel_document(true)!
+	mut root := tree.compiled_node
+	root.mount()!
+	kit_key(root.element().children[0], 'right')
+	kit_key(root.element().children[0], 'right')
+	wrapped := root.element().children[0]
+	assert wrapped.accessibility_value == 'Slide 1 of 3: One'
+	assert wrapped.children[1].children[0].enabled
+	kit_key(wrapped, 'left')
+	assert root.element().children[0].accessibility_value == 'Slide 3 of 3: Three'
+	root.dispose_document()!
+}
+
+fn test_carousel_takes_whole_slides() {
+	mut p := CarouselProps{}
+	p.apply_event(ElementEvent{ kind: .change, value: 2 })
+	assert p.index == 2
+	props_document(pn(CarouselProps{},
+		id:       'bad'
+		children: [
+			pn(LabelProps{ text: 'not a slide' }),
+		]
+	), rect(0, 0, 200, 200)) or {
+		assert err.msg().contains('CarouselSlide children')
+		return
+	}
+	assert false
+}

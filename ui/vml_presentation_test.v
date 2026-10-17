@@ -6,20 +6,26 @@ mut:
 	patches int
 }
 
-fn test_retained_carousel_projection_preserves_authored_visibility_and_live_fields() ! {
-	mut owner := new_vml_document('projected carousel')!
+// presentation_gallery decorates its slides as a slide show does: each one
+// framed beside the current one, and hidden unless it is the current one.
+fn presentation_gallery(index int, slides []Element) Element {
+	mut shown := []Element{cap: slides.len}
+	for i, slide in slides {
+		shown << Element{
+			...slide.with_layout_frame(rect(f64(i - index) * 300, 0, 300, 100))
+			hidden: slide.hidden || i != index
+		}
+	}
+	return view('gallery', rect(0, 0, 300, 100), BoxStyle{}, shown)
+}
+
+fn test_retained_slide_projection_preserves_authored_visibility_and_live_fields() ! {
+	mut owner := new_vml_document('projected slides')!
 	mut fixture := &VmlPresentationFixture{}
 	owner.set_publisher(fn [mut fixture] (_ string, _ Element) { fixture.patches++ })!
 	mut first := owner.element(Element{ kind: .label, id: 'first', text: 'first', frame: rect(0, 0, 11, 12) })!
 	mut second := owner.element(Element{ kind: .label, id: 'second', text: 'second', frame: rect(0, 0, 13, 14) })!
-	initial := carousel(CarouselConfig{
-		id:     'gallery'
-		frame:  rect(0, 0, 300, 100)
-		slides: [
-			first.element(),
-			second.element(),
-		]
-	})!
+	initial := presentation_gallery(0, [first.element(), second.element()])
 	mut node := owner.element(initial)!
 	assert node.element().children.map(it.hidden) == [false, true]
 	assert second.element().hidden && !second.source_element().hidden
@@ -32,7 +38,7 @@ fn test_retained_carousel_projection_preserves_authored_visibility_and_live_fiel
 		return Element{ ...element, hidden: hidden.get()! }
 	})!
 	node.structure('config', fn [mut node, mut index] () !Element {
-		return carousel(CarouselConfig{ id: 'gallery', frame: rect(0, 0, 300, 100), index: index.get()!, slides: node.child_elements()! })!
+		return presentation_gallery(index.get()!, node.child_elements()!)
 	})!
 	node.mount()!
 	first_handle := node.element().children[0].compiled_node

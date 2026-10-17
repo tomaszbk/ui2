@@ -90,17 +90,17 @@ fn props_composites_tree(mut app PropsApp) PNode {
 				pn(CarouselSlideProps{}, children: [pn(ViewProps{})]),
 			]),
 			pn(CarouselProps{
-				x:                           620
-				y:                           110
-				width:                       200
-				height:                      100
-				index:                       app.current
-				direction:                   .left
-				loop:                        true
-				min_move:                    0.3
-				ignore_perpendicular_swipes: true
+				x:         620
+				y:         110
+				width:     200
+				height:    100
+				index:     app.current
+				loop:      true
+				on_change: props_hit(mut app, 'carousel')
 			}, id: 'car2', children: [
-				pn(CarouselSlideProps{}, children: [pn(ViewProps{})]),
+				pn(CarouselSlideProps{ accessibility_label: 'First', gap: 4 }, children: [
+					pn(ViewProps{}),
+				]),
 				pn(CarouselSlideProps{}, children: [pn(ViewProps{})]),
 			]),
 			pn(ScreenManagerProps{

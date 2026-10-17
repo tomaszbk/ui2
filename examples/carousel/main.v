@@ -10,14 +10,6 @@ pub mut:
 	index int
 }
 
-pub fn (mut app CarouselDemo) previous() {
-	app.index = ui2.carousel_previous(app.index, 3, true)
-}
-
-pub fn (mut app CarouselDemo) next() {
-	app.index = ui2.carousel_next(app.index, 3, true)
-}
-
 fn main() {
 	mut app := CarouselDemo{}
 	ui2.run_compiled_vml[CarouselDemo](

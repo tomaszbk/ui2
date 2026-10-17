@@ -12,8 +12,9 @@ import math
 
 // Pure logic of the display, feedback and navigation controls: progress
 // values and curves, size presets, shimmer bands, badge and avatar text,
-// pagination and carousel indexes. The looping keyframes a feedback part
-// plays are built here too, from keys sampled over one cycle.
+// pagination, carousel indexes, keyboard selection and tree rows. The
+// looping keyframes a feedback part plays are built here too, from keys
+// sampled over one cycle.
 
 // ── Progress ────────────────────────────────────────────────────────
 
@@ -458,6 +459,35 @@ pub fn (state PaginationState) items() []PaginationItem {
 		page: state.pages
 	}
 	return items
+}
+
+// ── Carousel ────────────────────────────────────────────────────────
+
+// carousel_index is the slide a Carousel of slide_count slides shows for
+// index: wrapped around with `loop`, and clamped to the first and last slide
+// otherwise.
+pub fn carousel_index(index int, slide_count int, loop bool) int {
+	if slide_count <= 0 {
+		return 0
+	}
+	if loop {
+		wrapped := index % slide_count
+		return (wrapped + slide_count) % slide_count
+	}
+	if index < 0 {
+		return 0
+	}
+	return if index < slide_count { index } else { slide_count - 1 }
+}
+
+// carousel_next is the slide after index.
+pub fn carousel_next(index int, slide_count int, loop bool) int {
+	return carousel_index(index + 1, slide_count, loop)
+}
+
+// carousel_previous is the slide before index.
+pub fn carousel_previous(index int, slide_count int, loop bool) int {
+	return carousel_index(index - 1, slide_count, loop)
 }
 
 // ── Keyboard selection ──────────────────────────────────────────────

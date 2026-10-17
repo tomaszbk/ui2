@@ -1,9 +1,9 @@
 module ui2
 
 // The interpreter registry fragment of the kit's display, disclosure,
-// navigation and feedback components, with the legacy tags they replace. A
-// tag is one line here; the registry test checks the bindable fields and
-// part-only tags listed below against the props types.
+// navigation and feedback components. A tag is one line here; the registry
+// test checks the bindable fields and part-only tags listed below against the
+// props types.
 
 fn kit_display_widgets() map[string]VmlWidgetType {
 	return {
@@ -42,8 +42,8 @@ fn kit_display_widgets() map[string]VmlWidgetType {
 // kit_display_expected_bindables are the fragment's bindable properties,
 // `Tag.field`, which the registry test checks.
 fn kit_display_expected_bindables() []string {
-	return ['Accordion.value', 'Accordion.values', 'Clipboard.copied', 'Collapsible.open',
-		'Pagination.page', 'Tabs.value', 'Tree.value', 'TreeItem.expanded']
+	return ['Accordion.value', 'Accordion.values', 'Carousel.index', 'Clipboard.copied',
+		'Collapsible.open', 'Pagination.page', 'Tabs.value', 'Tree.value', 'TreeItem.expanded']
 }
 
 // kit_display_expected_parts are the fragment's part-only tags, which take no
