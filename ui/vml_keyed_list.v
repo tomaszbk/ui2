@@ -23,6 +23,9 @@ struct VmlKeyedEntry[T] {
 mut:
 	leaving       bool
 	exit_revision u64
+	// The item and index signals were created with the values the current
+	// update is publishing; writing them again would re-run every effect.
+	fresh bool
 }
 
 // A typed wrapper retains the immutable key returned by the callback. Appending
@@ -169,7 +172,13 @@ fn (mut list VmlKeyedList[T]) reconcile(items []T, keys []string, active map[str
 			}
 			node.set_reconciliation_key(sibling_key)
 		}
-		list.entries[key] = &VmlKeyedEntry[T]{ component: component, item: signal, index: position, nodes: nodes }
+		list.entries[key] = &VmlKeyedEntry[T]{
+			component: component
+			item:      signal
+			index:     position
+			nodes:     nodes
+			fresh:     signal.peek()! == item && position.peek()! == index
+		}
 		inserted << key
 	}
 	list.update_items(items, keys)!
@@ -229,7 +238,11 @@ fn (mut list VmlKeyedList[T]) finish_presence_exit(key string, revision u64) ! {
 fn (mut list VmlKeyedList[T]) update_items(items []T, keys []string) ! {
 	list.owner.runtime.batch(fn [mut list, items, keys] [T]() ! {
 		for index, item in items {
-			entry := list.entries[keys[index]] or { return error('compiled VML list entry is missing') }
+			mut entry := list.entries[keys[index]] or { return error('compiled VML list entry is missing') }
+			if entry.fresh {
+				entry.fresh = false
+				continue
+			}
 			entry.item.set(item)!
 			entry.index.set(index)!
 		}
