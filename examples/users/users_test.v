@@ -78,7 +78,7 @@ fn test_users_screen_is_evaluated_from_model_vml() {
 	assert app.users.len == 2
 
 	add_user := find_element_by_id(root, 'add-user') or { panic('missing Add user button') }
-	assert add_user.text == 'Add user'
+	assert add_user.accessibility_label == 'Add user'
 	assert add_user.native_style
 	assert (find_element_by_id(root, 'help') or { panic('missing help button') }).native_style
 	assert (find_element_by_id(root, 'close-help') or { panic('missing Close button') }).native_style

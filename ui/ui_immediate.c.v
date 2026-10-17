@@ -2070,51 +2070,7 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 	}
 
 	fn immediate_normalized_key(e &gg.Event) string {
-		code := int(e.key_code)
-		mut key := match e.key_code {
-			.backspace { 'backspace' }
-			.tab { 'tab' }
-			.enter, .kp_enter { 'enter' }
-			.escape { 'escape' }
-			.page_up { 'page_up' }
-			.page_down { 'page_down' }
-			.end { 'end' }
-			.home { 'home' }
-			.left { 'left' }
-			.up { 'up' }
-			.right { 'right' }
-			.down { 'down' }
-			.delete { 'forward_delete' }
-			else {
-				if code >= int(gg.KeyCode.f1) && code <= int(gg.KeyCode.f25) {
-					'f${code - int(gg.KeyCode.f1) + 1}'
-				} else if code >= int(gg.KeyCode.space) && code <= int(gg.KeyCode.z) {
-					rune(code).str().to_lower()
-				} else {
-					''
-				}
-			}
-		}
-		if key.len == 0 {
-			return ''
-		}
-		mut modifiers := []string{}
-		if e.modifiers & u32(gg.Modifier.super) != 0 {
-			modifiers << 'cmd'
-		}
-		if e.modifiers & u32(gg.Modifier.ctrl) != 0 {
-			modifiers << 'ctrl'
-		}
-		if e.modifiers & u32(gg.Modifier.alt) != 0 {
-			modifiers << 'alt'
-		}
-		if e.modifiers & u32(gg.Modifier.shift) != 0 {
-			modifiers << 'shift'
-		}
-		if modifiers.len > 0 {
-			key = modifiers.join('+') + '+' + key
-		}
-		return key
+		return key_event_name(immediate_key_event(e))
 	}
 
 	fn handle_char_input(ch u32) {

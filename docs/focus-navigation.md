@@ -75,6 +75,17 @@ Application key callbacks run before focus handling and may call `consume_key()`
 handle their keys first. Editor Enter/Space and arrows keep their existing
 editing/submit meanings, and the existing native IME command paths remain in use.
 
+An element takes keys of its own by listing their names in `Element.keys`
+(`keys` in VML), such as `['left', 'right', 'shift+tab']`. While the element
+or one of its descendants has focus, a press of a listed key reaches the
+nearest such element's `on_event` as a `key_down` event, before the application
+key callbacks and focus handling: `key` is the key's name and `target` the
+focused element. Names are `key_event_name(KeyEvent)`, the spelling `on_key`
+receives: modifiers in the order `cmd`, `ctrl`, `alt`, `shift`, then the key.
+A focused text field or text area passes a key on only when it lists the key
+itself, so its caret keys stay with it. Autorepeated Enter and Space are
+claimed but not delivered again.
+
 Changing focus through these APIs does not move an existing editor selection to
 its end. Unrelated declarations keep current focus, local text, selection and
 scroll. Unchanged declared text preserves edits; a changed declaration or

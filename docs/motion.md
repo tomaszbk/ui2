@@ -187,8 +187,7 @@ to every element, and `MotionConfig.reduced_motion` (or `motion_reduced`) to
 one. Transitions and layout changes show their end at once, and timelines do
 not play, except that a held finite timeline shows its final values. Exits still
 perform unmount and cleanup exactly once. Turning it off does not restart a
-finished transition; loops resume. The GPUI Kit's feedback components draw
-their still variants while it is set.
+finished transition; loops resume.
 
 ## Compiled VML
 

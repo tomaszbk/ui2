@@ -54,7 +54,7 @@ fn test_compiled_nested_repeaters_flatten_and_preserve_independent_keyed_instanc
 	assert reordered.len == 6
 	assert reordered[2].compiled_node == second.compiled_node
 	assert reordered[4].compiled_node == first.compiled_node
-	assert reordered[2].children[0].text == 'Updated B'
+	assert reordered[2].children[0].accessibility_label == 'Updated B'
 	assert reordered[4].children[1].text == '2'
 	assert reordered[2].children[1].text == '1'
 	assert reordered[4].children[2].text == 'Updated A/author'
@@ -109,7 +109,7 @@ fn test_compiled_keyed_components_keep_instance_state_and_lexical_slot_sources()
 	reordered := root.element().children[0].children
 	assert reordered[1].compiled_node == second.compiled_node
 	assert reordered[2].compiled_node == first.compiled_node
-	assert reordered[1].children[0].text == 'Updated B'
+	assert reordered[1].children[0].accessibility_label == 'Updated B'
 	assert reordered[2].children[1].text == '2'
 	assert reordered[1].children[1].text == '1'
 	assert reordered[2].children[2].text == 'Updated A/updated author'

@@ -139,6 +139,19 @@ Tokens are semantic values with typed namespaces: `color.surface`,
 Label(text: "Heading", style: [foreground(color.text), font_size(typography.heading)])
 ```
 
+The built-in tokens are those of `ui2.default_theme()`; `ui2.dark_theme()`
+gives the same names the dark palette:
+
+| Namespace | Tokens |
+|---|---|
+| `color` | `surface`, `surface_muted`, `popover`, `text`, `muted`, `border`, `input`, `input_border`, `accent`, `success`, `warning`, `danger`, `info` and their `on_accent`, `on_success`, `on_warning`, `on_danger`, `on_info` text colors, `focus_ring`, `hover`, `pressed`, `selection`, `track`, `disabled_text`, `tooltip`, `on_tooltip`, `backdrop`, `shadow`, `black`, `white`, `red`, `green`, `blue` |
+| `spacing` | `none` 0, `xsmall` 4, `small` 8, `medium` 12, `large` 24; `control_small` 6, `control_medium` 8, `control_large` 12; `gap_small` 4, `gap_medium` 6, `gap_large` 8; `control_height_small` 24, `control_height_medium` 32, `control_height_large` 40 |
+| `radius` | `none` 0, `small` 4, `medium` 8, `large` 12, `full` 9999; `control_small` 4, `control_medium` 6, `control_large` 8; `popover` 8, `dialog` 12 |
+| `typography` | `caption` 12, `body` 15, `title` 24, `heading` 32; `control_small` 12, `control_medium` 14, `control_large` 16 |
+
+The kit's controls read the same tokens; [the kit](kit/README.md) lists their
+colors and what each control token sizes.
+
 A theme supplies token values through the V runtime:
 
 ```v

@@ -55,7 +55,7 @@ fn test_preview_reuses_owner_and_failed_compile_preserves_live_document() ! {
 	assert first.compiled_node.component.is_disposed()
 	replacement := app.preview_element(frame)!
 	assert replacement.compiled_node != first.compiled_node
-	assert preview_test_find(replacement, 'replacement')?.text == 'New'
+	assert preview_test_find(replacement, 'replacement')?.accessibility_label == 'New'
 }
 
 fn test_preview_compiles_relative_component_imports_and_reloads_dependencies() ! {
@@ -77,7 +77,7 @@ fn test_preview_compiles_relative_component_imports_and_reloads_dependencies() !
 	first := app.preview_element(frame)!
 	assert first.children[0].children[0].text == 'First'
 	first.children[0].children[1].on_event(ui2.ElementEvent{ kind: .click })
-	assert app.preview_element(frame)!.children[0].children[1].text == '1'
+	assert app.preview_element(frame)!.children[0].children[1].accessibility_label == '1'
 	os.write_file(component, 'component Badge() { Label(text: "Second") }')!
 	app.compile_preview()!
 	assert first.compiled_node.component.is_disposed()
@@ -110,7 +110,7 @@ fn test_live_preview_interprets_the_designer_document() ! {
 	ui2.validate_element_tree(root)!
 	button := preview_test_find(root, app.components[0].name)?
 	assert button.frame == component_frame(app.components[0])
-	assert button.text == app.components[0].text
+	assert button.accessibility_label == app.components[0].text
 	assert button.on_event != unsafe { nil }
 	assert preview_test_find(root, app.components[1].name)?.checked
 	// The same document is reused while the source is unchanged.
@@ -133,7 +133,7 @@ fn test_live_preview_reloads_in_place_keeps_state_and_rereads_imports() ! {
 	first := app.preview_element(frame)!
 	assert first.children[0].children[0].text == 'First'
 	first.children[0].children[1].on_event(ui2.ElementEvent{ kind: .click })
-	assert app.preview_element(frame)!.children[0].children[1].text == '1'
+	assert app.preview_element(frame)!.children[0].children[1].accessibility_label == '1'
 	// Running an edited source again keeps the state of unchanged
 	// declarations.
 	app.source_text = 'import Badge\nScreen { Badge() Label(text: "Added") }'
@@ -141,7 +141,7 @@ fn test_live_preview_reloads_in_place_keeps_state_and_rereads_imports() ! {
 	assert first.compiled_node.component.is_disposed()
 	second := app.preview_element(frame)!
 	assert second.compiled_node != first.compiled_node
-	assert second.children[0].children[1].text == '1'
+	assert second.children[0].children[1].accessibility_label == '1'
 	assert second.children[1].text == 'Added'
 	// A source that does not load keeps the running document.
 	app.source_text = 'Screen { Label(text: app.missing) }'
@@ -167,11 +167,11 @@ fn test_verify_with_compiler_switches_the_preview_to_the_compiled_document() ! {
 	assert app.preview_compiled(), app.status
 	assert live.compiled_node.component.is_disposed()
 	compiled := app.preview_element(frame)!
-	assert preview_test_find(compiled, app.components[0].name)?.text == app.components[0].text
+	assert preview_test_find(compiled, app.components[0].name)?.accessibility_label == app.components[0].text
 	app.run_preview()!
 	assert !app.preview_compiled()
 	assert compiled.compiled_node.component.is_disposed()
-	assert preview_test_find(app.preview_element(frame)!, app.components[0].name)?.text == app.components[0].text
+	assert preview_test_find(app.preview_element(frame)!, app.components[0].name)?.accessibility_label == app.components[0].text
 }
 
 fn test_preview_sizes_preserve_saved_design_history_and_pending_source() {

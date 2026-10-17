@@ -7,10 +7,12 @@ import os
 // property of every tag set and read back by name.
 
 fn test_builtin_tags_cover_every_props_type() {
+	// Every props type in the VML and kit files is a tag: the core tags and
+	// the kit packages' registry fragments, which share no tag.
 	mut expected := []string{}
 	for file in os.ls(@DIR)! {
-		if !file.starts_with('vml_props') || !file.ends_with('.v') || file.ends_with('_test.v')
-			|| file.contains('_d_') {
+		if !(file.starts_with('vml_props') || file.starts_with('kit_')) || !file.ends_with('.v')
+			|| file.ends_with('_test.v') || file.contains('_d_') {
 			continue
 		}
 		for line in os.read_lines(os.join_path(@DIR, file))! {
@@ -24,11 +26,12 @@ fn test_builtin_tags_cover_every_props_type() {
 	expected.sort()
 	mut builtins := vml_builtin_widgets.keys()
 	builtins.sort()
-	assert expected.len == 47
 	assert builtins == expected
+	assert builtins.len == vml_core_widgets.len + kit_actions_widgets().len +
+		kit_popups_widgets().len + kit_display_widgets().len
 	mut common := []VmlPropInfo{}
 	vml_collect_props(CommonProps{}, [], mut common)
-	assert common.len == 52
+	assert common.len == 57
 	mut parts := []string{}
 	for tag, t in vml_builtin_widgets {
 		assert t.name == tag
@@ -48,8 +51,12 @@ fn test_builtin_tags_cover_every_props_type() {
 		}
 	}
 	parts.sort()
-	assert parts == ['Keyframe', 'Menu', 'MenuBar', 'MenuItem', 'MenuSeparator', 'Option', 'Run',
-		'Timeline']
+	mut expected_parts := ['Keyframe', 'Menu', 'MenuBar', 'MenuItem', 'MenuSeparator', 'Run', 'Timeline']
+	expected_parts << kit_actions_expected_parts()
+	expected_parts << kit_popups_expected_parts()
+	expected_parts << kit_display_expected_parts()
+	expected_parts.sort()
+	assert parts == expected_parts
 	assert vml_widget_tags() == builtins
 }
 
@@ -83,6 +90,9 @@ fn w_sample(info VmlPropInfo) VmlValue {
 				name: info.name
 				run:  fn (event ElementEvent) ! {}
 			})
+		}
+		.string_list {
+			VmlValue([VmlValue('left'), VmlValue('cmd+s')])
 		}
 		.object {
 			match info.type_name.trim_left('?').all_after_last('.') {
@@ -125,6 +135,9 @@ fn w_read_back(info VmlPropInfo, value VmlValue) bool {
 		}
 		.callback {
 			value is VmlCallable
+		}
+		.string_list {
+			'${value}' == '${VmlValue([VmlValue('left'), VmlValue('cmd+s')])}'
 		}
 		.object {
 			if value is VmlObject {
@@ -178,8 +191,12 @@ fn test_bindable_properties_come_from_apply_event() {
 			if info.bindable { bindable << '${tag}.${info.name}' }
 		}
 	}
-	assert bindable == ['Checkbox.checked', 'Dropdown.text', 'Slider.value', 'Spinner.text',
-		'Switch.active', 'TextArea.text', 'TextInput.text', 'ToggleButton.pressed']
+	mut expected := kit_actions_expected_bindables()
+	expected << kit_popups_expected_bindables()
+	expected << kit_display_expected_bindables()
+	expected.sort()
+	bindable.sort()
+	assert bindable == expected
 	slider := vml_widget_type('Slider') or { panic('missing Slider') }
 	orientation := slider.prop('orientation') or { panic('missing orientation') }
 	assert orientation.kind == .enumeration

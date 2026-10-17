@@ -14,9 +14,6 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 	pub const backend_supports_visual_transforms = $if android || ios { false } $else { true }
 	pub const backend_embedder = $if ui2_embedder ? { true } $else { false }
 	pub const backend_needs_host = false
-	// sokol-gl spends some 370 vertices on every rounded rect and has 65,536 a
-	// frame, so rings of round cells would blank a busy window.
-	const backend_feedback_strips = true
 
 	fn backend_input_dispatch() CustomInputDispatch { return custom_input_dispatch(g_gg_app) }
 

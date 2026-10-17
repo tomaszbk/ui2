@@ -20,7 +20,6 @@ $if ui2_document_library ? {
 	// draw them: with the custom renderer, unless the host is headless. This is
 	// the only backend condition this backend reads.
 	const document_host_custom = $if ui2_headless ? { false } $else { true }
-	const backend_feedback_strips = document_host_custom
 
 	@[noreturn]
 	fn document_without_window(api string) {

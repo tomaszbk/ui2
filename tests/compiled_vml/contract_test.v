@@ -51,7 +51,7 @@ fn test_compiled_bindable_inputs_typed_events_slots_and_refs_share_lifetime() ! 
 	root.component.invalidate_app()!
 	updated := root.element().children[0].children[0]
 	assert updated.children[2].text == 'Updated author'
-	assert updated.children[1].text == '1'
+	assert updated.children[1].accessibility_label == '1'
 	assert updated.id == first.id
 	mut owner := root.component
 	root.dispose_document()!

@@ -195,6 +195,15 @@ Checkbox(bind.checked: app.checked, on_change: app.changed())
 Unrelated event kinds do not run the change binding or action. Callbacks belong to
 their element declarations; an event id does not select another element's action.
 
+Every element also takes `on_submit`, `on_pointer_enter` and `on_pointer_leave`
+(either hover action makes it report hover), and `keys` with `on_key`: the keys
+listed run the action while the element or a descendant has focus, before the
+application's key handler ([focus navigation](focus-navigation.md)).
+
+```vml
+Column(keys: ["escape", "cmd+s"], on_key: app.shortcut(), on_pointer_enter: app.show_help()) { ... }
+```
+
 ## Flex and Grid
 
 `Flex` uses `orientation: horizontal` or `vertical`. `Row` and `Column` select

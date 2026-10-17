@@ -290,6 +290,16 @@ fn vml_new_node[P](mut owner CompiledVmlComponent, props P, o VmlNodeOptions, pa
 	node.path = o.path
 	node.src = o.src
 	node.impl = VmlAnyNode(node)
+	$if P is VmlThemed {
+		// A theme change rebuilds the widget and reads its layout floor again.
+		mut themed := node
+		mut revision := owner.theme_revision_signal() or { return o.src.wrap_error(err) }
+		owner.scope.effect_now('@theme', fn [mut themed, mut revision] [P]() ! {
+			revision.get()!
+			if themed.VmlNodeCore.node == unsafe { nil } && !themed.consumed { return }
+			themed.VmlNodeCore.changed(vml_change_rebuild | vml_change_layout)
+		}) or { return o.src.wrap_error(err) }
+	}
 	return node
 }
 
@@ -476,6 +486,17 @@ fn (n &VmlWidgetNode[P]) vml_child_placement(placement VmlPlacement) VmlPlacemen
 
 fn (n &VmlWidgetNode[P]) vml_layout_item() VmlLayoutItem {
 	$if P is VmlCommonProps {
+		$if P is VmlSizedControl {
+			if n.props.height == none {
+				mut owner := n.owner
+				item := n.props.layout_item()
+				height := owner.kit_tokens().metrics(n.props.control_size()).height
+				return VmlLayoutItem{
+					...item
+					min_height: if item.min_height > height { item.min_height } else { height }
+				}
+			}
+		}
 		return n.props.layout_item()
 	} $else {
 		return VmlLayoutItem{}
@@ -519,18 +540,32 @@ fn (n &VmlWidgetNode[P]) vml_styled(el Element, mode VmlStyleMode) !Element {
 // styled, with the stable event entry point.
 fn (mut n VmlWidgetNode[P]) vml_element(ctx VmlBuildContext, style VmlStyleMode) !Element {
 	$if P is VmlElementProps {
-		mut element := n.vml_styled(vml_build_element(n.props, ctx)!, style)!
-		if n.binds.len > 0 || (element.on_event != unsafe { nil } && vml_defines[P]('apply_event')) {
-			n.handler = element.on_event
-			if n.dispatcher == unsafe { nil } {
-				mut node := &n
-				n.dispatcher = fn [mut node] [P](event ElementEvent) {
-					node.dispatch(event)
-				}
+		// A node with its own state or write-backs routes events through
+		// dispatch. The build gets the dispatcher as ctx.dispatch, so the
+		// widget's parts can send it the widget's events (VmlEmitter).
+		dispatches := n.binds.len > 0 || vml_defines[P]('apply_event')
+		if dispatches && n.dispatcher == unsafe { nil } {
+			mut node := &n
+			n.dispatcher = fn [mut node] [P](event ElementEvent) {
+				node.dispatch(event)
 			}
-			element = Element{
-				...element
-				on_event: n.dispatcher
+		}
+		build_ctx := if dispatches {
+			VmlBuildContext{
+				...ctx
+				dispatch: n.dispatcher
+			}
+		} else {
+			ctx
+		}
+		mut element := n.vml_styled(vml_build_element(n.props, build_ctx)!, style)!
+		if dispatches {
+			n.handler = element.on_event
+			if n.binds.len > 0 || element.on_event != unsafe { nil } {
+				element = Element{
+					...element
+					on_event: n.dispatcher
+				}
 			}
 		}
 		if n.reactive_geometry {
@@ -759,16 +794,22 @@ fn (mut c VmlNodeCore) structural_element() !Element {
 	mut node := c.node
 	element := node.element()
 	children := if c.structure == .sourced { node.child_elements()! } else { []Element{} }
+	layouts := if c.structure == .sourced {
+		node.source_children.map(it.child_layout.layout_item())
+	} else {
+		[]VmlLayoutItem{}
+	}
 	frame := node.frame()!
 	parts := c.collect_parts()!
 	mut typed := c.typed()
 	return typed.vml_element(VmlBuildContext{
-		id:       c.ctx_id()
-		key:      element.key
-		frame:    frame
-		children: children
-		parts:    parts
-		owner:    c.owner
+		id:            c.ctx_id()
+		key:           element.key
+		frame:         frame
+		children:      children
+		child_layouts: layouts
+		parts:         parts
+		owner:         c.owner
 	}, .direct)!
 }
 
@@ -866,7 +907,8 @@ fn vml_common_change(before CommonProps, after CommonProps) u8 {
 		|| before.height != after.height || before.style != after.style
 		|| before.enabled != after.enabled || before.hidden != after.hidden
 		|| before.native != after.native || before.autocorrect != after.autocorrect
-		|| before.secure != after.secure || !vml_same_handlers(before, after) {
+		|| before.secure != after.secure || before.keys != after.keys
+		|| !vml_same_handlers(before, after) {
 		return vml_change_rebuild
 	}
 	mut change := u8(0)
@@ -885,6 +927,8 @@ fn vml_same_handlers(a CommonProps, b CommonProps) bool {
 		&& a.on_pointer_down == b.on_pointer_down && a.on_pointer_drag == b.on_pointer_drag
 		&& a.on_pointer_up == b.on_pointer_up && a.on_long_press == b.on_long_press
 		&& a.on_swipe_left == b.on_swipe_left && a.on_link == b.on_link
+		&& a.on_submit == b.on_submit && a.on_key == b.on_key
+		&& a.on_pointer_enter == b.on_pointer_enter && a.on_pointer_leave == b.on_pointer_leave
 }
 
 // The fields projected verbatim onto the element that no build reads.
@@ -1015,8 +1059,14 @@ pub fn vml_assign[T, V](current T, value V) T {
 		} $else {
 			$compile_error('VML value binding must target a number')
 		}
+	} $else $if V is []string {
+		$if T is []string {
+			return value.clone()
+		} $else {
+			$compile_error('VML values binding must target a []string')
+		}
 	} $else {
-		$compile_error('VML binding target must be a string, bool or number')
+		$compile_error('VML binding target must be a string, bool, number or []string')
 	}
 }
 

@@ -110,6 +110,10 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 					consumed = handle_dropdown_key(event.key_code)
 					if !dispatch.valid() { return true }
 				}
+				if !consumed && !composing {
+					consumed = element_key(immediate_key_event(event), event.key_repeat)
+					if !dispatch.valid() { return true }
+				}
 				if !consumed {
 					consumed = dispatch_key_event(event, dispatch)
 					if !dispatch.valid() { return true }
