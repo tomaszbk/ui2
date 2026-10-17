@@ -69,14 +69,17 @@ fn assert_same_tree(a ui2.Element, b ui2.Element) {
 	}
 }
 
-// The generic runtime keeps the compiled lowering's first-build budgets.
+// The generic runtime allocates less than the compiled lowering. Linux
+// measures about 1.3 MB for its twenty-key first build and about 17 MB for
+// the three-hundred-key construction and disposal; the budgets leave roughly
+// twice that.
 fn test_generic_calculator_first_build_allocation_is_bounded() ! {
 	$if gcboehm ? {
 		mut app := benchmark_model(default_rows)
 		before := ui2.gc_allocation_snapshot()!
 		root := build_generic(mut app, ui2.rect(0, 0, 800, 600))
 		delta := ui2.gc_allocation_snapshot()!.delta_since(before)
-		assert delta.allocated_bytes <= 4608 * 1024
+		assert delta.allocated_bytes <= 2560 * 1024
 		assert consume_and_dispose(root) == 1
 	}
 }
@@ -89,6 +92,6 @@ fn test_generic_three_hundred_key_first_build_allocation_is_bounded() ! {
 		assert root.children[0].children[0].children[0].children.len == 301
 		assert consume_and_dispose(root) == 1
 		delta := ui2.gc_allocation_snapshot()!.delta_since(before)
-		assert delta.allocated_bytes <= 64 * 1024 * 1024
+		assert delta.allocated_bytes <= 34 * 1024 * 1024
 	}
 }
