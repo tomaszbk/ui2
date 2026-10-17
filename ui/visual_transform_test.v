@@ -136,7 +136,7 @@ fn test_invalid_transforms_reject_and_have_no_hits() {
 }
 
 fn test_native_diagnoses_visual_presentation_including_rotation() {
-	$if !(android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
+	if !backend_supports_visual_transforms {
 		for t in [VisualTransform{ rotation: 10 }, VisualTransform{ translate_x: 1 },
 			VisualTransform{ scale_y: 2 }] {
 			root := with_transform(view('v', rect(0, 0, 100, 100), BoxStyle{}, []Element{}), t)

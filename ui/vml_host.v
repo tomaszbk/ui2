@@ -29,20 +29,18 @@ fn (component &CompiledVmlComponent) dispatch_command(command VmlHostCommand) ! 
 }
 
 fn compiled_vml_host_command(command VmlHostCommand) ! {
-	$if ui2_document_library ? {
+	if backend_needs_host {
 		return error('compiled VML ref command requires an attached host command handler')
-	} $else {
-		match command.kind {
-			.focus { focus(command.id) }
-			.set_text { set_text(command.id, command.text) }
-		}
+	}
+	match command.kind {
+		.focus { focus(command.id) }
+		.set_text { set_text(command.id, command.text) }
 	}
 }
 
 fn compiled_vml_request_refresh() {
-	$if ui2_document_library ? {
+	if backend_needs_host {
 		panic('compiled VML document library refresh requires a host publisher')
-	} $else {
-		request_refresh()
 	}
+	request_refresh()
 }

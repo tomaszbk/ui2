@@ -551,40 +551,13 @@ pub:
 	toggle_allow_no_selection bool = true
 }
 
+// BackendSupport is what control_support reports for a control kind. Partial
+// means the control works but lacks some native behavior (for example Android
+// rich text). Each backend defines control_support (backend.v).
 pub enum BackendSupport {
 	unsupported
 	partial
 	supported
-}
-
-// control_support makes backend differences explicit. Partial means the
-// control works but lacks some native behavior (for example Android rich text).
-pub fn control_support(kind Kind) BackendSupport {
-	$if ( macos || windows ) && ui2_custom_rendering ? {
-		return match kind {
-			.text_area, .dropdown { .partial }
-			else { .supported }
-		}
-	} $else $if macos {
-		return if kind == .image { .partial } else { .supported }
-	} $else $if ios {
-		return match kind {
-			.text_area, .checkbox, .image { .partial }
-			else { .supported }
-		}
-	} $else $if android || linux {
-		return match kind {
-			.text_area, .dropdown { .partial }
-			else { .supported }
-		}
-	} $else $if windows {
-		return match kind {
-			.image, .text_area { .partial }
-			else { .supported }
-		}
-	} $else {
-		return .unsupported
-	}
 }
 
 // reconciliation_child_key encodes user keys so separators inside a key
@@ -724,7 +697,7 @@ fn validate_element_properties(el Element, path string) ! {
 	if config := el.overlay {
 		config.validate()!
 		if el.kind != .view || el.id.len == 0 { return error('an overlay requires a View with a stable id at ${path}') }
-		$if !(linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? && !ui2_document_library ? {
+		if !backend_supports_overlays {
 			return error('overlays require the desktop custom renderer at ${path}')
 		}
 	}
@@ -735,17 +708,14 @@ fn validate_element_properties(el Element, path string) ! {
 	}
 	if config := el.motion { config.validate()! }
 	if el.opacity != 1 || el.motion != none {
-		$if !(linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ?&& !ui2_document_library ? {
+		if !backend_supports_motion {
 			return error('opacity and motion require the desktop custom renderer at ${path}')
 		}
 	}
 	el.authored_visual_transform().matrix(el.frame)!
 	if el.authored_visual_transform() != VisualTransform{} {
-		$if !( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headless ? {
-			return error('visual transforms require the custom renderer at ${path}')
-		}
-		$if android {
-			return error('visual transforms require the desktop custom text renderer at ${path}')
+		if !backend_supports_visual_transforms {
+			return error('visual transforms require the custom renderer with desktop text at ${path}')
 		}
 	}
 	if (el.focus_scope || el.focus_policy == .focusable) && el.id.len == 0 {
@@ -758,7 +728,7 @@ fn validate_element_properties(el Element, path string) ! {
 		for shape in el.vector_shapes {
 			if !shape.prepared { return error('vector canvas needs prepared geometry at ${path}') }
 		}
-		$if !( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headless ? {
+		if !backend_supports_vector_canvas {
 			return error('vector canvas requires the custom renderer at ${path}')
 		}
 	}
@@ -768,13 +738,13 @@ fn validate_element_properties(el Element, path string) ! {
 		if el.kind !in [.image,.button] { return error('image assets/styles require an Image or raster Button at ${path}') }
 		if el.image_path.starts_with('symbol:') { return error('symbol buttons use text_style, not raster image assets/styles at ${path}') }
 	}
-	$if !( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headless ? {
+	if backend_native_controls {
 		validate_native_image(el)!
 	}
 	if el.content_size.width != 0 || el.content_size.height != 0 {
 		if el.kind != .view { return error('scaled content must be a view at ${path}') }
 		contain_content(el.frame, el.content_size.width, el.content_size.height)!
-		$if !( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headless ? {
+		if !backend_supports_vector_canvas {
 			return error('scaled content requires the custom renderer')
 		}
 	}

@@ -98,13 +98,13 @@ fn test_image_invalid_assets_and_native_presentation_have_diagnostics() {
 
 fn test_image_tree_rejects_custom_presentation_on_native_hosts() {
 	el := Element{ ...image('styled', 'x.png', rect(0, 0, 100, 100)), image_style: ImageStyle{ fit: .cover } }
-	$if !( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headless ? {
+	if backend_native_controls {
 		validate_element_tree(el) or {
 			assert err.msg().contains('custom renderer')
 			return
 		}
 		assert false
-	} $else {
+	} else {
 		validate_element_tree(el)!
 	}
 }

@@ -1,6 +1,6 @@
 module ui2
 
-$if !ui2_document_library ? {
+$if ios && !ui2_headless ? && !ui2_document_library ? {
 
 pub fn text_area_set_selection(id string, location int, length int) {
 	view := g_views[id] or { return }

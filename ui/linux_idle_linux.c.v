@@ -1,7 +1,7 @@
 // vfmt off
 module ui2
 
-$if !ui2_headless ? && !ui2_document_library ? {
+$if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? && !ui2_document_library ? {
 	import sokol.sapp
 
 	#include "@VMODROOT/ui/linux_idle.h"

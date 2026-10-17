@@ -4,8 +4,6 @@
 // message_box_supported to decide.
 module ui2
 
-$if !ui2_document_library ? {
-
 fn native_message_box_supported() bool {
 	return false
 }
@@ -13,6 +11,4 @@ fn native_message_box_supported() bool {
 fn native_message_box(cfg MessageBoxConfig) MessageBoxResult {
 	eprintln('ui2: ${cfg.title} ${cfg.text}')
 	return message_box_default_result(cfg.buttons)
-}
-
 }

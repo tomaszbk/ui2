@@ -274,7 +274,7 @@ fn apply_style_padding(el Element, patch StylePatch) !Element {
 // node.style(), which restores omitted properties from their unstyled baseline.
 pub fn apply_style(el Element, patch StylePatch) !Element {
 	validate_style_patch(patch)!
-	$if !(android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ?&& !ui2_document_library ? {
+	if backend_native_controls {
 		validate_native_style(patch, el.kind)!
 	}
 	interaction := InteractionStyle{
@@ -391,7 +391,7 @@ fn validate_content_padding(el Element) ! {
 				return error('button content padding must be finite and non-negative')
 			}
 		}
-		$if !(android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ?&& !ui2_document_library ? {
+		if backend_native_controls {
 			return error('button content padding requires the custom renderer')
 		}
 	}

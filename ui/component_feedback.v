@@ -309,21 +309,13 @@ struct FeedbackPiece {
 // there. It gets scan-converted strips instead, which cost six vertices each;
 // the other renderers draw round cells, which they antialias.
 fn feedback_draws_strips() bool {
-	$if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
-		return true
-	} $else {
-		return false
-	}
+	return backend_feedback_strips
 }
 
 // feedback_parent_clips reports whether the renderer clips a view's children to
 // its rounded corners, as AppKit does by masking a layer with a corner radius.
 fn feedback_parent_clips() bool {
-	$if macos && !ui2_custom_rendering ? {
-		return true
-	} $else {
-		return false
-	}
+	return backend_clips_rounded_children
 }
 
 // feedback_ring_pieces covers the stretch of a ring from turn `from` to turn

@@ -283,6 +283,4 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		if g_gg_app.ctx == unsafe { nil } { return ImageResourceStats{} }
 		return g_gg_app.ctx.images.stats()
 	}
-} $else {
-	pub fn image_resource_stats() ImageResourceStats { return ImageResourceStats{} }
 }
