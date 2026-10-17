@@ -1,24 +1,19 @@
 module ui2
 
-import hash.fnv1a
 import math
 
 // Shared machinery for the feedback components: linear_progress, progress_circle,
 // loading_spinner, shimmer and shimmer_text.
 //
-// ui2 has no canvas, no clipping view and no per-frame callback, so every moving
-// part is an ordinary view driven by a looping animation from animation.v: a
-// sequence of linear tweens through keyframes that begins with a zero-length
-// tween to its first keyframe, so every cycle starts from the same values
-// whatever was on screen before. Colors fade through keyframes; the cells of a
-// ring jump in and out of sight instead, so a moving arc costs one animated
-// element per cell and none of them has to be recolored.
-//
-// A looping animation keeps running until it is stopped, even after its element
-// leaves the tree, and the native backends redraw for as long as one runs. Part
-// ids carry a signature of everything their keyframes depend on, so a new color,
-// size or speed starts a fresh set of loops and clears the old ones; call
-// stop_feedback_animations when a component is no longer shown.
+// Every moving part is an ordinary view whose MotionConfig plays a looping
+// timeline over it: keyframes from the start of the cycle to its end, so every
+// cycle starts from the same values whatever was on screen before. Colors fade
+// through keyframes; the cells of a ring jump in and out of sight instead, so a
+// moving arc costs one animated element per cell and none of them has to be
+// recolored. A timeline plays while its part is mounted and stops when the part
+// leaves the tree; building the same configuration again keeps it running, and
+// a new color, size or speed restarts it. Renderers without motion draw the
+// parts at rest, as reduce_motion does.
 
 // FeedbackKey is one keyframe of a looping part: at is the fraction of the cycle,
 // level how far the part is between its resting and its lit color.
@@ -40,15 +35,30 @@ enum FeedbackChannel {
 	text_color
 }
 
-// stop_feedback_animations cancels and forgets every looping animation a feedback
-// component started under id. Call it when the application stops showing a
-// loading_spinner, shimmer, shimmer_text or loading progress indicator: the loop
-// otherwise keeps running, and the native backends keep redrawing, after the
-// element has left the tree. Building the component again starts it afresh.
-pub fn stop_feedback_animations(id string) {
-	if id.len > 0 {
-		feedback_clear_parts(id, '')
-	}
+// feedback_animates reports whether a feedback component can move: the
+// renderer presents motion and neither the component nor the application
+// (set_reduced_motion) asks for less.
+fn feedback_animates(reduce_motion bool) bool {
+	return backend_supports_motion && !reduce_motion && !reduced_motion()
+}
+
+// feedback_motion plays timeline on part. Declared values change at once, as
+// they do on a part without motion.
+fn feedback_motion(part Element, timeline MotionTimeline) Element {
+	return with_motion(part, MotionConfig{
+		enter:            MotionStyle{}
+		exit:             MotionStyle{}
+		enter_transition: MotionTransition{
+			duration: 0
+		}
+		exit_transition:  MotionTransition{
+			duration: 0
+		}
+		transition:       MotionTransition{
+			duration: 0
+		}
+		timeline:         timeline
+	})
 }
 
 // progress_percent clamps a percentage to 0...100. NaN counts as no progress.
@@ -119,54 +129,6 @@ fn feedback_validate_length(name string, value f64) ! {
 	}
 }
 
-// feedback_signature condenses the values a loop's keyframes depend on into a
-// short tag for its part ids.
-fn feedback_signature(values []f64, colors []u32) string {
-	mut parts := []string{cap: values.len + colors.len}
-	for value in values {
-		parts << '${value:.3f}'
-	}
-	for color in colors {
-		parts << '${color:06x}'
-	}
-	return '${fnv1a.sum32_string(parts.join('|')):08x}'
-}
-
-// feedback_clear_parts clears every animation registered under the parts of id
-// whose name starts with group.
-fn feedback_clear_parts(id string, group string) {
-	prefix := component_part_id(id, group)
-	if prefix.len == 0 {
-		return
-	}
-	mut stale := []string{}
-	runtime := g_animation_runtime
-	runtime.mutex.lock()
-	for key, _ in runtime.runs {
-		if key.starts_with(prefix) {
-			stale << key
-		}
-	}
-	runtime.mutex.unlock()
-	for key in stale {
-		clear_animation(key)
-	}
-}
-
-// feedback_should_start decides whether a component must (re)start the loops of
-// one group, whose first part id is first. Loops are started together, so the
-// first part speaks for the group. Before a restart every animation left in the
-// group by an earlier configuration is cleared. A one-shot sweep that has
-// completed stays completed.
-fn feedback_should_start(id string, group string, first string, once bool) bool {
-	status := animation_info(first).status
-	if status == .running || (once && status == .completed) {
-		return false
-	}
-	feedback_clear_parts(id, group)
-	return true
-}
-
 // feedback_compact_keys drops keyframes that lie on the line through their
 // neighbors: flat stretches and straight ramps need only their ends.
 fn feedback_compact_keys(keys []FeedbackKey) []FeedbackKey {
@@ -215,29 +177,56 @@ fn feedback_times(samples int, critical []f64) []f64 {
 
 // feedback_level_loop animates a color channel between off and on through keys,
 // which run from at = 0 to at = 1 over period seconds.
-fn feedback_level_loop(period f64, keys []FeedbackKey, off u32, on u32, channel FeedbackChannel, repeat bool) Animation {
-	mut steps := []Animation{cap: keys.len}
-	for i, key in keys {
-		duration := if i == 0 { 0.0 } else { (key.at - keys[i - 1].at) * period }
+fn feedback_level_loop(period f64, keys []FeedbackKey, off u32, on u32, channel FeedbackChannel, repeat bool) MotionTimeline {
+	mut keyframes := []MotionKeyframe{cap: keys.len}
+	for key in keys {
 		color := interpolate_color(off, on, math.clamp(key.level, 0, 1))
-		steps << match channel {
-			.background { animation(duration: duration, background: color) }
-			.text_color { animation(duration: duration, text_color: color) }
+		keyframes << MotionKeyframe{
+			at:    key.at
+			style: match channel {
+				.background {
+					MotionStyle{
+						background: color
+					}
+				}
+				.text_color {
+					MotionStyle{
+						text_color: color
+					}
+				}
+			}
 		}
 	}
-	definition := sequence(...steps)
-	return if repeat { definition.repeating() } else { definition }
+	return feedback_cycle(motion_keyframes(period, ...keyframes), repeat)
 }
 
-// feedback_span_loop animates x and width through spans over period seconds.
-fn feedback_span_loop(period f64, spans []FeedbackSpan, repeat bool) Animation {
-	mut steps := []Animation{cap: spans.len}
-	for i, span in spans {
-		duration := if i == 0 { 0.0 } else { (span.at - spans[i - 1].at) * period }
-		steps << animation(duration: duration, x: span.x, width: span.width)
+// feedback_cycle loops a timeline, or plays it once and keeps where it ends.
+fn feedback_cycle(timeline MotionTimeline, repeat bool) MotionTimeline {
+	return if repeat {
+		timeline.looped()
+	} else {
+		MotionTimeline{
+			...timeline
+			hold: true
+		}
 	}
-	definition := sequence(...steps)
-	return if repeat { definition.repeating() } else { definition }
+}
+
+// feedback_span_loop moves and sizes a part through spans over period seconds.
+// The part is declared at x and width; each span translates it and scales its
+// box, so the part is laid out once.
+fn feedback_span_loop(period f64, spans []FeedbackSpan, x f64, width f64, repeat bool) MotionTimeline {
+	mut keyframes := []MotionKeyframe{cap: spans.len}
+	for span in spans {
+		keyframes << MotionKeyframe{
+			at:    span.at
+			style: MotionStyle{
+				translate_x: span.x - x
+				box_scale_x: if width > 0 { math.max(span.width, 0) / width } else { 0.0 }
+			}
+		}
+	}
+	return feedback_cycle(motion_keyframes(period, ...keyframes), repeat)
 }
 
 // feedback_compact_spans drops spans that lie on the line through their
@@ -262,13 +251,10 @@ fn feedback_compact_spans(spans []FeedbackSpan) []FeedbackSpan {
 	return compact
 }
 
-// A sector loop hides a part by moving it this far to the left.
-const feedback_hidden_x = -100000.0
-
-// feedback_toggle_loop puts a part at shown_x from on to off of every cycle and
-// moves it out of sight for the rest. The window may wrap past the cycle's end.
-// Showing and hiding are jumps: a part is either drawn in full or not at all.
-fn feedback_toggle_loop(period f64, on f64, off f64, shown_x f64) Animation {
+// feedback_toggle_loop shows a part from on to off of every cycle and hides it
+// for the rest. The window may wrap past the cycle's end. Showing and hiding
+// are jumps: a part is either drawn in full or not at all.
+fn feedback_toggle_loop(period f64, on f64, off f64) MotionTimeline {
 	mut times := [0.0, 1.0]
 	for t in [feedback_fraction(on), feedback_fraction(off)] {
 		if t > 0 {
@@ -276,18 +262,29 @@ fn feedback_toggle_loop(period f64, on f64, off f64, shown_x f64) Animation {
 		}
 	}
 	times.sort()
-	mut steps := []Animation{}
+	mut keyframes := []MotionKeyframe{}
 	for i in 0 .. times.len - 1 {
 		length := times[i + 1] - times[i]
 		if length <= 1e-9 {
 			continue
 		}
 		middle := (times[i] + times[i + 1]) / 2
-		x := if feedback_window_contains(on, off, middle) { shown_x } else { feedback_hidden_x }
-		steps << animation(duration: 0, x: x)
-		steps << animation(duration: length * period, x: x)
+		shown := if feedback_window_contains(on, off, middle) { 1.0 } else { 0.0 }
+		// Keys sharing an instant jump: the later one wins from that instant.
+		keyframes << MotionKeyframe{
+			at:    times[i]
+			style: MotionStyle{
+				opacity: shown
+			}
+		}
+		keyframes << MotionKeyframe{
+			at:    times[i + 1]
+			style: MotionStyle{
+				opacity: shown
+			}
+		}
 	}
-	return sequence(...steps).repeating()
+	return motion_keyframes(period, ...keyframes).looped()
 }
 
 // feedback_window_contains reports whether t lies in the cyclic window that
@@ -521,12 +518,10 @@ const feedback_ring_sectors = 24
 
 // feedback_ring_loop draws the arc of an animated ring. Each round cell, or each
 // of feedback_ring_sectors sectors of strips, is a part under group that a
-// looping animation shows while the arc covers it, so the arc moves without
+// looping timeline shows while the arc covers it, so the arc moves without
 // any element changing color. Cells overlap, and each one shown on top of the
 // track gives the arc round ends.
-fn feedback_ring_loop(id string, group string, signature string, diameter f64, stroke f64, color u32, period f64, motion FeedbackArcMotion) []Element {
-	start := feedback_should_start(id, group, component_part_id(id, '${group}:${signature}:0'),
-		false)
+fn feedback_ring_loop(id string, group string, diameter f64, stroke f64, color u32, period f64, motion FeedbackArcMotion) []Element {
 	mut parts := []Element{}
 	if feedback_draws_strips() {
 		sectors := feedback_ring_sectors
@@ -535,33 +530,21 @@ fn feedback_ring_loop(id string, group string, signature string, diameter f64, s
 			groups[piece.sector] << view('', piece.frame, BoxStyle{ bg: color }, []Element{})
 		}
 		for i in 0 .. sectors {
-			part := component_part_id(id, '${group}:${signature}:${i}')
 			on, off := motion.window((f64(i) + 0.5) / f64(sectors))
-			if start {
-				component_keep_animating(part, feedback_toggle_loop(period, on, off, 0))
-			}
-			parts << view(part, rect(if feedback_window_contains(on, off, 0) {
-				0.0
-			} else {
-				feedback_hidden_x
-			}, 0, diameter, diameter), BoxStyle{ transparent: true }, groups[i])
+			parts << feedback_motion(view(component_part_id(id, '${group}:${i}'), rect(0,
+				0, diameter, diameter), BoxStyle{ transparent: true }, groups[i]),
+				feedback_toggle_loop(period, on, off))
 		}
 		return parts
 	}
 	cells := feedback_ring_cells(diameter, stroke, 0, 1, 1, 0.6)
 	for i, cell in cells {
-		part := component_part_id(id, '${group}:${signature}:${i}')
 		on, off := motion.window(f64(i) / f64(cells.len))
-		if start {
-			component_keep_animating(part, feedback_toggle_loop(period, on, off, cell.frame.x))
-		}
-		parts << view(part, Rect{
-			...cell.frame
-			x: if feedback_window_contains(on, off, 0) { cell.frame.x } else { feedback_hidden_x }
-		}, BoxStyle{
-			bg:     color
-			radius: cell.radius
-		}, []Element{})
+		parts << feedback_motion(view(component_part_id(id, '${group}:${i}'), cell.frame,
+			BoxStyle{
+				bg:     color
+				radius: cell.radius
+			}, []Element{}), feedback_toggle_loop(period, on, off))
 	}
 	return parts
 }

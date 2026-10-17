@@ -684,15 +684,6 @@ fn dialog_decode_key(open bool, enabled bool, close_on_escape bool, confirm_on_e
 	return none
 }
 
-// dialog_release_animation returns an element to its declaration once its
-// entrance or slide has finished, so a later resize lays it out afresh instead
-// of keeping the position the animation ended on.
-fn dialog_release_animation(event AnimationEvent) {
-	if event.kind == .complete {
-		clear_animation(event.id)
-	}
-}
-
 // ── Dialog ─────────────────────────────────────────────────────────
 
 pub enum DialogWidth {
@@ -835,10 +826,8 @@ pub fn dialog_surface_id(id string) string {
 pub fn dialog_motion() MotionConfig {
 	return MotionConfig{
 		enter:            MotionStyle{
-			opacity:   0
-			transform: VisualTransform{
-				translate_y: -dialog_entrance_travel
-			}
+			opacity:     0
+			translate_y: -dialog_entrance_travel
 		}
 		enter_transition: MotionTransition{
 			duration: dialog_entrance_duration

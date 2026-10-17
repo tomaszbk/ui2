@@ -2,9 +2,10 @@ module ui2
 
 import math
 
-struct DialogsTestCounter {
+@[heap]
+struct DialogsTestClock {
 mut:
-	count int
+	now f64
 }
 
 @[heap]
@@ -512,8 +513,10 @@ fn test_dialog_tiny_frames_keep_geometry_inside() {
 
 fn test_dialog_animate_drops_the_surface_into_place() {
 	motion := dialog_motion()
-	assert motion.enter.opacity == 0
-	assert motion.enter.transform.translate_y == -dialog_entrance_travel
+	assert motion.enter == MotionStyle{
+		opacity:     0
+		translate_y: -dialog_entrance_travel
+	}
 	assert motion.enter_transition.duration == dialog_entrance_duration
 	motion.validate() or { panic(err) }
 	still := modal_dialog(dialogs_test_profile(true)) or { panic(err) }
@@ -522,7 +525,7 @@ fn test_dialog_animate_drops_the_surface_into_place() {
 		panic(err)
 	}
 	entrance := animated.motion or { panic('no motion') }
-	assert entrance.enter.transform.translate_y == -dialog_entrance_travel
+	assert entrance.enter.translate_y or { 0.0 } == -dialog_entrance_travel
 	alert := alert_dialog(AlertDialogConfig{ ...dialogs_test_alert(), animate: true }) or {
 		panic(err)
 	}
@@ -834,42 +837,75 @@ fn test_sheet_callbacks_and_resize() {
 	}) == -1.0
 }
 
-fn test_sheet_animations_slide_from_the_edge_and_back() {
-	reset_widget_animations()
+fn test_sheet_motion_slides_the_panel_and_fades_the_sheet() {
 	cfg := dialogs_test_sheet(.right)
 	panel_id := sheet_panel_id('sheet')
-	opening := sheet_open_animation(cfg) or { panic(err) }
-	start_widget_animation_at(panel_id, opening, 1_000, false)
-	root := screen(0xffffff, [sheet(cfg) or { panic(err) }])
-	first := dialogs_test_find(apply_widget_animations_at(root, 1_000), panel_id) or {
-		panic('no panel')
+	el := sheet(cfg) or { panic(err) }
+	panel := dialogs_test_find(el, panel_id) or { panic('no panel') }
+	if !backend_supports_motion {
+		assert el.motion == none && panel.motion == none
+		return
 	}
-	assert first.frame.x == 900
-	middle := dialogs_test_find(apply_widget_animations_at(root, 1_100), panel_id) or {
-		panic('no panel')
+	fade := el.motion or { panic('no sheet motion') }
+	assert fade.enter == MotionStyle{
+		opacity: 0
 	}
-	assert middle.frame.x > 550 && middle.frame.x < 900
-	last := dialogs_test_find(apply_widget_animations_at(root, 1_300), panel_id) or {
-		panic('no panel')
+	assert fade.exit == fade.enter
+	slide := panel.motion or { panic('no panel motion') }
+	// The right sheet's panel enters from past the frame's right edge.
+	assert slide.enter == MotionStyle{
+		translate_x: 350
 	}
-	assert last.frame.x == 550
-	assert animation_info(panel_id).status == .idle
-	vertical := sheet_open_animation(SheetConfig{ ...cfg, side: .bottom }) or { panic(err) }
-	assert vertical.animated_properties() == ['y']
-
-	mut closed := &DialogsTestCounter{}
-	closing := sheet_close_animation(cfg, fn [mut closed] () {
-		closed.count++
-	}) or { panic(err) }
-	start_widget_animation_at(panel_id, closing, 2_000, false)
-	apply_widget_animations_at(root, 2_000)
-	assert closed.count == 0
-	out := dialogs_test_find(apply_widget_animations_at(root, 2_300), panel_id) or {
-		panic('no panel')
+	assert slide.exit == slide.enter
+	assert slide.enter_transition.duration == 0.2 && slide.enter_transition.easing == .out_cubic
+	assert slide.exit_transition.duration == 0.2 && slide.exit_transition.easing == .in_cubic
+	bottom := sheet(SheetConfig{ ...cfg, side: .bottom }) or { panic(err) }
+	vertical := (dialogs_test_find(bottom, panel_id) or { panic('no panel') }).motion or {
+		panic('no panel motion')
 	}
-	assert out.frame.x == 900
-	assert closed.count == 1
-	assert animation_info(panel_id).status == .idle
+	assert vertical.enter.translate_x == none
+	assert (vertical.enter.translate_y or { 0.0 }) > 0
+	still := sheet(SheetConfig{ ...cfg, animation_duration: 0 }) or { panic(err) }
+	assert still.motion == none
+	// Opening slides the panel in from the edge; closing slides it back out,
+	// and the closed sheet leaves the screen when the slide ends.
+	mut clock := &DialogsTestClock{}
+	tick := fn [clock] () f64 {
+		return clock.now
+	}
+	clocked := fn [tick] (part Element) Element {
+		config := part.motion or { panic('no motion') }
+		return Element{
+			...part
+			motion: MotionConfig{
+				...config
+				clock: tick
+			}
+		}
+	}
+	closed := sheet(SheetConfig{ ...cfg, open: false }) or { panic(err) }
+	closed_panel := dialogs_test_find(closed, panel_id) or { panic('no panel') }
+	mut state := new_element_motion_state(clocked(closed_panel)) or { panic(err) }
+	state.mount() or { panic(err) }
+	assert state.current.phase == .absent
+	clock.now = 1
+	state.update(clocked(panel)) or { panic(err) }
+	assert state.current.values.transform.translate_x == 350
+	clock.now = 1.1
+	state.sample() or { panic(err) }
+	middle := state.current.values.transform.translate_x
+	assert middle > 0 && middle < 350
+	clock.now = 1.3
+	state.sample() or { panic(err) }
+	assert state.current.phase == .present && !state.current.running
+	assert state.current.values.transform.translate_x == 0
+	clock.now = 2
+	state.update(clocked(closed_panel)) or { panic(err) }
+	assert state.current.phase == .exiting
+	clock.now = 2.3
+	state.sample() or { panic(err) }
+	assert state.current.phase == .absent
+	assert state.current.values.transform.translate_x == 350
 }
 
 fn test_focus_trap_next_cycles_and_wraps() {

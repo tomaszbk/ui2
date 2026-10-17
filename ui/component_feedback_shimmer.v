@@ -182,23 +182,10 @@ pub fn shimmer(config ShimmerConfig) !Element {
 		...config.theme
 		muted: base
 	}
-	animate := !config.reduce_motion && width > 0
-	// The keyframes depend on where every shape is, so moving one restarts the sweep.
-	mut values := [width, half, period, if config.reverse { 1.0 } else { 0.0 },
-		if config.once { 1.0 } else { 0.0 }]
+	animate := feedback_animates(config.reduce_motion) && width > 0
 	for shape in config.shapes {
 		component_validate_frame(shape.frame)!
 		feedback_validate_length('shimmer shape radius', shape.radius)!
-		values << [shape.frame.x, shape.frame.y, shape.frame.width, shape.frame.height, shape.radius,
-			if shape.circle { 1.0 } else { 0.0 }]
-	}
-	signature := feedback_signature(values, [base, highlight])
-	start := if animate {
-		feedback_should_start(config.id, 'sheen', component_part_id(config.id, 'sheen:${signature}:0'),
-			config.once)
-	} else {
-		feedback_clear_parts(config.id, 'sheen')
-		false
 	}
 	mut children := []Element{cap: config.shapes.len}
 	for index, shape in config.shapes {
@@ -212,16 +199,12 @@ pub fn shimmer(config ShimmerConfig) !Element {
 		if shape.circle {
 			mut disc := placeholder.children[0]
 			if animate {
-				part := component_part_id(config.id, 'sheen:${signature}:${index}')
-				if start {
-					middle := shape.frame.x + disc.frame.x + disc.frame.width / 2
-					component_keep_animating(part, feedback_level_loop(period, shimmer_pulse_keys(width,
-						half, config.reverse, middle), base, highlight, .background, !config.once))
-				}
-				disc = Element{
+				middle := shape.frame.x + disc.frame.x + disc.frame.width / 2
+				disc = feedback_motion(Element{
 					...disc
-					id: part
-				}
+					id: component_part_id(config.id, 'sheen:${index}')
+				}, feedback_level_loop(period, shimmer_pulse_keys(width, half, config.reverse,
+					middle), base, highlight, .background, !config.once))
 			}
 			children << Element{
 				...placeholder
@@ -238,21 +221,21 @@ pub fn shimmer(config ShimmerConfig) !Element {
 		}
 		mut bands := []Element{}
 		if animate {
+			band_width := shape.frame.width - 2 * inset
 			for layer in 0 .. shimmer_layer_count {
 				part := if layer == 0 {
-					component_part_id(config.id, 'sheen:${signature}:${index}')
+					component_part_id(config.id, 'sheen:${index}')
 				} else {
-					component_part_id(config.id, 'sheen:${signature}:${index}:${layer}')
+					component_part_id(config.id, 'sheen:${index}:${layer}')
 				}
 				layer_half := half * (1 - f64(layer) / f64(shimmer_layer_count))
-				if start {
-					component_keep_animating(part, feedback_span_loop(period, shimmer_band_spans(width,
-						layer_half, config.reverse, shape.frame.x + inset, shape.frame.width - 2 * inset,
-						inset), !config.once))
-				}
-				bands << view(part, rect(inset, 0, 0, shape.frame.height), BoxStyle{
-					bg: interpolate_color(base, highlight, f64(layer + 1) / f64(shimmer_layer_count))
-				}, []Element{})
+				// The band is laid out across the shape and starts out of sight.
+				bands << feedback_motion(view(part, rect(inset, 0, band_width, shape.frame.height),
+					BoxStyle{
+						bg: interpolate_color(base, highlight, f64(layer + 1) / f64(shimmer_layer_count))
+					}, []Element{}), feedback_span_loop(period, shimmer_band_spans(width, layer_half,
+					config.reverse, shape.frame.x + inset, band_width, inset), inset, band_width,
+					!config.once))
 			}
 		}
 		children << Element{
@@ -271,7 +254,7 @@ pub fn shimmer(config ShimmerConfig) !Element {
 // "Thinking…" that keeps moving while work is under way.
 pub struct ShimmerTextConfig {
 pub:
-	id       string // Required: the animation runs on a part.
+	id       string // Required: the motion runs on a part.
 	frame    Rect
 	text     string
 	duration f64 = 2.0 // Seconds per sweep; shorter values are clamped to 1 ms.
@@ -313,19 +296,9 @@ pub fn shimmer_text(config ShimmerTextConfig) !Element {
 	highlight := config.highlight_color or { shimmer_text_highlight(text_color, config.theme) }
 	width := config.frame.width
 	half := shimmer_half_width(width, config.spread, config.spread_pixels)
-	animate := !config.reduce_motion && width > 0
-	signature := feedback_signature([width, half, period, if config.once { 1.0 } else { 0.0 }],
-		[text_color, highlight])
-	part := if animate { component_part_id(config.id, 'sheen:${signature}') } else { '' }
-	if animate {
-		if feedback_should_start(config.id, 'sheen', part, config.once) {
-			component_keep_animating(part, feedback_level_loop(period, shimmer_pulse_keys(width,
-				half, false, width / 2), text_color, highlight, .text_color, !config.once))
-		}
-	} else {
-		feedback_clear_parts(config.id, 'sheen')
-	}
-	text_label := Element{
+	animate := feedback_animates(config.reduce_motion) && width > 0
+	part := if animate { component_part_id(config.id, 'sheen') } else { '' }
+	mut text_label := Element{
 		...label(part, config.text, component_local(config.frame), TextStyle{
 			color: text_color
 			size:  if config.font_size > 0 {
@@ -341,6 +314,10 @@ pub fn shimmer_text(config ShimmerTextConfig) !Element {
 		} else {
 			config.text
 		}
+	}
+	if animate {
+		text_label = feedback_motion(text_label, feedback_level_loop(period, shimmer_pulse_keys(width,
+			half, false, width / 2), text_color, highlight, .text_color, !config.once))
 	}
 	return component_finish(view(config.id, config.frame, BoxStyle{ transparent: true }, [
 		text_label,
