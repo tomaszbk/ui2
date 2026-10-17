@@ -3,15 +3,15 @@ module ui2
 // A focus trap keeps Tab and Shift+Tab cycling through the controls of a sheet
 // or another modal surface instead of escaping to the page behind it. Dialogs
 // are overlays, which contain focus by themselves. Components cannot capture
-// keys, and focus() and focused_id() belong to the backends, so these are pure
+// keys, and focus() and focused_id() belong to the window, so these are pure
 // helpers: the application reads the key in its handler, asks for the next id
-// and passes it to focus():
+// and passes it to the window's focus():
 //
-//	fn on_key(key string) {
+//	fn on_key(mut w ui2.Window, key string) {
 //		backwards := ui2.focus_trap_key_direction(key) or { return }
-//		if next := ui2.focus_trap_target(app.traps(), ui2.focused_id(), backwards) {
-//			ui2.consume_key()
-//			ui2.focus(next)
+//		if next := ui2.focus_trap_target(app.traps(), w.focused_id(), backwards) {
+//			w.consume_key()
+//			w.focus(next)
 //		}
 //	}
 //

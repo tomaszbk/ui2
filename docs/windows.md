@@ -16,8 +16,8 @@ in [desktop text setup](vglyph-text.md), then run:
 v -cc gcc run examples/runtime_smoke
 ```
 
-`run_window`, `TextInputConfig`, element callbacks, `text`, `set_text`,
-`request_refresh`, and `ui_dispatcher` use the shared UI2 API. Keep element ids
+`App`, `TextInputConfig`, element callbacks and the window's `text`,
+`set_text`, `request_refresh` and `dispatcher` use the shared UI2 API. Keep element ids
 stable. Unchanged declared text preserves local edits, selection and scroll
 across unrelated updates; `set_text` explicitly replaces the mounted editor's
 contents. Text selections use rune offsets. Pointer positions and layout are

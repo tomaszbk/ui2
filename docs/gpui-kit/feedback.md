@@ -45,8 +45,9 @@ sizes its box by presentation alone, and nothing allocates while it runs.
 - Rebuilding with the same settings keeps the loops running; a new size, speed
   or fading color is a new timeline, which starts over.
 - Every animated component takes `reduce_motion`, which draws it at rest: GPUI
-  does the same when the system asks for reduced motion. `set_reduced_motion`
-  does the same for every component in the application.
+  does the same when the system asks for reduced motion. `App.set_reduced_motion`
+  stills the motion of every element in the application; components draw at
+  rest where their `reduce_motion` says so.
 - Android and iOS, which have no motion, draw the components at rest, as
   `reduce_motion` does. Linear progress changes its value at once there.
 
@@ -133,8 +134,8 @@ Omitted from Progress and ProgressCircle:
 - A transition when a ring's value changes: the arc is rebuilt from cells, which
   motion cannot interpolate. Linear bars do transition, with a `.box` layout
   transition of their indicator.
-- Reading the system's reduce-motion setting: pass `reduce_motion`, or call
-  `set_reduced_motion` once for the whole application.
+- Reading the system's reduce-motion setting: pass `reduce_motion`, for example
+  from `app.reduced_motion()`.
 
 ## Spinner: `loading_spinner`
 

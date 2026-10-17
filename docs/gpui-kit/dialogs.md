@@ -45,7 +45,7 @@ and these when the dialog has to hold arbitrary ui2 content, follow a
 
 - Every builder takes a config and returns `!Element`. `frame` is the area the
   overlay is sized for, normally the window: `ui2.rect(0, 0, b.width, b.height)`
-  with `b := ui2.bounds()`. A dialog can be declared anywhere in the tree, since
+  with `b := w.bounds()` (or `event.window.bounds()` in a handler). A dialog can be declared anywhere in the tree, since
   the overlay layer presents it above everything. Add a sheet as the **last**
   child of the screen so it is drawn over the page; several open sheets stack in
   the order added.
@@ -77,7 +77,7 @@ and these when the dialog has to hold arbitrary ui2 content, follow a
 - Components cannot capture keys. The dialog overlays take Escape themselves
   and report it through their callback; Enter, and Escape for sheets, come from
   a pure key helper the application calls from `on_key_event`. Call
-  `ui2.consume_key()` when it returns something.
+  `event.window.consume_key()` when it returns something.
 
 ### Which keys reach the application while a text field has focus
 
@@ -96,8 +96,7 @@ route its fields' `.submit` events to the same answer as Enter.
 ## Dialog
 
 ```v
-fn profile_config(m &Model) ui2.DialogConfig {
-	b := ui2.bounds()
+fn profile_config(m &Model, b ui2.Rect) ui2.DialogConfig {
 	base := ui2.DialogConfig{
 		id:          'profile'
 		frame:       ui2.rect(0, 0, b.width, b.height)
@@ -135,11 +134,11 @@ fn answer_profile(mut m Model, request ui2.DialogEvent) {
 }
 
 // build: anywhere in the tree.
-children << ui2.modal_dialog(profile_config(m)) or { panic(err) }
+children << ui2.modal_dialog(profile_config(m, w.bounds())) or { panic(err) }
 
 // on_key_event: Enter. The overlay reports Escape through on_dialog itself.
-if request := ui2.dialog_key_event(profile_config(m), event) {
-	ui2.consume_key()
+if request := ui2.dialog_key_event(profile_config(m, event.window.bounds()), event) {
+	event.window.consume_key()
 	answer_profile(mut m, request)
 }
 ```
@@ -195,8 +194,7 @@ close button is a `button` labelled `Close`.
 ## Alert dialog
 
 ```v
-fn delete_config(m &Model) ui2.AlertDialogConfig {
-	b := ui2.bounds()
+fn delete_config(m &Model, b ui2.Rect) ui2.AlertDialogConfig {
 	return ui2.AlertDialogConfig{
 		id:             'delete'
 		frame:          ui2.rect(0, 0, b.width, b.height)
@@ -221,8 +219,8 @@ fn answer_delete(mut m Model, choice ui2.AlertDialogChoice) {
 }
 
 // on_key_event: Enter answers default_choice.
-if choice := ui2.alert_dialog_key_choice(delete_config(m), event) {
-	ui2.consume_key()
+if choice := ui2.alert_dialog_key_choice(delete_config(m, event.window.bounds()), event) {
+	event.window.consume_key()
 	answer_delete(mut m, choice)
 }
 ```
@@ -246,8 +244,7 @@ button hidden Enter can only confirm. The root's role is `alertdialog`.
 ## Sheet
 
 ```v
-fn settings_config(m &Model) ui2.SheetConfig {
-	b := ui2.bounds()
+fn settings_config(m &Model, b ui2.Rect) ui2.SheetConfig {
 	return ui2.SheetConfig{
 		id:         'settings'
 		frame:      ui2.rect(0, 0, b.width, b.height)
@@ -306,26 +303,26 @@ it needs a trap:
 
 ```v
 // The trap of the sheet on top: the text inputs in its body.
-fn trap(m &Model) ?ui2.FocusTrap {
+fn trap(m &Model, b ui2.Rect) ?ui2.FocusTrap {
 	if !m.settings_open {
 		return none
 	}
 	return ui2.FocusTrap{
-		ids: ui2.focus_trap_ids(settings_config(m).children)
+		ids: ui2.focus_trap_ids(settings_config(m, b).children)
 	}
 }
 
-fn tab(backwards bool) {
-	t := trap(model) or { return }
-	ui2.consume_key() // Tab never reaches the page behind the overlay
-	if next := ui2.focus_trap_target([t], ui2.focused_id(), backwards) {
-		ui2.focus(next)
+fn tab(mut w ui2.Window, backwards bool) {
+	t := trap(model, w.bounds()) or { return }
+	w.consume_key() // Tab never reaches the page behind the overlay
+	if next := ui2.focus_trap_target([t], w.focused_id(), backwards) {
+		w.focus(next)
 	}
 }
 
-ui2.on_key_event(fn (event ui2.KeyEvent) {
+window.on_key_event(fn (event ui2.KeyEvent) {
 	if backwards := ui2.focus_trap_direction(event) {
-		tab(backwards)
+		tab(mut event.window, backwards)
 	}
 })
 ```
@@ -353,9 +350,9 @@ the trap is a set of pure helpers the application calls from its key handlers.
   enabled text fields and text areas, which are what `focus()` can move to on
   every backend (the renderer focuses only text inputs).
 
-To focus the first field when an overlay opens, call `ui2.focus(trap.first())`
-once the overlay has been rendered, e.g. from `ui2.after(0.05, ...)`. The
-gallery does this, and also calls `ui2.dismiss_keyboard()` before opening an
+To focus the first field when an overlay opens, call `w.focus(trap.first())`
+once the overlay has been rendered, e.g. from `w.after(0.05, ...)`. The
+gallery does this, and also calls `w.dismiss_keyboard()` before opening an
 overlay that has no fields of its own over one that does.
 
 ## Parity with GPUI Kit
@@ -372,7 +369,7 @@ overlay that has no fields of its own over one that does.
 | Dialog with an icon | Implemented: `icon`, `icon_tone` in the header. |
 | `on_ok`/`on_cancel` returning `false` to stay open, `on_close` | One typed callback, `on_dialog`, reports what was chosen and the application decides whether to close. |
 | `DialogAction`/`DialogClose` wrappers, `DialogChangeReason` | Replaced by `DialogButtonRole` and `DialogReason`. |
-| Entrance animations (`SlideDown`, `Fade`, `FadeSlide`, `None`) | `animate` slides down and fades (`dialog_motion`); without it the dialog appears at once. `set_reduced_motion` shows it at once too. |
+| Entrance animations (`SlideDown`, `Fade`, `FadeSlide`, `None`) | `animate` slides down and fades (`dialog_motion`); without it the dialog appears at once. `App.set_reduced_motion` shows it at once too. |
 | Nested dialogs | Supported by declaring several overlays; the overlay layer stacks them. Upstream's 16 px offset per layer is omitted because the overlay layer centers dialogs. |
 | `margin_top` (top offset instead of centering) | Omitted: the overlay layer centers dialogs. |
 | Declarative `trigger`, `content` builder, `DialogHeader`/`Title`/`Description`/`Footer` parts, `WindowExt::open_dialog`/`close_dialog` | Not applicable: any element opens a dialog by setting `open`, and the parts are config fields. Footers hold buttons only, not arbitrary elements. |

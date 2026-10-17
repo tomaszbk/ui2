@@ -77,7 +77,7 @@ for collections, build a replacement (for example using `.clone()`) and call
 assignments such as `app.count++` on an ordinary `int` do **not** notify signals.
 Compiled VML lowers `state` writes to signal setters and batches handlers;
 application fields used by VML are refreshed after actions or an explicit
-`ui2.request_refresh()`. See [compiled components](vml-components.md).
+`request_refresh()` on the window. See [compiled components](vml-components.md).
 
 ## Transactions and dependency tracking
 

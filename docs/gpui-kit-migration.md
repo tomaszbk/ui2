@@ -62,8 +62,8 @@ pages := ui2.pagination(
     theme: ui2.component_theme(false)
     on_page: fn [mut app] (page int) {
         // Rebuild pagination with pagination_state(page, state.total_pages()).
+        // The window rebuilds after the click that reported the page.
         app.page = page
-        ui2.request_refresh()
     }
 ) or { panic(err) }
 ```

@@ -16,7 +16,7 @@ GPUI Kit keeps a `NotificationList` inside the window's `Root` and pushes into
 it with `window.push_notification`. In ui2 the application owns a
 `NotificationList` value and draws it with `notification_stacks`. Every change
 to the list returns the timers it needs as `[]NotificationTimer` data, which
-`list.schedule(timers)` turns into `after`/`cancel_timer` calls; when a
+`list.schedule(mut window, timers)` turns into the window's `after`/`cancel_timer` calls; when a
 timer is due it is fed back to `list.fire(timer)`. The list itself never
 starts a timer, so it is deterministic and is tested with a fake clock.
 
@@ -33,13 +33,13 @@ starts a timer, so it is deterministic and is tested with a fake clock.
 | `list.pause(placement)`, `list.resume(placement)` | Stop and restart every countdown, keeping the time left |
 | `list.settle()` | Finish every slide in now, for notifications already on screen when a window opens |
 | `list.fire(timer)` | Advance the notification a due timer belongs to; stale timers change nothing |
-| `list.schedule(timers)` | Run timer requests with `after`/`cancel_timer` |
+| `list.schedule(mut window, timers)` | Run timer requests with the window's `after`/`cancel_timer` |
 | `list.entries()`, `list.visible()`, `list.find(key)`, `list.remaining(seq)`, `list.is_paused()`, `list.len()` | Read the list |
 | `notification_stacks(NotificationStackConfig) ![]Element` | One stack per placement in use |
 | `NotificationEvent` | `kind` (`close`, `action`, `click`, `hover_start`, `hover_end`), `seq`, `key`, `placement`: what `on_notification` receives |
 | `list.respond(event)` | GPUI Kit's built-in responses: close, action and click dismiss; hover pauses |
 
-`NotificationStackConfig` has `id`, `frame` (usually `ui2.bounds()`), `list`,
+`NotificationStackConfig` has `id`, `frame` (usually `w.bounds()`), `list`,
 `width` (382, GPUI Kit's), `margin` (16), `gap` (12), `animate` (true), `size`,
 `theme` and `on_notification fn (NotificationEvent)`. `notification_stacks` returns a list rather than one element:
 each stack is only as large as its notifications, so the rest of the window
@@ -52,12 +52,13 @@ children so they are drawn on top.
 @[heap]
 struct App {
 mut:
-	notes ui2.NotificationList
+	notes  ui2.NotificationList
+	window &ui2.Window = unsafe { nil } // set by main after it opens the window
 }
 
 const app = &App{}
 
-fn build() ui2.Element {
+fn build(mut w ui2.Window) ui2.Element {
 	state := unsafe { app }
 	theme := ui2.component_theme(false)
 	mut children := []ui2.Element{}
@@ -66,7 +67,7 @@ fn build() ui2.Element {
 	// Last, so the stacks draw on top.
 	children << ui2.notification_stacks(
 		id:              'toasts'
-		frame:           ui2.bounds()
+		frame:           w.bounds()
 		list:            state.notes
 		theme:           theme
 		on_notification: answer_notification
@@ -79,18 +80,17 @@ fn answer_notification(note ui2.NotificationEvent) {
 	if note.kind == .action && note.key == 'connection' {
 		// Retry here.
 	}
-	state.notes.schedule(state.notes.respond(note))
-	ui2.request_refresh()
+	// The stacks report from their own events, after which the window rebuilds.
+	state.notes.schedule(mut state.window, state.notes.respond(note))
 }
 
 fn save(event ui2.ElementEvent) {
 	mut state := unsafe { app }
-	state.notes.schedule(state.notes.push(
+	state.notes.schedule(mut event.window, state.notes.push(
 		kind:    .success
 		title:   'Saved'
 		message: 'Your changes have been saved.'
 	))
-	ui2.request_refresh()
 }
 ```
 
@@ -98,16 +98,16 @@ A failed connection with a retry button that stays until it is handled, and an
 upload whose notification is replaced when it finishes:
 
 ```v
-state.notes.schedule(state.notes.push(
+state.notes.schedule(mut window, state.notes.push(
 	key:     'connection'
 	kind:    .error
 	title:   'Connection lost'
 	message: 'Unable to connect to the server.'
 	action:  'Retry' // An action turns auto-hide off unless autohide says otherwise.
 ))
-state.notes.schedule(state.notes.push(key: 'upload', kind: .info, message: 'Uploading…', autohide: false))
+state.notes.schedule(mut window, state.notes.push(key: 'upload', kind: .info, message: 'Uploading…', autohide: false))
 // Later: same key, so it replaces the first one.
-state.notes.schedule(state.notes.push(key: 'upload', kind: .success, message: 'Uploaded'))
+state.notes.schedule(mut window, state.notes.push(key: 'upload', kind: .success, message: 'Uploaded'))
 ```
 
 Keep the list in heap-allocated state (as above): `schedule` hands its address
@@ -209,7 +209,7 @@ mut:
 const app = &App{}
 const clipboard_ok = ui2.clipboard_supported() // Cache it: on Linux it searches PATH.
 
-fn build() ui2.Element {
+fn build(mut w ui2.Window) ui2.Element {
 	state := unsafe { app }
 	return ui2.screen(0xffffff, [
 		ui2.copyable_text(
@@ -227,10 +227,9 @@ fn build() ui2.Element {
 
 fn copy_api_key() {
 	mut state := unsafe { app }
-	if state.clips.copy('api-key', 'sk-1234567890abcdef') {
+	if state.clips.copy(mut state.window, 'api-key', 'sk-1234567890abcdef') {
 		// GPUI Kit's on_copied: here, a notification.
-		state.notes.schedule(state.notes.push(kind: .success, message: 'API key copied'))
-		ui2.request_refresh()
+		state.notes.schedule(mut state.window, state.notes.push(kind: .success, message: 'API key copied'))
 	}
 }
 ```

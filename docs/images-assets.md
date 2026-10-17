@@ -101,7 +101,7 @@ and samplers. Closing the context releases every page and its blend pipeline;
 recreation starts with fresh handles. Resize preserves the owner and only changes
 variant selection when its sampling footprint changes.
 
-`ui2.image_resource_stats()` reports actual decodes, cache hits, page uploads,
+`w.image_resource_stats()` reports actual decodes, cache hits, page uploads,
 created/destroyed pages and currently retained entries/textures/samplers for the
 active window. Closed windows return zero. It does not request a
 frame. The resource tests exercise real GPU submission and normal teardown;

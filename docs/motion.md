@@ -182,8 +182,8 @@ the element:
 
 ## Reduced motion
 
-`ui2.set_reduced_motion(true)` applies the platform's accessibility preference
-to every element, and `MotionConfig.reduced_motion` (or `motion_reduced`) to
+`app.set_reduced_motion(true)` applies the platform's accessibility preference
+to every element of the app's windows, and `MotionConfig.reduced_motion` (or `motion_reduced`) to
 one. Transitions and layout changes show their end at once, and timelines do
 not play, except that a held finite timeline shows its final values. Exits still
 perform unmount and cleanup exactly once. Turning it off does not restart a

@@ -30,7 +30,7 @@ pub enum PopoverAlign {
 pub struct PopoverPlacementConfig {
 pub:
 	anchor Rect // The trigger, in window coordinates.
-	window Rect // What the surface stays inside: pass ui2.bounds().
+	window Rect // What the surface stays inside: pass the window's bounds().
 	width  f64
 	height f64
 	side   PopoverSide  = .bottom

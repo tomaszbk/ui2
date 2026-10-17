@@ -18,7 +18,7 @@ and a menu with an open submenu showing from the start.
   it may cover, as one of the last children of the screen.
 - **Window coordinates.** Each overlay takes `anchor`, the rectangle it opens
   next to (usually its trigger's frame), and `window`, the rectangle it has to stay
-  inside: pass `ui2.bounds()`. Both are in window coordinates, which for a
+  inside: pass `w.bounds()` from the window being built. Both are in window coordinates, which for a
   trigger that is a direct child of the screen is simply its frame. The overlay
   places itself; there is no layout pass to wait for.
 - **Controlled state.** The application owns whether an overlay is open (and a
@@ -44,7 +44,7 @@ and a menu with an open submenu showing from the start.
 ```v
 placed := ui2.popover_place(
     anchor: trigger_frame
-    window: ui2.bounds()
+    window: w.bounds()
     width:  240
     height: 120
     side:   .bottom // .top, .bottom, .left, .right
@@ -94,7 +94,7 @@ ui2.popover(
     id:       'details'
     open:     app.details_open
     anchor:   trigger_frame
-    window:   ui2.bounds()
+    window:   w.bounds()
     width:    260
     height:   150
     side:     .bottom
@@ -110,7 +110,7 @@ ui2.popover(
 
 // on_key_event: Escape closes it.
 if ui2.popover_dismiss_key(app.details_open, event) {
-    ui2.consume_key()
+    event.window.consume_key()
     app.details_open = false
 }
 ```
@@ -144,7 +144,7 @@ sweeping across the trigger never opens it.
 
 `HoverCardState` is a pure state machine. The application keeps one per card,
 feeds it the pointer events of the trigger and the card, and runs the timers
-each step asks for with `after` and `cancel_timer`:
+each step asks for with the window's `after` and `cancel_timer`:
 
 ```v
 @[heap]
@@ -152,6 +152,7 @@ struct App {
 mut:
     card       ui2.HoverCardState // HoverCardState{ open_delay: 0.2, close_delay: 0.1 } for a fast one
     card_timer ui2.TimerId
+    window     &ui2.Window = unsafe { nil } // set by main after it opens the window
 }
 
 const app_state = &App{}
@@ -164,40 +165,41 @@ fn app() &App {
 // timer feeds the card its generation back when it fires.
 fn apply_card(step ui2.HoverCardStep) {
     mut model := app()
+    mut w := model.window
     model.card = step.state
     if step.cancel {
-        ui2.cancel_timer(model.card_timer)
+        w.cancel_timer(model.card_timer)
     }
     if step.schedule {
         generation := step.state.generation
-        model.card_timer = ui2.after(step.delay, fn [generation] () {
+        model.card_timer = w.after(step.delay, fn [generation] () {
             apply_card(app().card.timer_fired(generation))
         })
     }
 }
 
-fn card_config() ui2.HoverCardConfig {
+fn card_config(bounds ui2.Rect) ui2.HoverCardConfig {
     return ui2.HoverCardConfig{
         id:       'profile'
         state:    app().card
         anchor:   trigger_frame
-        window:   ui2.bounds()
+        window:   bounds
         width:    300
         height:   104
         arrow:    true
         children: [...]
+        // The window rebuilds after the pointer event that calls this.
         on_step:  fn (step ui2.HoverCardStep) {
             apply_card(step)
-            ui2.request_refresh()
         }
     }
 }
 
 // build: the trigger keeps its own callback (a link here), wrapped in the hover area.
-ui2.hover_card_trigger(card_config(), ui2.link(id: 'ada', text: '@ada', frame: trigger_frame,
+ui2.hover_card_trigger(card_config(w.bounds()), ui2.link(id: 'ada', text: '@ada', frame: trigger_frame,
     on_event: open_profile)!)!
 // ...and last in the screen's children:
-ui2.hover_card(card_config())!
+ui2.hover_card(card_config(w.bounds()))!
 ```
 
 | Event | Method | Result |
@@ -268,7 +270,7 @@ ui2.dropdown_menu(
     state:   app.edit_menu // ui2.DropdownMenuState
     items:   edit_items(app)
     anchor:  button_frame
-    window:  ui2.bounds()
+    window:  w.bounds()
     label:   'Edit'
     // Choosing a row, hovering a row, a press outside.
     on_step: fn (step ui2.DropdownMenuStep) {
@@ -278,7 +280,7 @@ ui2.dropdown_menu(
 
 // on_key_event:
 if step := ui2.dropdown_menu_key(edit_items(app), app.edit_menu, event) {
-    ui2.consume_key()
+    event.window.consume_key()
     app.stepped(step)
 }
 ```

@@ -22,7 +22,7 @@ handling, and `ui/component_inputs_test.v` covers the logic.
   to the component, which hands them to the config's typed callback
   (`on_input` for number inputs and input groups, `on_edit` for OTP inputs).
   The `*_field_id` and `otp_input_cell_id` helpers return the native fields'
-  ids, for `ui2.text`, `ui2.set_text` and `ui2.focus`.
+  ids, for the window's `text`, `set_text` and `focus`.
 - State is controlled. The application stores the text from the callback and
   rebuilds with it. Each callback is checked against **the config the
   component was built with**: a disabled component, a read-only edit, a step
@@ -32,11 +32,11 @@ handling, and `ui/component_inputs_test.v` covers the logic.
 - Text fields are controlled on change (README, "State and identity"): a
   rebuild that declares the same text as last time keeps whatever the field
   shows. When the application rejects or rewrites what was typed and the
-  stored text ends up unchanged, put it back with `ui2.set_text(id, text)`
+  stored text ends up unchanged, put it back with `w.set_text(id, text)`
   after the rebuild. The gallery's `refresh_and_settle` shows the pattern.
 - Components cannot capture keys. Each has pure key helpers to call from
-  `on_key_event` while one of its fields has focus (`ui2.focused_id()`); call
-  `ui2.consume_key()` when a helper returns something.
+  `on_key_event` while one of its fields has focus (`event.window.focused_id()`);
+  call `event.window.consume_key()` when a helper returns something.
 - `size` is `ComponentSize` and colors come from `ComponentTheme`. `invalid`
   draws the theme's danger border without rejecting edits.
 
@@ -93,7 +93,7 @@ ui2.number_input(quantity_config(m)) or { panic(err) }
 
 // on_key_event, while focused_id() == number_input_field_id('quantity'):
 if next := ui2.number_input_value_from_key(quantity_config(m), event) {
-	ui2.consume_key()
+	event.window.consume_key()
 	m.quantity = next
 }
 ```
@@ -158,14 +158,15 @@ fn code_edited(edit ui2.OtpInputEdit) {
 	unsafe {
 		model.code = edit.code
 	}
-	ui2.request_refresh()
-	// The edited cell may still show what was typed (e.g. `35`).
+	// The window rebuilds after the edit. The edited cell may still show what
+	// was typed (e.g. `35`); model.window is the window that shows the cells.
+	mut w := model.window
 	cell := ui2.otp_input_cell_id('code', edit.cell)
 	expected := ui2.otp_input_cell_text(edit.code, edit.cell)
-	if ui2.text(cell) != expected {
-		ui2.set_text(cell, expected)
+	if w.text(cell) != expected {
+		w.set_text(cell, expected)
 	}
-	ui2.focus(ui2.otp_input_cell_id('code', edit.focus))
+	w.focus(ui2.otp_input_cell_id('code', edit.focus))
 	if edit.complete {
 		// verify model.code
 	}
@@ -173,9 +174,9 @@ fn code_edited(edit ui2.OtpInputEdit) {
 
 // on_key_event: Backspace, Delete, ←, →, Home and End move between cells.
 config := code_config(m)
-if index := ui2.otp_input_cell_from_id(config, ui2.focused_id()) {
+if index := ui2.otp_input_cell_from_id(config, event.window.focused_id()) {
 	if edit := ui2.otp_input_key(config, index, event) {
-		ui2.consume_key()
+		event.window.consume_key()
 		// store edit.code, refresh, focus edit.focus
 	}
 }
@@ -214,7 +215,7 @@ single field behind drawn boxes:
   focus to a hidden element at all.
 - **Focus** is the platform's: clicking a cell focuses it, and the focused
   cell shows the native caret and focus ring. The application moves focus
-  after each edit with `ui2.focus`, which every backend supports. With one field behind boxes, the boxes would sit on top of
+  after each edit with the window's `focus`, which every backend supports. With one field behind boxes, the boxes would sit on top of
   the field and take its clicks, and they could not show focus, because
   components learn nothing about focus changes.
 - **Accessibility**: each cell is a text field labelled "Digit 2 of 6" inside a
@@ -234,7 +235,7 @@ cell), as do the arrows, Home, End and Delete.
 | `groups(n)` | Implemented, with an optional `separator` |
 | Disabled, sizes | Implemented; `with_size(px)` is replaced by the frame, which shrinks the cells to fit |
 | `Change` when complete, `set_value`, `value`, `set_masked` | `edit.complete`; the application owns `code` and `masked` |
-| `focus()` | `ui2.focus(otp_input_cell_id(id, otp_input_focus_index(config)))` |
+| `focus()` | `w.focus(otp_input_cell_id(id, otp_input_focus_index(config)))` |
 | `Focus` / `Blur` events | Omitted: ui2 reports no focus changes. |
 | Invalid state | Added (`invalid`) |
 
@@ -261,7 +262,7 @@ fn search_config(m &Model) ui2.InputGroupConfig {
 fn search_input(mut m Model, event ui2.InputGroupEvent) {
 	match event.kind {
 		.change { m.search = event.text }
-		.clear { m.search = '' } // then ui2.focus(input_group_field_id('search')) after the rebuild
+		.clear { m.search = '' } // then w.focus(input_group_field_id('search')) after the rebuild
 		.submit, .addon { run_search(m.search) } // event.addon == 'go' for the button
 	}
 }
