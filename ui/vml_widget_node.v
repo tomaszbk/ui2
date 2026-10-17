@@ -353,9 +353,19 @@ pub fn (n &VmlWidgetNode[P]) geometry() !Rect {
 	return signal.get()!
 }
 
+// geometry_signal creates the frame signal on the first read. That read may
+// come from a memo (a component input such as `width: card.width`), which may
+// not create signals. The signal belongs to the node's owner and is created
+// once, whichever computation reads it first, so it is created outside the
+// running computations.
 fn (mut c VmlNodeCore) geometry_signal() !&Signal[Rect] {
 	if c.frame_signal == unsafe { nil } {
-		c.frame_signal = c.owner.geometry(c.local_identity(), c.estimated_frame())!
+		mut runtime := c.owner.runtime
+		running := runtime.stack
+		runtime.stack = []&SignalNode{}
+		signal := c.owner.geometry(c.local_identity(), c.estimated_frame())
+		runtime.stack = running
+		c.frame_signal = signal!
 	}
 	return c.frame_signal
 }
