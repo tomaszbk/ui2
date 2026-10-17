@@ -1,0 +1,5 @@
+timeline.Timeline(id: "fade", duration: 2, width: 240, height: 40) {
+    timeline.Keyframe(at: 0, opacity: 0)
+    timeline.Keyframe(at: 0.4, opacity: app.peak)
+    timeline.Keyframe(at: 1, opacity: 0.5)
+}
