@@ -572,6 +572,18 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		for point in points { vertices << color_vertex(ctx.content_transform.point(point.x, point.y), c) }
 		ctx.emit_window_polygon(unsafe { *vertices }, f64(ctx.scale))
 	}
+	// draw_local_colored_polygon fills a convex local polygon whose corners
+	// carry their own colors, which the GPU blends across it: a gradient cell.
+	fn (ctx &DrawContext) draw_local_colored_polygon(points []Point, colors []gg.Color) {
+		if points.len < 3 || colors.len != points.len { return }
+		ctx.activate()
+		sgl.load_pipeline(ctx.inner.pipeline.alpha)
+		sgl.disable_texture()
+		mut vertices := unsafe { &ctx.paint_vertices }
+		vertices.clear()
+		for i, point in points { vertices << color_vertex(ctx.content_transform.point(point.x, point.y), colors[i]) }
+		ctx.emit_window_polygon(unsafe { *vertices }, f64(ctx.scale))
+	}
 	fn (ctx &DrawContext) draw_rect_filled(x f32, y f32, w f32, h f32, c gg.Color) {
 		if w <= 0 || h <= 0 { return }
 		area := ctx.content_transform.rounded_local_rect(rect(f64(x), f64(y), f64(w), f64(h)), f64(ctx.scale))

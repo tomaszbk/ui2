@@ -433,6 +433,64 @@ fn save_card(id string, on_save ui2.ElementCallback, frame ui2.Rect) ui2.Element
 already exists. `button_view` and `with_button_behavior` leave the raw
 `clickable` flag unset.
 
+### Hover
+
+`hoverable: true` (or `ui2.with_hover(el)`) makes an element with an
+`on_event` callback receive `.pointer_enter` when the pointer comes over it and
+`.pointer_leave` when it goes, so a hover card can open or a row can highlight.
+The event carries the element's id and the pointer position in logical window
+coordinates.
+
+Hover follows the CSS `:hover` rule on AppKit, Windows and the custom renderer
+alike: an element is hovered while the topmost element under the pointer is it
+or one of its descendants. Moving onto a child keeps its hoverable ancestors
+hovered, an element covered by another one is not hovered, and hover is checked
+again after every render, so content moving under a still pointer is reported
+too. Leaves are reported innermost first and enters outermost first. Touch
+platforms (iOS, Android) have no hover.
+
+## Box effects
+
+`BoxStyle` can fade, shade and color a box beyond its solid `bg`:
+
+```v
+card := ui2.view('card', ui2.rect(20, 20, 280, 160), ui2.BoxStyle{
+	bg:     0xffffff
+	radius: 12
+	shadow: ui2.box_shadow(0x000000, 0.18, 24, 8) // color, opacity, blur, y offset
+}, children)
+
+backdrop := ui2.view('backdrop', ui2.rect(0, 0, w, h), ui2.BoxStyle{
+	bg:      0x000000
+	opacity: 0.4 // the fill only; borders and children keep theirs
+}, [])
+
+banner := ui2.view('banner', ui2.rect(0, 0, w, 120), ui2.BoxStyle{
+	gradient: ui2.linear_gradient(90, ui2.gradient_stop(0x2563eb, 0),
+		ui2.gradient_stop(0x9333ea, 1))
+}, [])
+```
+
+- `opacity` (0 to 1) fades the fill and nothing else.
+- `gradient` replaces `bg` on a view with a linear gradient: `angle` in degrees
+  (0 runs left to right, 90 top to bottom) and two or more stops, each with a
+  position from 0 to 1 and an optional opacity. Like CSS `linear-gradient`, it
+  spans the box corner to corner along its angle. Buttons keep their solid fill
+  (a native button draws its title beneath any gradient layer); make a gradient
+  button from a view with `button_behavior`.
+- `shadow` draws a drop shadow beneath the box: `color`, `opacity`, `blur`,
+  offset `x`/`y` and `spread`, as in CSS `box-shadow`. A box that casts a shadow
+  does not clip its children to its rounded corners on AppKit and UIKit, since a
+  layer masking to its bounds masks its shadow away too.
+
+All three are animatable through `animation_number_property('box.opacity', ...)`
+and the like. AppKit and UIKit use CoreAnimation (`NSShadow`/layer shadows and a
+`CAGradientLayer`), and the custom renderer draws them itself. Windows draws
+fill opacity and gradients with `AlphaBlend` and `GradientFill`, but not a
+gradient's per-stop opacity, and it draws no shadows: Win32 child windows cannot
+paint outside themselves. Screenshots taken with `UI2_SCREENSHOT_PATH` on AppKit
+do not show CoreAnimation shadows, which `cacheDisplayInRect:` does not render.
+
 ## Backend capabilities
 
 Call `control_support(kind)` to query support. macOS implements every shared
@@ -478,7 +536,10 @@ its text area is plain-text, so those two controls report `partial` support.
 
 Shared state includes `hidden`, `enabled`, `accessibility_role`,
 `accessibility_label`, and `accessibility_value`. Native backends expose these
-through AppKit/UIKit. Standard Windows controls expose their native name and
+through AppKit/UIKit. Roles use ARIA names (`button`, `checkbox`, `tab`,
+`progressbar`, `navigation`, …); AppKit maps them onto its own roles, passes
+`AX…` roles through unchanged, and leaves a view's native role in place for a
+name it has no role for. Standard Windows controls expose their native name and
 value; `button_behavior` views also expose a native button role, generated
 label, keyboard focus, and accessibility activation. Other explicit Windows
 accessibility role/value overrides are not yet implemented.
@@ -541,6 +602,79 @@ MessageBox(
     Button(id: "close_message", text: "OK", on_click: app.close_message())
 }
 ```
+
+## Window chrome
+
+`set_window_chrome(.hidden_titlebar)` lets the application draw its own title
+bar: content runs to the top edge of the window. macOS keeps its close,
+minimize and zoom buttons over the content's leading corner
+(`window_controls_leading_inset()` is how much room they take); Windows removes
+the caption but keeps the resizable border, and `window_draws_own_controls()`
+says the application draws the window buttons.
+
+```v
+titlebar := ui2.Element{
+	...ui2.view('titlebar', ui2.rect(0, 0, width, 36), ui2.BoxStyle{ bg: 0xf4f4f5 }, [])
+	clickable: true
+	on_event:  fn (event ui2.ElementEvent) {
+		if event.kind == .pointer_down {
+			ui2.start_window_drag() // the platform moves the window
+		}
+	}
+}
+close := ui2.with_event(ui2.button('close', '×', ui2.rect(width - 40, 0, 40, 36),
+	ui2.BoxStyle{}, ui2.TextStyle{}), fn (event ui2.ElementEvent) {
+	if event.kind == .click {
+		ui2.quit()
+	}
+})
+```
+
+`start_window_drag` only works while a press is being handled, so give the
+title bar `clickable: true` (or `draggable`) and call it on `.pointer_down`.
+`minimize_window` and `toggle_maximize_window` go behind the other buttons'
+callbacks the same way.
+`window_is_maximized` tells a maximize button which icon to show. These work
+for native and custom-rendered windows on macOS and Windows; Linux, Android and
+iOS keep their own frame and the calls report false.
+
+## Timers
+
+`after` runs a callback on the UI thread once a delay has passed and then
+rebuilds the window, so a notification can dismiss itself or a search can
+debounce without the application owning a thread:
+
+```v
+toast := ui2.after(4, fn [mut app] () {
+	app.toast_visible = false
+})
+ui2.cancel_timer(toast) // call it off, e.g. when the user dismisses it first
+```
+
+Callbacks run where widget animation callbacks do, between building the
+declared tree and rendering it, and a refresh is requested so whatever they
+change is drawn next. `timer_pending(id)` reports whether a callback has yet to
+run. A negative or non-finite delay runs at the next build.
+
+## Clipboard
+
+`set_clipboard_text` replaces the system clipboard with plain text and
+`clipboard_text` reads it back (`none` when it holds no text). Text fields
+keep their own copy and paste; these are for copying anything else, such as
+the contents of a code block.
+
+```v
+if !ui2.set_clipboard_text(token) {
+	// no clipboard this platform can reach
+}
+pasted := ui2.clipboard_text() or { '' }
+```
+
+macOS uses `NSPasteboard`, iOS `UIPasteboard` and Windows the Win32 clipboard,
+for native and custom-rendered windows alike. Linux drives `wl-copy`/`wl-paste`
+under Wayland, or `xclip` or `xsel` under X11, so one of them has to be
+installed; Android has no clipboard this layer can reach. Check
+`clipboard_supported()` before offering a copy action.
 
 ## File and folder dialogs
 
@@ -883,6 +1017,10 @@ fn handle_key(event ui2.KeyEvent) {
 
 ui2.on_key_event(handle_key)
 ```
+
+Pointer events do not carry modifier keys; `ui2.key_modifiers()` reports the
+ones held right now (`shift`, `ctrl`, `alt`, and `cmd` for Command or the
+Windows key), so a click handler can tell a Shift- or Cmd-click apart.
 
 The existing `on_key` callback remains available for normalized strings such as
 `cmd+n` and `up`. On AppKit those strings are now also derived from physical key

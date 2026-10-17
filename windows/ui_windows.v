@@ -8,6 +8,8 @@ $if !ui2_custom_rendering ? && !ui2_document_library ? {
 
 #flag windows -lgdi32
 
+#flag windows -lmsimg32
+
 #flag windows -lcomctl32
 
 #flag windows -lshell32
@@ -163,6 +165,75 @@ fn C.ui2_win_paint_background(hwnd voidptr, background u32, radius f64, transpar
 
 fn C.ui2_win_paint_background_into(hwnd voidptr, dc voidptr, background u32, radius f64, transparent int, border_color u32, border_left f64, border_top f64, border_right f64, border_bottom f64)
 
+struct C.ui2_win_mesh_vertex {
+	x     int
+	y     int
+	color u32
+}
+
+fn C.ui2_win_paint_background_fx(hwnd voidptr, background u32, radius f64, transparent int, border_color u32, border_left f64, border_top f64, border_right f64, border_bottom f64, opacity f64, vertices &C.ui2_win_mesh_vertex, vertex_count int, triangles &u32, triangle_count int)
+
+fn C.ui2_win_paint_background_into_fx(hwnd voidptr, dc voidptr, background u32, radius f64, transparent int, border_color u32, border_left f64, border_top f64, border_right f64, border_bottom f64, opacity f64, vertices &C.ui2_win_mesh_vertex, vertex_count int, triangles &u32, triangle_count int)
+
+// WindowsGradientMesh is what GradientFill draws a box's gradient from: a grid of
+// cells whose corners take the gradient's color there, two triangles a cell.
+struct WindowsGradientMesh {
+mut:
+	vertices  []C.ui2_win_mesh_vertex
+	triangles []u32
+}
+
+fn windows_gradient_mesh(box BoxStyle, width int, height int) WindowsGradientMesh {
+	mut mesh := WindowsGradientMesh{}
+	if !box_has_gradient(box) || width <= 0 || height <= 0 {
+		return mesh
+	}
+	stops := gradient_sorted_stops(box.gradient)
+	line := gradient_line(box.gradient.angle, f64(width), f64(height))
+	cell := 8
+	columns := (width + cell - 1) / cell
+	rows := (height + cell - 1) / cell
+	for row in 0 .. rows + 1 {
+		y := if row * cell < height { row * cell } else { height }
+		for column in 0 .. columns + 1 {
+			x := if column * cell < width { column * cell } else { width }
+			color, _ := gradient_color_at(stops, gradient_position(line, f64(x), f64(y)))
+			mesh.vertices << C.ui2_win_mesh_vertex{
+				x:     x
+				y:     y
+				color: color
+			}
+		}
+	}
+	for row in 0 .. rows {
+		for column in 0 .. columns {
+			a := u32(row * (columns + 1) + column)
+			d := a + u32(columns + 1)
+			mesh.triangles << [a, a + 1, d + 1, a, d + 1, d]
+		}
+	}
+	return mesh
+}
+
+// windows_paint_box paints a view's background, fill effects included, into its
+// own paint cycle (dc nil) or into a DC a descendant asked for.
+fn windows_paint_box(hwnd voidptr, dc voidptr, box BoxStyle, transparent int) {
+	mesh := windows_gradient_mesh(box, C.ui2_win_client_width(hwnd), C.ui2_win_client_height(hwnd))
+	vertices := if mesh.vertices.len > 0 { &mesh.vertices[0] } else { unsafe { nil } }
+	triangles := if mesh.triangles.len > 0 { &mesh.triangles[0] } else { unsafe { nil } }
+	opacity := if box.transparent { 1.0 } else { box_fill_opacity(box) }
+	if dc == unsafe { nil } {
+		C.ui2_win_paint_background_fx(hwnd, box.bg, box.radius, transparent, box.border_color,
+			box.border_left, box.border_top, box.border_right, box.border_bottom, opacity,
+			vertices, mesh.vertices.len, triangles, mesh.triangles.len / 3)
+	} else {
+		C.ui2_win_paint_background_into_fx(hwnd, dc, box.bg, box.radius, transparent,
+			box.border_color, box.border_left, box.border_top, box.border_right,
+			box.border_bottom, opacity, vertices, mesh.vertices.len, triangles,
+			mesh.triangles.len / 3)
+	}
+}
+
 fn C.ui2_win_paint_transparent_button(hwnd voidptr, foreground u32, radius f64, border_color u32, border_left f64, border_top f64, border_right f64, border_bottom f64)
 
 fn C.ui2_win_paint_control_border(hwnd voidptr, color u32, radius f64, left f64, top f64, right f64, bottom f64)
@@ -201,6 +272,8 @@ fn C.ui2_win_release_mouse()
 fn C.ui2_win_ticks() u64
 
 fn C.ui2_win_point_to_root(hwnd voidptr, root voidptr, x &int, y &int)
+
+fn C.ui2_win_hover_target(root voidptr, x &int, y &int) voidptr
 
 fn C.ui2_win_root_point_in_client(root voidptr, target voidptr, x int, y int) int
 
@@ -298,6 +371,9 @@ mut:
 	suppressed_keys map[u32]u32
 	activation_keys map[u32]bool // Virtual key + scan/extended bit, independent of HWND.
 	keyboard_generation u64 // A synchronous callback can release the press/host.
+	symbol_font_attempted bool
+	hover_bindings        map[u64]HoverTarget // window handle -> hoverable element
+	hovered               []HoverTarget       // hovered elements, outermost first
 	build_screen       BuildFn = BuildFn(unsafe { nil })
 	key_handler        KeyFn = KeyFn(unsafe { nil })
 	key_event_handler  KeyEventFn = KeyEventFn(unsafe { nil })
@@ -400,6 +476,81 @@ const windows_state_singleton = &WindowsState{
 	suppress_click: map[u64]bool{}
 }
 
+fn C.AddFontResourceExW(name &u16, flags u32, reserved voidptr) int
+
+const windows_fr_private = u32(0x10)
+
+// Win32 has no symbol images, so a `symbol:` image is drawn as a label holding its
+// Material Icons glyph, the way the custom renderer draws it, tinted with the text
+// color and sized so the glyph's em fills the smaller side of the frame (a
+// point is 4/3 of a 96-DPI pixel). Subtrees without one are returned untouched.
+fn windows_symbol_images_as_labels(el Element) Element {
+	if !element_has_symbol_image(el) {
+		return el
+	}
+	mut children := []Element{cap: el.children.len}
+	for child in el.children {
+		children << windows_symbol_images_as_labels(child)
+	}
+	if el.kind == .image {
+		if name := symbol_name(el.image_path) {
+			windows_load_symbol_font()
+			side := if el.frame.width < el.frame.height { el.frame.width } else { el.frame.height }
+			return Element{
+				...el
+				kind:                .label
+				text:                symbol_glyph(name)
+				image_path:          ''
+				children:            children
+				text_style:          TextStyle{
+					color:       el.text_style.color
+					font_family: 'Material Icons'
+					size:        side * 0.75
+					align:       .center
+					valign:      .middle
+				}
+				accessibility_role:  if el.accessibility_role.len > 0 { el.accessibility_role } else { 'img' }
+				accessibility_label: if el.accessibility_label.len > 0 { el.accessibility_label } else { name }
+			}
+		}
+	}
+	return Element{
+		...el
+		children: children
+	}
+}
+
+fn element_has_symbol_image(el Element) bool {
+	if el.kind == .image && el.image_path.starts_with('symbol:') {
+		return true
+	}
+	for child in el.children {
+		if element_has_symbol_image(child) {
+			return true
+		}
+	}
+	return false
+}
+
+// Registers the bundled Material Icons face for this process only, once.
+fn windows_load_symbol_font() {
+	mut st := windows_state()
+	if st.symbol_font_attempted {
+		return
+	}
+	st.symbol_font_attempted = true
+	path := font_bundle_file('MaterialIcons-Regular.ttf')
+	if path.len == 0 {
+		eprintln('ui2: MaterialIcons-Regular.ttf was not found; symbol images will not draw')
+		return
+	}
+	wide := path.to_wide()
+	if C.AddFontResourceExW(wide, windows_fr_private, unsafe { nil }) == 0 {
+		eprintln('ui2: could not load ${path}; symbol images will not draw')
+	}
+	unsafe { free(wide) }
+}
+
 fn windows_state() &WindowsState {
 	return unsafe { windows_state_singleton }
 }
@@ -442,7 +593,7 @@ fn windows_place_label(key string, hwnd voidptr, el Element, x_offset int, y_off
 	}
 	mut placed := el.frame
 	if el.frame.height > 0 && el.text.len > 0 {
-		content := f64(C.ui2_win_label_content_height(hwnd, int(el.frame.width), el.text_style.lines))
+		content := f64(C.ui2_win_label_content_height(hwnd, int(el.frame.width), text_line_budget(el.text_style.lines)))
 		if content > 0 && content < el.frame.height {
 			placed = Rect{
 				x:      el.frame.x
@@ -571,6 +722,9 @@ pub fn refresh() {
 	if st.root == unsafe { nil } || st.rendering || voidptr(st.build_screen) == unsafe { nil } {
 		return
 	}
+	// `after` callbacks run on the UI thread before the build, so it declares
+	// what they changed.
+	run_due_timers_now()
 	windows_render_declaration(st.build_screen())
 }
 
@@ -601,7 +755,9 @@ fn windows_render_mounted_layout() {
 	windows_render_resolved(root)
 }
 
-fn windows_render_resolved(root Element) {
+fn windows_render_resolved(resolved Element) {
+	// Symbol images become glyph labels once their frames are resolved.
+	root := windows_symbol_images_as_labels(resolved)
 	previous_focus := focused_id()
 	mut st := windows_state()
 	st.rendering = true
@@ -614,6 +770,7 @@ fn windows_render_resolved(root Element) {
 	st.change_bindings = map[u64]WindowsCallbackBinding{}
 	st.submit_bindings = map[u64]WindowsCallbackBinding{}
 	st.pointer_bindings = map[u64]WindowsPointerBinding{}
+	st.hover_bindings = map[u64]HoverTarget{}
 	st.menus = map[u64][]MenuEntry{}
 	st.cursors = map[u64]int{}
 	st.scroll_callbacks = map[u64]WindowsCallbackBinding{}
@@ -634,6 +791,8 @@ fn windows_render_resolved(root Element) {
 	st.rendering = false
 	reconcile_windows_focus(root, previous_focus)
 	C.ui2_win_invalidate(st.root)
+	// Content can move under a cursor that stays put.
+	windows_update_hover()
 }
 
 pub fn request_refresh() {
@@ -1061,7 +1220,7 @@ fn windows_render_element(parent voidptr, el Element, key string, parent_key str
 			text_style: visual_text_style
 		}, x_offset, y_offset)
 	}
-	windows_register_bindings(hwnd, el)
+	windows_register_bindings(hwnd, key, el)
 	if el.kind == .view {
 		caption := windows_button_accessibility_caption(el.accessibility_label)
 		wide_caption := caption.to_wide()
@@ -1188,7 +1347,7 @@ fn windows_place_held_label(hwnd voidptr, el Element) {
 	mut y := top
 	mut drawn := height
 	if el.text.len > 0 && width > 0 && height > 0 {
-		content := int(C.ui2_win_label_content_height(text_hwnd, width, el.text_style.lines))
+		content := int(C.ui2_win_label_content_height(text_hwnd, width, text_line_budget(el.text_style.lines)))
 		if content > 0 && content < height {
 			drawn = content
 			y = int(text_block_top(f64(top), f64(height), f64(content), el.text_style.valign))
@@ -1358,6 +1517,13 @@ fn windows_update_tooltip(key string, hwnd voidptr, text_hwnd voidptr, tooltip s
 	}
 }
 
+// GDI has no face called `monospace` and would substitute a proportional one,
+// so the generic names resolve to Consolas, as the custom renderer resolves them
+// to an installed monospace face.
+fn windows_font_family(family string) string {
+	return if font_key(family) in ['monospace', 'mono', 'uimonospace'] { 'Consolas' } else { family }
+}
+
 // windows_font_text returns every string the control draws with its own font,
 // so a fallback family is picked for placeholders and dropdown items too.
 fn windows_font_text(el Element) string {
@@ -1405,7 +1571,7 @@ fn windows_update_style(key string, hwnd voidptr, el Element) {
 		font_text := windows_font_text(el)
 		font_sig := '${el.text_style.size}:${el.text_style.font_family.bytes().hex()}:${windows_bool(el.text_style.bold)}:${windows_bool(el.text_style.italic)}:${windows_bool(el.text_style.underline)}:${windows_bool(el.text_style.strikethrough)}:${windows_font_glyph_key(font_text)}'
 		if (st.font_sigs[key] or { '' }) != font_sig {
-			wide_family := el.text_style.font_family.to_wide()
+			wide_family := windows_font_family(el.text_style.font_family).to_wide()
 			wide_text := font_text.to_wide()
 			font := C.ui2_win_create_font(hwnd, el.text_style.size, wide_family, windows_bool(el.text_style.bold), windows_bool(el.text_style.italic), windows_bool(el.text_style.underline), windows_bool(el.text_style.strikethrough), wide_text)
 			unsafe { free(wide_family) }
@@ -1436,7 +1602,7 @@ fn windows_update_style(key string, hwnd voidptr, el Element) {
 	}
 }
 
-fn windows_register_bindings(hwnd voidptr, el Element) {
+fn windows_register_bindings(hwnd voidptr, key string, el Element) {
 	mut st := windows_state()
 	handle := windows_handle_id(hwnd)
 	if el.on_event != unsafe { nil }
@@ -1460,6 +1626,9 @@ fn windows_register_bindings(hwnd voidptr, el Element) {
 	}
 	if el.on_event != unsafe { nil } && el.kind == .text_field {
 		st.submit_bindings[handle] = windows_callback_binding(el, .submit)
+	}
+	if target := hover_target(key, el) {
+		st.hover_bindings[handle] = target
 	}
 	if el.enabled && !el.hidden
 		&& (el.clickable || (el.kind == .view && el.button_behavior) || el.draggable
@@ -1694,6 +1863,42 @@ fn windows_record_scroll(hwnd voidptr, key string, position int, horizontal bool
 	windows_reposition_scroll_children(key)
 	windows_emit_scroll(hwnd, f64(position))
 	return position - old_position
+}
+
+@[export: 'ui2_windows_hover_changed']
+fn ui2_windows_hover_changed() {
+	windows_update_hover()
+}
+
+// windows_update_hover reports the hoverable elements the cursor left and entered:
+// the window under it and that window's ancestors, as CSS :hover counts them.
+fn windows_update_hover() {
+	mut st := windows_state()
+	if st.root == unsafe { nil } || st.rendering {
+		return
+	}
+	mut x := 0
+	mut y := 0
+	mut current := []HoverTarget{}
+	if st.hover_bindings.len > 0 {
+		mut target := C.ui2_win_hover_target(st.root, &x, &y)
+		mut inner_first := []HoverTarget{}
+		for target != unsafe { nil } {
+			if hovered := st.hover_bindings[windows_handle_id(target)] {
+				inner_first << hovered
+			}
+			if target == st.root {
+				break
+			}
+			target = C.ui2_win_parent(target)
+		}
+		current = inner_first.reverse()
+	}
+	left, entered := hover_transitions(st.hovered, current)
+	st.hovered = current
+	for pending in hover_events(left, entered, f64(x), f64(y)) {
+		pending.fire()
+	}
 }
 
 fn windows_emit_scroll(hwnd voidptr, _offset f64) bool {
@@ -2087,17 +2292,14 @@ fn ui2_windows_window_proc(hwnd voidptr, message u32, wparam usize, lparam isize
 				box = st.node_boxes[key] or { return 0 }
 				kind = st.node_kinds[key] or { Kind.screen }
 			}
-			C.ui2_win_paint_background_into(hwnd, voidptr(wparam), box.bg, box.radius,
-				windows_bool(windows_draws_no_background(kind, box)), box.border_color,
-				box.border_left, box.border_top, box.border_right, box.border_bottom)
+			windows_paint_box(hwnd, voidptr(wparam), box, windows_bool(windows_draws_no_background(kind,
+				box)))
 			return 0
 		}
 		win_wm_paint {
 			if hwnd == st.root {
 				box := st.node_boxes[''] or { BoxStyle{} }
-				C.ui2_win_paint_background(hwnd, box.bg, box.radius, windows_bool(box.transparent),
-					box.border_color, box.border_left, box.border_top, box.border_right,
-					box.border_bottom)
+				windows_paint_box(hwnd, unsafe { nil }, box, windows_bool(box.transparent))
 				return 0
 			}
 			key := st.handle_keys[windows_handle_id(hwnd)] or {
@@ -2107,9 +2309,7 @@ fn ui2_windows_window_proc(hwnd voidptr, message u32, wparam usize, lparam isize
 			if kind == .view || kind == .scroll || windows_is_label_container(key, hwnd) {
 				box := st.node_boxes[key] or { BoxStyle{} }
 				transparent := windows_bool(windows_draws_no_background(kind, box))
-				C.ui2_win_paint_background(hwnd, box.bg, box.radius, transparent,
-					box.border_color, box.border_left, box.border_top, box.border_right,
-					box.border_bottom)
+				windows_paint_box(hwnd, unsafe { nil }, box, transparent)
 				if kind == .view {
 					binding := st.pointer_bindings[windows_handle_id(hwnd)] or {
 						WindowsPointerBinding{}

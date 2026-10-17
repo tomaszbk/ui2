@@ -257,13 +257,24 @@ fn layout_validate_text_measurement(style TextStyle, max_width f64) ! {
 	}
 }
 
+// text_lines_unlimited is the line budget `lines: 0` stands for: more than any
+// frame shows, so text wraps until it runs out or the frame cuts it off.
+const text_lines_unlimited = 10000
+
+// text_line_budget is the most lines a TextStyle.lines value wraps onto. Every
+// backend reads lines through it, so `lines: 0` (or less) means "as many as fit".
+fn text_line_budget(lines int) int {
+	return if lines > 0 { lines } else { text_lines_unlimited }
+}
+
 fn layout_measure_text_lines(text string, style TextStyle, max_width f64, line_height f64, width_of fn (string) f64) !LayoutSize {
 	layout_validate_text_measurement(style, max_width)!
 	if !math.is_finite(line_height) || line_height <= 0 {
 		return error('text measurement needs a positive finite line height')
 	}
-	lines := if style.lines > 1 {
-		wrap_text_lines_measured(text, max_width, style.lines, width_of)
+	budget := text_line_budget(style.lines)
+	lines := if budget > 1 {
+		wrap_text_lines_measured(text, max_width, budget, width_of)
 	} else {
 		[text]
 	}
