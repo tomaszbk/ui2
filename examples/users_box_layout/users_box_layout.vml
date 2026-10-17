@@ -108,7 +108,7 @@ Screen(
                         Button(id: "reset", text: "Clear", on_click: app.reset(), native: true, width: 44)
                     }
                     View(flex_grow: 1, style: [transparent(true)])
-                    ProgressBar(height: 14, value: app.progress, max: 1, style: [background(#E2E8F0), foreground(#2563EB), radius(7)])
+                    Progress(height: 14, value: app.progress, max: 1)
                     Label(
                         id: "progress_label",
                         text: app.progress_label,

@@ -2,17 +2,26 @@ module main
 
 import ui2
 
+// The loading Spinner: a turning three-quarter ring in three sizes, and the
+// same ring in a loading Button while a save runs.
+
 const spinner_width = 360
-const spinner_height = 190
+const spinner_height = 260
 
 pub struct SpinnerDemo {
 pub mut:
-	selection string = 'Home'
-	message   string = 'Home selected.'
+	saving bool
+	status string = 'Idle'
 }
 
-pub fn (mut app SpinnerDemo) selection_changed() {
-	app.message = '${app.selection} selected.'
+pub fn (mut app SpinnerDemo) save() {
+	app.saving = true
+	app.status = 'Saving changes'
+}
+
+pub fn (mut app SpinnerDemo) finish() {
+	app.saving = false
+	app.status = 'Saved'
 }
 
 fn main() {

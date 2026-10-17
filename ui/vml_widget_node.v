@@ -137,13 +137,11 @@ mut:
 	vml_commit() !
 }
 
-// How a build applies the node's style. The compiled lowering styles a plain
-// element through a style effect over the unstyled constructor defaults
-// (`reset`), and a structural rebuild directly (`direct`).
+// How a build applies the node's style: the first build leaves it to a style
+// effect over the unstyled element, and a rebuild applies it directly.
 enum VmlStyleMode {
 	unstyled
-	reset
-	direct
+	styled
 }
 
 // Pending change kinds of a built node, coalesced until its commit.
@@ -522,15 +520,7 @@ fn (n &VmlWidgetNode[P]) vml_has_style() bool {
 fn (n &VmlWidgetNode[P]) vml_styled(el Element, mode VmlStyleMode) !Element {
 	$if P is VmlCommonProps {
 		if mode != .unstyled && n.props.style != StylePatch{} {
-			base := if mode == .reset {
-				Element{
-					...el
-					box: style_reset_box(el.compiled_metadata, el.box)
-				}
-			} else {
-				el
-			}
-			return apply_style(base, n.props.style)!
+			return apply_style(el, n.props.style)!
 		}
 	}
 	return el
@@ -752,7 +742,7 @@ fn (mut c VmlNodeCore) build_element(input Rect, placement VmlPlacement) !&Compi
 	// Styled like the compiled style effect: after the unstyled element is
 	// retained, over its constructor defaults.
 	if typed.vml_has_style() {
-		node.replace_property(typed.vml_styled(node.source_element(), .reset)!)!
+		node.replace_property(typed.vml_styled(node.source_element(), .styled)!)!
 	}
 	if c.structure != .plain {
 		if c.structure == .sourced { node.set_sources(elements)! }
@@ -810,7 +800,7 @@ fn (mut c VmlNodeCore) structural_element() !Element {
 		child_layouts: layouts
 		parts:         parts
 		owner:         c.owner
-	}, .direct)!
+	}, .styled)!
 }
 
 // rebuild_plain rebuilds a plain element at its current frame and children
@@ -837,7 +827,7 @@ fn (mut c VmlNodeCore) rebuild_plain() ! {
 		child_layouts: layouts
 		parts:         parts
 		owner:         c.owner
-	}, .reset)!
+	}, .styled)!
 	node.replace_property(Element{
 		...rebuilt
 		id:  current.id

@@ -21,10 +21,8 @@ Screen(id: "root") {
                 View()
             }
         }
-        ProgressBar(id: "common_progress", x: 210, y: 210, width: 100, height: 10, value: 10, tooltip: "p", enabled: false, accessibility_label: "Progress")
-        Spinner(id: "common_spinner", x: 210, y: 230, width: 100, height: 30, opacity: 0.6, on_click: app.hit("spin click")) {
-            Option(text: "a")
-        }
+        Progress(id: "common_progress", x: 210, y: 210, width: 100, height: 10, value: 10, tooltip: "p", enabled: false, accessibility_label: "Progress")
+        Spinner(id: "common_spinner", x: 210, y: 230, width: 100, height: 30, opacity: 0.6, on_click: app.hit("spin click"))
         MessageBox(id: "common_msg", x: 210, y: 270, width: 200, height: 100, accessibility_role: "alertdialog", tooltip: "m") {
             Button(text: "OK", on_click: app.hit("common ok"))
         }

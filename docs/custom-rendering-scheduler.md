@@ -71,9 +71,11 @@ desde un worker para buscar una ventana que podría haber sido reemplazada.
 | Ventana iconificada/suspendida | Suspender trabajo visual; conservar invalidaciones | Sin builds/draws ocultos; restauración completa |
 | Cierre | Invalidar dispatcher y cancelar tareas pendientes | Un callback tardío no usa la ventana anterior |
 
-El renderer no tiene todavía composición IME ni cursor parpadeante temporal.
-El control `Spinner` actual es un selector de opciones, no un indicador de carga
-giratorio. Estas funciones no se anuncian como nuevas fuentes de frames.
+El renderer no tiene todavía composición IME ni cursor parpadeante temporal;
+estas funciones no se anuncian como nuevas fuentes de frames. El indicador de
+carga `Spinner` gira con una línea de tiempo en bucle y sigue la fila
+«Animación»: pide frames solo mientras está visible, y con movimiento reducido
+queda quieto y no pide ninguno.
 
 ## Contadores y alcance de la entrega
 

@@ -1,45 +1,17 @@
-Screen(
-    id: "root",
-    style: [background(#F1F5F9)],
-) {
-    Absolute(
-        style: [transparent(true)],
-    ) {
-        View(
-            x: (root.width - 328) / 2,
-            y: 16,
-            width: 328,
-            height: 158,
-            style: [background(#FFFFFF), radius(10)],
-        ) {
-            Absolute(
-                style: [transparent(true)],
-            ) {
-                Label(text: "Location", x: 16, y: 14, width: 296, height: 26, style: [foreground(#111827), font_size(18), weight(700)])
-                Spinner(
-                    id: "location",
-                    bind.text: app.selection,
-                    on_change: app.selection_changed(),
-                    x: 16,
-                    y: 50,
-                    width: 296,
-                    height: 42,
-                    style: [background(#DBEAFE), foreground(#1D4ED8), radius(7)],
-                ) {
-                    Option(text: "Home")
-                    Option(text: "Work")
-                    Option(text: "Other")
-                }
-                Label(
-                    id: "selection-message",
-                    text: app.message,
-                    x: 16,
-                    y: 108,
-                    width: 296,
-                    height: 24,
-                    style: [foreground(#166534), text_align(center)],
-                )
-            }
+Screen(id: "root", style: [background(color.surface)]) {
+    Column(gap: 16, align_items: center, style: [padding(24)]) {
+        Label(text: "Loading", style: [font_size(typography.title), weight(700), foreground(color.text)])
+        Row(gap: 16, align_items: center) {
+            Spinner(id: "small", size: small)
+            Spinner(id: "medium")
+            Spinner(id: "large", size: large)
+            Spinner(id: "accent", size: large, color: #2563EB)
         }
+        Button(id: "save", text: app.saving ? "Saving" : "Save", variant: primary, loading: app.saving, on_click: app.save())
+        Row(id: "progress", gap: 8, align_items: center, hidden: !app.saving) {
+            Spinner(size: small)
+            Label(id: "status", text: app.status, style: [foreground(color.muted)])
+        }
+        Button(id: "done", text: "Finish", enabled: app.saving, on_click: app.finish())
     }
 }

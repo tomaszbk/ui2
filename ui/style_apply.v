@@ -266,7 +266,7 @@ pub fn (mut node CompiledVmlNode) style(compute fn () !StylePatch) ! {
 	if 'style' in node.effects { return }
 	source := node.source_element()
 	base := &VmlStyleBase{
-		box:               style_reset_box(source.compiled_metadata, source.box)
+		box:               source.box
 		text_style:        source.text_style
 		interaction_style: source.interaction_style
 		layout:            source.layout
@@ -314,20 +314,6 @@ fn button_content_rect(el Element) Rect {
 			layout_max(0, el.frame.height - padding.top - padding.bottom))
 	}
 	return rect(0, 0, el.frame.width, el.frame.height)
-}
-
-// Composite widgets refine their constructor inputs through the same sparse
-// value. Progress foreground belongs to its retained fill, and radius shapes
-// both the track and fill; ordinary root decoration still uses apply_style.
-pub fn style_progress_bar(config ProgressBarConfig, patch StylePatch) !ProgressBarConfig {
-	validate_style_patch(patch)!
-	return ProgressBarConfig{
-		...config
-		style_default_box: config.style_default_box or { BoxStyle{ bg: config.background, radius: config.radius } }
-		background:        patch.box.bg or { config.background }
-		color:             patch.text.foreground or { config.color }
-		radius:            patch.box.radius or { config.radius }
-	}
 }
 
 // Tree text belongs to the widget's generated rows, not its authored content.

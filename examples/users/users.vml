@@ -112,12 +112,12 @@ Screen(
                         align_items: center,
                         style: [transparent(true)],
                     ) {
-                        ProgressBar(
+                        Progress(
                             width: 170,
                             height: 16,
                             value: app.users.len,
                             max: app.max_users,
-                            style: [background(#D8DEE8), foreground(#3478D4), radius(8)],
+                            style: [background(#D8DEE8)],
                         )
                         Label(text: "${app.users.len}/${app.max_users}", flex_grow: 1, style: [font_size(13)])
                     }

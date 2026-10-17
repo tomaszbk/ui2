@@ -26,19 +26,12 @@ Screen(id: "root") {
             Option(text: "Red")
             Option(text: "Green")
         }
-        ProgressBar(id: "progress", value: 30, height: 10)
-        ProgressBar(id: "styled_progress", value: app.level, max: 50, height: 10, style: [background(#112233), foreground(#445566), radius(2)])
+        Progress(id: "progress", value: 30, height: 10)
+        Progress(id: "styled_progress", value: app.level, max: 50, height: 10, tone: success, style: [background(#112233), radius(2)])
         Slider(id: "level", bind.value: app.level, height: 30)
         Slider(id: "custom_slider", value: 5, min: -10, max: 10, step: 0.5, orientation: vertical, track_inset: 8, value_track: true, value_track_color: #FF0000, thumb_color: #00FF00, track_width: 6, thumb_size: 14, width: 30, height: 120)
         Switch(id: "dark", bind.active: app.dark, on_active: app.hit("active"), on_change: app.hit("change"))
         Switch(id: "custom_switch", active: true, inactive_color: #111111, active_color: #222222, thumb_color: #333333, disabled_track_color: #444444, disabled_thumb_color: #555555, enabled: false)
-        Spinner(id: "where", bind.text: app.place, height: 30, style: [background(#DBEAFE), foreground(#1D4ED8), radius(7)]) {
-            Option(text: "Home")
-            Option(text: "Work")
-        }
-        Spinner(text: "x", text_autoupdate: true, height: 30) {
-            Option(text: "x")
-        }
         ToggleButton(id: "bold", text: "Bold", bind.pressed: app.bold, group: "fmt", allow_no_selection: false, down_background: #1D4ED8, down_color: #FEFEFE, down_corner_radius: 3, height: 30)
         ToggleButton(text: "Plain", height: 30)
         MessageBox(id: "msg", title: "Hello", text: "World", dialog_width: 280, dialog_height: 140, hidden: app.msg_hidden, height: 200) {

@@ -275,7 +275,7 @@ pub fn (ctx VmlBuildContext) runs() []VmlRun {
 	return runs
 }
 
-// options are the Option parts of a Dropdown or Spinner.
+// options are the Option parts of a Dropdown.
 pub fn (ctx VmlBuildContext) options() []MenuEntry {
 	mut entries := []MenuEntry{}
 	for part in ctx.parts {

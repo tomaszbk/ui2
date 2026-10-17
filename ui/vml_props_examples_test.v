@@ -2,7 +2,7 @@
 module ui2
 
 // Golden equivalence of hand-written props with example documents used
-// verbatim: switch, spinner, message, typography runs and an overlay surface.
+// verbatim: switch, message, typography runs and an overlay surface.
 
 struct PropsSwitchDemo {
 pub mut:
@@ -15,51 +15,68 @@ fn props_switch_compiled(mut app PropsSwitchDemo, frame Rect) Element {
 
 fn props_switch_tree(mut app PropsSwitchDemo, frame Rect) PNode {
 	card_width := if frame.width - 32 < 288 { frame.width - 32 } else { 288.0 }
-	return pn(ScreenProps{ style: style_list([style_background(0xF1F5F9)]) }, id: 'root', children: [
-		pn(AbsoluteProps{ style: style_list([style_transparent(true)]) }, children: [
-			pn(ViewProps{
-				x:      (frame.width - card_width) / 2
-				y:      16
-				width:  card_width
-				height: 128
-				style:  style_list([style_background(0xFFFFFF), style_radius(10)])
-			}, id: 'card', children: [
-				pn(AbsoluteProps{ style: style_list([style_transparent(true)]) }, children: [
-					pn(LabelProps{
-						text:   if app.enabled { 'Enabled' } else { 'Disabled' }
-						x:      16
-						y:      14
-						width:  card_width - 32
-						height: 34
-						style:  style_list([
-							style_foreground(if app.enabled { u32(0x166534) } else { u32(0x991B1B) }),
-							style_font_size(20),
-							style_weight(700),
-						])
-					}, id: 'state'),
-					pn(LabelProps{
-						text:   'Feature enabled'
-						x:      16
-						y:      62
-						width:  card_width - 96
-						height: 42
-						style:  style_list([style_foreground(0x111827), style_font_size(15)])
-					}),
-					pn(SwitchProps{
-						active:       app.enabled
-						x:            card_width - 76
-						y:            67
-						width:        60
-						height:       32
-						active_color: 0x16A34A
-						on_change:    fn [mut app] (e ElementEvent) {
-							app.enabled = e.checked
-						}
-					}, id: 'switch-control', bind: true),
-				]),
-			]),
-		]),
-	])
+	return pn(ScreenProps{ style: style_list([style_background(0xF1F5F9)]) },
+		id:       'root'
+		children: [
+			pn(AbsoluteProps{ style: style_list([style_transparent(true)]) },
+				children: [
+					pn(ViewProps{
+						x:      (frame.width - card_width) / 2
+						y:      16
+						width:  card_width
+						height: 128
+						style:  style_list([style_background(0xFFFFFF), style_radius(10)])
+					},
+						id:       'card'
+						children: [
+							pn(AbsoluteProps{ style: style_list([style_transparent(true)]) },
+								children: [
+									pn(LabelProps{
+										text:   if app.enabled { 'Enabled' } else { 'Disabled' }
+										x:      16
+										y:      14
+										width:  card_width - 32
+										height: 34
+										style:  style_list([
+											style_foreground(if app.enabled {
+												u32(0x166534)
+											} else {
+												u32(0x991B1B)
+											}),
+											style_font_size(20),
+											style_weight(700),
+										])
+									}, id: 'state'),
+									pn(LabelProps{
+										text:   'Feature enabled'
+										x:      16
+										y:      62
+										width:  card_width - 96
+										height: 42
+										style:  style_list([
+											style_foreground(0x111827),
+											style_font_size(15),
+										])
+									}),
+									pn(SwitchProps{
+										active:       app.enabled
+										x:            card_width - 76
+										y:            67
+										width:        60
+										height:       32
+										active_color: 0x16A34A
+										on_change:    fn [mut app] (e ElementEvent) {
+											app.enabled = e.checked
+										}
+									}, id: 'switch-control', bind: true),
+								]
+							),
+						]
+					),
+				]
+			),
+		]
+	)
 }
 
 fn test_props_switch_example_matches_compiled_vml() {
@@ -76,90 +93,6 @@ fn test_props_switch_example_matches_compiled_vml() {
 			assert_props_equal('switch', compiled, built)
 		}
 	}
-}
-
-struct PropsSpinnerDemo {
-pub mut:
-	selection string = 'Home'
-	message   string = 'Home selected.'
-}
-
-pub fn (mut app PropsSpinnerDemo) selection_changed() {
-	app.message = '${app.selection} selected.'
-}
-
-fn props_spinner_compiled(mut app PropsSpinnerDemo, frame Rect) Element {
-	return $vml('../examples/spinner/spinner.vml', frame)
-}
-
-fn props_spinner_tree(mut app PropsSpinnerDemo, frame Rect) PNode {
-	transparent := style_list([style_transparent(true)])
-	return pn(ScreenProps{ style: style_list([style_background(0xF1F5F9)]) }, id: 'root', children: [
-		pn(AbsoluteProps{ style: transparent }, children: [
-			pn(ViewProps{
-				x:      (frame.width - 328) / 2
-				y:      16
-				width:  328
-				height: 158
-				style:  style_list([style_background(0xFFFFFF), style_radius(10)])
-			}, children: [
-				pn(AbsoluteProps{ style: transparent }, children: [
-					pn(LabelProps{
-						text:   'Location'
-						x:      16
-						y:      14
-						width:  296
-						height: 26
-						style:  style_list([style_foreground(0x111827), style_font_size(18),
-							style_weight(700)])
-					}),
-					pn(SpinnerProps{
-						text:      app.selection
-						x:         16
-						y:         50
-						width:     296
-						height:    42
-						style:     style_list([style_background(0xDBEAFE), style_foreground(0x1D4ED8),
-							style_radius(7)])
-						on_change: fn [mut app] (e ElementEvent) {
-							app.selection = e.text
-							app.selection_changed()
-						}
-					}, id: 'location', bind: true, children: [
-						pn(OptionProps{ text: 'Home' }),
-						pn(OptionProps{ text: 'Work' }),
-						pn(OptionProps{ text: 'Other' }),
-					]),
-					pn(LabelProps{
-						text:   app.message
-						x:      16
-						y:      108
-						width:  296
-						height: 24
-						style:  style_list([style_foreground(0x166534), style_text_align(.center)])
-					}, id: 'selection-message'),
-				]),
-			]),
-		]),
-	])
-}
-
-fn test_props_spinner_example_matches_compiled_vml() {
-	frame := rect(0, 0, 360, 190)
-	mut compiled_app := PropsSpinnerDemo{}
-	mut props_app := PropsSpinnerDemo{}
-	compiled := props_spinner_compiled(mut compiled_app, frame)
-	built := props_document(props_spinner_tree(mut props_app, frame), frame)!
-	assert_props_equal('spinner', compiled, built)
-	spinner := compiled.children[0].children[0].children[0].children[1]
-	assert spinner.id == 'location'
-	spinner.on_event(ElementEvent{ kind: .change, text: 'Work' })
-	built.children[0].children[0].children[0].children[1].on_event(ElementEvent{
-		kind: .change
-		text: 'Work'
-	})
-	assert compiled_app.message == 'Work selected.'
-	assert props_app.message == compiled_app.message
 }
 
 struct PropsMessageDemo {
@@ -205,67 +138,88 @@ fn props_message_button(mut app PropsMessageDemo, id string, text string, y f64,
 
 fn props_message_tree(mut app PropsMessageDemo, frame Rect) PNode {
 	transparent := style_list([style_transparent(true)])
-	return pn(ScreenProps{ style: style_list([style_background(0xF1F5F9)]) }, id: 'root', children: [
-		pn(AbsoluteProps{ style: transparent }, children: [
-			pn(ViewProps{
-				x:      16
-				y:      16
-				width:  frame.width - 32
-				height: frame.height - 32
-				style:  style_list([style_background(0xFFFFFF), style_radius(10)])
-			}, children: [
-				pn(AbsoluteProps{ style: transparent }, children: [
-					pn(LabelProps{
-						text:   'Message'
+	return pn(ScreenProps{ style: style_list([style_background(0xF1F5F9)]) },
+		id:       'root'
+		children: [
+			pn(AbsoluteProps{ style: transparent },
+				children: [
+					pn(ViewProps{
 						x:      16
-						y:      14
-						width:  frame.width - 64
-						height: 28
-						style:  style_list([style_foreground(0x111827), style_font_size(18),
-							style_weight(700)])
-					}),
-					pn(LabelProps{
-						text:   'Native alerts block; the drawn one does not.'
-						x:      16
-						y:      50
-						width:  frame.width - 64
-						height: 22
-						style:  style_list([style_foreground(0x64748B), style_font_size(13)])
-					}),
-					props_message_button(mut app, 'show_native_message', 'Show native message', 92, frame, fn (mut app PropsMessageDemo) {
-						app.show_native_message()
-					}),
-					props_message_button(mut app, 'ask_native_question', 'Ask a native question', 136, frame, fn (mut app PropsMessageDemo) {
-						app.ask_native_question()
-					}),
-					props_message_button(mut app, 'show_message', 'Show drawn message', 180, frame, fn (mut app PropsMessageDemo) {
-						app.show_message()
-					}),
-					pn(LabelProps{
-						text:   app.answer
-						x:      16
-						y:      228
-						width:  frame.width - 64
-						height: 22
-						style:  style_list([style_foreground(0x475569), style_font_size(13)])
-					}, id: 'answer'),
-				]),
-			]),
-			pn(MessageBoxProps{
-				hidden:       !app.visible
-				title:        'Hello World'
-				text:         'This message came from the ui example.'
-				dialog_width: 360
-			}, id: 'overlay', children: [
-				pn(ButtonProps{
-					text:     'OK'
-					on_click: fn [mut app] (e ElementEvent) {
-						app.close_message()
-					}
-				}, id: 'close_message'),
-			]),
-		]),
-	])
+						y:      16
+						width:  frame.width - 32
+						height: frame.height - 32
+						style:  style_list([style_background(0xFFFFFF), style_radius(10)])
+					},
+						children: [
+							pn(AbsoluteProps{ style: transparent },
+								children: [
+									pn(LabelProps{
+										text:   'Message'
+										x:      16
+										y:      14
+										width:  frame.width - 64
+										height: 28
+										style:  style_list([
+											style_foreground(0x111827),
+											style_font_size(18),
+											style_weight(700),
+										])
+									}),
+									pn(LabelProps{
+										text:   'Native alerts block; the drawn one does not.'
+										x:      16
+										y:      50
+										width:  frame.width - 64
+										height: 22
+										style:  style_list([
+											style_foreground(0x64748B),
+											style_font_size(13),
+										])
+									}),
+									props_message_button(mut app, 'show_native_message', 'Show native message', 92, frame, fn (mut app PropsMessageDemo) {
+										app.show_native_message()
+									}),
+									props_message_button(mut app, 'ask_native_question', 'Ask a native question', 136, frame, fn (mut app PropsMessageDemo) {
+										app.ask_native_question()
+									}),
+									props_message_button(mut app, 'show_message', 'Show drawn message', 180, frame, fn (mut app PropsMessageDemo) {
+										app.show_message()
+									}),
+									pn(LabelProps{
+										text:   app.answer
+										x:      16
+										y:      228
+										width:  frame.width - 64
+										height: 22
+										style:  style_list([
+											style_foreground(0x475569),
+											style_font_size(13),
+										])
+									}, id: 'answer'),
+								]
+							),
+						]
+					),
+					pn(MessageBoxProps{
+						hidden:       !app.visible
+						title:        'Hello World'
+						text:         'This message came from the ui example.'
+						dialog_width: 360
+					},
+						id:       'overlay'
+						children: [
+							pn(ButtonProps{
+								text:     'OK'
+								on_click: fn [mut app] (e ElementEvent) {
+									app.close_message()
+								}
+							}, id: 'close_message'),
+						]
+					),
+				]
+			),
+		]
+	)
 }
 
 fn test_props_message_example_matches_compiled_vml() {
@@ -298,16 +252,22 @@ fn test_props_typography_runs_match_compiled_vml() {
 	mut compiled_app := PropsTypographyApp{}
 	mut props_app := PropsTypographyApp{}
 	compiled := props_typography_compiled(mut compiled_app, frame)
-	built := props_document(pn(ScreenProps{}, children: [
-		pn(FlexProps{ orientation: .vertical, width: 120, height: 300 }, children: [
-			pn(LabelProps{ width: 120, style: style_list([style_lines(10), style_font_size(16)]) }, children: [
-				pn(RunProps{
-					text:  props_app.content
-					style: style_list([style_font_size(props_app.run_size)])
-				}),
-			]),
-		]),
-	]), frame)!
+	built := props_document(pn(ScreenProps{},
+		children: [
+			pn(FlexProps{ orientation: .vertical, width: 120, height: 300 },
+				children: [
+					pn(LabelProps{ width: 120, style: style_list([style_lines(10), style_font_size(16)]) },
+						children: [
+							pn(RunProps{
+								text:  props_app.content
+								style: style_list([style_font_size(props_app.run_size)])
+							}),
+						]
+					),
+				]
+			),
+		]
+	), frame)!
 	assert_props_equal('typography', compiled, built)
 }
 
@@ -360,61 +320,77 @@ fn props_overlay_surface_compiled(mut app PropsOverlayModel) Element {
 }
 
 fn props_overlay_surface_tree(mut app PropsOverlayModel) PNode {
-	return pn(ViewProps{ width: 500, height: 400 }, id: 'document', children: [
-		pn(ButtonProps{ width: 80, height: 30, text: 'Open' }, id: 'anchor'),
-		pn(DialogProps{
-			width:      320
-			height:     180
-			open:       app.open
-			hidden:     app.hidden
-			on_dismiss: fn [mut app] (e ElementEvent) {
-				app.dismiss(e.dismiss_reason)
-			}
-		}, id: 'dialog', children: [
-			pn(ColumnProps{}, children: [
-				pn(TextInputProps{ text: 'Local draft', width: 240, height: 30 }, id: 'draft'),
-				pn(ButtonProps{
-					text:     'Count'
-					width:    100
-					height:   30
-					on_click: fn [mut app] (e ElementEvent) {
-						app.increment()
-					}
-				}, id: 'counter'),
-				pn(LabelProps{ text: app.count, width: 100, height: 30 }, id: 'count'),
-			]),
-		]),
-		pn(ContextMenuProps{
-			width:      160
-			height:     100
-			anchor:     'anchor'
-			point:      app.point
-			open:       app.context_open
-			on_open:    fn [mut app] (e ElementEvent) {
-				app.open_context(e.x, e.y)
-			}
-			on_dismiss: fn [mut app] (e ElementEvent) {
-				app.dismiss_context()
-			}
-		}, id: 'context', children: [
-			pn(ButtonProps{ text: 'Action', width: 140, height: 30 }, id: 'context_action'),
-		]),
-		pn(TooltipProps{
-			width:         120
-			height:        40
-			anchor:        'anchor'
-			open:          app.tip_open
-			on_open:       fn [mut app] (e ElementEvent) {
-				app.show_tip()
-			}
-			on_dismiss:    fn [mut app] (e ElementEvent) {
-				app.hide_tip()
-			}
-			tooltip_delay: 0.25
-		}, id: 'help', children: [
-			pn(LabelProps{ text: 'Help' }),
-		]),
-	])
+	return pn(ViewProps{ width: 500, height: 400 },
+		id:       'document'
+		children: [
+			pn(ButtonProps{ width: 80, height: 30, text: 'Open' }, id: 'anchor'),
+			pn(DialogProps{
+				width:      320
+				height:     180
+				open:       app.open
+				hidden:     app.hidden
+				on_dismiss: fn [mut app] (e ElementEvent) {
+					app.dismiss(e.dismiss_reason)
+				}
+			},
+				id:       'dialog'
+				children: [
+					pn(ColumnProps{},
+						children: [
+							pn(TextInputProps{ text: 'Local draft', width: 240, height: 30 },
+								id: 'draft'
+							),
+							pn(ButtonProps{
+								text:     'Count'
+								width:    100
+								height:   30
+								on_click: fn [mut app] (e ElementEvent) {
+									app.increment()
+								}
+							}, id: 'counter'),
+							pn(LabelProps{ text: app.count, width: 100, height: 30 }, id: 'count'),
+						]
+					),
+				]
+			),
+			pn(ContextMenuProps{
+				width:      160
+				height:     100
+				anchor:     'anchor'
+				point:      app.point
+				open:       app.context_open
+				on_open:    fn [mut app] (e ElementEvent) {
+					app.open_context(e.x, e.y)
+				}
+				on_dismiss: fn [mut app] (e ElementEvent) {
+					app.dismiss_context()
+				}
+			},
+				id:       'context'
+				children: [
+					pn(ButtonProps{ text: 'Action', width: 140, height: 30 }, id: 'context_action'),
+				]
+			),
+			pn(TooltipProps{
+				width:         120
+				height:        40
+				anchor:        'anchor'
+				open:          app.tip_open
+				on_open:       fn [mut app] (e ElementEvent) {
+					app.show_tip()
+				}
+				on_dismiss:    fn [mut app] (e ElementEvent) {
+					app.hide_tip()
+				}
+				tooltip_delay: 0.25
+			},
+				id:       'help'
+				children: [
+					pn(LabelProps{ text: 'Help' }),
+				]
+			),
+		]
+	)
 }
 
 fn test_props_overlay_surface_matches_compiled_vml() {

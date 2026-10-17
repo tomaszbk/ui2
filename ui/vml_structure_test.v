@@ -8,8 +8,30 @@ mut:
 	reads   int
 }
 
-fn vml_accordion_source(mut component CompiledVmlComponent, title string) !&CompiledVmlNode {
-	return component.element(Element{ kind: .view, id: 'content', compiled_metadata: &CompiledVmlMetadata{ accordion: AccordionItem{ id: title, title: title } } })
+// VmlStructureSection is the record a section source gives its composite.
+struct VmlStructureSection {
+	title string
+}
+
+fn vml_section_source(mut component CompiledVmlComponent, title string) !&CompiledVmlNode {
+	return component.element(with_record(Element{ kind: .view, id: 'content' }, VmlStructureSection{
+		title: title
+	}))
+}
+
+// vml_sections is a disclosure composite: the current source above a
+// generated header per source, which reads the source's record.
+fn vml_sections(sources []Element, current int) Element {
+	mut children := []Element{cap: sources.len + 1}
+	children << sources[current]
+	for index, source in sources {
+		section := element_record[VmlStructureSection](source) or { panic('missing record') }
+		children << Element{
+			...button('header_${index}', section.title, Rect{}, BoxStyle{}, TextStyle{})
+			accessibility_value: if index == current { 'expanded' } else { 'collapsed' }
+		}
+	}
+	return view('accordion', rect(0, 0, 400, 200), BoxStyle{}, children)
 }
 
 fn test_composite_structure_updates_helpers_and_preserves_authored_instances() ! {
@@ -20,8 +42,8 @@ fn test_composite_structure_updates_helpers_and_preserves_authored_instances() !
 	mut second_scope := owner.child('second')!
 	first_scope.on_mount('mount', fn [mut fixture] () ! { fixture.mounts << 'first' })!
 	second_scope.on_mount('mount', fn [mut fixture] () ! { fixture.mounts << 'second' })!
-	mut first := vml_accordion_source(mut first_scope, 'first')!
-	mut second := vml_accordion_source(mut second_scope, 'second')!
+	mut first := vml_section_source(mut first_scope, 'first')!
+	mut second := vml_section_source(mut second_scope, 'second')!
 	mut node := owner.element(Element{ kind: .view, id: 'accordion', frame: rect(0, 0, 400, 200) })!
 	node.set_sources([first.element(), second.element()])!
 	mut current := owner.state('current', 0)!
@@ -29,8 +51,7 @@ fn test_composite_structure_updates_helpers_and_preserves_authored_instances() !
 	node.structure('config', fn [mut node, mut current, mut revision, mut fixture] () !Element {
 		revision.get()!
 		fixture.reads++
-		items := node.child_elements()!.map(AccordionItem{ ...(it.compiled_metadata.accordion or { panic('metadata') }), content: it })
-		return accordion(AccordionConfig{ id: 'accordion', frame: rect(0, 0, 400, 200), current: current.get()!, items: items })!
+		return vml_sections(node.child_elements()!, current.get()!)
 	})!
 	node.mount()!
 	assert fixture.mounts == ['first']
@@ -47,14 +68,17 @@ fn test_composite_structure_updates_helpers_and_preserves_authored_instances() !
 	assert fixture.patches == ['accordion']
 	revision.set(1)!
 	assert fixture.patches == ['accordion']
-	first.effect('title', fn (element Element) !Element {
-		return Element{ ...element, compiled_metadata: &CompiledVmlMetadata{ accordion: AccordionItem{ id: 'first', title: 'Renamed' } } }
+	renamed := &CompiledVmlMetadata{
+		records: [VmlPartRecord(VmlStructureSection{ title: 'Renamed' })]
+	}
+	first.effect('title', fn [renamed] (element Element) !Element {
+		return Element{ ...element, compiled_metadata: renamed }
 	})!
 	assert node.element().children[1].text == 'Renamed'
 	assert fixture.patches == ['accordion', 'accordion']
 	reads := fixture.reads
-	first.patch(fn (element Element) Element {
-		return Element{ ...element, compiled_metadata: &CompiledVmlMetadata{ accordion: AccordionItem{ id: 'first', title: 'Renamed' } } }
+	first.patch(fn [renamed] (element Element) Element {
+		return Element{ ...element, compiled_metadata: renamed }
 	})!
 	assert fixture.reads == reads
 	assert fixture.reads < 8
@@ -114,12 +138,20 @@ fn test_disposed_composite_owner_releases_surviving_author_source_edges() ! {
 	author.dispose()!
 }
 
+// vml_half_filled is a generated widget: a track whose fill child is half its
+// resolved width.
+fn vml_half_filled(frame Rect) Element {
+	return view('progress', frame, BoxStyle{}, [
+		view('', rect(0, 0, frame.width / 2, frame.height), BoxStyle{}, []),
+	])
+}
+
 fn test_widget_structural_geometry_preserves_authored_flex_basis_across_resizes() ! {
 	mut owner := new_vml_document('widget shrink')!
 	owner.publish = fn (_ string, _ Element) {}
-	mut progress := owner.element(progress_bar(id: 'progress', frame: rect(0, 0, 0, 14), value: 50))!
+	mut progress := owner.element(vml_half_filled(rect(0, 0, 0, 14)))!
 	progress.structure('fill', fn [mut progress] () !Element {
-		return progress_bar(id: 'progress', frame: progress.frame()!, value: 50)
+		return vml_half_filled(progress.frame()!)
 	})!
 	fill := progress.element().children[0].compiled_node
 	mut root := owner.element(flex(FlexConfig{

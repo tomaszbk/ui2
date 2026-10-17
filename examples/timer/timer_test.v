@@ -42,7 +42,7 @@ fn test_timer_duration_mapping_and_vml_controls() {
 	progress := find_timer_element(root, 'elapsed_progress') or { panic('missing progress bar') }
 	assert progress.accessibility_role == 'progressbar'
 	assert progress.accessibility_label == 'Elapsed time'
-	assert progress.children.len == 1
+	assert progress.children.len == 2
 	assert progress.children[0].frame.width == 0
 	slider := find_timer_element(root, 'duration_slider') or { panic('missing duration slider') }
 	assert slider.kind == .slider

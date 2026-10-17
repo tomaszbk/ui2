@@ -114,10 +114,6 @@ fn props_normal(el Element) Element {
 		...el
 		mount:             unsafe { nil }
 		runtime:           unsafe { nil }
-		// A reactive compiled ProgressBar also writes its value into the
-		// view's `value` after an update (a property effect the structural
-		// rebuild overwrites at layout); the bar itself draws its fill child.
-		value:             if el.accessibility_role == 'progressbar' { 0 } else { el.value }
 		layout:            props_normal_layout(el.layout)
 		compiled_node:     unsafe { nil }
 		compiled_metadata: unsafe { nil }
@@ -181,8 +177,6 @@ fn props_metadata(el Element) string {
 	if screen := metadata.screen { parts << 'screen ${screen.name}' }
 	if metadata.menu_document { parts << 'menus ${metadata.menus.len}' }
 	for record in metadata.records { parts << 'record ${vml_record_text(record)}' }
-	// A record holding only the style reset box (style_default_box) is the
-	// compiled lowering's style base, not authored metadata.
 	return if parts.len == 0 { 'none' } else { parts.join(' ') }
 }
 

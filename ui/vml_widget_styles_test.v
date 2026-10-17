@@ -79,35 +79,35 @@ fn w_styles_generic(mut app WStylesApp) !Element {
 			style_pressed([style_radius(0)])!,
 		])
 	})!
-	mut progress := vml_child(mut n_0, mut owner, ProgressBarProps{
+	mut progress := vml_child(mut n_0, mut owner, ProgressProps{
 		width:  160
 		height: 20
 		max:    1
 	}, id: 'progress', path: '0.3')!
-	progress.prop('value', fn [mut app, mut owner] (mut p ProgressBarProps) ! {
+	progress.prop('value', fn [mut app, mut owner] (mut p ProgressProps) ! {
 		owner.watch_app()!
 		p.value = app.progress
 	})!
-	progress.prop('style', fn [mut app, mut owner] (mut p ProgressBarProps) ! {
+	progress.prop('style', fn [mut app, mut owner] (mut p ProgressProps) ! {
 		owner.watch_app()!
 		p.style = if app.emphasized {
-			compose_styles([style_background(0x112233), style_foreground(0x445566), style_radius(8)])
+			compose_styles([style_background(0x112233), style_radius(8)])
 		} else {
 			compose_styles([])
 		}
 	})!
-	mut spinner := vml_child(mut n_0, mut owner, SpinnerProps{
+	mut choice := vml_child(mut n_0, mut owner, DropdownProps{
 		width:  160
 		height: 30
 		style:  compose_styles([style_background(0x112233), style_foreground(0xffffff),
 			style_font_size(18), style_radius(0)])
 	}, path: '0.4')!
-	spinner.prop('text', fn [mut app, mut owner] (mut p SpinnerProps) ! {
+	choice.prop('text', fn [mut app, mut owner] (mut p DropdownProps) ! {
 		owner.watch_app()!
 		p.text = app.choice
 	})!
-	vml_child(mut spinner, mut owner, OptionProps{ text: 'One' }, path: '0.4.0')!
-	vml_child(mut spinner, mut owner, OptionProps{ text: 'Two' }, path: '0.4.1')!
+	vml_child(mut choice, mut owner, OptionProps{ text: 'One' }, path: '0.4.0')!
+	vml_child(mut choice, mut owner, OptionProps{ text: 'Two' }, path: '0.4.1')!
 	mut caption := vml_child(mut n_0, mut owner, LabelProps{
 		text:   'Removable typography'
 		width:  160

@@ -18,8 +18,12 @@ fn kit_display_widgets() map[string]VmlWidgetType {
 		'GroupBox':        vml_widget[GroupBoxProps]()
 		'DescriptionList': vml_widget[DescriptionListProps]()
 		'DescriptionItem': vml_widget[DescriptionItemProps]()
-		'ProgressBar':     vml_widget[ProgressBarProps]()
+		'Progress':        vml_widget[ProgressProps]()
+		'ProgressCircle':  vml_widget[ProgressCircleProps]()
 		'Spinner':         vml_widget[SpinnerProps]()
+		'Skeleton':        vml_widget[SkeletonProps]()
+		'Shimmer':         vml_widget[ShimmerProps]()
+		'Clipboard':       vml_widget[ClipboardProps]()
 		'Accordion':       vml_widget[AccordionProps]()
 		'AccordionItem':   vml_widget[AccordionItemProps]()
 		'TabbedPanel':     vml_widget[TabbedPanelProps]()
@@ -34,7 +38,7 @@ fn kit_display_widgets() map[string]VmlWidgetType {
 // kit_display_expected_bindables are the fragment's bindable properties,
 // `Tag.field`, which the registry test checks.
 fn kit_display_expected_bindables() []string {
-	return ['Spinner.text']
+	return ['Clipboard.copied']
 }
 
 // kit_display_expected_parts are the fragment's part-only tags, which take no

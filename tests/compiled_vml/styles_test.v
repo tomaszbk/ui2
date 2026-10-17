@@ -135,9 +135,11 @@ fn test_local_styles_keep_instance_state_and_inherit_theme_overrides() ! {
 	assert themed.children[0].layout.stack.padding.left == 4
 	assert themed.children[0].box.radius == 3
 	mut second_owner := second.compiled_node.component
-	second_owner.set_theme(ui2.Theme{ colors: {
-		'surface': u32(0x556677)
-	} })!
+	second_owner.set_theme(ui2.Theme{
+		colors: {
+			'surface': u32(0x556677)
+		}
+	})!
 	app.emphasized = true
 	owner.invalidate_app()!
 	assert root.element().children[0].box.bg == 0x334455
@@ -163,8 +165,8 @@ fn test_composite_value_changes_keep_styles_and_removed_variants_restore_default
 	mut owner := root.component
 	before := root.element()
 	assert before.children[3].box.bg == 0x112233
-	assert before.children[3].children[0].box.bg == 0x445566
-	assert before.children[3].children[0].box.radius == 8
+	assert before.children[3].box.radius == 8
+	assert before.children[3].children[0].box.bg == 0x2563eb
 	assert before.children[5].text_style.color == 0xff0000
 	assert before.children[5].text_style.size == 30
 	assert before.children[5].text_style.bold && before.children[5].text_style.italic
@@ -173,8 +175,7 @@ fn test_composite_value_changes_keep_styles_and_removed_variants_restore_default
 	owner.invalidate_app()!
 	updated := root.element()
 	assert updated.children[3].box.bg == 0x112233
-	assert updated.children[3].children[0].box.bg == 0x445566
-	assert updated.children[3].children[0].box.radius == 8
+	assert updated.children[3].children[0].box.bg == 0x2563eb
 	assert updated.children[3].children[0].frame.width == updated.children[3].frame.width * 0.75
 	assert updated.children[3].compiled_node == before.children[3].compiled_node
 	assert updated.children[3].children[0].compiled_node == before.children[3].children[0].compiled_node
@@ -187,9 +188,9 @@ fn test_composite_value_changes_keep_styles_and_removed_variants_restore_default
 	owner.invalidate_app()!
 	plain := root.element().children[3]
 	assert plain.box.bg == 0xe2e8f0
-	assert plain.box.radius == 4
-	assert plain.children[0].box.bg == 0x3b82f6
-	assert plain.children[0].box.radius == 4
+	assert plain.box.radius == 10
+	assert plain.children[0].box.bg == 0x2563eb
+	assert plain.children[0].box.radius == 10
 	caption := root.element().children[5]
 	assert caption.text_style == ui2.TextStyle{}
 	assert caption.compiled_node == before.children[5].compiled_node

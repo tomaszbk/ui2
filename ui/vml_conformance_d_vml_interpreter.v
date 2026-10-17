@@ -217,12 +217,8 @@ fn vml_conformance_set(callback ElementCallback) string {
 
 // vml_conformance_fields renders the compared fields of one element. Fields
 // are found by reflection, so the check follows Element as it changes.
-// Callbacks compare by presence and metadata by its records. One field is
-// normalized as in the props golden tests (vml_props_harness), because the
-// compiled lowering and the generic node runtime that the interpreter
-// declares through write it differently without a visible effect: the value
-// a reactive ProgressBar view mirrors from its fill child. A Checkbox's accessibility
-// value is derived from `checked` (compared): the compiled lowering's
+// Callbacks compare by presence and metadata by its records. A Checkbox's
+// accessibility value is derived from `checked` (compared): the compiled lowering's
 // property effect patches `checked` alone and leaves the value computed at
 // build time, while the generic runtime rebuilds both.
 fn vml_conformance_fields(el Element) []string {
@@ -240,8 +236,6 @@ fn vml_conformance_fields(el Element) []string {
 				out << 'metadata=${vml_conformance_metadata(el)}'
 			} $else $if field.name == 'layout' {
 				out << 'layout=${vml_conformance_layout(el.layout)}'
-			} $else $if field.name == 'value' {
-				if el.accessibility_role != 'progressbar' { out << 'value=${el.value}' }
 			} $else $if field.name == 'accessibility_value' {
 				if el.accessibility_role != 'checkbox' {
 					out << 'accessibility_value=${el.accessibility_value}'

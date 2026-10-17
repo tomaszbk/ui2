@@ -240,30 +240,6 @@ fn test_theme_only_allocates_requested_sources_and_rejects_orphaned_custom_token
 	assert owner.runtime.stats() == SignalStats{}
 }
 
-fn test_progress_bar_style_refines_fill_and_track_for_structural_updates() ! {
-	patch := compose_styles([style_background(0), style_foreground(0x123456), style_radius(0)])
-	initial := progress_bar(style_progress_bar(ProgressBarConfig{ frame: rect(0, 0, 100, 10), value: 20 }, patch)!)
-	assert initial.box.bg == 0 && initial.box.radius == 0
-	assert initial.children[0].box.bg == 0x123456 && initial.children[0].box.radius == 0
-	changed := progress_bar(style_progress_bar(ProgressBarConfig{ frame: rect(0, 0, 100, 10), value: 75 }, patch)!)
-	assert changed.children[0].frame.width == 75
-	assert changed.box == initial.box && changed.children[0].box == initial.children[0].box
-}
-
-fn test_progress_styled_constructor_retains_unstyled_track_defaults_for_replacement() ! {
-	mut owner := new_vml_document('progress defaults')!
-	owner.set_publisher(fn (_ string, _ Element) {})!
-	mut patch := owner.state('style', compose_styles([style_background(0), style_radius(0)]))!
-	initial_config := style_progress_bar(ProgressBarConfig{ id: 'progress', frame: rect(0, 0, 100, 10), value: 20 }, patch.get()!)!
-	mut node := owner.element(progress_bar(initial_config))!
-	node.style(fn [mut patch] () !StylePatch { return patch.get()! })!
-	assert node.element().box.bg == 0 && node.element().box.radius == 0
-	patch.set(StylePatch{})!
-	assert node.element().box.bg == 0xe2e8f0
-	assert node.element().box.radius == 4
-	owner.dispose()!
-}
-
 fn test_tree_style_targets_owned_row_typography_without_replacing_part_colors() ! {
 	config := TreeViewConfig{
 		text_style:            TextStyle{ color: 0x111111, size: 14 }

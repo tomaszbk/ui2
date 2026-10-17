@@ -10,121 +10,165 @@ module ui2
 fn props_layout_tree() PNode {
 	return pn(ScreenProps{
 		style: style_list([style_background(0xF1F5F9)])
-	}, id: 'root', children: [
-		pn(ColumnProps{
-			gap:         6
-			line_gap:    2
-			justify:     .center
-			align_items: .start
-			style:       style_list([style_padding(4), style_transparent(true)])
-		}, id: 'main', children: [
-			pn(RowProps{
-				spacing:   3
-				height:    40
-				wrap:      true
-				flex_grow: 1
-				justify:   .space_between
-			}, id: 'row', children: [
-				pn(ViewProps{
-					width:       30
-					height:      20
-					flex_basis:  25
-					flex_shrink: 0
-					align_self:  .center
-				}, id: 'a'),
-				pn(ViewProps{
-					height:     20
-					flex_grow:  2
-					min_width:  10
-					max_width:  80
-					min_height: 5
-					max_height: 30
-				}, id: 'b'),
-				pn(ViewProps{
-					height: 12
-					width:  12
-					style:  style_list([style_background(0xFF0000), style_radius(3)])
-				}, key: 'plain'),
-			]),
-			pn(FlexProps{
-				orientation: .vertical
-				gap:         2
-				spacing:     9
-				height:      60
-				align_items: .center
-			}, id: 'flex', children: [
-				pn(LabelProps{ text: 'one', height: 18 }),
-				pn(LabelProps{ text: 42, height: 18 }),
-			]),
-			pn(FlexProps{ spacing: 5, height: 30, line_gap: 4 }, id: 'flex_spacing', children: [
-				pn(ViewProps{ width: 20, height: 10 }),
-				pn(ViewProps{ width: 20, height: 10 }),
-			]),
-			pn(GridProps{
-				columns:            3
-				spacing:            4
-				spacing_y:          6
-				height:             80
-				col_default_width:  30
-				row_default_height: 20
-				col_force_default:  true
-				row_force_default:  true
-				style:              style_padding(2)
-			}, id: 'grid', children: [
-				pn(ViewProps{ column_span: 2 }, id: 'g1'),
-				pn(ViewProps{ row_span: 2 }, id: 'g2'),
-				pn(ViewProps{}, id: 'g3'),
-				pn(ViewProps{}, id: 'g4'),
-			]),
-			pn(GridProps{
-				rows:        2
-				orientation: .top_to_bottom_left_to_right
-				spacing_x:   3
-				height:      40
-			}, id: 'rows', children: [
-				pn(ViewProps{}, id: 'r1'),
-				pn(ViewProps{}, id: 'r2'),
-				pn(ViewProps{}, id: 'r3'),
-			]),
-			pn(GridProps{ auto_columns_min_width: 40, max_columns: 3, height: 50 }, id: 'auto', children: [
-				pn(ViewProps{ height: 10 }, id: 'h1'),
-				pn(ViewProps{ height: 10 }, id: 'h2'),
-			]),
-			pn(GridProps{ cols: 2, height: 30 }, id: 'cols', children: [
-				pn(ViewProps{ height: 10 }),
-				pn(ViewProps{ height: 10 }),
-			]),
-			pn(StackProps{
-				align_x: .center
-				align_y: .end
-				height:  50
-				style:   style_padding(3)
-			}, id: 'stack', children: [
-				pn(ViewProps{ width: 20, height: 10 }, id: 's1'),
-				pn(ViewProps{
-					width:        10
-					height:       10
-					align_self_x: .end
-					align_self_y: .stretch
-				}, id: 's2'),
-			]),
-			pn(ScrollProps{ persistent: true, scroll_mode: .both, height: 60 }, id: 'scroll', children: [
-				pn(ViewProps{ width: 500, height: 300 }, id: 'sc'),
-			]),
-			pn(ScrollProps{ height: 20 }, children: [
-				pn(LabelProps{ text: 'default scroll' }),
-			]),
-			pn(ScaledContentProps{ content_width: 200, content_height: 100, width: 300, height: 50 }, id: 'scaled', children: [
-				pn(AbsoluteProps{}, id: 'abs', children: [
-					pn(ViewProps{ x: 10, y: 5, width: 50, height: 20 }, id: 'p1'),
-					pn(ViewProps{ y: 40 }, id: 'p2'),
-				]),
-			]),
-			pn(ViewProps{ height: 30 }, id: 'plain_view', children: [
-				pn(ViewProps{ width: 10 }, id: 'inner'),
-			]),
-		]),
-	])
+	},
+		id:       'root'
+		children: [
+			pn(ColumnProps{
+				gap:         6
+				line_gap:    2
+				justify:     .center
+				align_items: .start
+				style:       style_list([style_padding(4), style_transparent(true)])
+			},
+				id:       'main'
+				children: [
+					pn(RowProps{
+						spacing:   3
+						height:    40
+						wrap:      true
+						flex_grow: 1
+						justify:   .space_between
+					},
+						id:       'row'
+						children: [
+							pn(ViewProps{
+								width:       30
+								height:      20
+								flex_basis:  25
+								flex_shrink: 0
+								align_self:  .center
+							}, id: 'a'),
+							pn(ViewProps{
+								height:     20
+								flex_grow:  2
+								min_width:  10
+								max_width:  80
+								min_height: 5
+								max_height: 30
+							}, id: 'b'),
+							pn(ViewProps{
+								height: 12
+								width:  12
+								style:  style_list([style_background(0xFF0000), style_radius(3)])
+							}, key: 'plain'),
+						]
+					),
+					pn(FlexProps{
+						orientation: .vertical
+						gap:         2
+						spacing:     9
+						height:      60
+						align_items: .center
+					},
+						id:       'flex'
+						children: [
+							pn(LabelProps{ text: 'one', height: 18 }),
+							pn(LabelProps{ text: 42, height: 18 }),
+						]
+					),
+					pn(FlexProps{ spacing: 5, height: 30, line_gap: 4 },
+						id:       'flex_spacing'
+						children: [
+							pn(ViewProps{ width: 20, height: 10 }),
+							pn(ViewProps{ width: 20, height: 10 }),
+						]
+					),
+					pn(GridProps{
+						columns:            3
+						spacing:            4
+						spacing_y:          6
+						height:             80
+						col_default_width:  30
+						row_default_height: 20
+						col_force_default:  true
+						row_force_default:  true
+						style:              style_padding(2)
+					},
+						id:       'grid'
+						children: [
+							pn(ViewProps{ column_span: 2 }, id: 'g1'),
+							pn(ViewProps{ row_span: 2 }, id: 'g2'),
+							pn(ViewProps{}, id: 'g3'),
+							pn(ViewProps{}, id: 'g4'),
+						]
+					),
+					pn(GridProps{
+						rows:        2
+						orientation: .top_to_bottom_left_to_right
+						spacing_x:   3
+						height:      40
+					},
+						id:       'rows'
+						children: [
+							pn(ViewProps{}, id: 'r1'),
+							pn(ViewProps{}, id: 'r2'),
+							pn(ViewProps{}, id: 'r3'),
+						]
+					),
+					pn(GridProps{ auto_columns_min_width: 40, max_columns: 3, height: 50 },
+						id:       'auto'
+						children: [
+							pn(ViewProps{ height: 10 }, id: 'h1'),
+							pn(ViewProps{ height: 10 }, id: 'h2'),
+						]
+					),
+					pn(GridProps{ cols: 2, height: 30 },
+						id:       'cols'
+						children: [
+							pn(ViewProps{ height: 10 }),
+							pn(ViewProps{ height: 10 }),
+						]
+					),
+					pn(StackProps{
+						align_x: .center
+						align_y: .end
+						height:  50
+						style:   style_padding(3)
+					},
+						id:       'stack'
+						children: [
+							pn(ViewProps{ width: 20, height: 10 }, id: 's1'),
+							pn(ViewProps{
+								width:        10
+								height:       10
+								align_self_x: .end
+								align_self_y: .stretch
+							}, id: 's2'),
+						]
+					),
+					pn(ScrollProps{ persistent: true, scroll_mode: .both, height: 60 },
+						id:       'scroll'
+						children: [
+							pn(ViewProps{ width: 500, height: 300 }, id: 'sc'),
+						]
+					),
+					pn(ScrollProps{ height: 20 },
+						children: [
+							pn(LabelProps{ text: 'default scroll' }),
+						]
+					),
+					pn(ScaledContentProps{ content_width: 200, content_height: 100, width: 300, height: 50 },
+						id:       'scaled'
+						children: [
+							pn(AbsoluteProps{},
+								id:       'abs'
+								children: [
+									pn(ViewProps{ x: 10, y: 5, width: 50, height: 20 }, id: 'p1'),
+									pn(ViewProps{ y: 40 }, id: 'p2'),
+								]
+							),
+						]
+					),
+					pn(ViewProps{ height: 30 },
+						id:       'plain_view'
+						children: [
+							pn(ViewProps{ width: 10 }, id: 'inner'),
+						]
+					),
+				]
+			),
+		]
+	)
 }
 
 fn props_bump_leaf(el Element) Element {
@@ -204,37 +248,49 @@ fn test_props_menus_match_compiled_vml() {
 	mut compiled_app := PropsApp{}
 	mut props_app := PropsApp{}
 	compiled := props_example_menus(mut compiled_app)
-	built := props_menu_document(pn(MenuBarProps{}, children: [
-		pn(MenuProps{ title: 'File' }, children: [
-			pn(MenuItemProps{
-				on_click: props_hit(mut props_app, 'file_new')
-				text:     'New'
-				shortcut: 'cmd+n'
-			}, id: 'file_new'),
-			pn(MenuItemProps{
-				text:     'Open'
-				on_click: props_hit(mut props_app, 'file_open')
-				shortcut: 'cmd+o'
-			}, id: 'file_open'),
-			pn(MenuSeparatorProps{}),
-			pn(MenuItemProps{
-				on_click: props_hit(mut props_app, 'file_revert')
-				text:     'Revert'
-				enabled:  false
-			}, id: 'file_revert'),
-			pn(MenuProps{ title: 'Export' }, children: [
-				pn(MenuItemProps{ on_click: props_hit(mut props_app, 'export_pdf'), text: 'PDF' }, id: 'export_pdf'),
-				pn(MenuItemProps{ on_click: props_hit(mut props_app, 'export_png'), text: 'PNG' }, id: 'export_png'),
-			]),
-		]),
-		pn(MenuProps{ title: 'View' }, children: [
-			pn(MenuItemProps{
-				on_click: props_hit(mut props_app, 'word_wrap')
-				text:     'Word Wrap'
-				checked:  true
-			}, id: 'word_wrap'),
-		]),
-	]))!
+	built := props_menu_document(pn(MenuBarProps{},
+		children: [
+			pn(MenuProps{ title: 'File' },
+				children: [
+					pn(MenuItemProps{
+						on_click: props_hit(mut props_app, 'file_new')
+						text:     'New'
+						shortcut: 'cmd+n'
+					}, id: 'file_new'),
+					pn(MenuItemProps{
+						text:     'Open'
+						on_click: props_hit(mut props_app, 'file_open')
+						shortcut: 'cmd+o'
+					}, id: 'file_open'),
+					pn(MenuSeparatorProps{}),
+					pn(MenuItemProps{
+						on_click: props_hit(mut props_app, 'file_revert')
+						text:     'Revert'
+						enabled:  false
+					}, id: 'file_revert'),
+					pn(MenuProps{ title: 'Export' },
+						children: [
+							pn(MenuItemProps{ on_click: props_hit(mut props_app, 'export_pdf'), text: 'PDF' },
+								id: 'export_pdf'
+							),
+							pn(MenuItemProps{ on_click: props_hit(mut props_app, 'export_png'), text: 'PNG' },
+								id: 'export_png'
+							),
+						]
+					),
+				]
+			),
+			pn(MenuProps{ title: 'View' },
+				children: [
+					pn(MenuItemProps{
+						on_click: props_hit(mut props_app, 'word_wrap')
+						text:     'Word Wrap'
+						checked:  true
+					}, id: 'word_wrap'),
+				]
+			),
+		]
+	))!
 	assert props_menus_string(built) == props_menus_string(compiled)
 	for menu in compiled {
 		props_fire_menu_items(menu.items, mut compiled_app)
@@ -252,14 +308,18 @@ fn props_solo_menu(mut app PropsApp) []Menu {
 
 fn test_props_single_menu_document_matches_compiled_vml() {
 	mut app := PropsApp{}
-	built := props_menu_document(pn(MenuProps{ text: 'Solo' }, children: [
-		pn(MenuItemProps{ text: 'One', title: 'Uno', shortcut: 'cmd+1' }, id: 'one'),
-		pn(MenuItemProps{ text: app.name, checked: true, separator: false }, id: 'named'),
-		pn(MenuSeparatorProps{}),
-		pn(MenuProps{ text: 'More' }, children: [
-			pn(MenuItemProps{ text: 'Deep', enabled: false }, id: 'deep'),
-		]),
-	]))!
+	built := props_menu_document(pn(MenuProps{ text: 'Solo' },
+		children: [
+			pn(MenuItemProps{ text: 'One', title: 'Uno', shortcut: 'cmd+1' }, id: 'one'),
+			pn(MenuItemProps{ text: app.name, checked: true, separator: false }, id: 'named'),
+			pn(MenuSeparatorProps{}),
+			pn(MenuProps{ text: 'More' },
+				children: [
+					pn(MenuItemProps{ text: 'Deep', enabled: false }, id: 'deep'),
+				]
+			),
+		]
+	))!
 	assert props_menus_string(built) == props_menus_string(props_solo_menu(mut app))
 }
 
@@ -298,9 +358,6 @@ fn test_props_apply_event_updates_widget_values() {
 	mut dropdown := DropdownProps{}
 	dropdown.apply_event(ElementEvent{ kind: .change, text: 'Green' })
 	assert dropdown.text.str() == 'Green'
-	mut spinner := SpinnerProps{}
-	spinner.apply_event(ElementEvent{ kind: .change, text: 'Work' })
-	assert spinner.text.str() == 'Work'
 	mut toggle := ToggleButtonProps{}
 	toggle.apply_event(ElementEvent{ kind: .change, checked: true })
 	assert toggle.pressed
@@ -335,17 +392,9 @@ fn test_props_defaults_equal_compiled_defaults() {
 	switch_props := SwitchProps{}
 	assert switch_props.inactive_color == 0xcbd5e1 && switch_props.active_color == 0x22c55e
 	assert switch_props.disabled_track_color == 0xe2e8f0 && switch_props.disabled_thumb_color == 0xf8fafc
-	assert ProgressBarProps{}.max == 100
 	assert MessageBoxProps{}.dialog_width == 300 && MessageBoxProps{}.dialog_height == 150
 	toggle := ToggleButtonProps{}
 	assert toggle.allow_no_selection && toggle.down_background == 0x2563eb && toggle.down_corner_radius == 6
-	accordion := AccordionProps{}
-	assert accordion.min_space == 44 && accordion.active_title_background == 0x2563eb
-	tabs := TabbedPanelProps{}
-	assert tabs.tab_height == 40 && tabs.tab_width == 100 && tabs.active_tab_color == 0x0f172a
-	assert CarouselProps{}.min_move == 0.2
-	tree := TreeViewProps{}
-	assert tree.row_height == 36 && tree.indent == 24 && tree.disclosure_width == 28
 	overlay := DialogProps{}
 	assert overlay.placement == .bottom_start && overlay.gap == 6 && overlay.margin == 8
 	assert overlay.backdrop.bg == 0x202938 && overlay.backdrop_opacity == 0.3

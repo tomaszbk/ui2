@@ -25,13 +25,12 @@ Screen(
                 )
             }
             Label(text: "Elapsed time", height: 20, style: [foreground(#475569), font_size(12)])
-            ProgressBar(
+            Progress(
                 id: "elapsed_progress",
                 height: 28,
                 value: app.elapsed,
                 max: app.duration,
                 accessibility_label: "Elapsed time",
-                style: [background(#E2E8F0), foreground(app.running ? #22C55E : #60A5FA), radius(14)],
             )
             View(height: 12, style: [transparent(true)])
             Row(
