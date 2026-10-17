@@ -909,6 +909,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		state.composition = TextComposition{}
 		g_hit_targets = []HitTarget{}
 		g_tooltip_targets = []TooltipTarget{}
+		g_hover = HoverState{}
 	}
 
 	// The next visual deadline is replaced after every frame. A canceled hover,
@@ -1130,6 +1131,10 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		}
 		drain_custom_tasks(mut app)
 		if !dispatch.valid() { return }
+		// `after` callbacks run on the UI thread before the frame begins, so the
+		// build this asks for already sees what they changed.
+		if run_due_timers_now() && dispatch.valid() { app.scheduler.invalidate(.build) }
+		if !dispatch.valid() { return }
 		mut ctx := app.ctx
 		if !ctx.owns_surface {
 			ctx.sync_gg()
@@ -1261,6 +1266,7 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		}
 		if app.has_root {
 			top := menu_bar_height()
+			begin_hover_frame()
 			render_element(ctx, root, 0, top, rect(0, top, f64(ctx.width), f64(ctx.height) - top), '', presentation_root_path(root))
 			if !custom_frame_current(dispatch, ctx) || g_focus_navigation.root_revision != mounted { return }
 			if g_open_dropdown.len > 0 {
@@ -1296,6 +1302,8 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 		app.scheduler.set_deadline(custom_visual_deadline())
 		app.scheduler.set_animation_active(custom_animations_need_frame(app.declared_root))
 		app.scheduler.set_motion_active(motion_tree_needs_frame(app.declared_root))
+		// Content can move under a pointer that stays put.
+		update_hover()
 	}
 
 	fn on_event(e &gg.Event, app &GgApp) {
@@ -1303,6 +1311,14 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 			return
 		}
 		mut state := unsafe { app }
+		// The modifier keys of the last event, for key_modifiers on platforms
+		// with no other way to ask.
+		g_key_modifiers = KeyModifiers{
+			shift: e.modifiers & u32(gg.Modifier.shift) != 0
+			ctrl: e.modifiers & u32(gg.Modifier.ctrl) != 0
+			alt: e.modifiers & u32(gg.Modifier.alt) != 0
+			cmd: e.modifiers & u32(gg.Modifier.super) != 0
+		}
 		// Local hover, focus and scroll repaint retained geometry. Business
 		// callbacks request a build; keyboard/drop hooks may mutate the model.
 		state.scheduler.invalidate(if e.typ in [.key_down, .key_up, .char, .files_dropped] { RenderReason.build } else { RenderReason.paint })
@@ -1315,6 +1331,8 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 				// Recorded before any handler below can claim the move, so the
 				// tooltip always knows where the pointer is.
 				g_tooltip.pointer_moved(f64(e.mouse_x), f64(e.mouse_y), renderer_now_ms())
+				hover_pointer_moved(f64(e.mouse_x), f64(e.mouse_y))
+				update_hover()
 				if g_touch.down && g_touch.pointer_captured {
 					handle_touch_move(f64(e.mouse_x), f64(e.mouse_y))
 					return
@@ -1348,6 +1366,8 @@ $if ( android || linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) &&
 			}
 			.mouse_leave {
 				g_tooltip.pointer_left()
+				hover_pointer_left()
+				update_hover()
 			}
 			.mouse_up {
 				if e.mouse_button == .right { return }
@@ -2892,11 +2912,15 @@ fn page_focused_text_area(direction int) {
 	fn render_element_body(ctx &DrawContext, declared_el Element, off_x f64, off_y f64, clip Rect, scroll_parent_id string, path string) {
 		dispatch := custom_input_dispatch(g_gg_app)
 		root := g_focus_navigation.root_revision
-		if declared_el.content_size.width > 0 || declared_el.content_size.height > 0 {
-			render_scaled_content(ctx, declared_el, off_x, off_y, clip, scroll_parent_id, path)
+		if declared_el.presented_hidden() {
 			return
 		}
-		if declared_el.presented_hidden() {
+		// Hover chains follow paint order, so whatever is drawn later over an
+		// element takes the pointer from it, as CSS :hover does.
+		outer_hover := enter_hover_element(declared_el, path, element_area(ctx, declared_el, off_x, off_y), clip, ctx.overlay_inert)
+		defer { leave_hover_element(outer_hover) }
+		if declared_el.content_size.width > 0 || declared_el.content_size.height > 0 {
+			render_scaled_content(ctx, declared_el, off_x, off_y, clip, scroll_parent_id, path)
 			return
 		}
 		sync_mounted_control(Element{ ...declared_el, enabled: declared_el.enabled && !ctx.overlay_inert })
@@ -2943,9 +2967,7 @@ fn page_focused_text_area(direction int) {
 			.view {
 				x := el.frame.x + off_x
 				y := el.frame.y + off_y
-				if !el.box.transparent {
-					draw_rect(ctx, x, y, el.frame.width, el.frame.height, el.box.bg, el.box.radius)
-				}
+				draw_box_fill(ctx, x, y, el.frame.width, el.frame.height, el.box)
 				draw_box_borders(ctx, x, y, el.frame.width, el.frame.height, el.box)
 				if el.vector_shapes.len > 0 {
 					region := ctx.clip_region
@@ -2994,7 +3016,9 @@ fn page_focused_text_area(direction int) {
 				x := el.frame.x + off_x
 				y := el.frame.y + off_y
 				frame := rect(x, y, el.frame.width, el.frame.height)
-				draw_rect(ctx, x, y, el.frame.width, el.frame.height, el.box.bg, 0)
+				if box_draws_fill(el.box) {
+					draw_rect(ctx, x, y, el.frame.width, el.frame.height, el.box.bg, 0)
+				}
 				draw_box_borders(ctx, x, y, el.frame.width, el.frame.height, el.box)
 				scrolls_x := el.scroll_mode != .vertical_only
 				scrolls_y := el.scroll_mode != .horizontal_only
@@ -3043,6 +3067,19 @@ fn page_focused_text_area(direction int) {
 				add_full_text_tooltip(el, area, clip, el.text, shortened)
 			}
 			.image {
+				if name := symbol_name(el.image_path) {
+					draw_symbol_image(ctx, name, area.x, area.y, area.width, area.height, el.text_style.color)
+					if el.tooltip.len > 0 {
+						add_tooltip_target(tooltip_key(el, area), el.tooltip, area, clip)
+					}
+					if el.enabled && voidptr(el.on_event) != unsafe { nil } && (el.clickable || el.draggable || el.drag_source != none || el.drop_target != none) {
+						add_hit_target(HitTarget{identity:path,kind:el.kind,id:el.id,on_event:el.on_event,
+							x:area.x,y:area.y,w:area.width,h:area.height,
+							drag_source:el.drag_source,drop_target:el.drop_target,
+							clickable:el.clickable,draggable:el.draggable},clip)
+					}
+					return
+				}
 				geometry := ctx.image_geometry_for(el,area) or {
 					if el.image_path.len > 0 { draw_rect(ctx,area.x,area.y,area.width,area.height,0xe8ecef,0) }
 					return
@@ -3070,7 +3107,8 @@ fn page_focused_text_area(direction int) {
 					draw_button_bezel(ctx, x, y, el.frame.width, el.frame.height, el.box.radius,
 						el.enabled)
 				} else {
-					draw_rect(ctx, x, y, el.frame.width, el.frame.height, el.box.bg, el.box.radius)
+					// Gradients fill views; a button keeps its solid fill, as natively.
+					draw_box_fill(ctx, x, y, el.frame.width, el.frame.height, BoxStyle{ ...el.box, gradient: Gradient{} })
 				}
 				draw_box_borders(ctx, x, y, el.frame.width, el.frame.height, el.box)
 				content := button_content_rect(el)
@@ -3111,7 +3149,7 @@ fn page_focused_text_area(direction int) {
 					draw_button_bezel(ctx, x, y, el.frame.width, el.frame.height, box.radius,
 						el.enabled)
 				} else {
-					draw_rect(ctx, x, y, el.frame.width, el.frame.height, box.bg, box.radius)
+					draw_box_fill(ctx, x, y, el.frame.width, el.frame.height, BoxStyle{ ...box, gradient: Gradient{} })
 				}
 				draw_box_borders(ctx, x, y, el.frame.width, el.frame.height, box)
 				content := button_content_rect(el)
@@ -3554,7 +3592,7 @@ fn page_focused_text_area(direction int) {
 	fn draw_button_image(ctx &DrawContext, el Element, x f64, y f64, width f64, height f64, style TextStyle) {
 		image_path := el.image_path
 		if image_path.starts_with('symbol:') {
-			symbol := system_symbol_fallback(image_path['symbol:'.len..])
+			symbol := symbol_glyph(image_path['symbol:'.len..])
 			draw_text_centered(ctx, symbol, x, y, width, height, TextStyle{
 				...style
 				font_family: 'Material Icons'
@@ -3572,98 +3610,19 @@ fn page_focused_text_area(direction int) {
 		}
 	}
 
-	// SF Symbols are used as native AppKit button images. Other custom-rendered
-	// desktops use equivalent glyphs from the bundled Material Icons face, which
-	// keeps the controls recognizable without depending on a host symbol font.
-	fn system_symbol_fallback(name string) string {
-		return match name {
-			'align.horizontal.center' { '\ue00f' }
-			'line.3.horizontal' { '\ue5d2' }
-			'text.justify' { '\ue235' }
-			'align.vertical.center' { '\ue011' }
-			'arrow.up.and.down', 'arrow.up.arrow.down' { '\ue8d5' }
-			'arrow.up.and.down.text.horizontal' { '\ue25b' }
-			'arrow.2.squarepath', 'arrow.triangle.2.circlepath' { '\ue627' }
-			'arrow.left.and.right' { '\ue8d4' }
-			'arrow.left.and.right.square' { '\ue933' }
-			'arrow.clockwise', 'arrow.clockwise.circle' { '\ue5d5' }
-			'clock.arrow.circlepath' { '\ue889' }
-			'arrow.down.right.and.arrow.up.left', 'arrow.up.and.down.and.arrow.left.and.right',
-			'move.3d' { '\uf1ce' }
-			'arrow.down.to.line' { '\ue258' }
-			'icloud.and.arrow.down' { '\ue2c0' }
-			'arrow.right.to.line', 'increase.indent' { '\ue23e' }
-			'arrow.uturn.backward' { '\ue166' }
-			'arrow.uturn.forward' { '\ue15a' }
-			'icloud.and.arrow.up' { '\ue2c3' }
-			'square.and.arrow.up' { '\ue2c6' }
-			'square.and.arrow.down' { '\ue161' }
-			'asterisk' { '\ue83a' }
-			'character.book.closed' { '\uea19' }
-			'textformat', 'textformat.abc' { '\ue262' }
-			'chart.bar', 'chart.bar.doc.horizontal', 'chart.bar.xaxis' { '\ue26b' }
-			'crop' { '\ue3be' }
-			'cube.transparent' { '\ue9fe' }
-			'square.on.circle' { '\ue574' }
-			'curlybraces' { '\ue86f' }
-			'cursorarrow' { '\ue323' }
-			'doc.badge.arrow.up' { '\ue9fc' }
-			'doc.badge.plus', 'text.badge.plus' { '\ue89c' }
-			'plus.rectangle' { '\ue146' }
-			'plus.rectangle.on.rectangle', 'plus.square.on.square' { '\ue02e' }
-			'doc.on.doc' { '\ue14d' }
-			'list.bullet.clipboard' { '\ue85d' }
-			'ellipsis' { '\ue5d3' }
-			'eye' { '\ue8f4' }
-			'eye.slash' { '\ue8f5' }
-			'folder' { '\ue2c7' }
-			'function' { '\ue24a' }
-			'gearshape' { '\ue8b8' }
-			'grid', 'rectangle.grid.2x2', 'rectangle.split.3x3', 'tablecells' { '\ue3ec' }
-			'info.circle' { '\ue88e' }
-			'line.vertical' { '\ue5d4' }
-			'list.number' { '\ue242' }
-			'number' { '\ue9ef' }
-			'lock', 'lock.doc' { '\ue897' }
-			'magnifyingglass', 'rectangle.and.text.magnifyingglass' { '\ue8b6' }
-			'minus' { '\ue15b' }
-			'minus.rectangle' { '\ue909' }
-			'number.circle' { '\ue400' }
-			'paintbrush' { '\ue3ae' }
-			'paintpalette' { '\ue40a' }
-			'pencil', 'pencil.line' { '\ue3c9' }
-			'person.2' { '\ue7ef' }
-			'person.crop.circle' { '\ue853' }
-			'person.crop.circle.badge.plus' { '\ue7fe' }
-			'photo' { '\ue410' }
-			'textbox' { '\ue262' }
-			'plus' { '\ue145' }
-			'printer' { '\ue8ad' }
-			'rectangle.3.group' { '\ue8f0' }
-			'rectangle.split.1x2' { '\uf114' }
-			'rectangle.split.2x1' { '\ue8f2' }
-			'rectangle.split.3x1' { '\ue8ec' }
-			'rectangle.bottomthird.inset.filled', 'rectangle.portrait.and.arrow.right',
-			'rectangle.righthalf.inset.filled.arrow.right',
-			'rectangle.topthird.inset.filled', 'sidebar.right' { '\uf114' }
-			'scissors' { '\ue14e' }
-			'seal' { '\uef76' }
-			'slider.horizontal.3' { '\ue429' }
-			'square.2.layers.3d.bottom.filled', 'square.2.layers.3d.top.filled',
-			'square.stack.3d.up' { '\ue53b' }
-			'star' { '\ue838' }
-			'star.circle' { '\ue8d0' }
-			'tag' { '\ue892' }
-			'text.alignleft' { '\ue236' }
-			'text.alignright' { '\ue237' }
-			'text.bubble' { '\ue0cb' }
-			'textformat.123' { '\ueb8d' }
-			'textformat.size' { '\ue245' }
-			'textformat.size.larger' { '\ueae2' }
-			'trash' { '\ue872' }
-			'xmark' { '\ue5cd' }
-			else { '\ue8fd' }
+	// draw_symbol_image draws a `symbol:` image as its Material Icons glyph, as large
+	// as the frame allows and in the element's text color, which is what tints a
+	// symbol image on every backend.
+	fn draw_symbol_image(ctx &DrawContext, name string, x f64, y f64, width f64, height f64, color u32) {
+		size := math.min(width, height)
+		if size <= 0 {
+			return
 		}
+		draw_text_centered(ctx, symbol_glyph(name), x, y, width, height, TextStyle{
+			color:       color
+			font_family: 'Material Icons'
+			size:        size
+		})
 	}
 
 	fn preload_images(mut ctx DrawContext) {
@@ -3673,7 +3632,7 @@ fn page_focused_text_area(direction int) {
 			if node.hidden { continue }
 			el := node.el
 			quality := f64(ctx.scale) * node.transform.footprint_scale()
-			if el.kind == .image && el.image_path.len > 0 {
+			if el.kind == .image && el.image_path.len > 0 && !el.image_path.starts_with('symbol:') {
 				ctx.prepare_image(el,quality) or { eprintln('ui2: ${err}') }
 			} else if el.kind == .button && el.image_path.len > 0 && !el.image_path.starts_with('symbol:') {
 				layout := button_image_layout(el.frame.width,el.frame.height,el.text,el.image_path)
@@ -3699,6 +3658,161 @@ fn page_focused_text_area(direction int) {
 			ctx.draw_rounded_rect_filled(f32(x), f32(y), f32(w), f32(h), f32(radius), c)
 		} else {
 			ctx.draw_rect_filled(f32(x), f32(y), f32(w), f32(h), c)
+		}
+	}
+
+	fn draw_rect_alpha(ctx &DrawContext, x f64, y f64, w f64, h f64, color_hex u32, alpha f64, radius f64) {
+		if w <= 0 || h <= 0 || alpha <= 0 {
+			return
+		}
+		c := gg.Color{
+			...hex_color(color_hex)
+			a: u8(math.round(unit_clamp(alpha) * 255))
+		}
+		if radius > 0 {
+			ctx.draw_rounded_rect_filled(f32(x), f32(y), f32(w), f32(h), f32(radius), c)
+		} else {
+			ctx.draw_rect_filled(f32(x), f32(y), f32(w), f32(h), c)
+		}
+	}
+
+	// draw_box_fill paints what a BoxStyle puts beneath its borders: the drop
+	// shadow, then the gradient or the solid color at the box's fill opacity.
+	fn draw_box_fill(ctx &DrawContext, x f64, y f64, w f64, h f64, box BoxStyle) {
+		if box_has_shadow(box) {
+			draw_box_shadow(ctx, x, y, w, h, box.radius, box.shadow)
+		}
+		opacity := box_fill_opacity(box)
+		if opacity <= 0 {
+			return
+		}
+		if box_has_gradient(box) {
+			draw_gradient_rect(ctx, x, y, w, h, box.radius, box.gradient, opacity)
+		} else if opacity >= 1 {
+			draw_rect(ctx, x, y, w, h, box.bg, box.radius)
+		} else {
+			draw_rect_alpha(ctx, x, y, w, h, box.bg, opacity, box.radius)
+		}
+	}
+
+	// draw_box_shadow stands in for a Gaussian blur with a stack of translucent
+	// rounded rectangles, from `blur / 2` outside the shadow's edge to `blur / 2`
+	// inside it. Where k of the n layers overlap the alpha is 1 - (1 - a)^k, so
+	// it rises across the blur and reaches the shadow's opacity inside it.
+	fn draw_box_shadow(ctx &DrawContext, x f64, y f64, w f64, h f64, radius f64, shadow BoxShadow) {
+		opacity := unit_clamp(shadow.opacity)
+		sx := x + shadow.x - shadow.spread
+		sy := y + shadow.y - shadow.spread
+		sw := w + 2 * shadow.spread
+		sh := h + 2 * shadow.spread
+		sr := math.max(radius + shadow.spread, 0)
+		blur := if math.is_nan(shadow.blur) { 0.0 } else { math.max(shadow.blur, 0) }
+		if blur < 1 {
+			draw_rect_alpha(ctx, sx, sy, sw, sh, shadow.color, opacity, sr)
+			return
+		}
+		steps := int(math.min(math.max(blur / 2 + 2, 3), 10))
+		per_layer := 1 - math.pow(1 - opacity, 1.0 / f64(steps))
+		for i in 0 .. steps {
+			grow := blur / 2 - blur * f64(i) / f64(steps - 1)
+			layer_w := sw + 2 * grow
+			layer_h := sh + 2 * grow
+			if layer_w <= 0 || layer_h <= 0 {
+				continue
+			}
+			layer_r := math.min(math.max(sr + grow, 0), math.min(layer_w, layer_h) / 2)
+			draw_rect_alpha(ctx, sx - grow, sy - grow, layer_w, layer_h, shadow.color, per_layer,
+				layer_r)
+		}
+	}
+
+	// rounded_inset is how far in from the side a rounded box's edge is at height
+	// `y` from its top, for corner radius r.
+	fn rounded_inset(y f64, h f64, r f64) f64 {
+		dy := if y < r { r - y } else if y > h - r { y - (h - r) } else { 0.0 }
+		if dy <= 0 || r <= 0 {
+			return 0
+		}
+		return r - math.sqrt(math.max(r * r - dy * dy, 0))
+	}
+
+	fn gradient_vertex_color(line GradientLine, stops []GradientStop, opacity f64, lx f64, ly f64) gg.Color {
+		color, alpha := gradient_color_at(stops, gradient_position(line, lx, ly))
+		return gg.Color{
+			r: u8((color >> 16) & 0xff)
+			g: u8((color >> 8) & 0xff)
+			b: u8(color & 0xff)
+			a: u8(math.round(unit_clamp(alpha * opacity) * 255))
+		}
+	}
+
+	// draw_gradient_cell fills one quad of a gradient mesh, its corners given in
+	// the box's own coordinates and colored by the gradient there.
+	fn draw_gradient_cell(ctx &DrawContext, x f64, y f64, line GradientLine, stops []GradientStop, opacity f64, corners [4]Point) {
+		mut points := []Point{len: 4}
+		mut colors := []gg.Color{len: 4}
+		for i, corner in corners {
+			points[i] = Point{x + corner.x, y + corner.y}
+			colors[i] = gradient_vertex_color(line, stops, opacity, corner.x, corner.y)
+		}
+		ctx.draw_local_colored_polygon(points, colors)
+	}
+
+	// draw_gradient_rect fills a (rounded) box with a linear gradient. The box is
+	// cut into rows that follow its rounded edge and the rows into small cells,
+	// each a quad whose corners take the gradient's color there; the GPU blends
+	// across a cell, which is exact for a gradient between two stops and close for
+	// more. About 16 cells each way keeps a gradient to a few thousand vertices.
+	fn draw_gradient_rect(ctx &DrawContext, x f64, y f64, w f64, h f64, radius f64, gradient Gradient, opacity f64) {
+		if w <= 0 || h <= 0 {
+			return
+		}
+		stops := gradient_sorted_stops(gradient)
+		line := gradient_line(gradient.angle, w, h)
+		r := math.max(0, math.min(radius, math.min(w, h) / 2))
+		if r < 0.5 && stops.len == 2 {
+			// Two stops are linear across the whole box: one quad is exact.
+			draw_gradient_cell(ctx, x, y, line, stops, opacity, [Point{0, 0}, Point{w, 0}, Point{w, h}, Point{0, h}]!)
+			return
+		}
+		cell_w := math.max(4.0, w / 16)
+		cell_h := math.max(4.0, (h - 2 * r) / 16)
+		arc_rows := int(math.min(math.max(math.sqrt(r * f64(ctx.scale)) * 1.5, 2), 16))
+		mut rows := [0.0]
+		if r > 0 {
+			for k in 1 .. arc_rows + 1 {
+				rows << r - r * math.cos(math.pi / 2 * f64(k) / f64(arc_rows))
+			}
+		}
+		for rows[rows.len - 1] + cell_h < h - r {
+			rows << rows[rows.len - 1] + cell_h
+		}
+		if r > 0 {
+			for k in 0 .. arc_rows + 1 {
+				rows << h - r + r * math.sin(math.pi / 2 * f64(k) / f64(arc_rows))
+			}
+		} else {
+			rows << h
+		}
+		columns := int(math.ceil(w / cell_w))
+		for i in 1 .. rows.len {
+			top := rows[i - 1]
+			bottom := math.min(rows[i], h)
+			if bottom <= top {
+				continue
+			}
+			inset_top := rounded_inset(top, h, r)
+			inset_bottom := rounded_inset(bottom, h, r)
+			for c in 0 .. columns {
+				f0 := f64(c) / f64(columns)
+				f1 := f64(c + 1) / f64(columns)
+				draw_gradient_cell(ctx, x, y, line, stops, opacity, [
+					Point{inset_top + (w - 2 * inset_top) * f0, top},
+					Point{inset_top + (w - 2 * inset_top) * f1, top},
+					Point{inset_bottom + (w - 2 * inset_bottom) * f1, bottom},
+					Point{inset_bottom + (w - 2 * inset_bottom) * f0, bottom},
+				]!)
+			}
 		}
 	}
 
@@ -3842,7 +3956,7 @@ fn page_focused_text_area(direction int) {
 	fn draw_rich_label_text(ctx &DrawContext, el Element, x f64, y f64, clip Rect) bool {
 		$if !android {
 			if el.text_runs.len > 0 {
-				shaped := ctx.shape_runs(el.text_runs, el.text_style, math.max(0.0, el.frame.width), math.max(1, el.text_style.lines), true) or {
+				shaped := ctx.shape_runs(el.text_runs, el.text_style, math.max(0.0, el.frame.width), text_line_budget(el.text_style.lines), true) or {
 					eprintln('ui2: rich label: ${err}')
 					return false
 				}
@@ -3967,8 +4081,9 @@ fn page_focused_text_area(direction int) {
 				vertical_align: .middle
 			}
 			line_h := font_line_height(style.size)
-			parts := if style.lines > 1 {
-				wrap_text_lines(ctx, t, w, style.lines, cfg)
+			budget := text_line_budget(style.lines)
+			parts := if budget > 1 {
+				wrap_text_lines(ctx, t, w, budget, cfg)
 			} else {
 				[t]
 			}
@@ -4002,6 +4117,9 @@ fn page_focused_text_area(direction int) {
 					shortened = true
 				}
 				ctx.draw_text(int(text_x), int(line_y), line, cfg)
+				if style.underline || style.strikethrough {
+					draw_text_decorations(ctx, line, f64(text_x), line_y, cfg, style)
+				}
 			}
 			if bounded {
 				apply_clip(ctx, clip)
@@ -4010,8 +4128,9 @@ fn page_focused_text_area(direction int) {
 		} $else {
 			// A shaped block supplies both its geometry and the glyphs painted here.
 			// Editors pass an unbounded width so their value is clipped, not ellipsized.
-			width := if fit || style.lines > 1 { math.max(0.0, w) } else { -1.0 }
-			shaped := ctx.shape_text(t, style, width, if style.lines > 1 { style.lines } else { 1 }, fit) or {
+			budget := text_line_budget(style.lines)
+			width := if fit || budget > 1 { math.max(0.0, w) } else { -1.0 }
+			shaped := ctx.shape_text(t, style, width, budget, fit) or {
 				eprintln('ui2: text: ${err}')
 				return false
 			}
@@ -4026,6 +4145,32 @@ fn page_focused_text_area(direction int) {
 			ctx.draw_shaped(shaped, x, top)
 			if bounded { apply_clip(ctx, clip) }
 			return shaped.truncated || (bounded && block_h > h)
+		}
+	}
+
+	$if android {
+		// draw_text_decorations rules a line drawn at text_x (its anchor for the
+		// line's alignment) and centred on line_y. Desktop text is shaped with its
+		// decorations; Android's gg text is not, so a link is underlined here.
+		fn draw_text_decorations(ctx &DrawContext, line string, text_x f64, line_y f64, cfg gg.TextCfg, style TextStyle) {
+			ctx.set_text_cfg(cfg)
+			width := f64(ctx.text_width_f(line))
+			if width <= 0 {
+				return
+			}
+			left := match style.align {
+				.left { text_x }
+				.center { text_x - width / 2 }
+				.right { text_x - width }
+			}
+			size := f64(cfg.size)
+			thickness := math.max(1.0, math.round(size / 14))
+			if style.underline {
+				draw_rect(ctx, left, line_y + size * 0.42, width, thickness, style.color, 0)
+			}
+			if style.strikethrough {
+				draw_rect(ctx, left, line_y - thickness / 2, width, thickness, style.color, 0)
+			}
 		}
 	}
 

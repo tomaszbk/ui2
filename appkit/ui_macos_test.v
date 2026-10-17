@@ -386,6 +386,59 @@ fn test_macos_text_field_uses_native_bezel_without_layer_mask() {
 	assert !macos.msg_bool(field, 'wantsLayer')
 }
 
+fn test_macos_controls_take_the_appearance_their_colors_call_for() {
+	pool := macos.autorelease_pool_new()
+	defer {
+		macos.release(pool)
+	}
+	// Light text on an unfilled field: a light bezel would hide it.
+	dark_field := native_new_text_field(text_input(
+		id:         'dark'
+		text:       'san'
+		frame:      rect(0, 0, 200, 32)
+		box:        BoxStyle{
+			transparent: true
+		}
+		text_style: TextStyle{
+			color: 0xf1f5f9
+		}
+		keyboard:   keyboard_default
+	) or { panic(err) })
+	defer {
+		macos.release(dark_field)
+	}
+	// A filled field goes by its fill, whatever its text color.
+	light_field := native_new_text_field(text_input(
+		id:         'light'
+		text:       'ada'
+		frame:      rect(0, 0, 200, 32)
+		box:        BoxStyle{
+			bg: 0xffffff
+		}
+		text_style: TextStyle{
+			color: 0xf1f5f9
+		}
+		keyboard:   keyboard_default
+	) or { panic(err) })
+	defer {
+		macos.release(light_field)
+	}
+	dark_box := native_new_checkbox(checkbox('box', 'Dark theme', true, rect(0, 0, 160, 24),
+		TextStyle{
+		color: 0xe2e8f0
+	}))
+	defer {
+		macos.release(dark_box)
+	}
+	assert native_appearance_name(dark_field) == 'NSAppearanceNameDarkAqua'
+	assert native_appearance_name(light_field) == 'NSAppearanceNameAqua'
+	assert native_appearance_name(dark_box) == 'NSAppearanceNameDarkAqua'
+}
+
+fn native_appearance_name(view NativeView) string {
+	return macos.utf8_string(macos.msg_id(macos.msg_id(view, 'appearance'), 'name'))
+}
+
 fn test_macos_independent_borders_follow_the_view_bounds() {
 	pool := macos.autorelease_pool_new()
 	defer {

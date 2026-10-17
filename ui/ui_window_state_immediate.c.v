@@ -86,6 +86,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		tooltip_targets []TooltipTarget
 		tooltip TooltipState
 		tooltip_owners int
+		hover HoverState
 		menu_context MenuState
 		menu_open_path []int
 		menu_hover_path []int
@@ -232,6 +233,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		state.tooltip_targets = g_tooltip_targets
 		state.tooltip = g_tooltip
 		state.tooltip_owners = g_tooltip_owners
+		state.hover = g_hover
 		state.menu_context = *menu_state()
 		state.menu_open_path = g_menu_open_path
 		state.menu_hover_path = g_menu_hover_path
@@ -308,6 +310,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		g_tooltip_targets = state.tooltip_targets
 		g_tooltip = state.tooltip
 		g_tooltip_owners = state.tooltip_owners
+		g_hover = state.hover
 		mut menu := menu_state()
 		menu.menus = state.menu_context.menus
 		menu.tray = state.menu_context.tray

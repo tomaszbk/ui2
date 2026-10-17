@@ -641,7 +641,7 @@ $if (linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ?
 		// Word wrapping at zero reports the width of the largest unbreakable
 		// segment from Pango; it is not the same as constraining the result to zero.
 		line_limit := if request.max_lines >= 0 { request.max_lines }
-			else { math.max(1, style.lines) }
+			else { text_line_budget(style.lines) }
 		g_text_font_mutex.lock()
 		shaped := engine.shape_locked(text, style, width,
 			if request.mode == .min_content { 0 } else { line_limit },
@@ -701,7 +701,7 @@ $if (linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ?
 		// Initialize the process context through the same public measurement route.
 		layout_measure_vglyph_text('', style, width)!
 		mut engine := g_cpu_text_engine
-		limit := math.max(1, style.lines)
+		limit := text_line_budget(style.lines)
 		shaped := engine.shape_runs(runs, style, width, limit, width >= 0)!
 		// With unbounded width Pango does not ellipsize; its natural layout
 		// still includes every paragraph. Match the ordinary label line budget.

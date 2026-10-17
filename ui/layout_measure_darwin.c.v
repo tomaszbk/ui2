@@ -23,12 +23,12 @@ $if macos && !ui2_custom_rendering ?&& !ui2_headless ? && !ui2_document_library 
 		// descent. Ask the actual control at the assigned content width, rather
 		// than rounding shared logical layout or under-sizing wrapped labels.
 		frame := native_rect(0, 0, (if max_width < 0 { measured.width } else { max_width }) + 4, 0)
-		field := native_new_label(frame, text, style.color, style.size, style.bold,
-			style.italic, style.underline, align_value(style.align), style.lines, .top, false)
+		field := native_new_label(frame, text, style.color, style.size, style.font_family, style.bold,
+			style.italic, style.underline, align_value(style.align), text_line_budget(style.lines), .top, false)
 		defer { macos.release(field) }
 		macos.msg_void1(field, 'setFont:', font)
-		height := if style.lines > 1 {
-			native_label_content_height(field, frame, style.lines)
+		height := if text_line_budget(style.lines) > 1 {
+			native_label_content_height(field, frame, text_line_budget(style.lines))
 		} else {
 			macos.msg_point(macos.msg_id(field, 'cell'), 'cellSize').y
 		}

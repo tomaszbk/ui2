@@ -30,6 +30,10 @@ pub enum ElementEventKind {
 	drag_cancel
 	dismiss
 	open
+	// Hoverable elements report the pointer coming over them and leaving them.
+	// New kinds go last: the C ABI passes the kind's ordinal.
+	pointer_enter
+	pointer_leave
 }
 
 pub struct ElementEvent {
@@ -347,7 +351,7 @@ pub:
 	head_indent        f64
 	first_line_indent  f64
 	hyphenation_factor f64
-	lines              int = 1
+	lines              int = 1 // most lines to wrap onto; 0 wraps as many as the frame shows
 }
 
 pub struct TextRun {
@@ -400,6 +404,9 @@ pub:
 	outline_color       u32
 	outline_width       f64
 	outline_offset      f64
+	opacity             f64 = 1.0 // fill opacity, 0 (clear) to 1; borders and children keep theirs
+	gradient            Gradient  // with two or more stops, fills the box instead of bg
+	shadow              BoxShadow // drop shadow beneath the box; none while its opacity is zero
 }
 
 // box_draws_fill is shared by native and custom renderers so every element
@@ -501,6 +508,7 @@ pub:
 	drag_source               ?DragSource
 	drop_target               ?DropTarget
 	draggable                 bool // view/image: emit pointer drag events
+	hoverable                 bool // any element: report pointer enter/leave as the pointer moves over it
 	opacity               f64 = 1 // custom: inherited per-primitive opacity
 	motion                ?MotionConfig
 	overlay               ?OverlayConfig

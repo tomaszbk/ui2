@@ -172,7 +172,7 @@ __global g_accessibility_keys = AccessibilityKeys{}
 fn accessibility_traits(role string) u64 {
 	return match role {
 		'button' { extern_u64('UIAccessibilityTraitButton', 1) }
-		'image' { extern_u64('UIAccessibilityTraitImage', 4) }
+		'image', 'img' { extern_u64('UIAccessibilityTraitImage', 4) }
 		'link' { extern_u64('UIAccessibilityTraitLink', 2) }
 		'header' { extern_u64('UIAccessibilityTraitHeader', 0x10000) }
 		'adjustable', 'slider' { extern_u64('UIAccessibilityTraitAdjustable', 0x1000) }

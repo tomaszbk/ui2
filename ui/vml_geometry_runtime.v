@@ -86,8 +86,8 @@ fn compiled_vml_sync_geometry(element Element) ![]Element {
 			action_failed = true
 		}
 		runtime.finish_batch(action_failed, action_error)!
-		after := element.compiled_node.element()
-		if !vml_declaration_equal(before, after) { updates << after }
+		synced := element.compiled_node.element()
+		if !vml_declaration_equal(before, synced) { updates << synced }
 	} else {
 		for child in element.children { updates << compiled_vml_sync_geometry(child)! }
 	}
