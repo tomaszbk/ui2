@@ -269,6 +269,15 @@ pub:
 // and edit buffers; a document that does not load is reported on stderr and
 // the window keeps the last good one.
 pub fn run_vml[T](config VmlRunConfig[T]) ! {
+	mut app := new_app()
+	open_vml[T](mut app, config)!
+	app.run()
+}
+
+// open_vml opens a window of app that shows the interpreted document, as
+// open_compiled_vml does for a compiled one, and returns it before app runs.
+// The document is disposed of as the window closes.
+pub fn open_vml[T](mut app App, config VmlRunConfig[T]) !&Window {
 	if config.model == unsafe { nil } { return error('run_vml requires a live model') }
 	if config.source_path.len == 0 { return error('run_vml requires source_path') }
 	config.theme.validate()!
@@ -295,12 +304,7 @@ pub fn run_vml[T](config VmlRunConfig[T]) ! {
 		interpreter.dispose()
 		return err
 	}
-	defer {
-		interpreter.stop = true
-		interpreter.dispose()
-	}
 	update := config.update
-	mut app := new_app()
 	mut w := app.new_window(
 		title:      config.title
 		width:      config.width
@@ -315,7 +319,10 @@ pub fn run_vml[T](config VmlRunConfig[T]) ! {
 			if !interpreter.fresh && update != unsafe { nil } { update(mut model) }
 			return interpreter.next_frame(mut w)
 		}
-	)!
+	) or {
+		interpreter.dispose()
+		return err
+	}
 	// The window disposes the document as it closes.
 	w.on_close(fn [mut interpreter] () {
 		interpreter.stop = true
@@ -324,7 +331,7 @@ pub fn run_vml[T](config VmlRunConfig[T]) ! {
 	if config.watch {
 		spawn vml_watch(interpreter, w)
 	}
-	app.run()
+	return w
 }
 
 // next_frame is one window frame of a running document: it applies a reload

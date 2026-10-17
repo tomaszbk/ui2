@@ -271,12 +271,14 @@ ui2.run_vml[App](source_path: 'app.vml', model: &App{}, watch: true)!
 With `watch: true` the window reloads the document when it or an imported
 component changes. Declarations whose path and key did not change keep their
 state, focus and edit buffers, and a document that no longer loads leaves the
-running one in place. `ui2.vml_interpret(source, &app)` builds a document from
-source for embedding. The interpreter reads public model fields, writes public
-mutable ones and calls methods by reflection, and evaluates the expression
-subset of compiled VML with V's semantics: integer arithmetic stays integral,
-mixing an integer with a float gives a float, and strings and numbers do not
-mix outside display text. Anything else is a load error naming the construct.
+running one in place. `ui2.open_vml` opens the window on an app you run
+yourself, as `open_compiled_vml` does. `ui2.vml_interpret(source, &app)` builds
+a document from source for embedding. The interpreter reads public model
+fields, writes public mutable ones and calls methods by reflection, and
+evaluates the expression subset of compiled VML with V's semantics: integer
+arithmetic stays integral, mixing an integer with a float gives a float, and
+strings and numbers do not mix outside display text. Anything else is a load
+error naming the construct.
 
 Compiled VML stays the source of truth. The interpreter may accept a program V
 rejects, such as an integer passed to an `f64` parameter, never the reverse.

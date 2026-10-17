@@ -54,13 +54,17 @@ fn test_hot_reload_keeps_state_focus_and_edit_buffers() ! {
 	mut app := &ReloadApp{}
 	mut interpreter := vml_interpreter_file(document, vml_model(app))!
 	assert interpreter.files().len == 2
-	headless_reset()
 	interpreter.build()!
-	run_window('Reload', 320, 240, fn [mut interpreter] () Element {
-		return interpreter.next_frame()
-	})
-	state := headless_state()
-	assert state.layout_error == ''
+	mut ui_app := new_app()
+	mut w := ui_app.new_window(
+		title:  'Reload'
+		width:  320
+		height: 240
+		build:  fn [mut interpreter] (mut w Window) Element {
+			return interpreter.next_frame(mut w)
+		}
+	)!
+	assert w.layout_error == ''
 	mut root := interpreter.root()?
 	first := root.element()
 	assert reload_texts(first) == ['Notes', 'Ada', 'Count 0', 'Click 0']
@@ -70,13 +74,13 @@ fn test_hot_reload_keeps_state_focus_and_edit_buffers() ! {
 	first.children[2].on_event(ElementEvent{ kind: .click })
 	first.children[2].on_event(ElementEvent{ kind: .click })
 	reload_find(first, 'click')?.on_event(ElementEvent{ kind: .click })
-	set_text('name', 'Grace')
-	focus('name')
-	request_refresh()
-	headless_frame()
-	assert focused_id() == 'name'
+	w.set_text('name', 'Grace')
+	w.focus('name')
+	w.request_refresh()
+	w.headless_frame()
+	assert w.focused_id() == 'name'
 	// The edit lives in the backend's control; the declaration still says Ada.
-	assert text('name') == 'Grace'
+	assert w.text('name') == 'Grace'
 	assert reload_texts(root.element()) == ['Notes', 'Ada', 'Count 2', 'Click 1']
 	// Edit both files: the document gains an element and a style, the
 	// imported component a new text.
@@ -88,8 +92,8 @@ fn test_hot_reload_keeps_state_focus_and_edit_buffers() ! {
 	os_touch_later(component)
 	assert interpreter.changed()
 	interpreter.stale = true
-	request_refresh()
-	headless_frame()
+	w.request_refresh()
+	w.headless_frame()
 	assert root.component.is_disposed()
 	mut next := interpreter.root()?
 	assert next != root
@@ -99,15 +103,15 @@ fn test_hot_reload_keeps_state_focus_and_edit_buffers() ! {
 	assert reloaded.children[2].id == first.children[2].id
 	assert reload_find(reloaded, 'click')?.text == 'Click 1'
 	assert reload_find(reloaded, 'added')?.text == 'Added'
-	assert text('name') == 'Grace'
-	assert focused_id() == 'name'
-	assert state.layout_error == ''
+	assert w.text('name') == 'Grace'
+	assert w.focused_id() == 'name'
+	assert w.layout_error == ''
 	// A document that no longer loads keeps the running one.
 	os.write_file(document, 'Column { Label(text: app.missing) }')!
 	os_touch_later(document)
 	interpreter.stale = true
-	request_refresh()
-	headless_frame()
+	w.request_refresh()
+	w.headless_frame()
 	assert interpreter.root()? == next
 	assert !next.component.is_disposed()
 	assert !interpreter.stale
@@ -115,19 +119,26 @@ fn test_hot_reload_keeps_state_focus_and_edit_buffers() ! {
 	assert next.component.is_disposed()
 }
 
-fn test_run_vml_runs_a_document_file() ! {
+fn test_open_vml_runs_a_document_file() ! {
 	directory := os.join_path(os.temp_dir(), 'ui2-vml-run-${os.getpid()}')
 	os.mkdir_all(directory)!
 	defer { os.rmdir_all(directory) or {} }
 	document := os.join_path(directory, 'app.vml')
 	os.write_file(document, 'Column(id: "root") { Label(id: "title", text: app.title) }')!
 	mut app := &ReloadApp{}
-	headless_reset()
-	run_vml[ReloadApp](source_path: document, model: app, title: 'Notes', width: 320, height: 240)!
-	state := headless_state()
-	assert state.title == 'Notes'
-	assert state.layout_error == ''
-	assert reload_find(state.root, 'title')?.text == 'Notes'
+	mut ui_app := new_app()
+	mut w := open_vml[ReloadApp](mut ui_app,
+		source_path: document
+		model:       app
+		title:       'Notes'
+		width:       320
+		height:      240
+	)!
+	ui_app.run()
+	assert w.title == 'Notes'
+	assert w.layout_error == ''
+	assert reload_find(w.root, 'title')?.text == 'Notes'
+	w.quit()
 	run_vml[ReloadApp](source_path: os.join_path(directory, 'missing.vml'), model: app) or {
 		assert err.msg().contains('missing.vml')
 		return
