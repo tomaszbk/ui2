@@ -1,6 +1,6 @@
-// Linux and Android hosts have no menu bar or status area of their own. The
-// renderer draws the menu bar across the top of the window (menu_custom.c.v)
-// and runs its shortcuts.
+// Linux and Android hosts have no menu bar, status area or popup menus of
+// their own. The renderer draws the menu bar across the top of the window and
+// runs its shortcuts, and it draws popup menus too (popup_menu_immediate.c.v).
 module ui2
 
 const host_menu_bar = HostMenuBar.drawn
@@ -15,3 +15,11 @@ fn host_tray_supported() bool {
 fn host_set_tray(_cfg TrayConfig) {}
 
 fn host_remove_tray() {}
+
+fn host_popup_menu_supported() bool {
+	return false
+}
+
+fn host_show_popup_menu(_cfg PopupMenuConfig, on_result PopupMenuCallback) {
+	on_result(PopupMenuResult{})
+}

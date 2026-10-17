@@ -182,7 +182,7 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 					...node.state
 					checked:  checked
 					selected: el.el.kind == .toggle_button && checked
-					expanded: el.el.kind == .dropdown && g_open_dropdown == node.id
+					expanded: el.el.kind == .dropdown && (g_open_dropdown == node.id || g_gg_app.popup_menu_owner == node.id)
 				}
 			}
 		}

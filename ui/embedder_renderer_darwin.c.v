@@ -260,6 +260,11 @@ $if macos && ui2_embedder ? && !ui2_headless ? && !ui2_document_library ? {
 		dispatch_context := custom_input_dispatch(app)
 		if event.typ in [.resized, .restored, .resumed] { app.surface_retry_at = -1 }
 		if event.typ == .mouse_down {
+			if event.mouse_button == .right {
+				custom_context_press(app, f64(event.mouse_x), f64(event.mouse_y))
+				if dispatch_context.valid() { sync_embedder_text(app) }
+				return false
+			}
 			dispatch := custom_mouse_down(app, f64(event.mouse_x), f64(event.mouse_y))
 			if dispatch.valid() { sync_embedder_text(app) }
 			return false

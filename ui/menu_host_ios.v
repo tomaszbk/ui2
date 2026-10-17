@@ -1,6 +1,7 @@
 module ui2
 
-// iOS has no menu bar or status area; declared menus are kept, not shown.
+// iOS has no menu bar, status area or popup menus; declared menus are kept,
+// not shown, and popup menus are left to the renderer.
 const host_menu_bar = HostMenuBar.absent
 const host_menu_key_equivalents = false
 
@@ -13,3 +14,11 @@ fn host_tray_supported() bool {
 fn host_set_tray(_cfg TrayConfig) {}
 
 fn host_remove_tray() {}
+
+fn host_popup_menu_supported() bool {
+	return false
+}
+
+fn host_show_popup_menu(_cfg PopupMenuConfig, on_result PopupMenuCallback) {
+	on_result(PopupMenuResult{})
+}

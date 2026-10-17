@@ -1,8 +1,9 @@
 // vfmt off
-// The Windows host's menu bar and notification area icon (platform.v). Both
-// are built from the declaration in one go rather than reconciled: a menu is
-// small, and rebuilding it is what keeps the declared rows and the HMENU in
-// step. The window is the one the renderer published to menu.v.
+// The Windows host's menu bar, notification area icon and popup menus
+// (platform.v). Each is built from the declaration in one go rather than
+// reconciled: a menu is small, and rebuilding it is what keeps the declared
+// rows and the HMENU in step. The window is the one the renderer published to
+// menu.v.
 module ui2
 
 #flag windows -luser32
@@ -33,6 +34,10 @@ fn C.ui2_host_tray_remove()
 
 fn C.ui2_host_tray_popup(hwnd voidptr, menu voidptr) u32
 
+fn C.ui2_host_popup_post(hwnd voidptr) int
+
+fn C.ui2_host_popup_track(hwnd voidptr, menu voidptr, x int, y int, width int, height int) u32
+
 // The menu bar sits in the window's frame. Win32 only runs accelerators from a
 // message loop that asks it to, which sokol's does not, so the renderer
 // matches the declared shortcuts against its own key events (menu_custom.c.v).
@@ -52,6 +57,10 @@ struct WindowsMenuState {
 mut:
 	bar_commands map[u32]MenuItem
 	tray_active  bool
+	// The popup menu posted to the window and not yet shown, if popup_pending.
+	popup         PopupMenuConfig
+	popup_result  PopupMenuCallback = unsafe { nil }
+	popup_pending bool
 }
 
 const windows_menu_state_singleton = &WindowsMenuState{
@@ -125,6 +134,66 @@ fn host_remove_tray() {
 	}
 	C.ui2_host_tray_remove()
 	st.tray_active = false
+}
+
+// A popup menu opens over the window the renderer published to menu.v.
+fn host_popup_menu_supported() bool { return menu_state().window != unsafe { nil } }
+
+// TrackPopupMenuEx runs a modal loop of its own, so the menu is posted to the
+// window's message queue and shown from there, once the input callback that
+// asked for it has returned.
+fn host_show_popup_menu(cfg PopupMenuConfig, on_result PopupMenuCallback) {
+	mut st := windows_menu_state()
+	window := menu_state().window
+	if st.popup_pending || window == unsafe { nil } || cfg.items.len == 0 {
+		on_result(PopupMenuResult{})
+		return
+	}
+	C.ui2_host_menu_attach(window)
+	st.popup = cfg
+	st.popup_result = on_result
+	st.popup_pending = true
+	if C.ui2_host_popup_post(window) == 0 {
+		st.popup = PopupMenuConfig{}
+		st.popup_result = unsafe { nil }
+		st.popup_pending = false
+		on_result(PopupMenuResult{})
+	}
+}
+
+// ui2_host_popup_message shows the posted popup menu and answers it. The
+// anchor's bottom-left corner places the menu, and a select's frame is kept
+// clear of it: the menu opens above the select when it does not fit below.
+@[export: 'ui2_host_popup_message']
+fn ui2_host_popup_message() {
+	mut st := windows_menu_state()
+	if !st.popup_pending {
+		return
+	}
+	cfg := st.popup
+	on_result := st.popup_result
+	st.popup = PopupMenuConfig{}
+	st.popup_result = unsafe { nil }
+	st.popup_pending = false
+	window := menu_state().window
+	menu := C.ui2_host_menu_create()
+	if window == unsafe { nil } || menu == unsafe { nil } {
+		on_result(PopupMenuResult{})
+		return
+	}
+	mut commands := map[u32]MenuItem{}
+	_ := windows_fill_menu(menu, cfg.items, mut commands, win_menu_command_base)
+	// The window's client area is in device pixels.
+	scale := if cfg.scale > 0 { cfg.scale } else { 1.0 }
+	command := C.ui2_host_popup_track(window, menu, int(cfg.anchor.x * scale + 0.5),
+		int(cfg.anchor.y * scale + 0.5), int(cfg.anchor.width * scale + 0.5),
+		int(cfg.anchor.height * scale + 0.5))
+	C.ui2_host_menu_destroy(menu)
+	chosen := commands[command] or {
+		on_result(PopupMenuResult{})
+		return
+	}
+	on_result(PopupMenuResult{ chosen: true, item: chosen })
 }
 
 // windows_fill_menu appends one level of rows, numbering each emitting one

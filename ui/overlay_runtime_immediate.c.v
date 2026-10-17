@@ -2,7 +2,11 @@
 module ui2
 
 $if (linux || macos || windows) && !ui2_headless ? && !ui2_document_library ? {
-	fn resolve_custom_overlays(mut app GgApp, root Element, measure LayoutTextMeasureFn) !Element {
+	fn resolve_custom_overlays(mut app GgApp, declared Element, measure LayoutTextMeasureFn) !Element {
+		viewport := if app.ctx != unsafe { nil } {
+			rect(0, 0, f64(app.ctx.width), f64(app.ctx.height) - menu_bar_height())
+		} else { bounds() }
+		root := with_drawn_popup_menu(mut app, declared, viewport)
 		mut tree := app.overlay_tree
 		if !tree.initialized || tree.source != root {
 			tree.has_overlays = element_has_overlays(root)
@@ -23,9 +27,6 @@ $if (linux || macos || windows) && !ui2_headless ? && !ui2_document_library ? {
 		tree.offsets_x = unsafe { app.overlay_offsets_x }
 		tree.measure = measure
 		tree.environment = app.layout_environment
-		viewport := if app.ctx != unsafe { nil } {
-			rect(0, 0, f64(app.ctx.width), f64(app.ctx.height) - menu_bar_height())
-		} else { bounds() }
 		return tree.resolve(root, app.overlay_offsets, viewport, app.presentation_revision)!
 	}
 
@@ -55,9 +56,13 @@ $if (linux || macos || windows) && !ui2_headless ? && !ui2_document_library ? {
 		if dispatch.valid() && revision == g_gg_app.presentation_revision { request_refresh() }
 	}
 
-	fn overlay_context_press(app &GgApp, x f64, y f64) {
-		dispatch := begin_custom_input_dispatch(app)
-		if !sync_custom_input_geometry(dispatch) { return }
+	// overlay_context_press offers a secondary press to the overlays first. An
+	// open declared context menu moves to it when its owner is under it, the top
+	// surface takes a press outside it, and a closed declared context menu opens
+	// when its owner is under it. It reports whether an overlay took the press.
+	fn overlay_context_press(x f64, y f64) bool {
+		dispatch := custom_input_dispatch(g_gg_app)
+		app := g_gg_app
 		if active := app.overlay_tree.top_active() {
 			if active.config.kind == .context_menu && !overlay_contains(active, x, y)
 				&& active.config.on_open != unsafe { nil } {
@@ -65,12 +70,12 @@ $if (linux || macos || windows) && !ui2_headless ? && !ui2_document_library ? {
 				if owner := g_focus_navigation.node(owner_id) {
 					if !owner.hidden && owner.enabled && hit_target_contains(custom_focus_target(owner), x, y) {
 						request_overlay_open(active, x, y - menu_bar_height())
-						return
+						return true
 					}
 				}
 			}
 		}
-		if overlay_pointer_down(x, y) || !dispatch.valid() { return }
+		if overlay_pointer_down(x, y) || !dispatch.valid() { return true }
 		for i := app.overlay_tree.layers.len - 1; i >= 0; i-- {
 			layer := app.overlay_tree.layers[i]
 			if layer.config.kind != .context_menu || !layer.available || layer.config.on_open == unsafe { nil } { continue }
@@ -78,8 +83,9 @@ $if (linux || macos || windows) && !ui2_headless ? && !ui2_document_library ? {
 			node := g_focus_navigation.node(owner_id) or { continue }
 			if node.hidden || !node.enabled || !hit_target_contains(custom_focus_target(node), x, y) { continue }
 			request_overlay_open(layer, x, y - menu_bar_height())
-			return
+			return true
 		}
+		return false
 	}
 
 	fn overlay_anchor_focused(anchor FocusNode) bool {
@@ -125,7 +131,7 @@ $if (linux || macos || windows) && !ui2_headless ? && !ui2_document_library ? {
 			focused := !anchor.hidden && anchor.enabled && overlay_anchor_focused(anchor)
 			hovered := !anchor.hidden && anchor.enabled && g_tooltip.pointer_in
 				&& hit_target_contains(custom_focus_target(anchor), g_tooltip.pointer_x, g_tooltip.pointer_y)
-			inside := layer.available && (focused || hovered) && !g_touch.down && !menu_bar_open() && g_open_dropdown.len == 0
+			inside := layer.available && (focused || hovered) && !g_touch.down && !menu_bar_open() && !drawn_popup_menu_open() && g_open_dropdown.len == 0
 			mut state := g_gg_app.overlay_triggers[id] or { OverlayTrigger{ owner: owner } }
 			if state.owner != owner { state = OverlayTrigger{ owner: owner } }
 			if inside && !state.inside {
@@ -210,7 +216,7 @@ $if (android || ios) && !ui2_headless ? && !ui2_document_library ? {
 	fn overlay_key(_event KeyEvent, _repeated bool) bool { return false }
 	fn overlay_selection_owner(_id string) ?OverlayLayer { return none }
 	fn request_overlay_dismiss(_layer OverlayLayer, _reason OverlayDismissReason) {}
-	fn overlay_context_press(_app &GgApp, _x f64, _y f64) {}
+	fn overlay_context_press(_x f64, _y f64) bool { return false }
 	fn update_overlay_triggers(_now i64) {}
 	fn overlay_deadline() i64 { return -1 }
 }

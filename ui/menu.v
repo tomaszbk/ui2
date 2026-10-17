@@ -1,16 +1,17 @@
 module ui2
 
-// Application menus: the window's top level menu bar and the status area
-// ("system tray") icon with its own menu.
+// Application menus: the window's top level menu bar, the status area
+// ("system tray") icon with its own menu, and popup menus over the window.
 //
 // Menu rows and tray icons carry their own typed callbacks. An id identifies
 // the source and never selects a window-global handler.
 //
 // MenuEntry, further up in ui.v, stays the flat right-click list attached to
-// one element; MenuItem below is the richer row a menu bar and a tray menu are
-// built from.
+// one element; MenuItem below is the richer row a menu bar, a tray menu and a
+// popup menu are built from.
 
-// MenuItem is one row of a menu bar menu, a submenu, or a tray menu.
+// MenuItem is one row of a menu bar menu, a submenu, a tray menu or a popup
+// menu.
 //
 // A row with `items` is a submenu and emits nothing itself. A row with
 // `separator` set draws the divider between two groups and carries no title.
@@ -59,6 +60,33 @@ pub:
 	tooltip string
 	menu    []MenuItem
 }
+
+// PopupMenuConfig is a menu shown over the window: an element's context menu
+// (Element.menu) or a select's options. The host shows it natively where it
+// can (host_show_popup_menu, platform.v); elsewhere the renderer draws it.
+struct PopupMenuConfig {
+	items []MenuItem
+	// anchor is what the menu opens from, in window logical coordinates: the
+	// pointer, as an empty rect, for a context menu, or a select's frame. The
+	// menu opens at its bottom-left corner.
+	anchor Rect
+	// selected is the index of the row a select shows as its value, or -1. A
+	// host may lay that row over the anchor instead, as a native select does.
+	selected int = -1
+	// scale is how many device pixels a logical unit covers, for a host that
+	// places the menu in pixels.
+	scale f64 = 1
+}
+
+// PopupMenuResult is how a popup menu closed: on the row chosen, or
+// dismissed without a choice.
+struct PopupMenuResult {
+	chosen bool
+	item   MenuItem
+}
+
+// PopupMenuCallback receives a popup menu's result, exactly once.
+type PopupMenuCallback = fn (PopupMenuResult)
 
 // MenuShortcut is a parsed accelerator. `cmd` is the platform's primary
 // modifier, kept apart from `ctrl` so macOS can bind Command and the other

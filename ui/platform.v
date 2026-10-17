@@ -21,6 +21,7 @@ module ui2
 // | window, event loop | sokol_app (or embedder)  | sokol_app         | sokol_app (X11, EGL)  | sokol_app   | sokol_app (UIKit, Metal) |
 // | menu bar           | global NSMenu bar        | window HMENU      | drawn by the renderer | drawn       | none                     |
 // | tray               | NSStatusItem             | notification area | none                  | none        | none                     |
+// | popup menu         | NSMenu pop-up            | TrackPopupMenuEx  | drawn by the renderer | drawn       | drawn                    |
 // | clipboard          | NSPasteboard             | Win32 clipboard   | wl-clipboard, xclip   | none        | UIPasteboard             |
 // | message box        | NSAlert                  | MessageBoxW       | zenity, kdialog       | none        | UIAlertController        |
 // | file dialog        | NSOpenPanel, NSSavePanel | IFileDialog       | zenity, kdialog       | none        | none                     |
@@ -43,7 +44,7 @@ module ui2
 // events itself while idle (linux_idle_linux.c.v). On iOS the renderer shows
 // sokol's on-screen keyboard while an editable field has focus.
 //
-// ## Menu bar and tray (menu_host_*)
+// ## Menu bar, tray and popup menus (menu_host_*)
 //
 //   const host_menu_bar HostMenuBar: where the menu bar lives.
 //   const host_menu_key_equivalents bool: the native menu bar runs its own
@@ -53,6 +54,17 @@ module ui2
 //   fn host_tray_supported() bool
 //   fn host_set_tray(cfg TrayConfig)
 //   fn host_remove_tray()
+//   fn host_popup_menu_supported() bool: whether host_show_popup_menu can show
+//     a native menu over the current window. Where it cannot, the renderer
+//     draws a context menu as a context-menu overlay and a select keeps its
+//     drawn list (popup_menu_immediate.c.v).
+//   fn host_show_popup_menu(cfg PopupMenuConfig, on_result PopupMenuCallback):
+//     show cfg.items at cfg.anchor, in window logical coordinates, and report
+//     the chosen row or a dismissal to on_result exactly once, on the UI
+//     thread. The answer is asynchronous: a host opens the menu once the input
+//     callback that asked for it has returned and answers from its own run
+//     loop, never from inside a renderer callback. A host without popup menus
+//     reports a dismissal at once.
 //
 // ## Clipboard (clipboard_*)
 //
