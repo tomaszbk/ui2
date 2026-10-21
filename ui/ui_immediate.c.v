@@ -84,6 +84,13 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	struct GgApp {
 	mut:
 		ctx &gg.Context = unsafe { nil }
+		scheduler &FrameCoordinator = new_frame_coordinator()
+		declared_root Element
+		has_root bool
+		iconified bool
+		suspended bool
+		dpi_scale f32
+		draining_tasks bool
 	}
 
 	// DropdownPopup caches the geometry of the open dropdown list. The list is
@@ -123,9 +130,8 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		frame Rect
 	}
 
-	// TooltipState follows the pointer from frame to frame. The window is
-	// redrawn continuously, so the first frame after the pointer has rested
-	// on a target long enough shows its tooltip, and no timer is needed.
+	// TooltipState follows the pointer. Its cancelable deadline belongs to the
+	// window coordinator, so a stationary pointer also works in on-demand mode.
 	struct TooltipState {
 	mut:
 		pointer_x  f64
@@ -167,7 +173,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	__global g_window_ready_handler = WindowReadyFn(unsafe { nil })
 	__global g_key_consumed = false
 	__global g_gg_app = &GgApp{}
-	__global g_refresh_mode = RefreshMode.continuous
+	__global g_refresh_mode = RefreshMode.on_demand
 	__global g_last_frame_ticks = i64(0)
 	// g_frame_running is true while on_frame builds and draws the window.
 	// menu_default reads it so a menu bar set during the frame does not ask
@@ -380,13 +386,19 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	// Flat immediate-mode geometry gains nothing visible from 4x, and weak GPUs
 	// pay the fill rate for it; 1 turns antialiasing off.
 		sample_count int = 4
-		refresh    RefreshMode = .continuous
+		refresh    RefreshMode = .on_demand
 	}
 
 // run_window_with_options opens the window with per-application control over
-// the antialiasing level and the refresh mode. run_window and run keep their
-// long-standing behaviour: continuous at 4x samples.
+// the antialiasing level and the refresh mode. run_window and run default the
+// custom renderer to on_demand, where the frame scheduler coalesces asks and
+// leaves the retained tree untouched while nothing is pending; set
+// refresh: .continuous to restore the historical per-vsync rebuild loop.
 	pub fn run_window_with_options(opts WindowOptions, build_fn BuildFn, event_fn EventFn) {
+		// A dispatcher retained by an old worker stays attached to its closed window.
+		if g_gg_app.scheduler.is_closed() {
+			g_gg_app = &GgApp{}
+		}
 		g_refresh_mode = opts.refresh
 		g_build_screen = build_fn
 		g_event_handler = event_fn
@@ -417,6 +429,11 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			window_title: opts.title
 			user_data: unsafe { voidptr(g_gg_app) }
 			init_fn: on_init
+			// gg's ui_mode suppresses this callback before it can drain worker
+			// messages or deadlines, and refresh_ui is not thread safe. Keep the
+			// presentation callback and gate builds/draws in our coordinator (1A).
+			ui_mode: false
+			cleanup_fn: on_cleanup
 			frame_fn: on_frame
 			event_fn: on_event
 			enable_dragndrop: true
@@ -451,33 +468,29 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		}
 	}
 
-// wake_ui_loop hands gg's context a redraw ask. refresh_ui flips a boolean the
-// frame thread reads, so calling it off the UI thread is deliberate and safe;
-// libmpv's update callback and the timer threads land here.
-	fn wake_ui_loop() {
-		if g_gg_app.ctx == unsafe { nil } {
-			return
-		}
-		g_gg_app.ctx.refresh_ui()
+	pub fn render_stats() RenderStats {
+		return g_gg_app.scheduler.stats()
+	}
+
+	// Capture this handle on the UI thread. Workers post model mutations through
+	// it instead of touching controls, gg, or a shared model themselves.
+	pub fn ui_dispatcher() UiDispatcher {
+		return UiDispatcher{coordinator: g_gg_app.scheduler}
 	}
 
 // refresh asks for a rebuild over whatever the application changed outside a
-// frame. Set the window's refresh mode to on_demand to get the effect; the
-// continuous loop was already drawing regardless.
+// frame. In on_demand mode the scheduler turns the ask into exactly one
+// coalesced frame; the continuous loop was already drawing regardless.
 	pub fn refresh() {
-		if g_refresh_mode == .on_demand {
-			wake_ui_loop()
-		}
+		g_gg_app.scheduler.invalidate(.build)
 	}
 
 // request_refresh asks for one more rebuild over whatever state the
 // application changed off the UI thread — new video frames, worker-thread
-// results. Set the window's refresh mode to on_demand to get the effect;
-// the continuous loop was already drawing regardless.
+// results. The scheduler's queue is mutex guarded, so unlike a refresh_ui
+// flip this is safe to call from any thread.
 	pub fn request_refresh() {
-		if g_refresh_mode == .on_demand {
-			wake_ui_loop()
-		}
+		g_gg_app.scheduler.invalidate(.build)
 	}
 
 // refresh_on_demand reports whether the window redraws only when asked. It
@@ -489,9 +502,15 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	}
 
 	pub fn refresh_element(_id string, _element Element) {
-		if g_refresh_mode == .on_demand {
-			wake_ui_loop()
-		}
+		refresh()
+	}
+
+	fn invalidate_custom_paint() {
+		g_gg_app.scheduler.invalidate(.paint)
+	}
+
+	fn renderer_now_ms() i64 {
+		return i64(time.sys_mono_now() / u64(time.millisecond))
 	}
 
 	pub fn on_key(handler KeyFn) {
@@ -544,6 +563,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		mut editor := g_text_editors[id] or { text_editor(t.clone()) }
 		editor.set_text(t.clone())
 		replace_text_editor(id, editor)
+		invalidate_custom_paint()
 	}
 
 	// slider_value returns the live value currently displayed by a mounted
@@ -558,6 +578,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		}
 		spec := g_slider_specs[id] or { return }
 		g_slider_values[id] = slider_clamped_value(value, spec.min, spec.max)
+		invalidate_custom_paint()
 	}
 
 	// switch_active returns the live value, including a pointer change made
@@ -571,6 +592,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			return
 		}
 		g_switch_values[id] = active
+		invalidate_custom_paint()
 	}
 
 	// checkbox_checked returns the live value currently displayed by a mounted
@@ -584,6 +606,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			return
 		}
 		g_checkbox_values[id] = checked
+		invalidate_custom_paint()
 	}
 
 	pub fn toggle_button_pressed(id string) bool {
@@ -598,6 +621,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			release_custom_toggle_group(id)
 		}
 		g_toggle_values[id] = pressed
+		invalidate_custom_paint()
 	}
 
 	pub fn toggle_button_group_members(id string) []string {
@@ -641,6 +665,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		mut editor := g_text_editors[id] or { text_editor((g_text_values[id] or { '' }).clone()) }
 		editor.set_caret(rune_len(editor.text))
 		replace_text_editor(id, editor)
+		invalidate_custom_paint()
 	}
 
 	pub fn focused_id() string {
@@ -658,9 +683,14 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 
 	pub fn dismiss_keyboard() {
 		g_focused_field = ''
+		invalidate_custom_paint()
 	}
 
 	pub fn quit() {
+		if g_gg_app.scheduler.is_closed() {
+			return
+		}
+		g_gg_app.scheduler.close()
 		if g_gg_app.ctx != unsafe { nil } {
 			g_gg_app.ctx.quit()
 		}
@@ -693,6 +723,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		replace_text_value(id, editor.text)
 		replace_text_editor(id, editor)
 		fire_field_change(id)
+		invalidate_custom_paint()
 	}
 
 	pub fn scroll_offset(id string) f64 {
@@ -716,6 +747,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		// stored as a live position: the next frame rendered without the view would
 		// prune it. Hold the request until the view registers and can clamp it.
 		g_pending_scroll[id] = wanted
+		invalidate_custom_paint()
 	}
 
 	// scroll_horizontal_offset returns how far a Scroll element is scrolled sideways.
@@ -743,6 +775,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			}
 		}
 		g_pending_scroll_x[id] = wanted
+		invalidate_custom_paint()
 	}
 
 	pub fn scroll_to_rect(id string, x f64, y f64, width f64, height f64) {
@@ -821,19 +854,60 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 
 	// ── Frame & event loop ─────────────────────────────────────────────
 
-	fn on_init(_ &GgApp) {
+	fn on_init(app &GgApp) {
+		// Sokol's GL/EGL/D3D loops swap even when frame_fn returns early. Their
+		// discarded backbuffers need a full paint; only the Metal path can skip
+		// submission safely until UI2 owns presentation in the platform embedder.
+		// A reference field of an immutable pointer cannot be popped through to a
+		// mut method on V 0.5.2; bind it through a mutable local instead.
+		mut scheduler := app.scheduler
+		scheduler.set_presentation_required(gfx.query_backend() != .metal_macos)
 		if voidptr(g_build_screen) == unsafe { nil } {
 			custom_fire_window_ready()
 			return
 		}
 		// gg/Sokol must receive images during initialization to make their GPU
 		// textures available for the first rendered frame.
+		g_gg_app.scheduler.record_build()
 		preload_images(g_build_screen())
 		custom_fire_window_ready()
 	}
 
-	fn on_frame(app &GgApp) {
-		if app.ctx == unsafe { nil } {
+	fn on_cleanup(app &GgApp) {
+		mut scheduler := app.scheduler
+		scheduler.close()
+		mut state := unsafe { app }
+		state.ctx = unsafe { nil }
+		state.declared_root = Element{}
+		state.has_root = false
+		configure_animation_driver(unsafe { nil }, false)
+		reset_widget_animations()
+		g_tooltip = TooltipState{}
+		g_touch = TouchState{}
+	}
+
+	// The next visual deadline is replaced after every frame. A canceled hover,
+	// unmounted target or released pointer therefore cannot leave a live timer.
+	fn custom_visual_deadline() i64 {
+		mut deadline := i64(-1)
+		if g_tooltip.pointer_in && g_tooltip.key.len > 0 && !g_tooltip.dismissed
+			&& !g_tooltip.visible && !g_touch.down && !menu_bar_open() && g_open_dropdown.len == 0 {
+			deadline = g_tooltip.rest_since + tooltip_delay_ms
+		}
+		if g_touch.down && !g_touch.moved && !g_touch.long_press_fired && !g_touch.scrollbar_drag {
+			target := hit_test(g_touch.start_x, g_touch.start_y)
+			if target.long_press && target.action_id.len > 0 {
+				press_deadline := g_touch.start_time + 450
+				if deadline < 0 || press_deadline < deadline {
+					deadline = press_deadline
+				}
+			}
+		}
+		return deadline
+	}
+
+	fn on_frame(mut app GgApp) {
+		if app.scheduler.is_closed() || app.ctx == unsafe { nil } || app.draining_tasks {
 			return
 		}
 		g_last_frame_ticks = time.ticks()
@@ -841,11 +915,17 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		defer {
 			g_frame_running = false
 		}
+		// Callbacks run outside the coordinator lock, on this UI thread. Business
+		// messages may run while minimized, but visual work stays suspended.
+		app.draining_tasks = true
+		for task in app.scheduler.take_tasks() {
+			if app.scheduler.is_closed() {
+				break
+			}
+			task()
+		}
+		app.draining_tasks = false
 		mut ctx := app.ctx
-		// Some window managers can choose a client size different from the one
-		// requested in gg.Config before gg's cached resize event catches up. UI2
-		// lays out and clips against that cache, so synchronize it from Sokol's
-		// live logical window size before building the frame.
 		live_size := ctx.window_size()
 		if live_size.width > 0 && live_size.height > 0
 			&& (ctx.width != live_size.width || ctx.height != live_size.height) {
@@ -853,10 +933,16 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			ctx.height = live_size.height
 			ctx.window.width = live_size.width
 			ctx.window.height = live_size.height
+			app.scheduler.invalidate(.surface)
 		}
-		// gg builds its fonts in the sokol init callback, after the window has
-		// been created, so the fallback chain is attached on the way into the
-		// first frame rather than in run_window.
+		dpi := sapp.dpi_scale()
+		if dpi != app.dpi_scale {
+			app.dpi_scale = dpi
+			app.scheduler.invalidate(.surface)
+		}
+		now := renderer_now_ms()
+		work := app.scheduler.begin_frame(now) or { return }
+		defer { app.scheduler.finish_frame(work) }
 		ensure_symbol_fallbacks(ctx)
 		if !text_measurement_exact() && ctx.font_inited {
 			// Text is measured from the first frame with fonts and their symbol
@@ -864,33 +950,43 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			// has, such as ⌘, was cached as the width of an empty box.
 			configure_text_measurer(custom_measure_text_width)
 		}
-		mut root := Element{}
-		mut has_root := false
-		if voidptr(g_build_screen) != unsafe { nil } {
-			g_hit_targets = []HitTarget{}
-			g_hover_regions = []HoverRegion{}
-			g_hover_chain = []string{}
-			g_tooltip_targets.clear()
-			g_tooltip_owners = 0
-			reset_scroll_frame()
-			g_active_fields = map[string]bool{}
-			g_active_sliders = map[string]bool{}
-			g_active_switches = map[string]bool{}
-			g_active_checkboxes = map[string]bool{}
-			g_active_toggles = map[string]bool{}
-			g_active_scrolls = map[string]bool{}
-			g_active_images = map[string]bool{}
-			root = apply_widget_animations(g_build_screen())
-			validate_element_tree(root) or {
+		if work.build && voidptr(g_build_screen) != unsafe { nil } {
+			app.scheduler.record_build()
+			declared := g_build_screen()
+			validate_element_tree(declared) or {
 				eprintln('ui2: ${err}')
 				return
 			}
-			// Sokol resources must be created before ctx.begin() starts its draw
-			// pass. Loading here lets the Linux/custom renderer draw PNGs and BMPs
-			// on the same frame they first appear.
-			preload_images(root)
-			has_root = true
+			app.declared_root = declared
+			app.has_root = true
 		}
+		if app.scheduler.is_closed() || app.iconified || app.suspended {
+			return
+		}
+		root := apply_custom_widget_animations(app.declared_root)
+		// Animation callbacks are user code and may close or suspend the window.
+		if app.scheduler.is_closed() || app.iconified || app.suspended {
+			return
+		}
+		validate_element_tree(root) or {
+			eprintln('ui2: ${err}')
+			return
+		}
+		g_hit_targets = []HitTarget{}
+		g_hover_regions = []HoverRegion{}
+		g_hover_chain = []string{}
+		g_tooltip_targets.clear()
+		g_tooltip_owners = 0
+		reset_scroll_frame()
+		g_active_fields = map[string]bool{}
+		g_active_sliders = map[string]bool{}
+		g_active_switches = map[string]bool{}
+		g_active_checkboxes = map[string]bool{}
+		g_active_toggles = map[string]bool{}
+		g_active_scrolls = map[string]bool{}
+		g_active_images = map[string]bool{}
+		// Image resources must be available before starting the GPU pass.
+		preload_images(root)
 		if voidptr(g_gl_surface_renderer) != unsafe { nil } {
 			for id, frame in g_opengl_surface_frames {
 				g_gl_surface_renderer(id, frame, f64(ctx.scale), f64(ctx.height))
@@ -899,11 +995,10 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		sync_gl_surface_textures()
 		g_opengl_surface_frames = map[string]Rect{}
 		ctx.begin()
-		if has_root {
+		if app.has_root {
 			g_dropdown_popup.mounted = false
 			top := menu_bar_height()
-			render_element(ctx, root, 0, top, rect(0, top, f64(ctx.width), f64(ctx.height) - top),
-				'')
+			render_element(ctx, root, 0, top, rect(0, top, f64(ctx.width), f64(ctx.height) - top), '')
 			if g_open_dropdown.len > 0 {
 				if g_dropdown_popup.mounted {
 					draw_dropdown_popup(ctx)
@@ -911,27 +1006,40 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 					close_dropdown()
 				}
 			}
-			// The bar and its panels float above every control in the window.
 			draw_menu_bar(ctx)
-			// A tooltip floats above everything, the bar included: one flipped
-			// above a control near the top of the window can reach over it.
-			update_tooltip(time.ticks())
+			update_tooltip(now)
 			draw_tooltip(ctx)
 			prune_unmounted_state()
 			// Content can move under a pointer that stays put.
 			update_hover()
 		}
 		check_long_press()
+		// gg.begin flushes the PREVIOUS atlas. New glyphs (including tooltip
+		// sizes and worker text) must be uploaded before this frame's sgl draw.
+		// Flushing here also leaves the next gg.begin with no pending upload.
+		if ctx.font_inited {
+			ctx.ft.flush()
+		}
 		ctx.end()
+		app.scheduler.record_draw()
+		app.scheduler.set_deadline(custom_visual_deadline())
+		app.scheduler.set_animation_active(custom_animations_need_frame(app.declared_root))
 	}
 
-	fn on_event(e &gg.Event, _ &GgApp) {
+	fn on_event(e &gg.Event, app &GgApp) {
+		mut state := unsafe { app }
+		if state.scheduler.is_closed() {
+			return
+		}
 		g_key_modifiers = KeyModifiers{
 			shift: e.modifiers & u32(gg.Modifier.shift) != 0
 			ctrl: e.modifiers & u32(gg.Modifier.ctrl) != 0
 			alt: e.modifiers & u32(gg.Modifier.alt) != 0
 			cmd: e.modifiers & u32(gg.Modifier.super) != 0
 		}
+		// All input can affect local interaction or invoke application handlers.
+		// Legacy builds remain complete; paint-only setters/deadlines reuse root.
+		state.scheduler.invalidate(.build)
 		match e.typ {
 			.mouse_down {
 				if voidptr(g_mouse_button_handler) != unsafe { nil } {
@@ -946,7 +1054,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			.mouse_move {
 				// Recorded before any handler below can claim the move, so the
 				// tooltip always knows where the pointer is.
-				g_tooltip.pointer_moved(f64(e.mouse_x), f64(e.mouse_y), time.ticks())
+				g_tooltip.pointer_moved(f64(e.mouse_x), f64(e.mouse_y), renderer_now_ms())
 				if voidptr(g_pointer_move_handler) != unsafe { nil } {
 					g_pointer_move_handler(f64(e.mouse_x), f64(e.mouse_y))
 				}
@@ -973,7 +1081,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			.mouse_scroll {
 				// The content moves under a pointer that stays put, so whatever
 				// ends up beneath it waits for a fresh rest.
-				g_tooltip.restart(time.ticks())
+				g_tooltip.restart(renderer_now_ms())
 				if voidptr(g_wheel_handler) != unsafe { nil } {
 					g_wheel_handler(f64(e.scroll_x), f64(e.scroll_y))
 				}
@@ -1026,7 +1134,30 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 					handle_touch_up(g_touch.current_x, g_touch.current_y)
 				}
 			}
-			.touches_cancelled, .unfocused, .suspended {
+			.iconified, .suspended {
+				if e.typ == .iconified {
+					state.iconified = true
+				} else {
+					state.suspended = true
+				}
+				state.scheduler.suspend()
+				g_tooltip.pointer_left()
+				cancel_touch()
+			}
+			.restored, .resumed {
+				if e.typ == .restored {
+					state.iconified = false
+				} else {
+					state.suspended = false
+				}
+				if !state.iconified && !state.suspended {
+					state.scheduler.resume()
+				}
+			}
+			.resized, .focused {
+				state.scheduler.invalidate(.surface)
+			}
+			.touches_cancelled, .unfocused {
 				g_tooltip.dismiss()
 				cancel_touch()
 			}
@@ -1067,7 +1198,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			start_y: y
 			current_x: x
 			current_y: y
-			start_time: time.ticks()
+			start_time: renderer_now_ms()
 			moved: false
 			long_press_fired: false
 		}
@@ -1186,8 +1317,12 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		next := clamped_scroll_offset(requested, maximum)
 		previous := g_scroll_offsets[id] or { 0.0 }
 		g_scroll_offsets[id] = next
-		if next != previous && voidptr(g_scroll_handler) != unsafe { nil } {
-			g_scroll_handler(id)
+		if next != previous {
+			invalidate_custom_paint()
+			if voidptr(g_scroll_handler) != unsafe { nil } {
+				refresh()
+				g_scroll_handler(id)
+			}
 		}
 	}
 
@@ -1195,8 +1330,12 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		next := clamped_scroll_offset(requested, maximum)
 		previous := g_scroll_offsets_x[id] or { 0.0 }
 		g_scroll_offsets_x[id] = next
-		if next != previous && voidptr(g_scroll_handler) != unsafe { nil } {
-			g_scroll_handler(id)
+		if next != previous {
+			invalidate_custom_paint()
+			if voidptr(g_scroll_handler) != unsafe { nil } {
+				refresh()
+				g_scroll_handler(id)
+			}
 		}
 	}
 
@@ -1334,7 +1473,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		if !g_touch.down || g_touch.moved || g_touch.long_press_fired || g_touch.scrollbar_drag {
 			return
 		}
-		elapsed := time.ticks() - g_touch.start_time
+		elapsed := renderer_now_ms() - g_touch.start_time
 		if elapsed < 450 {
 			return
 		}
@@ -1397,6 +1536,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 
 	fn fire_event(id string) {
 		if id.len > 0 && voidptr(g_event_handler) != unsafe { nil } {
+			refresh()
 			g_event_handler(id)
 		}
 	}

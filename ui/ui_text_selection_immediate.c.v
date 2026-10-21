@@ -13,6 +13,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		end := utf16_offset_to_rune_index(value, selection.location + selection.length)
 		editor.set_selection(start, end)
 		replace_text_editor(id, editor)
+		invalidate_custom_paint()
 	}
 
 	pub fn text_area_set_caret(id string, pos int) {
