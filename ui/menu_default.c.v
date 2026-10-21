@@ -18,10 +18,17 @@ fn native_tray_supported() bool {
 
 fn native_set_menu_bar(_menus []Menu) {
 	$if (android || linux) && !ui2_headless ? {
-		// The bar is redrawn from the declaration every frame; all that has to
-		// happen here is that a menu left open by the previous declaration
-		// cannot outlive it.
+		// Rebuild bounds and paint after replacing the menu declaration.
 		close_menu_bar()
+		// The drawn bar only exists during frames, so a call from a thread or
+		// before the first frame needs one ask to show up in on_demand refresh
+		// mode. A call from inside the frame being built is already covered by
+		// that frame and the trailing frames after it, and asking there would
+		// keep an on_demand window redrawing forever.
+		if !g_frame_running {
+			request_refresh()
+		}
+		refresh()
 	}
 }
 

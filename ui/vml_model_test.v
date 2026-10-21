@@ -880,3 +880,10 @@ fn test_vml_model_adapter_writes_fields_and_dispatches_typed_actions() {
 	}) or { panic(err) }
 	assert app.removed == 42
 }
+
+fn test_vml_computed_whole_numbers_read_without_a_fraction() {
+	assert v_number_text(2.0) == '2'
+	assert v_number_text(-3.0) == '-3'
+	assert v_number_text(2.5) == '2.5'
+	assert v_number_text(0.0) == '0'
+}

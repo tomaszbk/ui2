@@ -33,18 +33,18 @@ fn native_message_box_supported() bool {
 
 fn native_message_box(cfg MessageBoxConfig) MessageBoxResult {
 	tool := linux_message_box_tool()
-	command := match tool {
+	dialog := match tool {
 		'zenity' { linux_zenity_command(cfg) }
 		'kdialog' { linux_kdialog_command(cfg) }
-		else { '' }
+		else { []string{} }
 	}
-	if command.len == 0 {
+	if dialog.len == 0 {
 		// Headless or unequipped: report the message so it is not swallowed,
 		// then answer as if the user dismissed the dialog.
 		eprintln('ui2: ${cfg.title} ${cfg.text}')
 		return message_box_default_result(cfg.buttons)
 	}
-	result := os.execute(command)
+	result := os.exec(dialog)
 	if result.exit_code < 0 {
 		return message_box_default_result(cfg.buttons)
 	}
@@ -54,13 +54,7 @@ fn native_message_box(cfg MessageBoxConfig) MessageBoxResult {
 	return linux_kdialog_result(cfg.buttons, result.exit_code)
 }
 
-// linux_shell_quote wraps a value for /bin/sh, which is what os.execute runs
-// the command through.
-fn linux_shell_quote(value string) string {
-	return "'" + value.replace("'", "'\\''") + "'"
-}
-
-fn linux_zenity_command(cfg MessageBoxConfig) string {
+fn linux_zenity_command(cfg MessageBoxConfig) []string {
 	titles := message_box_button_titles(cfg.buttons)
 	// Only --question draws more than one button, so multi-button sets use it
 	// whatever their severity and relabel the standard pair.
@@ -74,18 +68,17 @@ fn linux_zenity_command(cfg MessageBoxConfig) string {
 	} else {
 		'--question'
 	}
-	mut parts := ['zenity', kind, '--title=' + linux_shell_quote(cfg.title),
-		'--text=' + linux_shell_quote(linux_dialog_body(cfg))]
-	parts << '--ok-label=' + linux_shell_quote(titles[0])
+	mut parts := ['zenity', kind, '--title=${cfg.title}', '--text=${linux_dialog_body(cfg)}']
+	parts << '--ok-label=${titles[0]}'
 	if titles.len > 1 {
-		parts << '--cancel-label=' + linux_shell_quote(titles[titles.len - 1])
+		parts << '--cancel-label=${titles[titles.len - 1]}'
 	}
 	if titles.len > 2 {
 		// zenity offers exactly one OK and one Cancel button; anything in
 		// between has to be an extra button, which prints its own label.
-		parts << '--extra-button=' + linux_shell_quote(titles[1])
+		parts << '--extra-button=${titles[1]}'
 	}
-	return parts.join(' ')
+	return parts
 }
 
 fn linux_zenity_result(buttons MessageBoxButtons, exit_code int, output string) MessageBoxResult {
@@ -99,10 +92,10 @@ fn linux_zenity_result(buttons MessageBoxButtons, exit_code int, output string) 
 	return message_box_result_at(buttons, titles.len - 1)
 }
 
-fn linux_kdialog_command(cfg MessageBoxConfig) string {
+fn linux_kdialog_command(cfg MessageBoxConfig) []string {
 	titles := message_box_button_titles(cfg.buttons)
-	body := linux_shell_quote(linux_dialog_body(cfg))
-	mut parts := ['kdialog', '--title', linux_shell_quote(cfg.title)]
+	body := linux_dialog_body(cfg)
+	mut parts := ['kdialog', '--title', cfg.title]
 	match cfg.buttons {
 		.ok {
 			kind := match cfg.style {
@@ -113,16 +106,14 @@ fn linux_kdialog_command(cfg MessageBoxConfig) string {
 			parts << [kind, body]
 		}
 		.yes_no_cancel {
-			parts << ['--yesnocancel', body, '--yes-label', linux_shell_quote(titles[0]),
-				'--no-label', linux_shell_quote(titles[1]),
-				'--cancel-label', linux_shell_quote(titles[2])]
+			parts << ['--yesnocancel', body, '--yes-label', titles[0], '--no-label', titles[1],
+				'--cancel-label', titles[2]]
 		}
 		else {
-			parts << ['--yesno', body, '--yes-label', linux_shell_quote(titles[0]),
-				'--no-label', linux_shell_quote(titles[1])]
+			parts << ['--yesno', body, '--yes-label', titles[0], '--no-label', titles[1]]
 		}
 	}
-	return parts.join(' ')
+	return parts
 }
 
 fn linux_kdialog_result(buttons MessageBoxButtons, exit_code int) MessageBoxResult {

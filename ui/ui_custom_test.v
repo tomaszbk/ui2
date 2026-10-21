@@ -10,7 +10,7 @@ $if ui2_custom_rendering ? {
 
 	fn test_custom_desktop_backend_defaults() {
 		assert bounds() == Rect{
-			width: 800
+			width:  800
 			height: 600
 		}
 		assert control_support(.button) == .supported
@@ -119,12 +119,12 @@ $if ui2_custom_rendering ? {
 
 	fn test_custom_slider_pointer_value_uses_range_step_and_orientation() {
 		horizontal := HitTarget{
-			slider: true
-			slider_frame: rect(10, 20, 120, 30)
+			slider:         true
+			slider_frame:   rect(10, 20, 120, 30)
 			slider_padding: 10
-			slider_spec: SliderSpec{
-				min: -20
-				max: 80
+			slider_spec:    SliderSpec{
+				min:  -20
+				max:  80
 				step: 5
 			}
 		}
@@ -133,7 +133,7 @@ $if ui2_custom_rendering ? {
 		vertical := HitTarget{
 			...horizontal
 			slider_frame: rect(10, 20, 30, 120)
-			slider_spec: SliderSpec{
+			slider_spec:  SliderSpec{
 				...horizontal.slider_spec
 				orientation: .vertical
 			}
@@ -170,12 +170,12 @@ $if ui2_custom_rendering ? {
 			'network': true
 		}
 		target := HitTarget{
-			id: 'network'
-			action_id: 'network_changed'
-			x: 10
-			y: 20
-			w: 80
-			h: 32
+			id:             'network'
+			action_id:      'network_changed'
+			x:              10
+			y:              20
+			w:              80
+			h:              32
 			switch_control: true
 		}
 		g_hit_targets = [target]
@@ -208,13 +208,13 @@ $if ui2_custom_rendering ? {
 			'newsletter': true
 		}
 		g_hit_targets = [HitTarget{
-			id: 'newsletter'
+			id:        'newsletter'
 			action_id: 'newsletter_changed'
-			x: 10
-			y: 20
-			w: 120
-			h: 28
-			checkbox: true
+			x:         10
+			y:         20
+			w:         120
+			h:         28
+			checkbox:  true
 		}]
 		handle_touch_down(20, 30)
 		handle_touch_up(20, 30)
@@ -238,11 +238,11 @@ $if ui2_custom_rendering ? {
 			'newsletter': true
 		}
 		g_hit_targets = [HitTarget{
-			id: 'newsletter'
-			x: 10
-			y: 60
-			w: 120
-			h: 28
+			id:       'newsletter'
+			x:        10
+			y:        60
+			w:        120
+			h:        28
 			checkbox: true
 		}]
 		g_scroll_areas = map[string]Rect{
@@ -285,12 +285,12 @@ $if ui2_custom_rendering ? {
 			'bold': true
 		}
 		g_hit_targets = [HitTarget{
-			id: 'bold'
-			action_id: 'bold_changed'
-			x: 10
-			y: 20
-			w: 80
-			h: 32
+			id:            'bold'
+			action_id:     'bold_changed'
+			x:             10
+			y:             20
+			w:             80
+			h:             32
 			toggle_button: true
 		}]
 		handle_touch_down(20, 30)
@@ -327,24 +327,24 @@ $if ui2_custom_rendering ? {
 			'right': true
 		}
 		commit_toggle_button(HitTarget{
-			id: 'right'
-			toggle_button: true
-			toggle_group: 'alignment'
+			id:                        'right'
+			toggle_button:             true
+			toggle_group:              'alignment'
 			toggle_allow_no_selection: false
 		})
 		assert !toggle_button_pressed('left')
 		assert toggle_button_pressed('right')
 		commit_toggle_button(HitTarget{
-			id: 'right'
-			toggle_button: true
-			toggle_group: 'alignment'
+			id:                        'right'
+			toggle_button:             true
+			toggle_group:              'alignment'
 			toggle_allow_no_selection: false
 		})
 		assert toggle_button_pressed('right')
 		commit_toggle_button(HitTarget{
-			id: 'right'
-			toggle_button: true
-			toggle_group: 'alignment'
+			id:                        'right'
+			toggle_button:             true
+			toggle_group:              'alignment'
 			toggle_allow_no_selection: true
 		})
 		assert !toggle_button_pressed('left')
@@ -387,12 +387,12 @@ $if ui2_custom_rendering ? {
 
 	fn test_custom_dropdown_scroll_reveals_the_selected_row() {
 		g_dropdown_popup = DropdownPopup{
-			id: 'menu'
-			options: ['a', 'b', 'c', 'd', 'e', 'f']
+			id:         'menu'
+			options:    ['a', 'b', 'c', 'd', 'e', 'f']
 			row_height: 28
-			height: 2 * 28 + 8
+			height:     2 * 28 + 8
 			max_scroll: 4 * 28
-			selected: 5
+			selected:   5
 		}
 		g_dropdown_scroll = 0
 		reveal_dropdown_row(5)
@@ -409,10 +409,10 @@ $if ui2_custom_rendering ? {
 	fn test_custom_dropdown_click_opens_a_list_instead_of_cycling() {
 		close_dropdown()
 		target := HitTarget{
-			id: 'menu-click'
+			id:        'menu-click'
 			action_id: 'menu-change'
-			dropdown: true
-			options: ['One', 'Two', 'Three']
+			dropdown:  true
+			options:   ['One', 'Two', 'Three']
 		}
 		open_dropdown(target)
 		assert g_open_dropdown == 'menu-click'
@@ -420,7 +420,7 @@ $if ui2_custom_rendering ? {
 		select_dropdown_option(HitTarget{
 			...target
 			dropdown_option: true
-			option_index: 2
+			option_index:    2
 		})
 		assert g_open_dropdown == ''
 		assert text('menu-click') == 'Three'
@@ -430,8 +430,8 @@ $if ui2_custom_rendering ? {
 		close_dropdown()
 		open_dropdown(HitTarget{
 			action_id: 'menu-change'
-			dropdown: true
-			options: ['One']
+			dropdown:  true
+			options:   ['One']
 		})
 		assert g_open_dropdown == ''
 	}
@@ -440,12 +440,12 @@ $if ui2_custom_rendering ? {
 		close_dropdown()
 		g_open_dropdown = 'menu-keys'
 		g_dropdown_popup = DropdownPopup{
-			id: 'menu-keys'
-			action_id: 'menu-change'
-			options: ['One', 'Two', 'Three']
+			id:         'menu-keys'
+			action_id:  'menu-change'
+			options:    ['One', 'Two', 'Three']
 			row_height: 28
-			height: 3 * 28 + 8
-			mounted: true
+			height:     3 * 28 + 8
+			mounted:    true
 		}
 		assert handle_dropdown_key(.down)
 		assert g_dropdown_hover == 0
@@ -463,27 +463,27 @@ $if ui2_custom_rendering ? {
 		options := ['One', 'Two', 'Three']
 		mut targets := [
 			HitTarget{
-				id: id
+				id:        id
 				action_id: 'menu-change'
-				x: 32
-				y: 70
-				w: 296
-				h: 42
-				dropdown: true
-				options: options
+				x:         32
+				y:         70
+				w:         296
+				h:         42
+				dropdown:  true
+				options:   options
 			},
 		]
 		for index in 0 .. options.len {
 			targets << HitTarget{
-				id: id
-				action_id: 'menu-change'
-				x: 32
-				y: 120 + f64(index) * 28
-				w: 296
-				h: 28
+				id:              id
+				action_id:       'menu-change'
+				x:               32
+				y:               120 + f64(index) * 28
+				w:               296
+				h:               28
 				dropdown_option: true
-				option_index: index
-				options: options
+				option_index:    index
+				options:         options
 			}
 		}
 		return targets
@@ -534,11 +534,11 @@ $if ui2_custom_rendering ? {
 		close_dropdown()
 		g_open_dropdown = 'menu-escape'
 		g_dropdown_popup = DropdownPopup{
-			id: 'menu-escape'
-			options: ['One', 'Two']
+			id:         'menu-escape'
+			options:    ['One', 'Two']
 			row_height: 28
-			height: 2 * 28 + 8
-			mounted: true
+			height:     2 * 28 + 8
+			mounted:    true
 		}
 		assert handle_dropdown_key(.escape)
 		assert g_open_dropdown == ''
@@ -549,9 +549,9 @@ $if ui2_custom_rendering ? {
 		g_touch = TouchState{}
 		assert !touch_is_held_inside(10, 10, 100, 30)
 		g_touch = TouchState{
-			down: true
-			start_x: 20
-			start_y: 20
+			down:      true
+			start_x:   20
+			start_y:   20
 			current_x: 20
 			current_y: 20
 		}
@@ -561,9 +561,9 @@ $if ui2_custom_rendering ? {
 		assert !touch_is_held_inside(10, 10, 100, 30)
 		// A press that began elsewhere does not light up what it passes over.
 		g_touch = TouchState{
-			down: true
-			start_x: 300
-			start_y: 20
+			down:      true
+			start_x:   300
+			start_y:   20
 			current_x: 20
 			current_y: 20
 		}
@@ -576,7 +576,7 @@ fn test_text_field_selection_text_uses_rune_offsets() {
 	$if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
 		before, selected := text_field_selection_text('a🙂bc', TextSelection{
 			anchor: 4
-			caret: 1
+			caret:  1
 		})
 		assert before == 'a'
 		assert selected == '🙂bc'

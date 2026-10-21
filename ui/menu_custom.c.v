@@ -61,7 +61,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	// bounds() subtracts it and the screen is drawn below it, so an element at
 	// y 0 sits under the bar rather than behind it.
 	fn menu_bar_height() f64 {
-		return if menu_bar().len == 0 { 0.0 } else { menubar_height }
+		return if g_menu_bar_hidden || menu_bar().len == 0 { 0.0 } else { menubar_height }
 	}
 
 	fn menu_bar_open() bool {
@@ -126,6 +126,13 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		menus := menu_bar()
 		g_menu_hits = []MenuBarHit{}
 		g_menu_panels = []Rect{}
+		if g_menu_bar_hidden {
+			// A menu left open when the bar was hidden must not come back open later.
+			if menu_bar_open() {
+				close_menu_bar()
+			}
+			return
+		}
 		if menus.len == 0 {
 			return
 		}
@@ -344,7 +351,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	// act on release, the way both platform menus do, so a press-drag-release
 	// selects in one gesture.
 	fn menu_bar_handle_down(x f64, y f64) bool {
-		if menu_bar().len == 0 {
+		if g_menu_bar_hidden || menu_bar().len == 0 {
 			return false
 		}
 		if hit := menu_bar_hit_at(x, y) {
@@ -368,7 +375,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	}
 
 	fn menu_bar_handle_move(x f64, y f64) bool {
-		if !menu_bar_open() {
+		if g_menu_bar_hidden || !menu_bar_open() {
 			return false
 		}
 		hit := menu_bar_hit_at(x, y) or {
@@ -413,6 +420,9 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	// asked before the window's own key handler, so a menu shortcut wins over
 	// an app binding on the same chord.
 	fn menu_bar_handle_key(e &gg.Event) bool {
+		if g_menu_bar_hidden {
+			return false
+		}
 		if menu_bar_open() && e.key_code == .escape {
 			close_menu_bar()
 			return true

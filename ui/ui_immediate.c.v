@@ -9,7 +9,9 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	import gg
 	import math
 	import os
+	import sokol.gfx
 	import sokol.sapp
+	import sokol.sgl
 	import time
 
 	struct HitTarget {
@@ -69,9 +71,26 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		scrollbar_grab_x     f64
 	}
 
+	// GlSurfaceTexture wraps a GL texture the application renders into, as a sokol
+	// image, so an `opengl` element is an ordinary textured quad in the UI's pass.
+	struct GlSurfaceTexture {
+		gl_texture u32
+		width      int
+		height     int
+		image      gfx.Image
+		sampler    gfx.Sampler
+	}
+
 	struct GgApp {
 	mut:
 		ctx &gg.Context = unsafe { nil }
+		scheduler &FrameCoordinator = new_frame_coordinator()
+		declared_root Element
+		has_root bool
+		iconified bool
+		suspended bool
+		dpi_scale f32
+		draining_tasks bool
 	}
 
 	// DropdownPopup caches the geometry of the open dropdown list. The list is
@@ -111,9 +130,8 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		frame Rect
 	}
 
-	// TooltipState follows the pointer from frame to frame. The window is
-	// redrawn continuously, so the first frame after the pointer has rested
-	// on a target long enough shows its tooltip, and no timer is needed.
+	// TooltipState follows the pointer. Its cancelable deadline belongs to the
+	// window coordinator, so a stationary pointer also works in on-demand mode.
 	struct TooltipState {
 	mut:
 		pointer_x  f64
@@ -152,8 +170,16 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	__global g_key_event_handler = KeyEventFn(unsafe { nil })
 	__global g_scroll_handler = ScrollFn(unsafe { nil })
 	__global g_drop_handler = DropFn(unsafe { nil })
+	__global g_window_ready_handler = WindowReadyFn(unsafe { nil })
+	__global g_window_resize_handler = WindowResizeFn(unsafe { nil })
 	__global g_key_consumed = false
 	__global g_gg_app = &GgApp{}
+	__global g_refresh_mode = RefreshMode.on_demand
+	__global g_last_frame_ticks = i64(0)
+	// g_frame_running is true while on_frame builds and draws the window.
+	// menu_default reads it so a menu bar set during the frame does not ask
+	// for another one.
+	__global g_frame_running = false
 	__global g_text_values = map[string]string{}
 	__global g_text_props = map[string]string{}
 	__global g_text_editors = map[string]TextEditor{}
@@ -173,6 +199,30 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	__global g_scroll_offsets = map[string]f64{}
 	__global g_scroll_content_h = map[string]f64{}
 	__global g_hit_targets = []HitTarget{}
+	// The modifier keys of the last event sokol delivered, for key_modifiers on
+	// platforms with no other way to ask.
+	__global g_key_modifiers = KeyModifiers{}
+
+	// HoverRegion is the visible part of an element drawn this frame and the
+	// hoverable elements it belongs to, from the outermost in. The last region
+	// under the pointer is the topmost element there, so its chain is what the
+	// pointer hovers.
+	struct HoverRegion {
+		area  Rect
+		chain []string
+	}
+
+	__global g_hover_regions = []HoverRegion{}
+	__global g_hover_chain = []string{}
+	__global g_hovered = []string{}
+	__global g_hover_pointer = HoverPointer{}
+
+	struct HoverPointer {
+	mut:
+		x      f64
+		y      f64
+		inside bool
+	}
 	__global g_touch = TouchState{}
 	__global g_scroll_areas = map[string]Rect{}
 	__global g_active_fields = map[string]bool{}
@@ -191,6 +241,8 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	__global g_font_symbol_bases = map[int]bool{}
 	__global g_font_symbol_fons = voidptr(unsafe { nil })
 	__global g_active_images = map[string]bool{}
+	__global g_opengl_surface_frames = map[string]Rect{}
+	__global g_gl_surface_textures = map[string]GlSurfaceTexture{}
 	__global g_open_dropdown = ''
 	__global g_dropdown_popup = DropdownPopup{}
 	__global g_dropdown_hover = -1
@@ -295,10 +347,79 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 	}
 
 	fn run_window_with_min_size(title string, width int, height int, min_width int, min_height int, build_fn BuildFn, event_fn EventFn) {
+		run_window_with_options(WindowOptions{
+			title:      title
+			width:      width
+			height:     height
+			min_width:  min_width
+			min_height: min_height
+		}, build_fn, event_fn)
+	}
+
+// RefreshMode selects how a window decides to redraw.
+//
+// continuous rebuilds and repaints on every vsync, which is what the
+// immediate backend has always done: anything can change between frames, so
+// nothing has to remember to ask for a repaint.
+//
+// on_demand rebuilds only when something asks: window and input events, `after`
+// timers, running animations, and application calls to request_refresh from
+// its own threads. Between those the frame callback draws nothing, Sokol still
+// throttles itself to the display, and the window idles at a fraction of the
+// continuous cost. An application whose frames come from outside the window —
+// a video surface fed by a player, for example — calls request_refresh from
+// the player thread whenever new content is ready.
+//
+// manual suppresses the frame callback between explicit asks, like on_demand
+// did before the frame scheduler took over: refresh and request_refresh wake
+// the loop for exactly one coalesced frame, deadlines and running animations
+// wake their own continuation, and nothing else draws — no per-vsync present,
+// no keep-alive redraw.
+	pub enum RefreshMode {
+	continuous
+	on_demand
+	manual
+	}
+
+// WindowOptions carries the window creation knobs run_window_with_options
+// accepts on top of what run_window takes positionally.
+	pub struct WindowOptions {
+	pub:
+		title      string
+		width      int
+		height     int
+		min_width  int
+		min_height int
+	// sample_count is Sokol's antialiasing level for the window's framebuffer.
+	// Flat immediate-mode geometry gains nothing visible from 4x, and weak GPUs
+	// pay the fill rate for it; 1 turns antialiasing off.
+		sample_count int = 4
+		refresh    RefreshMode = .on_demand
+	}
+
+// run_window_with_options opens the window with per-application control over
+// the antialiasing level and the refresh mode. run_window and run default the
+// custom renderer to on_demand, where the frame scheduler coalesces asks and
+// leaves the retained tree untouched while nothing is pending; set
+// refresh: .continuous to restore the historical per-vsync rebuild loop.
+	pub fn run_window_with_options(opts WindowOptions, build_fn BuildFn, event_fn EventFn) {
+		// A dispatcher retained by an old worker stays attached to its closed window.
+		if g_gg_app.scheduler.is_closed() {
+			g_gg_app = &GgApp{}
+		}
+		g_refresh_mode = opts.refresh
+		// In manual mode gg suppresses the frame callback between asks, so the
+		// scheduler's wake hook revives it whenever new work, a running
+		// animation or an expired deadline needs a frame.
+		g_gg_app.scheduler.set_wake_fn(wake_ui_loop)
 		g_build_screen = build_fn
 		g_event_handler = event_fn
-		configure_animation_driver(request_refresh, false)
-		publish_menu_context(event_fn, title, unsafe { nil })
+		// In on_demand mode the loop sleeps between asks, so a running
+		// animation drives it from a thread: each tick asks for a frame until
+		// every animation has crossed its deadline. The continuous loop draws
+		// anyway and needs no driver thread.
+		configure_animation_driver(request_refresh, opts.refresh == .on_demand)
+		publish_menu_context(event_fn, opts.title, unsafe { nil })
 		// Choosing the font here rather than letting gg ask `fc-match` for one
 		// keeps the window legible and identical across distributions, and
 		// gives draw_text the metrics it needs to size text in points.
@@ -310,33 +431,110 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			bg_color: hex_color(0xf4f6f8)
 			font_path: font_regular
 			custom_bold_font_path: font_bold
-			width: width
-			height: height
-			min_width: min_width
-			min_height: min_height
-			sample_count: 4
+			width: opts.width
+			height: opts.height
+			min_width: opts.min_width
+			min_height: opts.min_height
+			sample_count: opts.sample_count
+			// Manual mode suppresses the frame callback between asks; the
+			// scheduler's wake hook revives it. The other modes keep the
+			// callback flowing and gate builds/draws in the coordinator —
+			// gg's ui_mode would suppress it before it can drain worker
+			// messages or deadlines, and refresh_ui is not thread safe.
+			ui_mode: opts.refresh == .manual
 			create_window: true
-			window_title: title
+			window_title: opts.title
 			user_data: unsafe { voidptr(g_gg_app) }
 			init_fn: on_init
+			cleanup_fn: on_cleanup
 			frame_fn: on_frame
 			event_fn: on_event
 			enable_dragndrop: true
 			max_dropped_files: 32
 			max_dropped_file_path_length: 4096
 		)
+		if opts.refresh == .on_demand {
+			spawn idle_keepalive_waker()
+		}
 		g_gg_app.ctx.run()
 	}
 
-	pub fn refresh() {
+// idle_keepalive_waker redraws an idle on_demand window at a slow fixed
+// rate. Every normal trigger — events, timers, animations, the application's
+// threads — asks for a redraw itself; this thread is for the ones that cannot
+// ask. On X11, sokol selects no Expose handling, so when a region of the window
+// becomes visible again nothing tells the loop, and with no compositor the
+// old pixels stay on screen. A redraw every second bounds how long any
+// surprise persists while costing about two frames out of each.
+	const idle_keepalive_ms = 1000
+
+	fn idle_keepalive_waker() {
+		for {
+			time.sleep(idle_keepalive_ms * time.millisecond)
+			// Frames flowing for another reason keep g_last_frame_ticks fresh;
+			// stepping over those intervals keeps the keep-alive from adding
+			// work on top of live traffic.
+			if time.ticks() - g_last_frame_ticks < idle_keepalive_ms {
+				continue
+			}
+			request_refresh()
+		}
 	}
 
-	// The immediate backend already rebuilds every frame, so both refresh entry
-	// points are intentionally scheduling no-ops.
+	pub fn render_stats() RenderStats {
+		return g_gg_app.scheduler.stats()
+	}
+
+	// Capture this handle on the UI thread. Workers post model mutations through
+	// it instead of touching controls, gg, or a shared model themselves.
+	pub fn ui_dispatcher() UiDispatcher {
+		return UiDispatcher{coordinator: g_gg_app.scheduler}
+	}
+
+// wake_ui_loop hands gg's context a redraw ask. refresh_ui flips a boolean the
+// frame thread reads, so calling it off the UI thread is deliberate and safe;
+// libmpv's update callback, the scheduler's wake hook and the timer threads
+// land here.
+	fn wake_ui_loop() {
+		if g_gg_app.ctx == unsafe { nil } {
+			return
+		}
+		g_gg_app.ctx.refresh_ui()
+	}
+
+// refresh asks for a rebuild over whatever the application changed outside a
+// frame. In on_demand mode the scheduler turns the ask into exactly one
+// coalesced frame; the continuous loop was already drawing regardless.
+	pub fn refresh() {
+		g_gg_app.scheduler.invalidate(.build)
+	}
+
+// request_refresh asks for one more rebuild over whatever state the
+// application changed off the UI thread — new video frames, worker-thread
+// results. The scheduler's queue is mutex guarded, so unlike a refresh_ui
+// flip this is safe to call from any thread.
 	pub fn request_refresh() {
+		g_gg_app.scheduler.invalidate(.build)
+	}
+
+// refresh_on_demand reports whether the window redraws only when asked. It
+// lets an application skip scheduling wake timers whose only job is a redraw
+// ask: in continuous mode the loop reaches every state change within a frame
+// anyway.
+	pub fn refresh_on_demand() bool {
+		return g_refresh_mode == .on_demand
 	}
 
 	pub fn refresh_element(_id string, _element Element) {
+		refresh()
+	}
+
+	fn invalidate_custom_paint() {
+		g_gg_app.scheduler.invalidate(.paint)
+	}
+
+	fn renderer_now_ms() i64 {
+		return i64(time.sys_mono_now() / u64(time.millisecond))
 	}
 
 	pub fn on_key(handler KeyFn) {
@@ -355,6 +553,32 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		g_drop_handler = handler
 	}
 
+	// on_window_ready registers a handler called with nil inside gg's init
+	// callback, after the screen has been built once and before the frame
+	// loop. Embedding is not supported on the gg backends (custom renderer,
+	// and Linux which shares this file), so the nil keeps embedder code
+	// uniform across backends.
+	pub fn on_window_ready(handler WindowReadyFn) {
+		g_window_ready_handler = handler
+	}
+
+	// custom_fire_window_ready notifies the embedder registered through
+	// on_window_ready, if any.
+	fn custom_fire_window_ready() {
+		if voidptr(g_window_ready_handler) == unsafe { nil } {
+			return
+		}
+		g_window_ready_handler(unsafe { nil })
+	}
+
+	// on_window_resize only stores the handler: a documented no-op. The
+	// immediate renderer backends (Linux, Android, and the custom renderer on
+	// every platform) have no native child to resize — but accepting the
+	// registration keeps embedder code uniform across backends.
+	pub fn on_window_resize(handler WindowResizeFn) {
+		g_window_resize_handler = handler
+	}
+
 	pub fn text(id string) string {
 		// State maps store owned strings so that replacing their values can
 		// release the previous allocation. Callers, in particular QML bindings,
@@ -371,6 +595,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		mut editor := g_text_editors[id] or { text_editor(t.clone()) }
 		editor.set_text(t.clone())
 		replace_text_editor(id, editor)
+		invalidate_custom_paint()
 	}
 
 	// slider_value returns the live value currently displayed by a mounted
@@ -385,6 +610,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		}
 		spec := g_slider_specs[id] or { return }
 		g_slider_values[id] = slider_clamped_value(value, spec.min, spec.max)
+		invalidate_custom_paint()
 	}
 
 	// switch_active returns the live value, including a pointer change made
@@ -398,6 +624,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			return
 		}
 		g_switch_values[id] = active
+		invalidate_custom_paint()
 	}
 
 	// checkbox_checked returns the live value currently displayed by a mounted
@@ -411,6 +638,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			return
 		}
 		g_checkbox_values[id] = checked
+		invalidate_custom_paint()
 	}
 
 	pub fn toggle_button_pressed(id string) bool {
@@ -425,6 +653,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			release_custom_toggle_group(id)
 		}
 		g_toggle_values[id] = pressed
+		invalidate_custom_paint()
 	}
 
 	pub fn toggle_button_group_members(id string) []string {
@@ -468,6 +697,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		mut editor := g_text_editors[id] or { text_editor((g_text_values[id] or { '' }).clone()) }
 		editor.set_caret(rune_len(editor.text))
 		replace_text_editor(id, editor)
+		invalidate_custom_paint()
 	}
 
 	pub fn focused_id() string {
@@ -485,9 +715,14 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 
 	pub fn dismiss_keyboard() {
 		g_focused_field = ''
+		invalidate_custom_paint()
 	}
 
 	pub fn quit() {
+		if g_gg_app.scheduler.is_closed() {
+			return
+		}
+		g_gg_app.scheduler.close()
 		if g_gg_app.ctx != unsafe { nil } {
 			g_gg_app.ctx.quit()
 		}
@@ -520,6 +755,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		replace_text_value(id, editor.text)
 		replace_text_editor(id, editor)
 		fire_field_change(id)
+		invalidate_custom_paint()
 	}
 
 	pub fn scroll_offset(id string) f64 {
@@ -543,6 +779,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		// stored as a live position: the next frame rendered without the view would
 		// prune it. Hold the request until the view registers and can clamp it.
 		g_pending_scroll[id] = wanted
+		invalidate_custom_paint()
 	}
 
 	// scroll_horizontal_offset returns how far a Scroll element is scrolled sideways.
@@ -570,6 +807,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			}
 		}
 		g_pending_scroll_x[id] = wanted
+		invalidate_custom_paint()
 	}
 
 	pub fn scroll_to_rect(id string, x f64, y f64, width f64, height f64) {
@@ -648,24 +886,78 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 
 	// ── Frame & event loop ─────────────────────────────────────────────
 
-	fn on_init(_ &GgApp) {
+	fn on_init(app &GgApp) {
+		// Sokol's GL/EGL/D3D loops swap even when frame_fn returns early. Their
+		// discarded backbuffers need a full paint; only the Metal path can skip
+		// submission safely until UI2 owns presentation in the platform embedder.
+		// A reference field of an immutable pointer cannot be popped through to a
+		// mut method on V 0.5.2; bind it through a mutable local instead.
+		mut scheduler := app.scheduler
+		scheduler.set_presentation_required(gfx.query_backend() != .metal_macos)
 		if voidptr(g_build_screen) == unsafe { nil } {
+			custom_fire_window_ready()
 			return
 		}
 		// gg/Sokol must receive images during initialization to make their GPU
 		// textures available for the first rendered frame.
+		g_gg_app.scheduler.record_build()
 		preload_images(g_build_screen())
+		custom_fire_window_ready()
 	}
 
-	fn on_frame(app &GgApp) {
-		if app.ctx == unsafe { nil } {
+	fn on_cleanup(app &GgApp) {
+		mut scheduler := app.scheduler
+		scheduler.close()
+		mut state := unsafe { app }
+		state.ctx = unsafe { nil }
+		state.declared_root = Element{}
+		state.has_root = false
+		configure_animation_driver(unsafe { nil }, false)
+		reset_widget_animations()
+		g_tooltip = TooltipState{}
+		g_touch = TouchState{}
+	}
+
+	// The next visual deadline is replaced after every frame. A canceled hover,
+	// unmounted target or released pointer therefore cannot leave a live timer.
+	fn custom_visual_deadline() i64 {
+		mut deadline := i64(-1)
+		if g_tooltip.pointer_in && g_tooltip.key.len > 0 && !g_tooltip.dismissed
+			&& !g_tooltip.visible && !g_touch.down && !menu_bar_open() && g_open_dropdown.len == 0 {
+			deadline = g_tooltip.rest_since + tooltip_delay_ms
+		}
+		if g_touch.down && !g_touch.moved && !g_touch.long_press_fired && !g_touch.scrollbar_drag {
+			target := hit_test(g_touch.start_x, g_touch.start_y)
+			if target.long_press && target.action_id.len > 0 {
+				press_deadline := g_touch.start_time + 450
+				if deadline < 0 || press_deadline < deadline {
+					deadline = press_deadline
+				}
+			}
+		}
+		return deadline
+	}
+
+	fn on_frame(mut app GgApp) {
+		if app.scheduler.is_closed() || app.ctx == unsafe { nil } || app.draining_tasks {
 			return
 		}
+		g_last_frame_ticks = time.ticks()
+		g_frame_running = true
+		defer {
+			g_frame_running = false
+		}
+		// Callbacks run outside the coordinator lock, on this UI thread. Business
+		// messages may run while minimized, but visual work stays suspended.
+		app.draining_tasks = true
+		for task in app.scheduler.take_tasks() {
+			if app.scheduler.is_closed() {
+				break
+			}
+			task()
+		}
+		app.draining_tasks = false
 		mut ctx := app.ctx
-		// Some window managers can choose a client size different from the one
-		// requested in gg.Config before gg's cached resize event catches up. UI2
-		// lays out and clips against that cache, so synchronize it from Sokol's
-		// live logical window size before building the frame.
 		live_size := ctx.window_size()
 		if live_size.width > 0 && live_size.height > 0
 			&& (ctx.width != live_size.width || ctx.height != live_size.height) {
@@ -673,42 +965,83 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			ctx.height = live_size.height
 			ctx.window.width = live_size.width
 			ctx.window.height = live_size.height
+			app.scheduler.invalidate(.surface)
 		}
-		// gg builds its fonts in the sokol init callback, after the window has
-		// been created, so the fallback chain is attached on the way into the
-		// first frame rather than in run_window.
+		dpi := sapp.dpi_scale()
+		if dpi != app.dpi_scale {
+			app.dpi_scale = dpi
+			app.scheduler.invalidate(.surface)
+		}
+		now := renderer_now_ms()
+		work := app.scheduler.begin_frame(now) or { return }
+		defer { app.scheduler.finish_frame(work) }
 		ensure_symbol_fallbacks(ctx)
-		mut root := Element{}
-		mut has_root := false
-		if voidptr(g_build_screen) != unsafe { nil } {
-			g_hit_targets = []HitTarget{}
-			g_tooltip_targets.clear()
-			g_tooltip_owners = 0
-			reset_scroll_frame()
-			g_active_fields = map[string]bool{}
-			g_active_sliders = map[string]bool{}
-			g_active_switches = map[string]bool{}
-			g_active_checkboxes = map[string]bool{}
-			g_active_toggles = map[string]bool{}
-			g_active_scrolls = map[string]bool{}
-			g_active_images = map[string]bool{}
-			root = apply_widget_animations(g_build_screen())
-			validate_element_tree(root) or {
+		// Manual mode suppresses the frame callback between asks, so a pending
+		// visual deadline needs its own wake: schedule one one-shot timer that
+		// lands on the deadline. The other modes re-check the deadline from the
+		// flowing frame callback, and only long-press and tooltip rests set
+		// deadlines, so this stays rare.
+		if g_refresh_mode == .manual {
+			deadline := app.scheduler.stats().next_deadline
+			if deadline >= 0 {
+				after(f64(deadline - now) / 1000.0, fn () {})
+			}
+		}
+		if !text_measurement_exact() && ctx.font_inited {
+			// Text is measured from the first frame with fonts and their symbol
+			// fallbacks in place; measured earlier, a glyph only a fallback face
+			// has, such as ⌘, was cached as the width of an empty box.
+			configure_text_measurer(custom_measure_text_width)
+		}
+		if work.build && voidptr(g_build_screen) != unsafe { nil } {
+			app.scheduler.record_build()
+			declared := g_build_screen()
+			validate_element_tree(declared) or {
 				eprintln('ui2: ${err}')
 				return
 			}
-			// Sokol resources must be created before ctx.begin() starts its draw
-			// pass. Loading here lets the Linux/custom renderer draw PNGs and BMPs
-			// on the same frame they first appear.
-			preload_images(root)
-			has_root = true
+			app.declared_root = declared
+			app.has_root = true
 		}
+		if app.scheduler.is_closed() || app.iconified || app.suspended {
+			return
+		}
+		root := apply_custom_widget_animations(app.declared_root)
+		// Animation callbacks are user code and may close or suspend the window.
+		if app.scheduler.is_closed() || app.iconified || app.suspended {
+			return
+		}
+		validate_element_tree(root) or {
+			eprintln('ui2: ${err}')
+			return
+		}
+		g_hit_targets = []HitTarget{}
+		g_hover_regions = []HoverRegion{}
+		g_hover_chain = []string{}
+		g_tooltip_targets.clear()
+		g_tooltip_owners = 0
+		reset_scroll_frame()
+		g_active_fields = map[string]bool{}
+		g_active_sliders = map[string]bool{}
+		g_active_switches = map[string]bool{}
+		g_active_checkboxes = map[string]bool{}
+		g_active_toggles = map[string]bool{}
+		g_active_scrolls = map[string]bool{}
+		g_active_images = map[string]bool{}
+		// Image resources must be available before starting the GPU pass.
+		preload_images(root)
+		if voidptr(g_gl_surface_renderer) != unsafe { nil } {
+			for id, frame in g_opengl_surface_frames {
+				g_gl_surface_renderer(id, frame, f64(ctx.scale), f64(ctx.height))
+			}
+		}
+		sync_gl_surface_textures()
+		g_opengl_surface_frames = map[string]Rect{}
 		ctx.begin()
-		if has_root {
+		if app.has_root {
 			g_dropdown_popup.mounted = false
 			top := menu_bar_height()
-			render_element(ctx, root, 0, top, rect(0, top, f64(ctx.width), f64(ctx.height) - top),
-				'')
+			render_element(ctx, root, 0, top, rect(0, top, f64(ctx.width), f64(ctx.height) - top), '')
 			if g_open_dropdown.len > 0 {
 				if g_dropdown_popup.mounted {
 					draw_dropdown_popup(ctx)
@@ -716,21 +1049,45 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 					close_dropdown()
 				}
 			}
-			// The bar and its panels float above every control in the window.
 			draw_menu_bar(ctx)
-			// A tooltip floats above everything, the bar included: one flipped
-			// above a control near the top of the window can reach over it.
-			update_tooltip(time.ticks())
+			update_tooltip(now)
 			draw_tooltip(ctx)
 			prune_unmounted_state()
+			// Content can move under a pointer that stays put.
+			update_hover()
 		}
 		check_long_press()
+		// gg.begin flushes the PREVIOUS atlas. New glyphs (including tooltip
+		// sizes and worker text) must be uploaded before this frame's sgl draw.
+		// Flushing here also leaves the next gg.begin with no pending upload.
+		if ctx.font_inited {
+			ctx.ft.flush()
+		}
 		ctx.end()
+		app.scheduler.record_draw()
+		app.scheduler.set_deadline(custom_visual_deadline())
+		app.scheduler.set_animation_active(custom_animations_need_frame(app.declared_root))
 	}
 
-	fn on_event(e &gg.Event, _ &GgApp) {
+	fn on_event(e &gg.Event, app &GgApp) {
+		mut state := unsafe { app }
+		if state.scheduler.is_closed() {
+			return
+		}
+		g_key_modifiers = KeyModifiers{
+			shift: e.modifiers & u32(gg.Modifier.shift) != 0
+			ctrl: e.modifiers & u32(gg.Modifier.ctrl) != 0
+			alt: e.modifiers & u32(gg.Modifier.alt) != 0
+			cmd: e.modifiers & u32(gg.Modifier.super) != 0
+		}
+		// All input can affect local interaction or invoke application handlers.
+		// Legacy builds remain complete; paint-only setters/deadlines reuse root.
+		state.scheduler.invalidate(.build)
 		match e.typ {
 			.mouse_down {
+				if voidptr(g_mouse_button_handler) != unsafe { nil } {
+					g_mouse_button_handler(int(e.mouse_button), true, f64(e.mouse_x), f64(e.mouse_y))
+				}
 				g_tooltip.dismiss()
 				if menu_bar_handle_down(f64(e.mouse_x), f64(e.mouse_y)) {
 					return
@@ -740,7 +1097,16 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			.mouse_move {
 				// Recorded before any handler below can claim the move, so the
 				// tooltip always knows where the pointer is.
-				g_tooltip.pointer_moved(f64(e.mouse_x), f64(e.mouse_y), time.ticks())
+				g_tooltip.pointer_moved(f64(e.mouse_x), f64(e.mouse_y), renderer_now_ms())
+				if voidptr(g_pointer_move_handler) != unsafe { nil } {
+					g_pointer_move_handler(f64(e.mouse_x), f64(e.mouse_y))
+				}
+				g_hover_pointer = HoverPointer{
+					x: f64(e.mouse_x)
+					y: f64(e.mouse_y)
+					inside: true
+				}
+				update_hover()
 				if g_touch.down && g_touch.pointer_target.action_id.len > 0 {
 					handle_touch_move(f64(e.mouse_x), f64(e.mouse_y))
 					return
@@ -758,7 +1124,10 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			.mouse_scroll {
 				// The content moves under a pointer that stays put, so whatever
 				// ends up beneath it waits for a fresh rest.
-				g_tooltip.restart(time.ticks())
+				g_tooltip.restart(renderer_now_ms())
+				if voidptr(g_wheel_handler) != unsafe { nil } {
+					g_wheel_handler(f64(e.scroll_x), f64(e.scroll_y))
+				}
 				if menu_bar_open() {
 					return
 				}
@@ -775,8 +1144,13 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			}
 			.mouse_leave {
 				g_tooltip.pointer_left()
+				g_hover_pointer.inside = false
+				update_hover()
 			}
 			.mouse_up {
+				if voidptr(g_mouse_button_handler) != unsafe { nil } {
+					g_mouse_button_handler(int(e.mouse_button), false, f64(e.mouse_x), f64(e.mouse_y))
+				}
 				if g_touch.down && g_touch.pointer_target.action_id.len > 0 {
 					handle_touch_up(f64(e.mouse_x), f64(e.mouse_y))
 					return
@@ -803,7 +1177,30 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 					handle_touch_up(g_touch.current_x, g_touch.current_y)
 				}
 			}
-			.touches_cancelled, .unfocused, .suspended {
+			.iconified, .suspended {
+				if e.typ == .iconified {
+					state.iconified = true
+				} else {
+					state.suspended = true
+				}
+				state.scheduler.suspend()
+				g_tooltip.pointer_left()
+				cancel_touch()
+			}
+			.restored, .resumed {
+				if e.typ == .restored {
+					state.iconified = false
+				} else {
+					state.suspended = false
+				}
+				if !state.iconified && !state.suspended {
+					state.scheduler.resume()
+				}
+			}
+			.resized, .focused {
+				state.scheduler.invalidate(.surface)
+			}
+			.touches_cancelled, .unfocused {
 				g_tooltip.dismiss()
 				cancel_touch()
 			}
@@ -844,7 +1241,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			start_y: y
 			current_x: x
 			current_y: y
-			start_time: time.ticks()
+			start_time: renderer_now_ms()
 			moved: false
 			long_press_fired: false
 		}
@@ -853,6 +1250,14 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			return
 		}
 		target := hit_test(x, y)
+		if g_refresh_mode == .on_demand && target.long_press {
+			// check_long_press fires from inside drawn frames, and after the
+			// last input event only a few trailing frames follow; the ask keeps
+			// a frame alive past the deadline so the hold is not forgotten.
+			// Only long-press targets need it, so taps on everything else let
+			// the window go back to sleep.
+			after(0.55, fn () {})
+		}
 		if target.slider {
 			commit_slider(target, x, y)
 			return
@@ -904,11 +1309,14 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			drag_scrollbar(x, y)
 			return
 		}
-		if g_touch.scroll_chain.len > 0 {
+		dragging := target.action_id.len > 0 && target.draggable
+		// A press on something draggable drags it; the scroll around it stays put,
+		// or reordering tabs in a strip that scrolls would also scroll the strip.
+		if g_touch.scroll_chain.len > 0 && !dragging {
 			apply_scroll_chain(g_touch.scroll_chain, previous_y - y, false)
 			apply_scroll_chain(g_touch.scroll_chain, previous_x - x, true)
 		}
-		if target.action_id.len > 0 && target.draggable {
+		if dragging {
 			fire_event(pointer_event_id('drag', target.action_id, x, y))
 		}
 	}
@@ -952,8 +1360,12 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		next := clamped_scroll_offset(requested, maximum)
 		previous := g_scroll_offsets[id] or { 0.0 }
 		g_scroll_offsets[id] = next
-		if next != previous && voidptr(g_scroll_handler) != unsafe { nil } {
-			g_scroll_handler(id)
+		if next != previous {
+			invalidate_custom_paint()
+			if voidptr(g_scroll_handler) != unsafe { nil } {
+				refresh()
+				g_scroll_handler(id)
+			}
 		}
 	}
 
@@ -961,8 +1373,12 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		next := clamped_scroll_offset(requested, maximum)
 		previous := g_scroll_offsets_x[id] or { 0.0 }
 		g_scroll_offsets_x[id] = next
-		if next != previous && voidptr(g_scroll_handler) != unsafe { nil } {
-			g_scroll_handler(id)
+		if next != previous {
+			invalidate_custom_paint()
+			if voidptr(g_scroll_handler) != unsafe { nil } {
+				refresh()
+				g_scroll_handler(id)
+			}
 		}
 	}
 
@@ -1100,7 +1516,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 		if !g_touch.down || g_touch.moved || g_touch.long_press_fired || g_touch.scrollbar_drag {
 			return
 		}
-		elapsed := time.ticks() - g_touch.start_time
+		elapsed := renderer_now_ms() - g_touch.start_time
 		if elapsed < 450 {
 			return
 		}
@@ -1163,6 +1579,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 
 	fn fire_event(id string) {
 		if id.len > 0 && voidptr(g_event_handler) != unsafe { nil } {
+			refresh()
 			g_event_handler(id)
 		}
 	}
@@ -1287,6 +1704,7 @@ $if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2
 			ctrl: e.modifiers & u32(gg.Modifier.ctrl) != 0
 			alt: e.modifiers & u32(gg.Modifier.alt) != 0
 			cmd: e.modifiers & u32(gg.Modifier.super) != 0
+			repeat: e.key_repeat
 		}
 	}
 
@@ -1731,13 +2149,13 @@ fn page_focused_text_area(direction int) {
 			dropdown_state.height, 0xffffff, dropdown_state.radius)
 		draw_outline(ctx, dropdown_state.x, dropdown_state.y, dropdown_state.width,
 			dropdown_state.height, 0xb8c2cf, dropdown_state.radius)
-		list := intersect_rect(rect(dropdown_state.x + 1,
+		list_clip := intersect_rect(rect(dropdown_state.x + 1,
 			dropdown_state.y + dropdown_popup_padding, dropdown_state.width - 2,
 			dropdown_state.height - dropdown_popup_padding * 2), window)
-		if list.width <= 0 || list.height <= 0 {
+		if list_clip.width <= 0 || list_clip.height <= 0 {
 			return
 		}
-		apply_clip(ctx, list)
+		apply_clip(ctx, list_clip)
 		row_style := TextStyle{
 			...dropdown_state.text_style
 			align: .left
@@ -1745,7 +2163,7 @@ fn page_focused_text_area(direction int) {
 		for index, option in dropdown_state.options {
 			row_y := dropdown_state.y + dropdown_popup_padding + f64(index) * dropdown_state.row_height -
 				g_dropdown_scroll
-			if row_y + dropdown_state.row_height <= list.y || row_y >= list.y + list.height {
+			if row_y + dropdown_state.row_height <= list_clip.y || row_y >= list_clip.y + list_clip.height {
 				continue
 			}
 			if index == g_dropdown_hover {
@@ -1772,11 +2190,11 @@ fn page_focused_text_area(direction int) {
 				dropdown_option: true
 				option_index: index
 				options: dropdown_state.options
-			}, list)
+			}, list_clip)
 		}
 		draw_scrollbar(ctx, dropdown_state.x, dropdown_state.y, dropdown_state.width,
 			dropdown_state.height, f64(dropdown_state.options.len) * dropdown_state.row_height +
-			dropdown_popup_padding * 2, g_dropdown_scroll, false)
+			dropdown_popup_padding * 2, g_dropdown_scroll, false, 0xffffff)
 		apply_clip(ctx, window)
 	}
 
@@ -1871,6 +2289,48 @@ fn page_focused_text_area(direction int) {
 	// add_tooltip_target registers the part of a target that is visible under
 	// the clip it was drawn with, so a control scrolled out of its viewport
 	// cannot answer for the pointer.
+	fn add_hover_region(area Rect, clip Rect) {
+		visible := intersect_rect(area, clip)
+		if visible.width <= 0 || visible.height <= 0 {
+			return
+		}
+		g_hover_regions << HoverRegion{
+			area: visible
+			chain: g_hover_chain
+		}
+	}
+
+	fn hovered_chain_at(x f64, y f64) []string {
+		for i := g_hover_regions.len - 1; i >= 0; i-- {
+			region := g_hover_regions[i]
+			if x >= region.area.x && x < region.area.x + region.area.width && y >= region.area.y
+				&& y < region.area.y + region.area.height {
+				return region.chain
+			}
+		}
+		return []string{}
+	}
+
+	// update_hover reports the hoverable elements the pointer left and entered
+	// since the last check, comparing what it hovers now with what it hovered.
+	fn update_hover() {
+		pointer := g_hover_pointer
+		current := if pointer.inside { hovered_chain_at(pointer.x, pointer.y) } else { []string{} }
+		left, entered := hover_transitions(g_hovered, current)
+		unsafe {
+			g_hovered = current
+		}
+		if voidptr(g_event_handler) == unsafe { nil } {
+			return
+		}
+		for action in left {
+			g_event_handler(pointer_event_id('leave', action, pointer.x, pointer.y))
+		}
+		for action in entered {
+			g_event_handler(pointer_event_id('enter', action, pointer.x, pointer.y))
+		}
+	}
+
 	fn add_tooltip_target(key string, text string, area Rect, clip Rect) {
 		visible := intersect_rect(area, clip)
 		if visible.width <= 0 || visible.height <= 0 {
@@ -2095,6 +2555,22 @@ fn page_focused_text_area(direction int) {
 		}
 		apply_clip(ctx, clip)
 		area := element_area(ctx, el, off_x, off_y)
+		// A chain is never changed once built — a hoverable element gets a new one —
+		// so regions and the stack share them without copying.
+		outer_hover_chain := g_hover_chain
+		if el.hoverable && element_action_id(el).len > 0 {
+			mut chain := outer_hover_chain.clone()
+			chain << element_action_id(el)
+			unsafe {
+				g_hover_chain = chain
+			}
+		}
+		add_hover_region(area, clip)
+		defer {
+			unsafe {
+				g_hover_chain = outer_hover_chain
+			}
+		}
 		// A declared tooltip covers the element's whole area and is registered
 		// before its children, so a child with hover text of its own wins over
 		// it where they overlap. A surface only has anything to hide once some
@@ -2126,9 +2602,10 @@ fn page_focused_text_area(direction int) {
 			.view {
 				x := el.frame.x + off_x
 				y := el.frame.y + off_y
-				if !el.box.transparent {
-					draw_rect(ctx, x, y, el.frame.width, el.frame.height, el.box.bg, el.box.radius)
-				}
+				draw_box_fill(ctx, x, y, el.frame.width, el.frame.height, el.box)
+				// A shape is content: above the fill, beneath the borders, as the
+				// native backends layer it.
+				draw_shape(ctx, el, x, y, clip)
 				draw_box_borders(ctx, x, y, el.frame.width, el.frame.height, el.box)
 				if el.enabled && element_action_id(el).len > 0
 					&& (el.clickable || el.button_behavior || el.draggable || el.long_press
@@ -2155,7 +2632,9 @@ fn page_focused_text_area(direction int) {
 				x := el.frame.x + off_x
 				y := el.frame.y + off_y
 				frame := rect(x, y, el.frame.width, el.frame.height)
-				draw_rect(ctx, x, y, el.frame.width, el.frame.height, el.box.bg, 0)
+				if box_draws_fill(el.box) {
+					draw_rect(ctx, x, y, el.frame.width, el.frame.height, el.box.bg, 0)
+				}
 				draw_box_borders(ctx, x, y, el.frame.width, el.frame.height, el.box)
 				// An axis the mode leaves out has no content to cover, and so no range.
 				scrolls_x := el.scroll_mode != .vertical_only
@@ -2198,13 +2677,14 @@ fn page_focused_text_area(direction int) {
 				}
 				if child_clip.width > 0 && child_clip.height > 0 {
 					apply_clip(ctx, child_clip)
-					if scrolls_y {
+					if scrolls_y && !el.disable_scroll {
+						// A transparent scroll still names the color it sits on.
 						draw_scrollbar(ctx, x, y, el.frame.width, el.frame.height, content_h, scroll_y,
-							el.persistent_scrollbars)
+							el.persistent_scrollbars, el.box.bg)
 					}
-					if scrolls_x {
+					if scrolls_x && !el.disable_scroll {
 						draw_scrollbar_x(ctx, frame, content_w, scroll_x, el.persistent_scrollbars,
-							beside_vertical)
+							beside_vertical, el.box.bg)
 					}
 				}
 				apply_clip(ctx, clip)
@@ -2216,10 +2696,37 @@ fn page_focused_text_area(direction int) {
 					el.text_style, clip)
 				add_full_text_tooltip(el, area, clip, el.text, shortened)
 			}
+			.opengl {
+				x := el.frame.x + off_x
+				y := el.frame.y + off_y
+				// Before the application's first texture arrives — the frame after
+				// the element appears — the surface draws nothing, the way native
+				// backends show it.
+				if tex := g_gl_surface_textures[el.id] {
+					draw_gl_surface_quad(tex, x, y, el.frame.width, el.frame.height)
+				}
+				if el.id.len > 0 {
+					register_gl_surface(el.id, x, y, el.frame.width, el.frame.height)
+				}
+				if el.enabled && element_action_id(el).len > 0 && (el.clickable || el.draggable) {
+					add_hit_target(HitTarget{
+						id: el.id
+						action_id: element_action_id(el)
+						x: x
+						y: y
+						w: el.frame.width
+						h: el.frame.height
+						clickable: el.clickable
+						draggable: el.draggable
+					}, clip)
+				}
+			}
 			.image {
 				x := el.frame.x + off_x
 				y := el.frame.y + off_y
-				if el.image_path.trim_space().len > 0
+				if name := symbol_name(el.image_path) {
+					draw_symbol_image(ctx, name, x, y, el.frame.width, el.frame.height, el.text_style.color)
+				} else if el.image_path.trim_space().len > 0
 					&& !draw_cached_image(ctx, el.image_path, x, y, el.frame.width, el.frame.height,
 					el.rotation) {
 					draw_rect(ctx, x, y, el.frame.width, el.frame.height, 0xe8ecef, 0)
@@ -2245,7 +2752,11 @@ fn page_focused_text_area(direction int) {
 					draw_button_bezel(ctx, x, y, el.frame.width, el.frame.height, el.box.radius,
 						el.enabled)
 				} else {
-					draw_rect(ctx, x, y, el.frame.width, el.frame.height, el.box.bg, el.box.radius)
+					// Gradients fill views; a button keeps its solid fill, as natively.
+					draw_box_fill(ctx, x, y, el.frame.width, el.frame.height, BoxStyle{
+						...el.box
+						gradient: Gradient{}
+					})
 				}
 				draw_box_borders(ctx, x, y, el.frame.width, el.frame.height, el.box)
 				image_layout := button_image_layout(el.frame.width, el.frame.height, el.text,
@@ -2299,7 +2810,10 @@ fn page_focused_text_area(direction int) {
 					draw_button_bezel(ctx, x, y, el.frame.width, el.frame.height, box.radius,
 						el.enabled)
 				} else {
-					draw_rect(ctx, x, y, el.frame.width, el.frame.height, box.bg, box.radius)
+					draw_box_fill(ctx, x, y, el.frame.width, el.frame.height, BoxStyle{
+						...box
+						gradient: Gradient{}
+					})
 				}
 				draw_box_borders(ctx, x, y, el.frame.width, el.frame.height, box)
 				shortened := draw_text_centered(ctx, el.text, x, y, el.frame.width, el.frame.height,
@@ -2512,8 +3026,17 @@ fn page_focused_text_area(direction int) {
 				g_text_kinds[el.id] = el.kind
 				g_active_fields[el.id] = true
 				current_text := g_text_values[el.id] or { el.text }
-				draw_control_surface(ctx, x, y, el.frame.width, el.frame.height, el.box,
-					g_focused_field == el.id, el.enabled)
+				if el.box.transparent {
+					// A transparent text area sits on what is behind it, as on AppKit:
+					// only its declared borders, and the focus outline while focused.
+					draw_box_borders(ctx, x, y, el.frame.width, el.frame.height, el.box)
+					if g_focused_field == el.id {
+						draw_outline(ctx, x, y, el.frame.width, el.frame.height, 0x3478d4, el.box.radius)
+					}
+				} else {
+					draw_control_surface(ctx, x, y, el.frame.width, el.frame.height, el.box,
+						g_focused_field == el.id, el.enabled)
+				}
 				draw_text_area_content(ctx, el, current_text, x, y, clip, scroll_parent_id)
 				if el.enabled && !el.readonly {
 					add_hit_target(HitTarget{
@@ -2554,18 +3077,26 @@ fn page_focused_text_area(direction int) {
 				} else {
 					4.0
 				}
-				thumb_size := if el.slider_style.thumb_size > 0 {
+				thumb_size := if el.slider_style.thumb_size < 0 {
+					0.0
+				} else if el.slider_style.thumb_size > 0 {
 					el.slider_style.thumb_size
 				} else {
 					20.0
 				}
-				track_color := if el.enabled { el.slider_style.track_color } else { u32(0xe2e8f0) }
+				// A disabled slider keeps its own colors, faded halfway into its track,
+				// so it still suits a dark theme.
+				track_color := el.slider_style.track_color
 				value_color := if el.enabled {
 					el.slider_style.value_track_color
 				} else {
-					u32(0x94a3b8)
+					slider_faded_color(el.slider_style.value_track_color, track_color)
 				}
-				thumb_color := if el.enabled { el.slider_style.thumb_color } else { u32(0x94a3b8) }
+				thumb_color := if el.enabled {
+					el.slider_style.thumb_color
+				} else {
+					slider_faded_color(el.slider_style.thumb_color, track_color)
+				}
 				if el.orientation == .vertical {
 					inset := slider_track_padding(el.padding, frame.height)
 					extent := frame.height - inset * 2
@@ -2578,9 +3109,11 @@ fn page_focused_text_area(direction int) {
 						draw_rect(ctx, track_x, thumb_y, track_width, track_y + extent - thumb_y,
 							value_color, track_width / 2)
 					}
-					draw_rect(ctx, frame.x + (frame.width - thumb_size) / 2,
-						thumb_y - thumb_size / 2, thumb_size, thumb_size, thumb_color,
-						thumb_size / 2)
+					if thumb_size > 0 {
+						draw_rect(ctx, frame.x + (frame.width - thumb_size) / 2,
+							thumb_y - thumb_size / 2, thumb_size, thumb_size, thumb_color,
+							thumb_size / 2)
+					}
 				} else {
 					inset := slider_track_padding(el.padding, frame.width)
 					extent := frame.width - inset * 2
@@ -2593,9 +3126,11 @@ fn page_focused_text_area(direction int) {
 						draw_rect(ctx, track_x, track_y, thumb_x - track_x, track_width,
 							value_color, track_width / 2)
 					}
-					draw_rect(ctx, thumb_x - thumb_size / 2,
-						frame.y + (frame.height - thumb_size) / 2, thumb_size, thumb_size,
-						thumb_color, thumb_size / 2)
+					if thumb_size > 0 {
+						draw_rect(ctx, thumb_x - thumb_size / 2,
+							frame.y + (frame.height - thumb_size) / 2, thumb_size, thumb_size,
+							thumb_color, thumb_size / 2)
+					}
 				}
 				if el.enabled {
 					add_hit_target(HitTarget{
@@ -2686,6 +3221,77 @@ fn page_focused_text_area(direction int) {
 		}
 	}
 
+	fn register_gl_surface(id string, x f64, y f64, w f64, h f64) {
+		g_opengl_surface_frames[id] = Rect{x: x, y: y, width: w, height: h}
+	}
+
+	// make_gl_surface_texture wraps a GL texture as a sokol image with its sampler.
+	// The GL texture stays owned by the application.
+	fn make_gl_surface_texture(request GlTextureRequest) GlSurfaceTexture {
+		mut desc := gfx.ImageDesc{
+			width:        request.width
+			height:       request.height
+			pixel_format: .rgba8
+		}
+		desc.gl_textures[0] = request.gl_texture
+		return GlSurfaceTexture{
+			gl_texture: request.gl_texture
+			width:      request.width
+			height:     request.height
+			image:      gfx.make_image(&desc)
+			sampler:    gfx.make_sampler(&gfx.SamplerDesc{
+				min_filter: .linear
+				mag_filter: .linear
+			})
+		}
+	}
+
+	fn release_gl_surface_texture(tex GlSurfaceTexture) {
+		gfx.destroy_image(tex.image)
+		gfx.destroy_sampler(tex.sampler)
+	}
+
+	// sync_gl_surface_textures runs before each frame, outside its render pass. It drops
+	// the requests and textures of elements that were not drawn last frame, and wraps
+	// new or changed requests as sokol images.
+	fn sync_gl_surface_textures() {
+		for id in g_gl_surface_requests.keys() {
+			if id !in g_opengl_surface_frames {
+				g_gl_surface_requests.delete(id)
+			}
+		}
+		for id in g_gl_surface_textures.keys() {
+			if id !in g_gl_surface_requests {
+				release_gl_surface_texture(g_gl_surface_textures[id] or { continue })
+				g_gl_surface_textures.delete(id)
+			}
+		}
+		for id, request in g_gl_surface_requests {
+			if current := g_gl_surface_textures[id] {
+				if current.gl_texture == request.gl_texture && current.width == request.width
+					&& current.height == request.height {
+					continue
+				}
+				release_gl_surface_texture(current)
+			}
+			g_gl_surface_textures[id] = make_gl_surface_texture(request)
+		}
+	}
+
+	// draw_gl_surface_quad draws the texture over the element's frame. Texture rows run
+	// bottom-up, so the top edge of the frame takes the texture's top row at v = 1.
+	fn draw_gl_surface_quad(tex GlSurfaceTexture, x f64, y f64, w f64, h f64) {
+		sgl.enable_texture()
+		sgl.texture(tex.image, tex.sampler)
+		sgl.begin_quads()
+		sgl.v2f_t2f_c4f(f32(x), f32(y), 0, 1, 1, 1, 1, 1)
+		sgl.v2f_t2f_c4f(f32(x + w), f32(y), 1, 1, 1, 1, 1, 1)
+		sgl.v2f_t2f_c4f(f32(x + w), f32(y + h), 1, 0, 1, 1, 1, 1)
+		sgl.v2f_t2f_c4f(f32(x), f32(y + h), 0, 0, 1, 1, 1, 1)
+		sgl.end()
+		sgl.disable_texture()
+	}
+
 	fn draw_cached_image(ctx &gg.Context, path string, x f64, y f64, width f64, height f64, rotation f64) bool {
 		if !cache_image(path) { return false }
 		image_id := g_image_ids[path] or { return false }
@@ -2758,13 +3364,31 @@ fn page_focused_text_area(direction int) {
 		}
 	}
 
+	// draw_symbol_image draws a `symbol:` image as its Material Icons glyph, as large
+	// as the frame allows and in the element's text color, which is what tints a
+	// symbol image on every backend.
+	// A Material glyph is as wide as its size. A fractional size is rounded when
+	// the font is set, which could make the glyph wider than its frame and have
+	// it cut down to an ellipsis, so symbols are sized in whole points.
+	fn draw_symbol_image(ctx &gg.Context, name string, x f64, y f64, width f64, height f64, color u32) {
+		size := math.floor(math.min(width, height))
+		if size <= 0 {
+			return
+		}
+		draw_text_centered(ctx, symbol_glyph(name), x, y, width, height, TextStyle{
+			color:       color
+			font_family: 'Material Icons'
+			size:        size
+		})
+	}
+
 	fn draw_button_image(ctx &gg.Context, image_path string, x f64, y f64, width f64, height f64, style TextStyle) {
 		if image_path.starts_with('symbol:') {
-			symbol := system_symbol_fallback(image_path['symbol:'.len..])
+			symbol := symbol_glyph(image_path['symbol:'.len..])
 			draw_text_centered(ctx, symbol, x, y, width, height, TextStyle{
 				...style
 				font_family: 'Material Icons'
-				size:        math.max(math.min(width, height) * 0.75, 8.0)
+				size:        math.floor(math.max(math.min(width, height) * 0.75, 8.0))
 			})
 			return
 		}
@@ -2773,107 +3397,12 @@ fn page_focused_text_area(direction int) {
 		}
 	}
 
-	// SF Symbols are used as native AppKit button images. Other custom-rendered
-	// desktops use equivalent glyphs from the bundled Material Icons face, which
-	// keeps the controls recognizable without depending on a host symbol font.
-	fn system_symbol_fallback(name string) string {
-		return match name {
-			'align.horizontal.center' { '\ue00f' }
-			'line.3.horizontal' { '\ue5d2' }
-			'text.justify' { '\ue235' }
-			'align.vertical.center' { '\ue011' }
-			'arrow.up.and.down', 'arrow.up.arrow.down' { '\ue8d5' }
-			'arrow.up.and.down.text.horizontal' { '\ue25b' }
-			'arrow.2.squarepath', 'arrow.triangle.2.circlepath' { '\ue627' }
-			'arrow.left.and.right' { '\ue8d4' }
-			'arrow.left.and.right.square' { '\ue933' }
-			'arrow.clockwise', 'arrow.clockwise.circle' { '\ue5d5' }
-			'clock.arrow.circlepath' { '\ue889' }
-			'arrow.down.right.and.arrow.up.left', 'arrow.up.and.down.and.arrow.left.and.right',
-			'move.3d' { '\uf1ce' }
-			'arrow.down.to.line' { '\ue258' }
-			'icloud.and.arrow.down' { '\ue2c0' }
-			'arrow.right.to.line', 'increase.indent' { '\ue23e' }
-			'arrow.uturn.backward' { '\ue166' }
-			'arrow.uturn.forward' { '\ue15a' }
-			'icloud.and.arrow.up' { '\ue2c3' }
-			'square.and.arrow.up' { '\ue2c6' }
-			'square.and.arrow.down' { '\ue161' }
-			'asterisk' { '\ue83a' }
-			'character.book.closed' { '\uea19' }
-			'textformat', 'textformat.abc' { '\ue262' }
-			'chart.bar', 'chart.bar.doc.horizontal', 'chart.bar.xaxis' { '\ue26b' }
-			'crop' { '\ue3be' }
-			'cube.transparent' { '\ue9fe' }
-			'square.on.circle' { '\ue574' }
-			'curlybraces' { '\ue86f' }
-			'cursorarrow' { '\ue323' }
-			'doc.badge.arrow.up' { '\ue9fc' }
-			'doc.badge.plus', 'text.badge.plus' { '\ue89c' }
-			'plus.rectangle' { '\ue146' }
-			'plus.rectangle.on.rectangle', 'plus.square.on.square' { '\ue02e' }
-			'doc.on.doc' { '\ue14d' }
-			'list.bullet.clipboard' { '\ue85d' }
-			'ellipsis' { '\ue5d3' }
-			'eye' { '\ue8f4' }
-			'eye.slash' { '\ue8f5' }
-			'folder' { '\ue2c7' }
-			'function' { '\ue24a' }
-			'gearshape' { '\ue8b8' }
-			'grid', 'rectangle.grid.2x2', 'rectangle.split.3x3', 'tablecells' { '\ue3ec' }
-			'info.circle' { '\ue88e' }
-			'line.vertical' { '\ue5d4' }
-			'list.number' { '\ue242' }
-			'number' { '\ue9ef' }
-			'lock', 'lock.doc' { '\ue897' }
-			'magnifyingglass', 'rectangle.and.text.magnifyingglass' { '\ue8b6' }
-			'minus' { '\ue15b' }
-			'minus.rectangle' { '\ue909' }
-			'number.circle' { '\ue400' }
-			'paintbrush' { '\ue3ae' }
-			'paintpalette' { '\ue40a' }
-			'pencil', 'pencil.line' { '\ue3c9' }
-			'person.2' { '\ue7ef' }
-			'person.crop.circle' { '\ue853' }
-			'person.crop.circle.badge.plus' { '\ue7fe' }
-			'photo' { '\ue410' }
-			'textbox' { '\ue262' }
-			'plus' { '\ue145' }
-			'printer' { '\ue8ad' }
-			'rectangle.3.group' { '\ue8f0' }
-			'rectangle.split.1x2' { '\uf114' }
-			'rectangle.split.2x1' { '\ue8f2' }
-			'rectangle.split.3x1' { '\ue8ec' }
-			'rectangle.bottomthird.inset.filled', 'rectangle.portrait.and.arrow.right',
-			'rectangle.righthalf.inset.filled.arrow.right',
-			'rectangle.topthird.inset.filled', 'sidebar.right' { '\uf114' }
-			'scissors' { '\ue14e' }
-			'seal' { '\uef76' }
-			'slider.horizontal.3' { '\ue429' }
-			'square.2.layers.3d.bottom.filled', 'square.2.layers.3d.top.filled',
-			'square.stack.3d.up' { '\ue53b' }
-			'star' { '\ue838' }
-			'star.circle' { '\ue8d0' }
-			'tag' { '\ue892' }
-			'text.alignleft' { '\ue236' }
-			'text.alignright' { '\ue237' }
-			'text.bubble' { '\ue0cb' }
-			'textformat.123' { '\ueb8d' }
-			'textformat.size' { '\ue245' }
-			'textformat.size.larger' { '\ueae2' }
-			'trash' { '\ue872' }
-			'xmark' { '\ue5cd' }
-			else { '\ue8fd' }
-		}
-	}
-
 	fn preload_images(el Element) {
 		if el.hidden {
 			return
 		}
-		if el.kind == .image
-			|| (el.kind == .button && el.image_path.trim_space().len > 0
-			&& !el.image_path.starts_with('symbol:')) {
+		if (el.kind == .image || (el.kind == .button && el.image_path.trim_space().len > 0))
+			&& !el.image_path.starts_with('symbol:') {
 			cache_image(el.image_path)
 		}
 		for child in el.children {
@@ -2919,10 +3448,239 @@ fn page_focused_text_area(direction int) {
 	fn draw_rect(ctx &gg.Context, x f64, y f64, w f64, h f64, color_hex u32, radius f64) {
 		c := hex_color(color_hex)
 		if radius > 0 {
-			ctx.draw_rounded_rect_filled(f32(x), f32(y), f32(w), f32(h), f32(radius), c)
+			fill_rounded_rect(ctx, x, y, w, h, radius, c)
 		} else {
 			ctx.draw_rect_filled(f32(x), f32(y), f32(w), f32(h), c)
 		}
+	}
+
+	// fill_rounded_rect fills a rounded rectangle as a fan from its center. gg's
+	// own spends a fixed few hundred vertices on each one whatever its size, and
+	// sokol-gl draws at most 65536 a frame, so a window full of rounded controls
+	// came out blank; here each corner gets as many segments as its radius needs
+	// to look round, from 2 to 16.
+	fn fill_rounded_rect(ctx &gg.Context, x f64, y f64, w f64, h f64, radius f64, c gg.Color) {
+		if w <= 0 || h <= 0 {
+			return
+		}
+		r := math.max(0, math.min(radius, math.min(w, h) / 2))
+		scale := f64(ctx.scale)
+		segments := int(math.min(math.max(math.sqrt(r * scale) * 1.5, 2), 16))
+		points := rounded_outline(x, y, w, h, r, segments)
+		if c.a != 255 {
+			sgl.load_pipeline(ctx.pipeline.alpha)
+		}
+		sgl.c4b(c.r, c.g, c.b, c.a)
+		cx := f32((x + w / 2) * scale)
+		cy := f32((y + h / 2) * scale)
+		sgl.begin_triangles()
+		for i in 0 .. points.len {
+			a := points[i]
+			b := points[(i + 1) % points.len]
+			sgl.v2f(cx, cy)
+			sgl.v2f(f32(a[0] * scale), f32(a[1] * scale))
+			sgl.v2f(f32(b[0] * scale), f32(b[1] * scale))
+		}
+		sgl.end()
+	}
+
+	fn draw_rect_alpha(ctx &gg.Context, x f64, y f64, w f64, h f64, color_hex u32, alpha f64, radius f64) {
+		if w <= 0 || h <= 0 || alpha <= 0 {
+			return
+		}
+		c := gg.Color{
+			...hex_color(color_hex)
+			a: u8(math.round(unit_clamp(alpha) * 255))
+		}
+		if radius > 0 {
+			fill_rounded_rect(ctx, x, y, w, h, radius, c)
+		} else {
+			ctx.draw_rect_filled(f32(x), f32(y), f32(w), f32(h), c)
+		}
+	}
+
+	// draw_box_fill paints what a BoxStyle puts beneath its borders: the drop
+	// shadow, then the gradient or the solid color at the box's fill opacity.
+	fn draw_box_fill(ctx &gg.Context, x f64, y f64, w f64, h f64, box BoxStyle) {
+		if box_has_shadow(box) {
+			draw_box_shadow(ctx, x, y, w, h, box.radius, box.shadow)
+		}
+		opacity := box_fill_opacity(box)
+		if opacity <= 0 {
+			return
+		}
+		if box_has_gradient(box) {
+			draw_gradient_rect(ctx, x, y, w, h, box.radius, box.gradient, opacity)
+		} else if opacity >= 1 {
+			draw_rect(ctx, x, y, w, h, box.bg, box.radius)
+		} else {
+			draw_rect_alpha(ctx, x, y, w, h, box.bg, opacity, box.radius)
+		}
+	}
+
+	// draw_box_shadow stands in for a Gaussian blur with a stack of translucent
+	// rounded rectangles, from `blur / 2` outside the shadow's edge to `blur / 2`
+	// inside it. Where k of the n layers overlap the alpha is 1 - (1 - a)^k, so
+	// it rises across the blur and reaches the shadow's opacity inside it.
+	fn draw_box_shadow(ctx &gg.Context, x f64, y f64, w f64, h f64, radius f64, shadow BoxShadow) {
+		opacity := unit_clamp(shadow.opacity)
+		sx := x + shadow.x - shadow.spread
+		sy := y + shadow.y - shadow.spread
+		sw := w + 2 * shadow.spread
+		sh := h + 2 * shadow.spread
+		sr := math.max(radius + shadow.spread, 0)
+		blur := if math.is_nan(shadow.blur) { 0.0 } else { math.max(shadow.blur, 0) }
+		if blur < 1 {
+			draw_rect_alpha(ctx, sx, sy, sw, sh, shadow.color, opacity, sr)
+			return
+		}
+		steps := int(math.min(math.max(blur / 2 + 2, 3), 10))
+		per_layer := 1 - math.pow(1 - opacity, 1.0 / f64(steps))
+		for i in 0 .. steps {
+			grow := blur / 2 - blur * f64(i) / f64(steps - 1)
+			layer_w := sw + 2 * grow
+			layer_h := sh + 2 * grow
+			if layer_w <= 0 || layer_h <= 0 {
+				continue
+			}
+			layer_r := math.min(math.max(sr + grow, 0), math.min(layer_w, layer_h) / 2)
+			draw_rect_alpha(ctx, sx - grow, sy - grow, layer_w, layer_h, shadow.color, per_layer,
+				layer_r)
+		}
+	}
+
+	// rounded_inset is how far in from the side a rounded box's edge is at height
+	// `y` from its top, for corner radius r.
+	fn rounded_inset(y f64, h f64, r f64) f64 {
+		dy := if y < r { r - y } else if y > h - r { y - (h - r) } else { 0.0 }
+		if dy <= 0 || r <= 0 {
+			return 0
+		}
+		return r - math.sqrt(math.max(r * r - dy * dy, 0))
+	}
+
+	// draw_gradient_rect fills a (rounded) box with a linear gradient. The box is
+	// cut into rows that follow its rounded edge and the rows into small cells,
+	// each a quad whose corners take the gradient's color there; the GPU blends
+	// across a cell, which is exact for a gradient between two stops and close for
+	// more.
+	fn draw_gradient_rect(ctx &gg.Context, x f64, y f64, w f64, h f64, radius f64, gradient Gradient, opacity f64) {
+		if w <= 0 || h <= 0 {
+			return
+		}
+		stops := gradient_sorted_stops(gradient)
+		line := gradient_line(gradient.angle, w, h)
+		r := math.max(0, math.min(radius, math.min(w, h) / 2))
+		scale := f64(ctx.scale)
+		if r < 0.5 && draw_square_gradient(ctx, x, y, w, h, line, stops, gradient.angle, opacity) {
+			return
+		}
+		// About 16 cells each way, whatever the size, keeps a gradient to a few
+		// thousand vertices of sokol-gl's 65536 a frame. Across the rounded corners
+		// the rows are spaced by equal angles on the arc, as fill_rounded_rect places
+		// its points, so they bunch up where the edge turns fastest.
+		cell_w := math.max(4.0, w / 16)
+		cell_h := math.max(4.0, (h - 2 * r) / 16)
+		arc_rows := int(math.min(math.max(math.sqrt(r * scale) * 1.5, 2), 16))
+		mut rows := [0.0]
+		if r > 0 {
+			for k in 1 .. arc_rows + 1 {
+				rows << r - r * math.cos(math.pi / 2 * f64(k) / f64(arc_rows))
+			}
+		}
+		for rows[rows.len - 1] + cell_h < h - r {
+			rows << rows[rows.len - 1] + cell_h
+		}
+		if r > 0 {
+			for k in 0 .. arc_rows + 1 {
+				rows << h - r + r * math.sin(math.pi / 2 * f64(k) / f64(arc_rows))
+			}
+		} else {
+			rows << h
+		}
+		sgl.load_pipeline(ctx.pipeline.alpha)
+		sgl.begin_quads()
+		for i in 1 .. rows.len {
+			top := rows[i - 1]
+			bottom := math.min(rows[i], h)
+			if bottom <= top {
+				continue
+			}
+			inset_top := rounded_inset(top, h, r)
+			inset_bottom := rounded_inset(bottom, h, r)
+			columns := int(math.ceil(w / cell_w))
+			for c in 0 .. columns {
+				f0 := f64(c) / f64(columns)
+				f1 := f64(c + 1) / f64(columns)
+				xt0 := inset_top + (w - 2 * inset_top) * f0
+				xt1 := inset_top + (w - 2 * inset_top) * f1
+				xb0 := inset_bottom + (w - 2 * inset_bottom) * f0
+				xb1 := inset_bottom + (w - 2 * inset_bottom) * f1
+				gradient_vertex(line, stops, opacity, x, y, xt0, top, scale)
+				gradient_vertex(line, stops, opacity, x, y, xt1, top, scale)
+				gradient_vertex(line, stops, opacity, x, y, xb1, bottom, scale)
+				gradient_vertex(line, stops, opacity, x, y, xb0, bottom, scale)
+			}
+		}
+		sgl.end()
+	}
+
+	// draw_square_gradient draws the exact gradient of a square-cornered box from a
+	// handful of quads: one for two stops, whose color is linear across the whole
+	// box, or one per stop for a horizontal or vertical gradient. It leaves other
+	// gradients to the mesh and reports whether it drew.
+	fn draw_square_gradient(ctx &gg.Context, x f64, y f64, w f64, h f64, line GradientLine, stops []GradientStop, angle f64, opacity f64) bool {
+		scale := f64(ctx.scale)
+		if stops.len == 2 {
+			sgl.load_pipeline(ctx.pipeline.alpha)
+			sgl.begin_quads()
+			gradient_vertex(line, stops, opacity, x, y, 0, 0, scale)
+			gradient_vertex(line, stops, opacity, x, y, w, 0, scale)
+			gradient_vertex(line, stops, opacity, x, y, w, h, scale)
+			gradient_vertex(line, stops, opacity, x, y, 0, h, scale)
+			sgl.end()
+			return true
+		}
+		turn := math.fmod(math.fmod(angle, 360) + 360, 360)
+		if turn !in [0.0, 90.0, 180.0, 270.0] {
+			return false
+		}
+		horizontal := turn == 0 || turn == 180
+		extent := if horizontal { w } else { h }
+		mut cuts := [0.0, 1.0]
+		for stop in stops {
+			cuts << stop.position
+		}
+		cuts.sort()
+		sgl.load_pipeline(ctx.pipeline.alpha)
+		sgl.begin_quads()
+		for i in 1 .. cuts.len {
+			// Positions run along the gradient, which may point back along the axis.
+			a := if turn == 180 || turn == 270 { 1 - cuts[i] } else { cuts[i - 1] }
+			b := if turn == 180 || turn == 270 { 1 - cuts[i - 1] } else { cuts[i] }
+			if b - a <= 0 {
+				continue
+			}
+			if horizontal {
+				gradient_vertex(line, stops, opacity, x, y, a * extent, 0, scale)
+				gradient_vertex(line, stops, opacity, x, y, b * extent, 0, scale)
+				gradient_vertex(line, stops, opacity, x, y, b * extent, h, scale)
+				gradient_vertex(line, stops, opacity, x, y, a * extent, h, scale)
+			} else {
+				gradient_vertex(line, stops, opacity, x, y, 0, a * extent, scale)
+				gradient_vertex(line, stops, opacity, x, y, w, a * extent, scale)
+				gradient_vertex(line, stops, opacity, x, y, w, b * extent, scale)
+				gradient_vertex(line, stops, opacity, x, y, 0, b * extent, scale)
+			}
+		}
+		sgl.end()
+		return true
+	}
+
+	fn gradient_vertex(line GradientLine, stops []GradientStop, opacity f64, ox f64, oy f64, lx f64, ly f64, scale f64) {
+		color, alpha := gradient_color_at(stops, gradient_position(line, lx, ly))
+		sgl.c4b(u8((color >> 16) & 0xff), u8((color >> 8) & 0xff), u8(color & 0xff), u8(math.round(alpha * opacity * 255)))
+		sgl.v2f(f32((ox + lx) * scale), f32((oy + ly) * scale))
 	}
 
 	fn draw_outline(ctx &gg.Context, x f64, y f64, w f64, h f64, color_hex u32, radius f64) {
@@ -2938,6 +3696,12 @@ fn page_focused_text_area(direction int) {
 	}
 
 	fn draw_box_borders(ctx &gg.Context, x f64, y f64, w f64, h f64, box BoxStyle) {
+		rounded := box_rounded_border(box)
+		if rounded > 0 {
+			draw_rounded_ring(ctx, x, y, w, h, box.radius, box_border_width(rounded, math.min(w,
+				h) / 2), box.border_color)
+			return
+		}
 		left := box_border_width(box.border_left, w)
 		top := box_border_width(box.border_top, h)
 		right := box_border_width(box.border_right, w)
@@ -2954,6 +3718,47 @@ fn page_focused_text_area(direction int) {
 		if bottom > 0 {
 			draw_rect(ctx, x, y + h - bottom, w, bottom, box.border_color, 0)
 		}
+	}
+
+	// rounded_outline lists points around a rounded rectangle, clockwise from the
+	// start of its top-left corner, with the same count whatever the radius so
+	// an outer and an inner outline pair up point for point.
+	fn rounded_outline(x f64, y f64, w f64, h f64, radius f64, segments int) [][]f64 {
+		r := math.max(0, math.min(radius, math.min(w, h) / 2))
+		centers := [[x + r, y + r], [x + w - r, y + r], [x + w - r, y + h - r], [x + r, y + h - r]]
+		mut points := [][]f64{cap: 4 * (segments + 1)}
+		for corner, center in centers {
+			start := math.pi * (1.0 + 0.5 * f64(corner))
+			for i in 0 .. segments + 1 {
+				angle := start + math.pi / 2 * f64(i) / f64(segments)
+				points << [center[0] + r * math.cos(angle), center[1] + r * math.sin(angle)]
+			}
+		}
+		return points
+	}
+
+	// draw_rounded_ring draws an even border that follows a box's rounded
+	// corners: the band between its outline and the outline `width` inside it.
+	fn draw_rounded_ring(ctx &gg.Context, x f64, y f64, w f64, h f64, radius f64, width f64, color_hex u32) {
+		if width <= 0 || w <= 0 || h <= 0 {
+			return
+		}
+		segments := int(math.max(4, math.min(16, radius / 2)))
+		outer := rounded_outline(x, y, w, h, radius, segments)
+		inner := rounded_outline(x + width, y + width, w - 2 * width, h - 2 * width, radius - width,
+			segments)
+		c := hex_color(color_hex)
+		scale := f64(ctx.scale)
+		sgl.load_pipeline(ctx.pipeline.alpha)
+		sgl.c4b(c.r, c.g, c.b, c.a)
+		sgl.begin_triangle_strip()
+		for i in 0 .. outer.len + 1 {
+			o := outer[i % outer.len]
+			n := inner[i % inner.len]
+			sgl.v2f(f32(o[0] * scale), f32(o[1] * scale))
+			sgl.v2f(f32(n[0] * scale), f32(n[1] * scale))
+		}
+		sgl.end()
 	}
 
 	fn draw_control_surface(ctx &gg.Context, x f64, y f64, w f64, h f64, box BoxStyle, focused bool, enabled bool) {
@@ -3015,14 +3820,21 @@ fn page_focused_text_area(direction int) {
 	}
 
 	fn draw_check_mark(ctx &gg.Context, x f64, y f64, size f64, color_hex u32) {
-		pen := gg.PenConfig{
-			color: hex_color(color_hex)
-			thickness: 2
-		}
-		ctx.draw_line_with_config(f32(x + size * 0.22), f32(y + size * 0.50),
-			f32(x + size * 0.42), f32(y + size * 0.70), pen)
-		ctx.draw_line_with_config(f32(x + size * 0.40), f32(y + size * 0.69),
-			f32(x + size * 0.79), f32(y + size * 0.29), pen)
+		// The check is the same two-segment stroke the styled checkboxes draw
+		// (see checkbox_mark_path), so every renderer's mark matches. Stroked
+		// as one polyline with round caps and joins rather than two gg lines,
+		// whose thick-line path anchors its rect at logical coordinates inside
+		// a rotation set up in device pixels: that left a seam at the elbow
+		// even at scale 1 and displaces the strokes off their endpoints at
+		// higher pixel densities.
+		path := path_polyline([
+			path_point(size * 0.26, size * 0.52)
+			path_point(size * 0.43, size * 0.69)
+			path_point(size * 0.75, size * 0.33)
+		], false)
+		contours := path_flatten(path, 0.3)
+		triangles := path_stroke_triangles(contours, math.max(1.5, size / 8), .round, .round)
+		shape_triangles(ctx, triangles, x, y, f64(ctx.scale), hex_color(color_hex))
 	}
 
 	fn draw_chevron_down(ctx &gg.Context, center_x f64, center_y f64, color_hex u32) {
@@ -3036,22 +3848,24 @@ fn page_focused_text_area(direction int) {
 			f32(center_y - 2), pen)
 	}
 
-	fn draw_scrollbar(ctx &gg.Context, x f64, y f64, width f64, height f64, content_height f64, offset f64, persistent bool) {
+	fn draw_scrollbar(ctx &gg.Context, x f64, y f64, width f64, height f64, content_height f64, offset f64, persistent bool, backdrop u32) {
 		bar := scrollbar_geometry(rect(x, y, width, height), content_height, offset, persistent)
 		if bar.track.width <= 0 || bar.track.height <= 0 {
 			return
 		}
-		draw_rect(ctx, bar.track.x, bar.track.y, bar.track.width, bar.track.height, 0xf1f5f9, 2.5)
-		draw_rect(ctx, bar.thumb.x, bar.thumb.y, bar.thumb.width, bar.thumb.height, 0xcbd5e1, 2.5)
+		track, thumb := scrollbar_colors(backdrop)
+		draw_rect(ctx, bar.track.x, bar.track.y, bar.track.width, bar.track.height, track, 2.5)
+		draw_rect(ctx, bar.thumb.x, bar.thumb.y, bar.thumb.width, bar.thumb.height, thumb, 2.5)
 	}
 
-	fn draw_scrollbar_x(ctx &gg.Context, frame Rect, content_width f64, offset f64, persistent bool, beside_vertical bool) {
+	fn draw_scrollbar_x(ctx &gg.Context, frame Rect, content_width f64, offset f64, persistent bool, beside_vertical bool, backdrop u32) {
 		bar := scrollbar_geometry_x(frame, content_width, offset, persistent, beside_vertical)
 		if bar.track.width <= 0 || bar.track.height <= 0 {
 			return
 		}
-		draw_rect(ctx, bar.track.x, bar.track.y, bar.track.width, bar.track.height, 0xf1f5f9, 2.5)
-		draw_rect(ctx, bar.thumb.x, bar.thumb.y, bar.thumb.width, bar.thumb.height, 0xcbd5e1, 2.5)
+		track, thumb := scrollbar_colors(backdrop)
+		draw_rect(ctx, bar.track.x, bar.track.y, bar.track.width, bar.track.height, track, 2.5)
+		draw_rect(ctx, bar.thumb.x, bar.thumb.y, bar.thumb.width, bar.thumb.height, thumb, 2.5)
 	}
 
 	// text_font_file resolves a declared family to the file fontstash has to
@@ -3061,7 +3875,10 @@ fn page_focused_text_area(direction int) {
 	// come back empty so the default font is used instead.
 	fn text_font_file(family string, bold bool, italic bool) string {
 		if family.len == 0 {
-			return ''
+			// gg draws the default font's regular and bold faces itself, but has no
+			// italic of it, and bold italic came out bold only: those come from the
+			// default font's own italic files when it has them.
+			return if italic { default_italic_font_file(bold) } else { '' }
 		}
 		key := '${family}:${bold}:${italic}'
 		if path := g_font_family_files[key] {
@@ -3093,6 +3910,26 @@ fn page_focused_text_area(direction int) {
 		return path
 	}
 
+	// default_italic_font_file is the italic (or bold italic) file beside the
+	// default font's regular one, as Roboto-Italic.ttf is beside
+	// Roboto-Regular.ttf, or '' when there is none.
+	fn default_italic_font_file(bold bool) string {
+		key := ':default:${bold}:true'
+		if path := g_font_family_files[key] {
+			return path
+		}
+		regular, _ := font_paths()
+		mut path := ''
+		if regular.contains('Regular') {
+			candidate := regular.replace('Regular', if bold { 'BoldItalic' } else { 'Italic' })
+			if os.is_file(candidate) {
+				path = candidate
+			}
+		}
+		g_font_family_files[key] = path
+		return path
+	}
+
 	// ensure_symbol_fallbacks hands fontstash the faces to look in when the font
 	// a string is drawn in has no outline for one of its code points. fontstash
 	// walks a font's fallback list whenever a glyph lookup lands on index 0 —
@@ -3112,6 +3949,7 @@ fn page_focused_text_area(direction int) {
 		if g_font_symbol_fons != voidptr(fons) {
 			g_font_symbol_fons = voidptr(fons)
 			g_text_area_layouts = map[string]TextAreaLayout{}
+			g_text_widths.clear()
 			g_font_symbol_ids = []int{}
 			g_font_symbol_bases = map[int]bool{}
 			for path in font_symbol_paths() {
@@ -3318,6 +4156,24 @@ fn page_focused_text_area(direction int) {
 		return runes[..from].string(), runes[from..to].string()
 	}
 
+	// custom_measure_text_width measures with the font and size draw_text_in_box
+	// draws in; a label draws its text with no inset.
+	fn custom_measure_text_width(text string, style TextStyle) f64 {
+		ctx := g_gg_app.ctx
+		if ctx == unsafe { nil } {
+			return text_width_estimate(text, style)
+		}
+		family := text_font_file(style.font_family, style.bold, style.italic)
+		ensure_family_fallbacks(ctx, family)
+		ctx.set_text_cfg(gg.TextCfg{
+			size: int(font_render_size(style.size, text_font_metrics(family)) + 0.5)
+			bold: style.bold
+			italic: style.italic
+			family: family
+		})
+		return f64(ctx.text_width_f(text))
+	}
+
 	// clip is the region the caller is drawn under, and is what a block of text too
 	// tall for its box is held inside. An empty one is a caller that does not bound
 	// its text, which draws under whatever clip is already in force.
@@ -3381,11 +4237,38 @@ fn page_focused_text_area(direction int) {
 				shortened = true
 			}
 			ctx.draw_text(int(text_x), int(line_y), line, cfg)
+			if style.underline || style.strikethrough {
+				draw_text_decorations(ctx, line, f64(text_x), line_y, cfg, style)
+			}
 		}
 		if bounded {
 			apply_clip(ctx, clip)
 		}
 		return shortened
+	}
+
+	// draw_text_decorations rules a line drawn at text_x (its anchor for the
+	// line's alignment) and centred on line_y. Every backend's text style carries
+	// underline and strikethrough, so a custom-rendered link is underlined too.
+	fn draw_text_decorations(ctx &gg.Context, line string, text_x f64, line_y f64, cfg gg.TextCfg, style TextStyle) {
+		ctx.set_text_cfg(cfg)
+		width := f64(ctx.text_width_f(line))
+		if width <= 0 {
+			return
+		}
+		left := match style.align {
+			.left { text_x }
+			.center { text_x - width / 2 }
+			.right { text_x - width }
+		}
+		size := f64(cfg.size)
+		thickness := math.max(1.0, math.round(size / 14))
+		if style.underline {
+			draw_rect(ctx, left, line_y + size * 0.42, width, thickness, style.color, 0)
+		}
+		if style.strikethrough {
+			draw_rect(ctx, left, line_y - thickness / 2, width, thickness, style.color, 0)
+		}
 	}
 
 	fn draw_text_centered(ctx &gg.Context, t string, x f64, y f64, w f64, h f64, style TextStyle) bool {

@@ -403,11 +403,11 @@ fn (mut p Parser) eat(kind TokenKind) !Token {
 }
 
 fn (mut p Parser) parse_node() !&VNode {
-	tag := p.eat(.ident)!
+	tag_tok := p.eat(.ident)!
 	p.eat(.lbrace)!
 	mut node := &VNode{
-		tag:  tag.val
-		line: tag.line
+		tag:  tag_tok.val
+		line: tag_tok.line
 	}
 	for p.at().kind != .rbrace && p.at().kind != .eof {
 		// Lookahead: if IDENT followed by '{', it's a child node; if followed by ':', it's a property
@@ -776,7 +776,11 @@ pub fn element_from_vnode(node &VNode, frame Rect) !Element {
 }
 
 fn node_to_element(node &VNode, frame Rect) !Element {
-	resolved := if node.tag == 'Screen' && node.prop_bool('adaptive') { frame } else { v_frame(node, frame) }
+	resolved := if node.tag == 'Screen' && node.prop_bool('adaptive') {
+		frame
+	} else {
+		v_frame(node, frame)
+	}
 	el := node_to_element_base(node, resolved)!
 	key := node.prop('key')
 	menu := v_menu(node)
@@ -791,6 +795,7 @@ fn node_to_element(node &VNode, frame Rect) !Element {
 		button_behavior:     el.kind == .view
 			&& (el.button_behavior || node.prop_bool('button_behavior'))
 		draggable:           node.prop_bool('draggable')
+		hoverable:           el.hoverable || node.prop_bool('hoverable')
 		long_press:          node.prop_bool('long_press')
 		swipe_left:          node.prop_bool('swipe_left')
 		rotation:            node.prop_or('rotation', '0').f64()
@@ -883,13 +888,13 @@ fn node_to_element_base(node &VNode, frame Rect) !Element {
 				return Element{
 					...scroll_persistent(node.id, frame, v_color(node, 'background', 0xffffff),
 						children)
-					box: v_box(node)
+					box:         v_box(node)
 					scroll_mode: mode
 				}
 			}
 			return Element{
 				...scroll(node.id, frame, v_color(node, 'background', 0xffffff), children)
-				box: v_box(node)
+				box:         v_box(node)
 				scroll_mode: mode
 			}
 		}
@@ -1823,7 +1828,7 @@ fn v_frame(node &VNode, fallback Rect) Rect {
 	return rect(node.prop_or('x', fallback.x.str()).f64(),
 		node.prop_or('y', fallback.y.str()).f64(),
 		node.prop_or('width', fallback.width.str()).f64(), node.prop_or('height',
-		fallback.height.str()).f64())
+			fallback.height.str()).f64())
 }
 
 fn v_dimension(node &VNode, key string, fallback f64) f64 {

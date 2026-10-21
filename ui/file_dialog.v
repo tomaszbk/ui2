@@ -50,12 +50,12 @@ pub fn open_file_dialog(cfg FileDialogConfig) []string {
 
 fn open_file_dialog_config(cfg FileDialogConfig) FileDialogConfig {
 	return FileDialogConfig{
-		kind: .open
-		title: cfg.title
+		kind:      .open
+		title:     cfg.title
 		directory: cfg.directory
-		filename: cfg.filename
-		filters: cfg.filters
-		multiple: cfg.multiple
+		filename:  cfg.filename
+		filters:   cfg.filters
+		multiple:  cfg.multiple
 	}
 }
 
@@ -67,11 +67,11 @@ pub fn save_file_dialog(cfg FileDialogConfig) []string {
 
 fn save_file_dialog_config(cfg FileDialogConfig) FileDialogConfig {
 	return FileDialogConfig{
-		kind: .save
-		title: cfg.title
+		kind:      .save
+		title:     cfg.title
 		directory: cfg.directory
-		filename: cfg.filename
-		filters: cfg.filters
+		filename:  cfg.filename
+		filters:   cfg.filters
 	}
 }
 
@@ -83,8 +83,8 @@ pub fn open_folder_dialog(cfg FileDialogConfig) []string {
 
 fn open_folder_dialog_config(cfg FileDialogConfig) FileDialogConfig {
 	return FileDialogConfig{
-		kind: .folder
-		title: cfg.title
+		kind:      .folder
+		title:     cfg.title
 		directory: cfg.directory
 	}
 }

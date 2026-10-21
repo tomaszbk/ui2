@@ -24,55 +24,55 @@ pub mut:
 	font_size     f64 = 14
 	checked       bool
 	event_handler string
-	layout ui2.AdaptiveLayout
-	variations []ui2.AdaptiveLayoutVariation
+	layout        ui2.AdaptiveLayout
+	variations    []ui2.AdaptiveLayoutVariation
 }
 
 struct IdeSnapshot {
-	components      []DesignerComponent
-	selected_id     int
-	next_id         int
-	form_name       string
-	form_width      f64
-	form_height     f64
-	form_background u32
-	adaptive bool
-	breakpoint_width f64 = 600
+	components        []DesignerComponent
+	selected_id       int
+	next_id           int
+	form_name         string
+	form_width        f64
+	form_height       f64
+	form_background   u32
+	adaptive          bool
+	breakpoint_width  f64 = 600
 	breakpoint_height f64 = 600
 }
 
 @[heap]
 pub struct IdeApp {
 pub mut:
-	adaptive bool
-	breakpoint_width f64 = 600
-	breakpoint_height f64 = 600
-	preview_width f64
-	preview_height f64
-	edit_width_class ui2.AdaptiveSizeClass
-	edit_height_class ui2.AdaptiveSizeClass
+	adaptive           bool
+	breakpoint_width   f64 = 600
+	breakpoint_height  f64 = 600
+	preview_width      f64
+	preview_height     f64
+	edit_width_class   ui2.AdaptiveSizeClass
+	edit_height_class  ui2.AdaptiveSizeClass
 	show_layout_guides bool = true
-	components      []DesignerComponent
-	selected_id     int
-	next_id         int = 1
-	form_name       string = 'Form1'
-	form_width      f64 = default_form_width
-	form_height     f64 = default_form_height
-	form_background u32 = 0xf8fafc
-	project_root    string
-	file_path       string
-	path_input      string
-	active_tab      string = 'designer'
-	inspector_tab   string = 'properties'
-	armed_kind      string
-	source_text     string
-	source_modified bool
-	dirty           bool
-	show_grid       bool = true
-	snap_to_grid    bool = true
-	output_open     bool = true
-	status          string = 'Choose a component, then click the form to place it.'
-	messages        string
+	components         []DesignerComponent
+	selected_id        int
+	next_id            int    = 1
+	form_name          string = 'Form1'
+	form_width         f64    = default_form_width
+	form_height        f64    = default_form_height
+	form_background    u32    = 0xf8fafc
+	project_root       string
+	file_path          string
+	path_input         string
+	active_tab         string = 'designer'
+	inspector_tab      string = 'properties'
+	armed_kind         string
+	source_text        string
+	source_modified    bool
+	dirty              bool
+	show_grid          bool   = true
+	snap_to_grid       bool   = true
+	output_open        bool   = true
+	status             string = 'Choose a component, then click the form to place it.'
+	messages           string
 mut:
 	undo_stack         []IdeSnapshot
 	redo_stack         []IdeSnapshot
@@ -91,7 +91,7 @@ fn new_ide_app(root string) IdeApp {
 	real_root := os.real_path(root)
 	mut app := IdeApp{
 		project_root: real_root
-		path_input: os.join_path(real_root, 'form.vml')
+		path_input:   os.join_path(real_root, 'form.vml')
 	}
 	app.sync_source()
 	app.log('Ready. The form is 760 x 520 logical pixels.')
@@ -100,16 +100,16 @@ fn new_ide_app(root string) IdeApp {
 
 fn (app &IdeApp) snapshot() IdeSnapshot {
 	return IdeSnapshot{
-		adaptive: app.adaptive
-		breakpoint_width: app.breakpoint_width
+		adaptive:          app.adaptive
+		breakpoint_width:  app.breakpoint_width
 		breakpoint_height: app.breakpoint_height
-		components: clone_designer_components(app.components)
-		selected_id: app.selected_id
-		next_id: app.next_id
-		form_name: app.form_name
-		form_width: app.form_width
-		form_height: app.form_height
-		form_background: app.form_background
+		components:        clone_designer_components(app.components)
+		selected_id:       app.selected_id
+		next_id:           app.next_id
+		form_name:         app.form_name
+		form_width:        app.form_width
+		form_height:       app.form_height
+		form_background:   app.form_background
 	}
 }
 
@@ -290,7 +290,11 @@ fn (app &IdeApp) selected_component() ?DesignerComponent {
 fn (app &IdeApp) inspector_property_ids() []string {
 	if app.inspector_tab == 'layout' {
 		if !app.adaptive { return []string{} }
-		return if app.selected_id == 0 { ['layout_breakpoint_width', 'layout_breakpoint_height'] } else { ['layout_min_width', 'layout_max_width', 'layout_min_height', 'layout_max_height'] }
+		return if app.selected_id == 0 {
+			['layout_breakpoint_width', 'layout_breakpoint_height']
+		} else {
+			['layout_min_width', 'layout_max_width', 'layout_min_height', 'layout_max_height']
+		}
 	}
 	if app.inspector_tab == 'events' {
 		return if app.selected_id > 0 { ['property_event'] } else { []string{} }
@@ -385,16 +389,16 @@ fn (mut app IdeApp) add_component(kind string, x f64, y f64) int {
 	id := app.next_id
 	app.next_id++
 	component := DesignerComponent{
-		id: id
-		kind: kind
-		name: app.unique_component_name(kind)
-		text: component_default_text(kind, ordinal)
-		x: snap_clamped(x, 0, app.form_width - width, app.snap_to_grid)
-		y: snap_clamped(y, 0, app.form_height - height, app.snap_to_grid)
-		width: width
-		height: height
+		id:         id
+		kind:       kind
+		name:       app.unique_component_name(kind)
+		text:       component_default_text(kind, ordinal)
+		x:          snap_clamped(x, 0, app.form_width - width, app.snap_to_grid)
+		y:          snap_clamped(y, 0, app.form_height - height, app.snap_to_grid)
+		width:      width
+		height:     height
 		background: component_default_background(kind)
-		color: if kind == 'button' { u32(0xffffff) } else { u32(0x172033) }
+		color:      if kind == 'button' { u32(0xffffff) } else { u32(0x172033) }
 	}
 	app.components << component
 	app.selected_id = id
@@ -419,10 +423,10 @@ fn (mut app IdeApp) duplicate_selected() {
 	app.next_id++
 	mut copy := DesignerComponent{
 		...original
-		id: id
+		id:   id
 		name: app.unique_component_name(original.kind)
-		x: snap_clamped(original.x + 16, 0, app.form_width - original.width, app.snap_to_grid)
-		y: snap_clamped(original.y + 16, 0, app.form_height - original.height, app.snap_to_grid)
+		x:    snap_clamped(original.x + 16, 0, app.form_width - original.width, app.snap_to_grid)
+		y:    snap_clamped(original.y + 16, 0, app.form_height - original.height, app.snap_to_grid)
 	}
 	copy.variations = original.variations.clone()
 	app.components << copy
@@ -885,24 +889,24 @@ fn component_from_node(node &ui2.VNode, id int) !DesignerComponent {
 		return error('designer control dimensions must be non-negative')
 	}
 	return DesignerComponent{
-		layout: ui2.adaptive_layout_from_vnode(node)!
-		variations: ui2.adaptive_variations_from_vnode(node)!
-		id: id
-		kind: kind
-		name: name
-		text: text
-		x: node_number(node, 'x', 0)!
-		y: node_number(node, 'y', 0)!
-		width: node_number(node, 'width', default_width)!
-		height: node_number(node, 'height', default_height)!
-		background: node_color(node, 'background', component_default_background(kind))!
-		color: node_color(node, 'color', if kind == 'button' {
+		layout:        ui2.adaptive_layout_from_vnode(node)!
+		variations:    ui2.adaptive_variations_from_vnode(node)!
+		id:            id
+		kind:          kind
+		name:          name
+		text:          text
+		x:             node_number(node, 'x', 0)!
+		y:             node_number(node, 'y', 0)!
+		width:         node_number(node, 'width', default_width)!
+		height:        node_number(node, 'height', default_height)!
+		background:    node_color(node, 'background', component_default_background(kind))!
+		color:         node_color(node, 'color', if kind == 'button' {
 			u32(0xffffff)
 		} else {
 			u32(0x172033)
 		})!
-		font_size: node_number(node, 'font_size', 14)!
-		checked: node.prop_bool('checked')
+		font_size:     node_number(node, 'font_size', 14)!
+		checked:       node.prop_bool('checked')
 		event_handler: if kind in ['text_field', 'text_area', 'dropdown'] {
 			node.prop('on_change')
 		} else {
@@ -947,16 +951,16 @@ fn document_from_vml(source string) !IdeSnapshot {
 		return error('form dimensions and size-class breakpoints must be positive')
 	}
 	return IdeSnapshot{
-		adaptive: adaptive_raw == 'true'
-		breakpoint_width: bw
+		adaptive:          adaptive_raw == 'true'
+		breakpoint_width:  bw
 		breakpoint_height: bh
-		components: components
-		selected_id: 0
-		next_id: components.len + 1
-		form_name: form_name
-		form_width: width
-		form_height: height
-		form_background: node_color(root, 'background', 0xf8fafc)!
+		components:        components
+		selected_id:       0
+		next_id:           components.len + 1
+		form_name:         form_name
+		form_width:        width
+		form_height:       height
+		form_background:   node_color(root, 'background', 0xf8fafc)!
 	}
 }
 
