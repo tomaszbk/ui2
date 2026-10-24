@@ -1,6 +1,6 @@
 module ui2
 
-import vml
+import ui2.vml
 
 // The VML interpreter's loader (design §3.3), compiled only with
 // `-d vml_interpreter`. It resolves a parsed document once into an IR in which

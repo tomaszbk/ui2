@@ -2,7 +2,7 @@ module ui2
 
 import os
 import time
-import vml
+import ui2.vml
 
 // The VML interpreter (design §3), compiled only with `-d vml_interpreter`.
 // It runs a VML document without compiling it: the shared parser (vlib/vml)
