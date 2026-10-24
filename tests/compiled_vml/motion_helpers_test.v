@@ -1,5 +1,7 @@
 module main
 
+// vml: motion_helpers.vml
+
 import ui2
 
 // Motion helper values and Timeline parts in compiled VML: `motion: [...]`
@@ -18,7 +20,7 @@ pub mut:
 }
 
 fn motion_helpers_tree(mut app MotionHelpersApp, frame ui2.Rect) ui2.Element {
-	return $vml('motion_helpers.vml', frame)
+	return motion_helpers_vml_framed(mut app, frame)
 }
 
 fn motion_helpers_find(el ui2.Element, id string) ?ui2.Element {

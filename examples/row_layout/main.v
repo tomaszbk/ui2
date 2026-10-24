@@ -1,5 +1,7 @@
 module main
 
+// vml: row_layout.vml
+
 import ui2
 
 const row_layout_width = 760
@@ -52,9 +54,9 @@ fn main() {
 }
 
 fn build_row_layout(mut app RowLayoutDemo) ui2.Element {
-	return $vml('row_layout.vml')
+	return row_layout_vml(mut app)
 }
 
 fn row_layout_tree(mut app RowLayoutDemo, frame ui2.Rect) ui2.Element {
-	return $vml('row_layout.vml', frame)
+	return row_layout_vml_framed(mut app, frame)
 }

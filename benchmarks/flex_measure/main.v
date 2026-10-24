@@ -5,6 +5,8 @@
 //   /tmp/ui2-flex-bench [name-filter]
 module main
 
+// vml: ../../examples/responsive_layout/responsive_layout.vml
+
 import os
 import time
 import ui2
@@ -42,7 +44,7 @@ struct Case {
 }
 
 fn responsive(mut app BenchApp, frame ui2.Rect) ui2.Element {
-	return $vml('../../examples/responsive_layout/responsive_layout.vml', frame)
+	return responsive_layout_vml_framed(mut app, frame)
 }
 
 fn nested(depth int, frame ui2.Rect) ui2.Element {

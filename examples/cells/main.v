@@ -1,5 +1,7 @@
 module main
 
+// vml: cells.vml
+
 import ui2
 
 const cells_width = 780
@@ -211,9 +213,9 @@ fn main() {
 }
 
 fn build_cells(mut app CellsDemo) ui2.Element {
-	return $vml('cells.vml')
+	return cells_vml(mut app)
 }
 
 fn cells_tree(mut app CellsDemo, frame ui2.Rect) ui2.Element {
-	return $vml('cells.vml', frame)
+	return cells_vml_framed(mut app, frame)
 }

@@ -1,5 +1,7 @@
 module main
 
+// vml: tabs.vml
+
 import ui2
 
 const tabs_width = 640
@@ -22,9 +24,9 @@ fn main() {
 }
 
 fn build_tabs(mut app TabsDemo) ui2.Element {
-	return $vml('tabs.vml')
+	return tabs_vml(mut app)
 }
 
 fn tabs_tree(mut app TabsDemo, frame ui2.Rect) ui2.Element {
-	return $vml('tabs.vml', frame)
+	return tabs_vml_framed(mut app, frame)
 }

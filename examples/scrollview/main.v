@@ -1,5 +1,7 @@
 module main
 
+// vml: scrollview.vml
+
 import ui2
 
 const scrollview_width = 720
@@ -34,9 +36,9 @@ fn main() {
 }
 
 fn build_scrollview(mut app ScrollviewDemo) ui2.Element {
-	return $vml('scrollview.vml')
+	return scrollview_vml(mut app)
 }
 
 fn scrollview_tree(mut app ScrollviewDemo, frame ui2.Rect) ui2.Element {
-	return $vml('scrollview.vml', frame)
+	return scrollview_vml_framed(mut app, frame)
 }

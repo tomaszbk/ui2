@@ -1,6 +1,8 @@
-// vtest vflags: -d ui2_custom_rendering -d ui2_embedder -d ui2_geometry_capture
+// vtest vflags: -d ui2_custom_rendering -d ui2_embedder -d ui2_geometry_capture -d vml_fixtures
 @[has_globals]
 module ui2
+
+// vml: fixtures/compiled_controls.vml
 
 import gg
 import sokol.gfx
@@ -16,7 +18,7 @@ $if macos && ui2_custom_rendering ?&& ui2_embedder ?&& ui2_geometry_capture ?&& 
 	}
 
 	fn compiled_controls(mut app CompiledControlsModel) Element {
-		return $vml('fixtures/compiled_controls.vml')
+		return compiled_controls_vml(mut app)
 	}
 
 	fn controls_node(mut w Window, kind Kind) FocusNode {

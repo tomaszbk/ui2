@@ -1,7 +1,10 @@
-// vtest vflags: -d ui2_custom_rendering
+// vtest vflags: -d ui2_custom_rendering -d vml_fixtures
 // vfmt off
 @[has_globals]
 module ui2
+
+// vml: fixtures/scaled_content_immediate_0.vml
+// vml: fixtures/scaled_content_immediate_1.vml
 
 $if (android || linux || ((ios || macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
  __global scaled_callback_events = []ElementEvent{}
@@ -110,13 +113,13 @@ $if (android || linux || ((ios || macos || windows) && ui2_custom_rendering ?)) 
 $if (android || linux || ((ios || macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
 
 fn compiled_scaled_content_immediate_0(mut app ScaledFixtureModel, frame Rect) Element {
-	return $vml('fixtures/scaled_content_immediate_0.vml', frame)
+	return scaled_content_immediate_0_vml_framed(mut app, frame)
 }
 }
 
 $if (android || linux || ((ios || macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
 
 fn compiled_scaled_content_immediate_1(mut app ScaledFixtureModel, frame Rect) Element {
-	return $vml('fixtures/scaled_content_immediate_1.vml', frame)
+	return scaled_content_immediate_1_vml_framed(mut app, frame)
 }
 }

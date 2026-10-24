@@ -1,5 +1,7 @@
 module main
 
+// vml: temperature_converter.vml
+
 import math
 import strconv
 import ui2
@@ -78,9 +80,9 @@ fn main() {
 }
 
 fn build_temperature_converter(mut app TemperatureConverter) ui2.Element {
-	return $vml('temperature_converter.vml')
+	return temperature_converter_vml(mut app)
 }
 
 fn temperature_converter_tree(mut app TemperatureConverter, frame ui2.Rect) ui2.Element {
-	return $vml('temperature_converter.vml', frame)
+	return temperature_converter_vml_framed(mut app, frame)
 }

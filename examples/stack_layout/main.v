@@ -1,5 +1,7 @@
 module main
 
+// vml: stack_layout.vml
+
 import ui2
 
 const stack_width = 380
@@ -19,9 +21,9 @@ fn main() {
 }
 
 fn build_stack_layout(mut app StackLayoutDemo) ui2.Element {
-	return $vml('stack_layout.vml')
+	return stack_layout_vml()
 }
 
 fn stack_layout_tree(mut app StackLayoutDemo, frame ui2.Rect) ui2.Element {
-	return $vml('stack_layout.vml', frame)
+	return stack_layout_vml_framed(frame)
 }

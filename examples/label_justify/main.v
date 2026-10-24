@@ -1,5 +1,7 @@
 module main
 
+// vml: label_justify.vml
+
 import ui2
 
 const label_justify_width = 520
@@ -19,9 +21,9 @@ fn main() {
 }
 
 fn build_label_justify(mut app LabelJustifyDemo) ui2.Element {
-	return $vml('label_justify.vml')
+	return label_justify_vml()
 }
 
 fn label_justify_tree(mut app LabelJustifyDemo, frame ui2.Rect) ui2.Element {
-	return $vml('label_justify.vml', frame)
+	return label_justify_vml_framed(frame)
 }

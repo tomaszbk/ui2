@@ -1,6 +1,12 @@
+// vtest vflags: -d vml_fixtures
 // vfmt off
 @[has_globals]
 module ui2
+
+// vml: fixtures/ui_scroll_immediate_0.vml
+// vml: fixtures/ui_scroll_immediate_1.vml
+// vml: fixtures/ui_scroll_immediate_2.vml
+// vml: fixtures/ui_scroll_immediate_3.vml
 
 $if (android || linux || ((ios || macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
 	__global scroll_test_events = []string{}
@@ -1052,18 +1058,40 @@ $if (android || linux || ((ios || macos || windows) && ui2_custom_rendering ?)) 
 	}
 }
 
+// ScrollFixture is the model of the scroll fixtures: their scroll action.
+@[heap]
+struct ScrollFixture {
+pub:
+	callback_changed ElementCallback = unsafe { nil }
+}
+
 fn compiled_ui_scroll_immediate_0(frame Rect, callback_changed ElementCallback, fixture_id string) Element {
-	return Element{ ...$vml('fixtures/ui_scroll_immediate_0.vml', frame), id: fixture_id }
+	mut app := &ScrollFixture{
+		callback_changed: callback_changed
+	}
+	return Element{
+		...ui_scroll_immediate_0_vml_framed(mut app, frame)
+		id: fixture_id
+	}
 }
 
 fn compiled_ui_scroll_immediate_1(frame Rect, callback_changed ElementCallback) Element {
-	return $vml('fixtures/ui_scroll_immediate_1.vml', frame)
+	mut app := &ScrollFixture{
+		callback_changed: callback_changed
+	}
+	return ui_scroll_immediate_1_vml_framed(mut app, frame)
 }
 
 fn compiled_ui_scroll_immediate_2(frame Rect, callback_changed ElementCallback) Element {
-	return $vml('fixtures/ui_scroll_immediate_2.vml', frame)
+	mut app := &ScrollFixture{
+		callback_changed: callback_changed
+	}
+	return ui_scroll_immediate_2_vml_framed(mut app, frame)
 }
 
 fn compiled_ui_scroll_immediate_3(frame Rect, callback_changed ElementCallback) Element {
-	return $vml('fixtures/ui_scroll_immediate_3.vml', frame)
+	mut app := &ScrollFixture{
+		callback_changed: callback_changed
+	}
+	return ui_scroll_immediate_3_vml_framed(mut app, frame)
 }

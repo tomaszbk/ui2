@@ -1,5 +1,8 @@
+// vtest vflags: -d vml_fixtures
 @[has_globals]
 module ui2
+
+// vml: fixtures/message_box_0.vml
 
 __global message_box_test_events = []ElementEvent{}
 __global message_box_test_callbacks = []string{}
@@ -125,6 +128,16 @@ fn test_vml_message_box_turns_button_children_into_dialog_actions() {
 	assert message_box_test_events[0].id == 'close'
 }
 
+// MessageBoxFixture is the model of the message box fixture: its actions.
+@[heap]
+struct MessageBoxFixture {
+pub:
+	callback_dismiss ElementCallback = unsafe { nil }
+}
+
 fn compiled_message_box_0(frame Rect, callback_dismiss ElementCallback) Element {
-	return $vml('fixtures/message_box_0.vml', frame)
+	mut app := &MessageBoxFixture{
+		callback_dismiss: callback_dismiss
+	}
+	return message_box_0_vml_framed(mut app, frame)
 }

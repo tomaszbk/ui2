@@ -1,5 +1,7 @@
-// vtest vflags: -d vml_props
+// vtest vflags: -d vml_props -d vml_fixtures
 module ui2
+
+// vml: ../tests/compiled_vml/styles.vml
 
 // Named, inline and reactive styles with theme tokens, on plain elements and
 // on generated widgets with parts (tests/compiled_vml/styles.vml), written by
@@ -15,7 +17,7 @@ pub mut:
 }
 
 fn w_styles_compiled(mut app WStylesApp) Element {
-	return $vml('../tests/compiled_vml/styles.vml', rect(0, 0, 300, 240))
+	return styles_vml_framed(mut app, rect(0, 0, 300, 240))
 }
 
 // style card = [background(color.surface), padding(spacing.medium), radius(radius.medium)]

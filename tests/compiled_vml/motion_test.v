@@ -1,5 +1,7 @@
 module main
 
+// vml: motion.vml
+
 import ui2
 
 pub struct MotionContractApp {
@@ -11,7 +13,7 @@ pub mut:
 }
 
 fn motion_contract(mut app MotionContractApp) ui2.Element {
-	return $vml('motion.vml', ui2.rect(0, 0, 160, 80))
+	return motion_vml_framed(mut app, ui2.rect(0, 0, 160, 80))
 }
 
 fn test_motion_lowering_retains_bound_targets_and_component_state() ! {

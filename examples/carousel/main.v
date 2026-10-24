@@ -1,5 +1,7 @@
 module main
 
+// vml: carousel.vml
+
 import ui2
 
 const carousel_width = 460
@@ -22,9 +24,9 @@ fn main() {
 }
 
 fn build_carousel(mut app CarouselDemo) ui2.Element {
-	return $vml('carousel.vml')
+	return carousel_vml(mut app)
 }
 
 fn carousel_tree(mut app CarouselDemo, frame ui2.Rect) ui2.Element {
-	return $vml('carousel.vml', frame)
+	return carousel_vml_framed(mut app, frame)
 }

@@ -1,5 +1,7 @@
 module main
 
+// vml: rasterview.vml
+
 import os
 import ui2
 
@@ -43,9 +45,9 @@ fn main() {
 }
 
 fn build_rasterview(mut app RasterviewDemo) ui2.Element {
-	return $vml('rasterview.vml')
+	return rasterview_vml(mut app)
 }
 
 fn rasterview_tree(mut app RasterviewDemo, frame ui2.Rect) ui2.Element {
-	return $vml('rasterview.vml', frame)
+	return rasterview_vml_framed(mut app, frame)
 }

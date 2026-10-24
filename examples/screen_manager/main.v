@@ -1,5 +1,7 @@
 module main
 
+// vml: screen_manager.vml
+
 import ui2
 
 const screen_manager_width = 440
@@ -30,9 +32,9 @@ fn main() {
 }
 
 fn build_screen_manager(mut app ScreenManagerDemo) ui2.Element {
-	return $vml('screen_manager.vml')
+	return screen_manager_vml(mut app)
 }
 
 fn screen_manager_tree(mut app ScreenManagerDemo, frame ui2.Rect) ui2.Element {
-	return $vml('screen_manager.vml', frame)
+	return screen_manager_vml_framed(mut app, frame)
 }

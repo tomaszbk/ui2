@@ -1,5 +1,7 @@
 module main
 
+// vml: tree.vml
+
 import ui2
 
 const tree_width = 460
@@ -23,9 +25,9 @@ fn main() {
 }
 
 fn build_tree(mut app TreeDemo) ui2.Element {
-	return $vml('tree.vml')
+	return tree_vml(mut app)
 }
 
 fn tree_document(mut app TreeDemo, frame ui2.Rect) ui2.Element {
-	return $vml('tree.vml', frame)
+	return tree_vml_framed(mut app, frame)
 }

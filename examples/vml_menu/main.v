@@ -1,5 +1,7 @@
 module main
 
+// vml: menus.vml
+
 import ui2
 
 fn build(mut w ui2.Window) ui2.Element {
@@ -32,22 +34,52 @@ fn menu_action(action string) ui2.ElementCallback {
 
 fn menu_callbacks() map[string]ui2.ElementCallback {
 	return {
-		'file_new':    menu_action('file_new')
-		'file_open':   menu_action('file_open')
-		'file_revert': menu_action('file_revert')
-		'export_pdf':  menu_action('export_pdf')
-		'export_png':  menu_action('export_png')
-		'word_wrap':   menu_action('word_wrap')
+		'file_new':    callback_file_new
+		'file_open':   callback_file_open
+		'file_revert': callback_file_revert
+		'export_pdf':  callback_export_pdf
+		'export_png':  callback_export_png
+		'word_wrap':   callback_word_wrap
 	}
 }
 
+fn callback_file_new(event ui2.ElementEvent) {
+	menu_action('file_new')(event)
+}
+
+fn callback_file_open(event ui2.ElementEvent) {
+	menu_action('file_open')(event)
+}
+
+fn callback_file_revert(event ui2.ElementEvent) {
+	menu_action('file_revert')(event)
+}
+
+fn callback_export_pdf(event ui2.ElementEvent) {
+	menu_action('export_pdf')(event)
+}
+
+fn callback_export_png(event ui2.ElementEvent) {
+	menu_action('export_png')(event)
+}
+
+fn callback_word_wrap(event ui2.ElementEvent) {
+	menu_action('word_wrap')(event)
+}
+
+// MenuActions is the model of the menus document: the action of each item.
+@[heap]
+struct MenuActions {
+pub:
+	callback_file_new    ui2.ElementCallback = callback_file_new
+	callback_file_open   ui2.ElementCallback = callback_file_open
+	callback_file_revert ui2.ElementCallback = callback_file_revert
+	callback_export_pdf  ui2.ElementCallback = callback_export_pdf
+	callback_export_png  ui2.ElementCallback = callback_export_png
+	callback_word_wrap   ui2.ElementCallback = callback_word_wrap
+}
+
 fn build_menus() []ui2.Menu {
-	callbacks := menu_callbacks()
-	callback_file_new := callbacks['file_new'] or { panic('missing file_new callback') }
-	callback_file_open := callbacks['file_open'] or { panic('missing file_open callback') }
-	callback_file_revert := callbacks['file_revert'] or { panic('missing file_revert callback') }
-	callback_export_pdf := callbacks['export_pdf'] or { panic('missing export_pdf callback') }
-	callback_export_png := callbacks['export_png'] or { panic('missing export_png callback') }
-	callback_word_wrap := callbacks['word_wrap'] or { panic('missing word_wrap callback') }
-	return ui2.menus($vml('menus.vml')) or { panic(err) }
+	mut actions := &MenuActions{}
+	return ui2.menus(menus_vml(mut actions)) or { panic(err) }
 }

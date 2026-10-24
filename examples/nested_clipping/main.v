@@ -1,5 +1,7 @@
 module main
 
+// vml: nested_clipping.vml
+
 import ui2
 
 const nested_clipping_width = 820
@@ -135,9 +137,9 @@ fn main() {
 }
 
 fn build_nested_clipping(mut app NestedClippingDemo) ui2.Element {
-	return $vml('nested_clipping.vml')
+	return nested_clipping_vml(mut app)
 }
 
 fn nested_clipping_tree(mut app NestedClippingDemo, frame ui2.Rect) ui2.Element {
-	return $vml('nested_clipping.vml', frame)
+	return nested_clipping_vml_framed(mut app, frame)
 }

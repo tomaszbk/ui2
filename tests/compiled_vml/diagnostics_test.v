@@ -1,6 +1,7 @@
 module main
 
 import os
+import ui2.vml
 
 fn compiled_diagnostic(source string, index int) !string {
 	directory := os.join_path(os.temp_dir(), 'ui2-vml-diagnostics-${os.getpid()}', index.str())
@@ -12,12 +13,22 @@ fn compiled_diagnostic(source string, index int) !string {
 		os.write_file(os.join_path(directory, 'item.vml'), source[..boundary])!
 		document = 'import Item\n' + source[boundary + 1..]
 	}
-	os.write_file(os.join_path(directory, 'invalid.vml'), document)!
+	invalid_path := os.join_path(directory, 'invalid.vml')
+	os.write_file(invalid_path, document)!
+	// Language errors are the generator's; type errors are V's in the
+	// generated builder, mapped to the document by its `#line` directives.
+	generated := vml.generate_file(invalid_path, module: 'main', dir: directory) or {
+		assert index != -1, err.msg()
+		assert err.msg().contains('invalid.vml') || err.msg().contains('item.vml'), err.msg()
+		return err.msg()
+	}
+	os.write_file(os.join_path(directory, 'invalid_vml.v'), generated)!
+	call := if generated.contains('invalid_vml[A](mut app A)') { 'invalid_vml(mut app)' } else { 'invalid_vml()' }
 	main_path := os.join_path(directory, 'main.v')
-	os.write_file(main_path, 'module main\nimport ui2\npub struct App {\npub:\n readonly_text string\npub mut:\n count int\n name string\n checked bool\n level f64\n rows []int\n string_offset string\n bool_offset bool\n}\npub fn (mut app App) action() {}\nfn wrong_payload(value int) {}\nfn wrong_return() int { return 1 }\nfn main() { mut app := &App{} _ = \$vml("invalid.vml") }\n')!
+	os.write_file(main_path, 'module main\nimport ui2\npub struct App {\npub:\n readonly_text string\npub mut:\n count int\n name string\n checked bool\n level f64\n rows []int\n string_offset string\n bool_offset bool\n}\npub fn (mut app App) action() {}\nfn wrong_payload(value int) {}\nfn wrong_return() int { return 1 }\nfn main() { mut app := &App{} _ = app _ = ${call} }\n')!
 	module_path := [os.dir(@VMODROOT), '@vlib', '@vmodules'].join(os.path_delimiter)
 	result := os.exec([@VEXE, '-b', 'c', '-path', module_path, '-d', 'ui2_custom_rendering', '-o',
-		os.join_path(directory, 'invalid'), main_path])
+		os.join_path(directory, 'invalid'), directory])
 	if index == -1 {
 		assert result.exit_code == 0, result.output
 		return result.output

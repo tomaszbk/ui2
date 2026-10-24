@@ -1,5 +1,8 @@
-// vtest vflags: -d vml_props
+// vtest vflags: -d vml_props -d vml_fixtures
 module ui2
+
+// vml: ../tests/compiled_vml/contract.vml
+// vml: ../tests/compiled_vml/named_slots.vml
 
 // Components with state, computed values, refs, bindable inputs, typed
 // events, lifecycle hooks and slots (tests/compiled_vml/contract.vml and
@@ -36,11 +39,11 @@ fn (app &WContractApp) state() string {
 }
 
 fn w_contract_compiled(mut app WContractApp) Element {
-	return $vml('../tests/compiled_vml/contract.vml', rect(0, 0, 400, 300))
+	return contract_vml_framed(mut app, rect(0, 0, 400, 300))
 }
 
 fn w_named_slots_compiled(mut app WContractApp) Element {
-	return $vml('../tests/compiled_vml/named_slots.vml', rect(0, 0, 400, 300))
+	return named_slots_vml_framed(mut app, rect(0, 0, 400, 300))
 }
 
 // The Editor component, lowered at one call site: its bindable `name` input

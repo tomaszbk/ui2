@@ -1,5 +1,7 @@
 module main
 
+// vml: dropdown.vml
+
 import ui2
 
 const dropdown_width = 360
@@ -32,9 +34,9 @@ fn main() {
 }
 
 fn build_dropdown(mut app DropdownDemo) ui2.Element {
-	return $vml('dropdown.vml')
+	return dropdown_vml(mut app)
 }
 
 fn dropdown_tree(mut app DropdownDemo, frame ui2.Rect) ui2.Element {
-	return $vml('dropdown.vml', frame)
+	return dropdown_vml_framed(mut app, frame)
 }

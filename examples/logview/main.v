@@ -1,5 +1,7 @@
 module main
 
+// vml: logview.vml
+
 import ui2
 
 const logview_width = 640
@@ -41,9 +43,9 @@ fn main() {
 }
 
 fn build_logview(mut app LogviewDemo) ui2.Element {
-	return $vml('logview.vml')
+	return logview_vml(mut app)
 }
 
 fn logview_tree(mut app LogviewDemo, frame ui2.Rect) ui2.Element {
-	return $vml('logview.vml', frame)
+	return logview_vml_framed(mut app, frame)
 }

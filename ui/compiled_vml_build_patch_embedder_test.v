@@ -1,6 +1,8 @@
-// vtest vflags: -d ui2_custom_rendering -d ui2_embedder
+// vtest vflags: -d ui2_custom_rendering -d ui2_embedder -d vml_fixtures
 @[has_globals]
 module ui2
+
+// vml: fixtures/compiled_build_tick.vml
 
 import gg
 import sokol.gfx
@@ -11,7 +13,7 @@ $if macos && ui2_custom_rendering ?&& ui2_embedder ?&& !ui2_headless ? {
 	}
 
 	fn compiled_build_tick(mut app CompiledBuildTickModel) Element {
-		return $vml('fixtures/compiled_build_tick.vml')
+		return compiled_build_tick_vml(mut app)
 	}
 }
 

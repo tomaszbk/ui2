@@ -1,5 +1,7 @@
 module main
 
+// vml: ../../examples/toggle_button/toggle_button.vml
+
 import ui2
 
 // A styled ToggleButton's compiled pressed face spreads a call result, which V
@@ -14,7 +16,7 @@ pub mut:
 }
 
 fn props_toggle_tree(mut app PropsToggleDemo) ui2.Element {
-	return $vml('../../examples/toggle_button/toggle_button.vml', ui2.rect(0, 0, 340, 200))
+	return toggle_button_vml_framed(mut app, ui2.rect(0, 0, 340, 200))
 }
 
 fn props_toggle_find(el ui2.Element, id string) ?ui2.Element {

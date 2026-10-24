@@ -1,5 +1,7 @@
 module main
 
+// vml: fontchooser.vml
+
 import ui2
 
 const fontchooser_width = 720
@@ -62,9 +64,9 @@ fn main() {
 }
 
 fn build_fontchooser(mut app FontChooserDemo) ui2.Element {
-	return $vml('fontchooser.vml')
+	return fontchooser_vml(mut app)
 }
 
 fn fontchooser_tree(mut app FontChooserDemo, frame ui2.Rect) ui2.Element {
-	return $vml('fontchooser.vml', frame)
+	return fontchooser_vml_framed(mut app, frame)
 }

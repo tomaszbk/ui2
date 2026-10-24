@@ -1,5 +1,7 @@
 module main
 
+// vml: overlays.vml
+
 import ui2
 
 const overlays_width = 960
@@ -89,7 +91,7 @@ pub fn (mut app OverlayDemo) describe_tip() {
 
 pub fn (mut app OverlayDemo) toggle_motion() { app.reduced_motion = !app.reduced_motion }
 
-fn build_overlays(mut app OverlayDemo) ui2.Element { return $vml('overlays.vml') }
+fn build_overlays(mut app OverlayDemo) ui2.Element { return overlays_vml(mut app) }
 
 fn main() {
 	mut app := OverlayDemo{}

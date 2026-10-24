@@ -1,5 +1,8 @@
 module main
 
+// vml: rows.vml
+// vml: siblings.vml
+
 import os
 import ui2
 
@@ -10,7 +13,7 @@ pub mut:
 }
 
 fn build(mut app KeyModel) ui2.Element {
-	return $vml('rows.vml')
+	return rows_vml(mut app)
 }
 
 fn main() {
@@ -20,7 +23,7 @@ fn main() {
 	} else if '--empty-key' in os.args {
 		app.rows = ['']
 	} else if '--duplicate-sibling' in os.args {
-		_ = $vml('siblings.vml')
+		_ = siblings_vml()
 		return
 	}
 	root := build(mut app)

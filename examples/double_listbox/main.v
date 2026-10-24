@@ -1,5 +1,7 @@
 module main
 
+// vml: double_listbox.vml
+
 import ui2
 
 const double_list_width = 700
@@ -76,9 +78,9 @@ fn main() {
 }
 
 fn build_double_listbox(mut app DoubleListboxDemo) ui2.Element {
-	return $vml('double_listbox.vml')
+	return double_listbox_vml(mut app)
 }
 
 fn double_listbox_tree(mut app DoubleListboxDemo, frame ui2.Rect) ui2.Element {
-	return $vml('double_listbox.vml', frame)
+	return double_listbox_vml_framed(mut app, frame)
 }

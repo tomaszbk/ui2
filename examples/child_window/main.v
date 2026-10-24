@@ -1,5 +1,7 @@
 module main
 
+// vml: child_window.vml
+
 import ui2
 
 const child_window_width = 640
@@ -96,49 +98,63 @@ fn child_card_size(frame ui2.Rect) (f64, f64) {
 
 fn child_window_callbacks() map[string]ui2.ElementCallback {
 	return {
-		'create':         fn (event ui2.ElementEvent) {
-			mut state := unsafe { child_window_state }
-			state.create_window()
-			event.window.request_refresh()
-		}
-		'close':          fn (event ui2.ElementEvent) {
-			mut state := unsafe { child_window_state }
-			state.close_window()
-			event.window.request_refresh()
-		}
-		'greet':          fn (event ui2.ElementEvent) {
-			mut state := unsafe { child_window_state }
-			state.greet()
-			event.window.request_refresh()
-		}
-		'child_name':     fn (event ui2.ElementEvent) {
-			mut state := unsafe { child_window_state }
-			state.set_name(event.text)
-			event.window.request_refresh()
-		}
-		'genre':          fn (event ui2.ElementEvent) {
-			mut state := unsafe { child_window_state }
-			state.woman = event.checked
-			event.window.request_refresh()
-		}
-		'parent_input':   fn (event ui2.ElementEvent) {
-			mut state := unsafe { child_window_state }
-			state.parent_text = event.text
-			event.window.request_refresh()
-		}
-		'child_titlebar': fn (event ui2.ElementEvent) {
-			mut state := unsafe { child_window_state }
-			card_width, card_height := child_card_size(event.window.bounds())
-			match event.kind {
-				.pointer_down { state.grab_panel(event.x, event.y) }
-				.pointer_drag, .pointer_up {
-					state.drag_panel(event.x, event.y, card_width, card_height)
-				}
-				else {}
-			}
-			event.window.request_refresh()
-		}
+		'create':         callback_create
+		'close':          callback_close
+		'greet':          callback_greet
+		'child_name':     callback_child_name
+		'genre':          callback_genre
+		'parent_input':   callback_parent_input
+		'child_titlebar': callback_child_titlebar
 	}
+}
+
+fn callback_create(event ui2.ElementEvent) {
+	mut state := unsafe { child_window_state }
+	state.create_window()
+	event.window.request_refresh()
+}
+
+fn callback_close(event ui2.ElementEvent) {
+	mut state := unsafe { child_window_state }
+	state.close_window()
+	event.window.request_refresh()
+}
+
+fn callback_greet(event ui2.ElementEvent) {
+	mut state := unsafe { child_window_state }
+	state.greet()
+	event.window.request_refresh()
+}
+
+fn callback_child_name(event ui2.ElementEvent) {
+	mut state := unsafe { child_window_state }
+	state.set_name(event.text)
+	event.window.request_refresh()
+}
+
+fn callback_genre(event ui2.ElementEvent) {
+	mut state := unsafe { child_window_state }
+	state.woman = event.checked
+	event.window.request_refresh()
+}
+
+fn callback_parent_input(event ui2.ElementEvent) {
+	mut state := unsafe { child_window_state }
+	state.parent_text = event.text
+	event.window.request_refresh()
+}
+
+fn callback_child_titlebar(event ui2.ElementEvent) {
+	mut state := unsafe { child_window_state }
+	card_width, card_height := child_card_size(event.window.bounds())
+	match event.kind {
+		.pointer_down { state.grab_panel(event.x, event.y) }
+		.pointer_drag, .pointer_up {
+			state.drag_panel(event.x, event.y, card_width, card_height)
+		}
+		else {}
+	}
+	event.window.request_refresh()
 }
 
 fn main() {
@@ -152,25 +168,9 @@ fn main() {
 }
 
 fn build_child_window(mut app ChildWindowDemo) ui2.Element {
-	callbacks := child_window_callbacks()
-	callback_create := callbacks['create'] or { panic('missing create callback') }
-	callback_parent_input := callbacks['parent_input'] or { panic('missing parent_input callback') }
-	callback_child_titlebar := callbacks['child_titlebar'] or { panic('missing child_titlebar callback') }
-	callback_close := callbacks['close'] or { panic('missing close callback') }
-	callback_child_name := callbacks['child_name'] or { panic('missing child_name callback') }
-	callback_genre := callbacks['genre'] or { panic('missing genre callback') }
-	callback_greet := callbacks['greet'] or { panic('missing greet callback') }
-	return $vml('child_window.vml')
+	return child_window_vml(mut app)
 }
 
 fn child_window_tree(mut app ChildWindowDemo, frame ui2.Rect) ui2.Element {
-	callbacks := child_window_callbacks()
-	callback_create := callbacks['create'] or { panic('missing create callback') }
-	callback_parent_input := callbacks['parent_input'] or { panic('missing parent_input callback') }
-	callback_child_titlebar := callbacks['child_titlebar'] or { panic('missing child_titlebar callback') }
-	callback_close := callbacks['close'] or { panic('missing close callback') }
-	callback_child_name := callbacks['child_name'] or { panic('missing child_name callback') }
-	callback_genre := callbacks['genre'] or { panic('missing genre callback') }
-	callback_greet := callbacks['greet'] or { panic('missing greet callback') }
-	return $vml('child_window.vml', frame)
+	return child_window_vml_framed(mut app, frame)
 }

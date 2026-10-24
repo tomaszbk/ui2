@@ -1,5 +1,9 @@
 module main
 
+// vml: styles.vml
+// vml: styles_local.vml
+// vml: styles_custom_tokens.vml
+
 import ui2
 
 pub struct StylesContractApp {
@@ -14,15 +18,15 @@ pub mut:
 }
 
 fn styles_tree(mut app StylesContractApp) ui2.Element {
-	return $vml('styles.vml', ui2.rect(0, 0, 300, 240))
+	return styles_vml_framed(mut app, ui2.rect(0, 0, 300, 240))
 }
 
 fn local_styles_tree(mut app StylesContractApp) ui2.Element {
-	return $vml('styles_local.vml', ui2.rect(0, 0, 300, 200))
+	return styles_local_vml_framed(mut app, ui2.rect(0, 0, 300, 200))
 }
 
 fn startup_styles_tree(mut app StylesContractApp) ui2.Element {
-	initial := $vml('styles_custom_tokens.vml', ui2.rect(0, 0, 300, 200))
+	initial := styles_custom_tokens_vml_framed(ui2.rect(0, 0, 300, 200))
 	app.startup_color = initial.box.bg
 	app.startup_padding = initial.layout.stack.padding.left
 	app.startup_size = initial.children[0].text_style.size

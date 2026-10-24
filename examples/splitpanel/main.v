@@ -1,5 +1,7 @@
 module main
 
+// vml: splitpanel.vml
+
 import ui2
 
 const splitpanel_width = 800
@@ -89,9 +91,9 @@ fn main() {
 }
 
 fn build_splitpanel(mut app SplitPanelDemo) ui2.Element {
-	return $vml('splitpanel.vml')
+	return splitpanel_vml(mut app)
 }
 
 fn splitpanel_tree(mut app SplitPanelDemo, frame ui2.Rect) ui2.Element {
-	return $vml('splitpanel.vml', frame)
+	return splitpanel_vml_framed(mut app, frame)
 }

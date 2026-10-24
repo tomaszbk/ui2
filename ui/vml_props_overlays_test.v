@@ -1,12 +1,14 @@
-// vtest vflags: -d vml_props
+// vtest vflags: -d vml_props -d vml_fixtures
 module ui2
+
+// vml: fixtures/props_overlays.vml
 
 // Golden equivalence of the overlay props (Dialog, Popover, MenuOverlay,
 // ContextMenu, Tooltip, View overlay) and context-menu MenuItem parts.
 
 
 fn props_overlays_compiled(mut app PropsApp, frame Rect) Element {
-	return $vml('fixtures/props_overlays.vml', frame)
+	return props_overlays_vml_framed(mut app, frame)
 }
 
 fn props_overlays_tree(mut app PropsApp) PNode {

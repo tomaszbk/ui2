@@ -37,7 +37,7 @@ fn test_compiled_three_hundred_key_first_build_allocation_is_bounded() ! {
 }
 
 // generic.v builds form.vml through the generic node runtime, in the shape the
-// generic lowering emits. It must build the same document as `$vml`.
+// generic lowering emits. It must build the same document as the generated builder.
 fn test_generic_lowering_builds_the_compiled_document() {
 	mut app := benchmark_model(default_rows)
 	frame := ui2.rect(0, 0, 800, 600)

@@ -1,5 +1,7 @@
-// vtest vflags: -d vml_props
+// vtest vflags: -d vml_props -d vml_fixtures
 module ui2
+
+// vml: fixtures/widget_parts.vml
 
 // Reactive structural widgets and parts (tabs, options, runs, message box
 // actions, menu items, tree items), an anchored overlay and bound controls
@@ -7,7 +9,7 @@ module ui2
 // lowering. Events and model changes keep both documents equal.
 
 fn w_parts_compiled(mut app PropsApp) Element {
-	return $vml('fixtures/widget_parts.vml', rect(0, 0, 420, 900))
+	return widget_parts_vml_framed(mut app, rect(0, 0, 420, 900))
 }
 
 fn w_action(mut app PropsApp, mut owner CompiledVmlComponent, name string) ElementCallback {

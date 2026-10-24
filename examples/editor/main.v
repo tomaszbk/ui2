@@ -1,5 +1,7 @@
 module main
 
+// vml: editor.vml
+
 import os
 import ui2
 
@@ -148,9 +150,9 @@ fn main() {
 }
 
 fn build_editor(mut app EditorDemo) ui2.Element {
-	return $vml('editor.vml')
+	return editor_vml(mut app)
 }
 
 fn editor_tree(mut app EditorDemo, frame ui2.Rect) ui2.Element {
-	return $vml('editor.vml', frame)
+	return editor_vml_framed(mut app, frame)
 }

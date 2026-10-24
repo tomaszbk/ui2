@@ -1,5 +1,7 @@
 module main
 
+// vml: group2.vml
+
 import ui2
 
 const group2_width = 680
@@ -46,9 +48,9 @@ fn main() {
 }
 
 fn build_group2(mut app Group2Demo) ui2.Element {
-	return $vml('group2.vml')
+	return group2_vml(mut app)
 }
 
 fn group2_tree(mut app Group2Demo, frame ui2.Rect) ui2.Element {
-	return $vml('group2.vml', frame)
+	return group2_vml_framed(mut app, frame)
 }

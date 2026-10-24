@@ -1,5 +1,7 @@
 module main
 
+// vml: switch.vml
+
 import ui2
 
 const switch_width = 320
@@ -22,9 +24,9 @@ fn main() {
 }
 
 fn build_switch(mut app SwitchDemo) ui2.Element {
-	return $vml('switch.vml')
+	return switch_vml(mut app)
 }
 
 fn switch_tree(mut app SwitchDemo, frame ui2.Rect) ui2.Element {
-	return $vml('switch.vml', frame)
+	return switch_vml_framed(mut app, frame)
 }

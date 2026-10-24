@@ -1,5 +1,7 @@
 module main
 
+// vml: form.vml
+
 import os
 import time
 import ui2
@@ -40,7 +42,7 @@ fn benchmark_model(rows int) Calculator {
 }
 
 fn build_compiled(mut app Calculator, frame ui2.Rect) ui2.Element {
-	return $vml('form.vml', frame)
+	return form_vml_framed(mut app, frame)
 }
 
 fn consume_and_dispose(root ui2.Element) int {

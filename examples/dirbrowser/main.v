@@ -1,5 +1,7 @@
 module main
 
+// vml: dirbrowser.vml
+
 import os
 import ui2
 
@@ -80,9 +82,9 @@ fn main() {
 }
 
 fn build_dirbrowser(mut app DirectoryBrowserDemo) ui2.Element {
-	return $vml('dirbrowser.vml')
+	return dirbrowser_vml(mut app)
 }
 
 fn dirbrowser_tree(mut app DirectoryBrowserDemo, frame ui2.Rect) ui2.Element {
-	return $vml('dirbrowser.vml', frame)
+	return dirbrowser_vml_framed(mut app, frame)
 }

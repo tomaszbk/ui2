@@ -1,5 +1,8 @@
 module main
 
+// vml: contract.vml
+// vml: named_slots.vml
+
 import ui2
 
 @[heap]
@@ -24,11 +27,11 @@ pub fn (mut app ContractApp) record_cleanup(value int, doubled int) {
 }
 
 fn contract_tree(mut app ContractApp) ui2.Element {
-	return $vml('contract.vml', ui2.rect(0, 0, 400, 300))
+	return contract_vml_framed(mut app, ui2.rect(0, 0, 400, 300))
 }
 
 fn named_slots_tree(mut app ContractApp) ui2.Element {
-	return $vml('named_slots.vml', ui2.rect(0, 0, 400, 300))
+	return named_slots_vml_framed(mut app, ui2.rect(0, 0, 400, 300))
 }
 
 fn test_compiled_bindable_inputs_typed_events_slots_and_refs_share_lifetime() ! {

@@ -1,11 +1,13 @@
-// vtest vflags: -d ui2_custom_rendering
+// vtest vflags: -d ui2_custom_rendering -d vml_fixtures
 @[has_globals]
 module ui2
+
+// vml: fixtures/compiled_overlay_geometry.vml
 
 struct OverlayGeometryModel {}
 
 fn build_overlay_geometry(mut app OverlayGeometryModel) Element {
-	return $vml('fixtures/compiled_overlay_geometry.vml')
+	return compiled_overlay_geometry_vml()
 }
 
 $if (linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {

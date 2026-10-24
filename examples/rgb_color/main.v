@@ -1,5 +1,7 @@
 module main
 
+// vml: rgb_color.vml
+
 import ui2
 
 const rgb_color_width = 380
@@ -72,9 +74,9 @@ fn main() {
 }
 
 fn build_rgb_color(mut app RgbColorDemo) ui2.Element {
-	return $vml('rgb_color.vml')
+	return rgb_color_vml(mut app)
 }
 
 fn rgb_color_tree(mut app RgbColorDemo, frame ui2.Rect) ui2.Element {
-	return $vml('rgb_color.vml', frame)
+	return rgb_color_vml_framed(mut app, frame)
 }

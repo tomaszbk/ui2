@@ -2,6 +2,8 @@ module main
 
 import ui2
 
+// vml: app.vml
+
 const counter_width = 540
 const counter_height = 264
 
@@ -37,9 +39,9 @@ fn main() {
 }
 
 fn build_counter(mut app CounterApp) ui2.Element {
-	return $vml('app.vml')
+	return app_vml(mut app)
 }
 
 fn counter_tree(mut app CounterApp, frame ui2.Rect) ui2.Element {
-	return $vml('app.vml', frame)
+	return app_vml_framed(mut app, frame)
 }

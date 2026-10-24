@@ -2,6 +2,9 @@
 // vtest build: vml_conformance?
 module main
 
+// vml: keyed.vml
+// vml: nested.vml
+
 import ui2
 
 // Conformance of the interpreter with compiled VML (ui2.vml_conformance) for
@@ -44,11 +47,11 @@ pub fn (mut app KeyedContractApp) new_counter() int {
 }
 
 fn keyed_tree(mut app KeyedContractApp, frame ui2.Rect) ui2.Element {
-	return $vml('keyed.vml', frame)
+	return keyed_vml_framed(mut app, frame)
 }
 
 fn nested_tree(mut app KeyedContractApp, frame ui2.Rect) ui2.Element {
-	return $vml('nested.vml', frame)
+	return nested_vml_framed(mut app, frame)
 }
 
 fn keyed_reset(mut app KeyedContractApp) {

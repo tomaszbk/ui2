@@ -1,5 +1,8 @@
 module main
 
+// vml: aliases.vml
+// vml: keyed.vml
+
 import ui2
 
 pub struct AliasRow {
@@ -21,9 +24,9 @@ pub fn (mut app AliasApp) remember(name string, reference &ui2.VmlRef[ui2.ViewPr
 	app.refs[name] = reference
 }
 
-fn alias_tree(mut app AliasApp) ui2.Element { return $vml('aliases.vml') }
+fn alias_tree(mut app AliasApp) ui2.Element { return aliases_vml(mut app) }
 
-fn keyed_alias_tree(mut app AliasApp) ui2.Element { return $vml('keyed.vml') }
+fn keyed_alias_tree(mut app AliasApp) ui2.Element { return keyed_vml(mut app) }
 
 fn test_invocation_ids_alias_real_private_anonymous_and_nested_roots() ! {
 	mut app := &AliasApp{ rows: [AliasRow{'a', 10}] }

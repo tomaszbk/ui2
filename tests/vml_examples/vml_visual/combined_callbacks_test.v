@@ -1,5 +1,7 @@
 module main
 
+// vml: combined_callbacks.vml
+
 import ui2
 
 struct CombinedRow {
@@ -33,7 +35,7 @@ pub fn (mut app CombinedApp) click(value int) {
 	app.value = value
 }
 
-fn combined_tree(mut app CombinedApp) ui2.Element { return $vml('combined_callbacks.vml') }
+fn combined_tree(mut app CombinedApp) ui2.Element { return combined_callbacks_vml(mut app) }
 
 fn test_visual_structure_callbacks_keep_locals_binding_order_and_event_routes() {
 	mut app := CombinedApp{ count: 3, rows: [CombinedRow{7}, CombinedRow{9}] }

@@ -1,5 +1,7 @@
 module main
 
+// vml: files_dropped.vml
+
 import ui2
 
 const files_dropped_width = 620
@@ -71,9 +73,9 @@ fn main() {
 }
 
 fn build_files_dropped(mut app FilesDroppedDemo) ui2.Element {
-	return $vml('files_dropped.vml')
+	return files_dropped_vml(mut app)
 }
 
 fn files_dropped_tree(mut app FilesDroppedDemo, frame ui2.Rect) ui2.Element {
-	return $vml('files_dropped.vml', frame)
+	return files_dropped_vml_framed(mut app, frame)
 }

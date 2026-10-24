@@ -1,4 +1,10 @@
+// vtest vflags: -d vml_fixtures
 module ui2
+
+// vml: fixtures/text_typography_0.vml
+// vml: fixtures/text_typography_1.vml
+// vml: fixtures/text_typography_2.vml
+// vml: fixtures/text_typography_3.vml
 
 $if (linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
 	import math
@@ -167,17 +173,17 @@ fn test_rich_baseline_offset_is_complete_run_style() {
 }
 
 fn compiled_text_typography_0(mut app TypographyBindingApp, frame Rect) Element {
-	return $vml('fixtures/text_typography_0.vml', frame)
+	return text_typography_0_vml_framed(mut app, frame)
 }
 
 fn compiled_text_typography_1(mut app TypographyBindingApp, frame Rect) Element {
-	return $vml('fixtures/text_typography_1.vml', frame)
+	return text_typography_1_vml_framed(mut app, frame)
 }
 
 fn compiled_text_typography_2(frame Rect) Element {
-	return $vml('fixtures/text_typography_2.vml', frame)
+	return text_typography_2_vml_framed(frame)
 }
 
 fn compiled_text_typography_3(frame Rect) Element {
-	return $vml('fixtures/text_typography_3.vml', frame)
+	return text_typography_3_vml_framed(frame)
 }

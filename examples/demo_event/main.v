@@ -1,5 +1,7 @@
 module main
 
+// vml: demo_event.vml
+
 import ui2
 
 const demo_event_width = 680
@@ -33,23 +35,29 @@ fn (mut app DemoEvent) record_key(key string) {
 
 fn demo_event_callbacks() map[string]ui2.ElementCallback {
 	return {
-		'clear':         fn (event ui2.ElementEvent) {
-			mut state := unsafe { demo_event_state }
-			state.clear_events()
-			event.window.request_refresh()
-		}
-		'sample_button': fn (event ui2.ElementEvent) {
-			mut state := unsafe { demo_event_state }
-			state.last_event = 'Native button tapped.'
-			state.append_history(state.last_event)
-			event.window.request_refresh()
-		}
-		'event_surface': fn (event ui2.ElementEvent) {
-			mut state := unsafe { demo_event_state }
-			state.record_pointer(event)
-			event.window.request_refresh()
-		}
+		'clear':         callback_clear
+		'sample_button': callback_sample_button
+		'event_surface': callback_event_surface
 	}
+}
+
+fn callback_clear(event ui2.ElementEvent) {
+	mut state := unsafe { demo_event_state }
+	state.clear_events()
+	event.window.request_refresh()
+}
+
+fn callback_sample_button(event ui2.ElementEvent) {
+	mut state := unsafe { demo_event_state }
+	state.last_event = 'Native button tapped.'
+	state.append_history(state.last_event)
+	event.window.request_refresh()
+}
+
+fn callback_event_surface(event ui2.ElementEvent) {
+	mut state := unsafe { demo_event_state }
+	state.record_pointer(event)
+	event.window.request_refresh()
 }
 
 fn handle_demo_key(mut w ui2.Window, key string) {
@@ -91,17 +99,9 @@ fn (mut app DemoEvent) record_pointer(event ui2.ElementEvent) {
 }
 
 fn build_demo_event(mut app DemoEvent) ui2.Element {
-	callbacks := demo_event_callbacks()
-	callback_sample_button := callbacks['sample_button'] or { panic('missing sample_button callback') }
-	callback_clear := callbacks['clear'] or { panic('missing clear callback') }
-	callback_event_surface := callbacks['event_surface'] or { panic('missing event_surface callback') }
-	return $vml('demo_event.vml')
+	return demo_event_vml(mut app)
 }
 
 fn demo_event_tree(mut app DemoEvent, frame ui2.Rect) ui2.Element {
-	callbacks := demo_event_callbacks()
-	callback_sample_button := callbacks['sample_button'] or { panic('missing sample_button callback') }
-	callback_clear := callbacks['clear'] or { panic('missing clear callback') }
-	callback_event_surface := callbacks['event_surface'] or { panic('missing event_surface callback') }
-	return $vml('demo_event.vml', frame)
+	return demo_event_vml_framed(mut app, frame)
 }

@@ -1,4 +1,8 @@
+// vtest vflags: -d vml_fixtures
 module ui2
+
+// vml: fixtures/scaled_content_0.vml
+// vml: fixtures/scaled_content_1.vml
 
 import math
 
@@ -51,9 +55,9 @@ fn test_vml_scaled_content_keeps_child_layout_on_resize() {
 }
 
 fn compiled_scaled_content_0(frame Rect) Element {
-	return $vml('fixtures/scaled_content_0.vml', frame)
+	return scaled_content_0_vml_framed(frame)
 }
 
 fn compiled_scaled_content_1(frame Rect) Element {
-	return $vml('fixtures/scaled_content_1.vml', frame)
+	return scaled_content_1_vml_framed(frame)
 }

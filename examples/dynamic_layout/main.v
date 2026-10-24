@@ -1,5 +1,7 @@
 module main
 
+// vml: dynamic_layout.vml
+
 import ui2
 
 const dynamic_layout_width = 640
@@ -96,9 +98,9 @@ fn main() {
 }
 
 fn build_dynamic_layout(mut app DynamicLayoutDemo) ui2.Element {
-	return $vml('dynamic_layout.vml')
+	return dynamic_layout_vml(mut app)
 }
 
 fn dynamic_layout_tree(mut app DynamicLayoutDemo, frame ui2.Rect) ui2.Element {
-	return $vml('dynamic_layout.vml', frame)
+	return dynamic_layout_vml_framed(mut app, frame)
 }

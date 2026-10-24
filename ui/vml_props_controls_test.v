@@ -1,5 +1,7 @@
-// vtest vflags: -d vml_props
+// vtest vflags: -d vml_props -d vml_fixtures
 module ui2
+
+// vml: fixtures/props_controls.vml
 
 // Golden equivalence of the control props (Label, Run, TextInput, TextArea,
 // Image, Button, Checkbox, Dropdown, Option, Progress, Slider, Switch,
@@ -7,7 +9,7 @@ module ui2
 // dispatch.
 
 fn props_controls_compiled(mut app PropsApp, frame Rect) Element {
-	return $vml('fixtures/props_controls.vml', frame)
+	return props_controls_vml_framed(mut app, frame)
 }
 
 fn props_controls_tree(mut app PropsApp) PNode {

@@ -1,5 +1,7 @@
 module main
 
+// vml: colorbox.vml
+
 import math
 import ui2
 
@@ -309,46 +311,60 @@ fn (app &ColorBoxDemo) swatch_at(x f64, y f64) int {
 
 fn colorbox_callbacks() map[string]ui2.ElementCallback {
 	return {
-		'red_input':   fn (event ui2.ElementEvent) {
-			mut state := unsafe { colorbox_state }
-			state.apply_channel('red', event.text)
-			event.window.request_refresh()
-		}
-		'green_input': fn (event ui2.ElementEvent) {
-			mut state := unsafe { colorbox_state }
-			state.apply_channel('green', event.text)
-			event.window.request_refresh()
-		}
-		'blue_input':  fn (event ui2.ElementEvent) {
-			mut state := unsafe { colorbox_state }
-			state.apply_channel('blue', event.text)
-			event.window.request_refresh()
-		}
-		'store':       fn (event ui2.ElementEvent) {
-			mut state := unsafe { colorbox_state }
-			state.store_swatch()
-			event.window.request_refresh()
-		}
-		'hue_strip':   fn (event ui2.ElementEvent) {
-			mut state := unsafe { colorbox_state }
-			if event.kind in [.pointer_down, .pointer_drag, .pointer_up] {
-				state.set_hue(clamp_unit((event.y - hue_root_y) / picker_side) * 359.999)
-			}
-			event.window.request_refresh()
-		}
-		'sv_square':   fn (event ui2.ElementEvent) {
-			mut state := unsafe { colorbox_state }
-			if event.kind in [.pointer_down, .pointer_drag, .pointer_up] {
-				state.set_saturation_value((event.x - sv_root_x) / picker_side, 1.0 - (event.y - sv_root_y) / picker_side)
-			}
-			event.window.request_refresh()
-		}
-		'swatch_grid': fn (event ui2.ElementEvent) {
-			mut state := unsafe { colorbox_state }
-			if event.kind == .pointer_up { state.select_swatch(state.swatch_at(event.x, event.y)) }
-			event.window.request_refresh()
-		}
+		'red_input':   callback_red_input
+		'green_input': callback_green_input
+		'blue_input':  callback_blue_input
+		'store':       callback_store
+		'hue_strip':   callback_hue_strip
+		'sv_square':   callback_sv_square
+		'swatch_grid': callback_swatch_grid
 	}
+}
+
+fn callback_red_input(event ui2.ElementEvent) {
+	mut state := unsafe { colorbox_state }
+	state.apply_channel('red', event.text)
+	event.window.request_refresh()
+}
+
+fn callback_green_input(event ui2.ElementEvent) {
+	mut state := unsafe { colorbox_state }
+	state.apply_channel('green', event.text)
+	event.window.request_refresh()
+}
+
+fn callback_blue_input(event ui2.ElementEvent) {
+	mut state := unsafe { colorbox_state }
+	state.apply_channel('blue', event.text)
+	event.window.request_refresh()
+}
+
+fn callback_store(event ui2.ElementEvent) {
+	mut state := unsafe { colorbox_state }
+	state.store_swatch()
+	event.window.request_refresh()
+}
+
+fn callback_hue_strip(event ui2.ElementEvent) {
+	mut state := unsafe { colorbox_state }
+	if event.kind in [.pointer_down, .pointer_drag, .pointer_up] {
+		state.set_hue(clamp_unit((event.y - hue_root_y) / picker_side) * 359.999)
+	}
+	event.window.request_refresh()
+}
+
+fn callback_sv_square(event ui2.ElementEvent) {
+	mut state := unsafe { colorbox_state }
+	if event.kind in [.pointer_down, .pointer_drag, .pointer_up] {
+		state.set_saturation_value((event.x - sv_root_x) / picker_side, 1.0 - (event.y - sv_root_y) / picker_side)
+	}
+	event.window.request_refresh()
+}
+
+fn callback_swatch_grid(event ui2.ElementEvent) {
+	mut state := unsafe { colorbox_state }
+	if event.kind == .pointer_up { state.select_swatch(state.swatch_at(event.x, event.y)) }
+	event.window.request_refresh()
 }
 
 fn main() {
@@ -366,27 +382,11 @@ fn main() {
 }
 
 fn build_colorbox(mut app ColorBoxDemo) ui2.Element {
-	callbacks := colorbox_callbacks()
-	callback_store := callbacks['store'] or { panic('missing store callback') }
-	callback_hue_strip := callbacks['hue_strip'] or { panic('missing hue_strip callback') }
-	callback_sv_square := callbacks['sv_square'] or { panic('missing sv_square callback') }
-	callback_swatch_grid := callbacks['swatch_grid'] or { panic('missing swatch_grid callback') }
-	callback_red_input := callbacks['red_input'] or { panic('missing red_input callback') }
-	callback_green_input := callbacks['green_input'] or { panic('missing green_input callback') }
-	callback_blue_input := callbacks['blue_input'] or { panic('missing blue_input callback') }
-	return $vml('colorbox.vml')
+	return colorbox_vml(mut app)
 }
 
 fn colorbox_tree(mut app ColorBoxDemo, frame ui2.Rect) ui2.Element {
-	callbacks := colorbox_callbacks()
-	callback_store := callbacks['store'] or { panic('missing store callback') }
-	callback_hue_strip := callbacks['hue_strip'] or { panic('missing hue_strip callback') }
-	callback_sv_square := callbacks['sv_square'] or { panic('missing sv_square callback') }
-	callback_swatch_grid := callbacks['swatch_grid'] or { panic('missing swatch_grid callback') }
-	callback_red_input := callbacks['red_input'] or { panic('missing red_input callback') }
-	callback_green_input := callbacks['green_input'] or { panic('missing green_input callback') }
-	callback_blue_input := callbacks['blue_input'] or { panic('missing blue_input callback') }
-	return $vml('colorbox.vml', frame)
+	return colorbox_vml_framed(mut app, frame)
 }
 
 pub fn (app &ColorBoxDemo) display_color() string {

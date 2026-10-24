@@ -1,11 +1,13 @@
-// vtest vflags: -d vml_props
+// vtest vflags: -d vml_props -d vml_fixtures
 module ui2
+
+// vml: fixtures/props_common.vml
 
 // Golden equivalence of the common props on every kind of tag: direct
 // elements, self-styled widgets, composites, layout containers and editors.
 
 fn props_common_compiled(mut app PropsApp, frame Rect) Element {
-	return $vml('fixtures/props_common.vml', frame)
+	return props_common_vml_framed(mut app, frame)
 }
 
 fn props_common_tree(mut app PropsApp) PNode {

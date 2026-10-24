@@ -1,5 +1,7 @@
 module main
 
+// vml: crud.vml
+
 import ui2
 
 const crud_width = 620
@@ -143,9 +145,9 @@ fn main() {
 }
 
 fn build_crud(mut app CrudDemo) ui2.Element {
-	return $vml('crud.vml')
+	return crud_vml(mut app)
 }
 
 fn crud_tree(mut app CrudDemo, frame ui2.Rect) ui2.Element {
-	return $vml('crud.vml', frame)
+	return crud_vml_framed(mut app, frame)
 }

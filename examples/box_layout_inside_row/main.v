@@ -1,5 +1,7 @@
 module main
 
+// vml: box_layout_inside_row.vml
+
 import ui2
 
 const box_row_width = 560
@@ -39,9 +41,9 @@ fn main() {
 }
 
 fn build_box_layout_inside_row(mut app BoxLayoutInsideRowDemo) ui2.Element {
-	return $vml('box_layout_inside_row.vml')
+	return box_layout_inside_row_vml(mut app)
 }
 
 fn box_layout_inside_row_tree(mut app BoxLayoutInsideRowDemo, frame ui2.Rect) ui2.Element {
-	return $vml('box_layout_inside_row.vml', frame)
+	return box_layout_inside_row_vml_framed(mut app, frame)
 }

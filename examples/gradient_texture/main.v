@@ -1,5 +1,7 @@
 module main
 
+// vml: gradient_texture.vml
+
 import math
 import ui2
 
@@ -113,9 +115,9 @@ fn main() {
 }
 
 fn build_gradient_texture(mut app GradientTextureDemo) ui2.Element {
-	return $vml('gradient_texture.vml')
+	return gradient_texture_vml(mut app)
 }
 
 fn gradient_texture_tree(mut app GradientTextureDemo, frame ui2.Rect) ui2.Element {
-	return $vml('gradient_texture.vml', frame)
+	return gradient_texture_vml_framed(mut app, frame)
 }

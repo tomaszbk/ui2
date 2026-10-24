@@ -1,6 +1,8 @@
 // ui2 profiles: custom (rounded text inputs)
 module main
 
+// vml: users.vml
+
 import json2
 import os
 import ui2
@@ -202,9 +204,9 @@ fn main() {
 }
 
 fn build_users(mut app UsersApp) ui2.Element {
-	return $vml('users.vml')
+	return users_vml(mut app)
 }
 
 fn users_tree(mut app UsersApp, frame ui2.Rect) ui2.Element {
-	return $vml('users.vml', frame)
+	return users_vml_framed(mut app, frame)
 }

@@ -1,4 +1,7 @@
+// vtest vflags: -d vml_fixtures
 module ui2
+
+// vml: fixtures/presentation_geometry_0.vml
 
 import math
 
@@ -66,5 +69,5 @@ fn test_border_tessellation_frame_matches_fractional_fill_presentation() {
 }
 
 fn compiled_presentation_geometry_0(frame Rect) Element {
-	return $vml('fixtures/presentation_geometry_0.vml', frame)
+	return presentation_geometry_0_vml_framed(frame)
 }

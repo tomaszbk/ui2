@@ -1,5 +1,7 @@
 module main
 
+// vml: gg2048.vml
+
 import ui2
 
 const game_2048_width = 600
@@ -201,9 +203,9 @@ fn main() {
 }
 
 fn build_gg2048(mut app Game2048) ui2.Element {
-	return $vml('gg2048.vml')
+	return gg2048_vml(mut app)
 }
 
 fn gg2048_tree(mut app Game2048, frame ui2.Rect) ui2.Element {
-	return $vml('gg2048.vml', frame)
+	return gg2048_vml_framed(mut app, frame)
 }

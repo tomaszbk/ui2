@@ -1,7 +1,11 @@
 module main
 
+// vml: geometry.vml
+// vml: view.vml
+
 import os
 import ui2
+import ui2.vml
 
 @[heap]
 pub struct InitializerApp {
@@ -65,11 +69,11 @@ pub fn (mut app InitializerApp) resize() {
 }
 
 fn geometry_tree(mut app InitializerApp) ui2.Element {
-	return $vml('geometry.vml', ui2.rect(0, 0, 300, 300))
+	return geometry_vml_framed(mut app, ui2.rect(0, 0, 300, 300))
 }
 
 fn initializers_tree(mut app InitializerApp) ui2.Element {
-	return $vml('view.vml', ui2.rect(0, 0, 300, 200))
+	return view_vml_framed(mut app, ui2.rect(0, 0, 300, 200))
 }
 
 fn test_property_and_input_initializers_evaluate_once_then_once_per_action() ! {
@@ -116,7 +120,7 @@ fn test_own_geometry_is_available_before_initializing_text() ! {
 	assert root.element().children[2].children[0].text == 'width=100.0'
 }
 
-fn test_input_default_type_error_reports_the_input_location_and_vml_callsite() ! {
+fn test_input_default_type_error_reports_the_input_location() ! {
 	raw_dir := os.join_path(os.vtmp_dir(), 'vml_input_default_${os.getpid()}')
 	os.mkdir_all(raw_dir)!
 	dir := os.real_path(raw_dir)
@@ -125,14 +129,14 @@ fn test_input_default_type_error_reports_the_input_location_and_vml_callsite() !
 	source := os.join_path(dir, 'main.v')
 	os.write_file(source, 'import ui2
 struct Wrong { count int }
-fn main() { mut app := Wrong{}; _ = $vml("view.vml") }')!
+fn main() { mut app := Wrong{}; _ = view_vml(mut app) }')!
 	os.write_file(view, 'component Typed(valid bool = app.count) { Label(text: "value") }')!
+	os.write_file(os.join_path(dir, 'view_vml.v'), vml.generate_file(view, module: 'main', dir: dir)!)!
 	module_path := [os.dir(@VMODROOT), '@vlib', '@vmodules'].join(os.path_delimiter)
-	result := os.exec([@VEXE, '-b', 'c', '-path', module_path, '-check', source])
+	result := os.exec([@VEXE, '-b', 'c', '-path', module_path, '-check', dir])
 	assert result.exit_code != 0, result.output
 	assert result.output.contains('cannot use `int` as type `!bool`'), result.output
-	assert result.output.contains('${view}:1:17:'), result.output
-	assert result.output.contains('called from ${source}:3:'), result.output
+	assert result.output.contains('view.vml:1:'), result.output
 }
 
 fn test_self_and_sibling_geometry_remain_live_after_an_app_action() ! {

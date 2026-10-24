@@ -1,5 +1,7 @@
 module main
 
+// vml: grid2.vml
+
 import ui2
 
 const grid2_width = 880
@@ -247,9 +249,9 @@ fn main() {
 }
 
 fn build_grid2(mut app Grid2Demo) ui2.Element {
-	return $vml('grid2.vml')
+	return grid2_vml(mut app)
 }
 
 fn grid2_tree(mut app Grid2Demo, frame ui2.Rect) ui2.Element {
-	return $vml('grid2.vml', frame)
+	return grid2_vml_framed(mut app, frame)
 }

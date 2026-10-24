@@ -1,4 +1,9 @@
+// vtest vflags: -d vml_fixtures
 module ui2
+
+// vml: fixtures/stack_row.vml
+// vml: fixtures/stack_column.vml
+// vml: fixtures/stack_layout_1.vml
 
 import math
 
@@ -59,9 +64,9 @@ fn test_compiled_row_and_column_use_flex_geometry() {
 	for tag in ['Row', 'Column'] {
 		frame := rect(0, 0, 100, 80)
 		direct := if tag == 'Row' {
-			$vml('fixtures/stack_row.vml', frame)
+			stack_row_vml_framed(frame)
 		} else {
-			$vml('fixtures/stack_column.vml', frame)
+			stack_column_vml_framed(frame)
 		}
 		assert direct.children.map(it.frame) == if tag == 'Row' {
 			[rect(0, 0, 40, 80), rect(50, 0, 50, 80)]
@@ -72,5 +77,5 @@ fn test_compiled_row_and_column_use_flex_geometry() {
 }
 
 fn compiled_stack_layout_1(frame Rect) Element {
-	return $vml('fixtures/stack_layout_1.vml', frame)
+	return stack_layout_1_vml_framed(frame)
 }

@@ -1,5 +1,7 @@
 module main
 
+// vml: box_layout.vml
+
 import ui2
 
 const box_layout_width = 520
@@ -19,9 +21,9 @@ fn main() {
 }
 
 fn build_box_layout(mut app BoxLayoutDemo) ui2.Element {
-	return $vml('box_layout.vml')
+	return box_layout_vml()
 }
 
 fn box_layout_tree(mut app BoxLayoutDemo, frame ui2.Rect) ui2.Element {
-	return $vml('box_layout.vml', frame)
+	return box_layout_vml_framed(frame)
 }

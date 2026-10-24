@@ -1,5 +1,9 @@
-// vtest vflags: -d vml_props
+// vtest vflags: -d vml_props -d vml_fixtures
 module ui2
+
+// vml: fixtures/props_layout.vml
+// vml: ../examples/vml_menu/menus.vml
+// vml: fixtures/props_menu.vml
 
 // Golden equivalence of the VML props table with the current compiled
 // lowering (harness: vml_props_harness_d_vml_props.v): layout containers,
@@ -194,7 +198,7 @@ fn props_differences(compiled Element, built Element) int {
 
 fn test_props_layout_matches_compiled_vml() {
 	frame := rect(0, 0, 360, 900)
-	compiled := $vml('fixtures/props_layout.vml', frame)
+	compiled := props_layout_vml_framed(frame)
 	built := props_document(props_layout_tree(), frame)!
 	assert_props_equal('layout', compiled, built)
 	// The comparison itself sees a field, a deep frame, a callback and metadata.
@@ -234,14 +238,28 @@ fn props_menu_document(root PNode) ![]Menu {
 	return menus(props_document(root, rect(0, 0, 0, 0))!)!
 }
 
+// PropsMenuActions is the model of the example menus: their actions.
+@[heap]
+struct PropsMenuActions {
+pub:
+	callback_file_new    ElementCallback = unsafe { nil }
+	callback_file_open   ElementCallback = unsafe { nil }
+	callback_file_revert ElementCallback = unsafe { nil }
+	callback_export_pdf  ElementCallback = unsafe { nil }
+	callback_export_png  ElementCallback = unsafe { nil }
+	callback_word_wrap   ElementCallback = unsafe { nil }
+}
+
 fn props_example_menus(mut app PropsApp) []Menu {
-	callback_file_new := props_hit(mut app, 'file_new')
-	callback_file_open := props_hit(mut app, 'file_open')
-	callback_file_revert := props_hit(mut app, 'file_revert')
-	callback_export_pdf := props_hit(mut app, 'export_pdf')
-	callback_export_png := props_hit(mut app, 'export_png')
-	callback_word_wrap := props_hit(mut app, 'word_wrap')
-	return menus($vml('../examples/vml_menu/menus.vml')) or { panic(err) }
+	mut actions := &PropsMenuActions{
+		callback_file_new:    props_hit(mut app, 'file_new')
+		callback_file_open:   props_hit(mut app, 'file_open')
+		callback_file_revert: props_hit(mut app, 'file_revert')
+		callback_export_pdf:  props_hit(mut app, 'export_pdf')
+		callback_export_png:  props_hit(mut app, 'export_png')
+		callback_word_wrap:   props_hit(mut app, 'word_wrap')
+	}
+	return menus(menus_vml(mut actions)) or { panic(err) }
 }
 
 fn test_props_menus_match_compiled_vml() {
@@ -303,7 +321,7 @@ fn test_props_menus_match_compiled_vml() {
 }
 
 fn props_solo_menu(mut app PropsApp) []Menu {
-	return menus($vml('fixtures/props_menu.vml')) or { panic(err) }
+	return menus(props_menu_vml(mut app)) or { panic(err) }
 }
 
 fn test_props_single_menu_document_matches_compiled_vml() {

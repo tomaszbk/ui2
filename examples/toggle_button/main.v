@@ -1,5 +1,7 @@
 module main
 
+// vml: toggle_button.vml
+
 import ui2
 
 const toggle_width = 340
@@ -23,9 +25,9 @@ fn main() {
 }
 
 fn build_toggle_button(mut app ToggleButtonDemo) ui2.Element {
-	return $vml('toggle_button.vml')
+	return toggle_button_vml(mut app)
 }
 
 fn toggle_button_tree(mut app ToggleButtonDemo, frame ui2.Rect) ui2.Element {
-	return $vml('toggle_button.vml', frame)
+	return toggle_button_vml_framed(mut app, frame)
 }
