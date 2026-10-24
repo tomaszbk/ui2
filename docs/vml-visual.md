@@ -275,8 +275,11 @@ including immediate completion when reduced motion is enabled.
 
 ## Verification
 
-ui2 draws every control with its own renderer on every platform, so each
-property in this guide is available everywhere.
+The custom renderer shows every property in this guide on every platform.
+In native mode (macOS, Windows and iOS without `-d ui2_custom_rendering`) the
+operating system's controls show what they can, and a property they cannot
+show is a validation error that names the custom renderer; see the native
+profile in `ui/backend.v`.
 
 `ui/vml_props_*_test.v` build each fixture both through `$vml` and through
 hand-written props, and compare the two Element trees. `tests/compiled_vml` covers

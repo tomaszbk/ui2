@@ -178,6 +178,22 @@ slide) attaches a record with `with_record(element, record)`, and the parent,
 a `.sourced` control, reads it with `ctx.child_record[T](index)`. Part-only
 tags such as `Option` stay `VmlPartProps`.
 
+## Native mode
+
+On macOS, Windows and iOS without `-d ui2_custom_rendering` the operating
+system's controls show the kit (see `ui/backend.v`). A component whose
+presentation they cannot show is a validation error that names the flag; it
+is never shown without the parts it lost.
+
+| How it shows natively | Components |
+|---|---|
+| OS controls | `Button` (caption only), `Dropdown` with its `Option`s, `Checkbox`, `Switch`, `Slider`, `TextInput`, `TextArea`, `ToggleButton` |
+| Layer-backed boxes and labels | `Icon`, `Badge`, `Avatar`, `Tag`, `Separator`, `Alert`, `Empty`, `GroupBox`, `DescriptionList`, `Breadcrumb`, `MessageBox` |
+| Validation error: hover or focus styles | `Link`, `Collapsible`, `Tabs`, `Tree` |
+| Validation error: motion or opacity | `Progress`, `Spinner`, `Skeleton`, `Shimmer`, `Accordion` |
+| Validation error: other renderer-only presentation | `ProgressCircle` (rotation), `Kbd` (tabular figures), `Clipboard`, `Pagination` and `Carousel` (icon buttons) |
+| Validation error: overlays | `Dialog`, `Popover`, `MenuOverlay`, `ContextMenu`, `Tooltip` |
+
 ## Registry
 
 Every tag is also registered for the interpreter. The kit's tags are in three
@@ -201,6 +217,12 @@ while `loading`), its caption, its element children and `icon_end`.
 
 An author's `style:` patches the variant's box, interaction states and
 caption. A control builds a button part with `kit_button(ctx, part, props)`.
+
+In native mode (`backend_native_controls`) a `Button` is the platform's push
+button with the caption, at the size's font: the OS bezel stands in for the
+variant's colors and its hover, pressed and focus states. A push button
+cannot show `icon`, `icon_end`, `loading`, `selected` or children, so those
+are a validation error naming `-d ui2_custom_rendering`.
 
 ## Icon
 

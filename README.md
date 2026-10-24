@@ -6,14 +6,28 @@
 <img height="280" alt="image" src="https://github.com/user-attachments/assets/0fb17bf1-ba64-4d70-bba9-76e08069e009" />
 
 
-`ui2` is a compact declarative UI module for V. It draws every control itself,
-the way a browser engine does: one immediate-mode `gg`/Sokol renderer paints
-and handles the whole window on Linux, macOS, Windows, Android and iOS. The
-operating system is only the host: it
-provides the window and event loop, input, the clipboard, menus, dialogs, the
-tray, window chrome, key modifiers and, on iOS, the barcode scanner, as
-described in
+`ui2` is a compact declarative UI module for V with two modes:
+
+- **Native** (the default on macOS, Windows and iOS): the controls are the
+  operating system's own — AppKit's `NSButton`, `NSTextField` and
+  `NSPopUpButton`, their Win32 and UIKit equivalents — and boxes are
+  layer-backed views with their background, corner radius and borders. ui2
+  computes the layout and reconciles the declared tree into those views.
+- **Custom renderer** (always on Linux and Android; opt in on macOS, Windows
+  and iOS with `-d ui2_custom_rendering`): ui2 draws every control itself, the
+  way a browser engine does, with one immediate-mode `gg`/Sokol renderer.
+
+Either way the operating system is the host: it provides the window and event
+loop, input, the clipboard, menus, dialogs, the tray, window chrome, key
+modifiers and, on iOS, the barcode scanner, as described in
 [host services](ui/platform.v). There is no GTK dependency on Linux.
+
+The native mode shows what the platform's controls can show. Overlays, motion,
+visual transforms, vector canvases, drag and drop, interaction styles,
+outlines and other renderer-only presentation are validation errors there that
+name `-d ui2_custom_rendering`, never silently dropped. The kit's `Button` is
+the platform's push button in native mode; see the
+[backend contract](ui/backend.v) for the native profile and the kit mapping.
 
 The V API includes responsive Flex and Grid placement with intrinsic text
 measurement. See the [layout guide](docs/modern-layout.md) and
@@ -29,7 +43,7 @@ callback, widget constructors, state access, ownership rules, and a Python
 v -b c run examples/users/main.v
 ```
 
-The renderer builds on demand. A window rebuilds after every event its elements
+The custom renderer builds on demand. A window rebuilds after every event its elements
 handle and after its timers run; other model changes call `request_refresh()`
 on the window they belong to (an event carries it as `event.window`). Workers
 can post changes through a captured `window.dispatcher()`. Idle drawing currently stops on macOS Metal. GL/EGL/D3D
@@ -55,10 +69,10 @@ MenuOverlay, ContextMenu and Tooltip, with controlled open state, focus
 containment and anchored placement. Run
 `v -b c run examples/overlays` to try all five.
 
-On macOS, the experimental owned embedder is a host variant that replaces the
-sokol window with AppKit windows and Metal surfaces of its own, adding IME
-composition and a blocking event loop that sleeps while idle. Enable it with
-`-d ui2_embedder`. An `App` runs any number of independent windows opened with
+On macOS, the experimental owned embedder is a host variant of the custom
+renderer that replaces the sokol window with AppKit windows and Metal surfaces
+of its own, adding IME composition and a blocking event loop that sleeps while
+idle. Enable it with `-d ui2_custom_rendering -d ui2_embedder`. An `App` runs any number of independent windows opened with
 `app.new_window`, each with its own state, updates and dispatcher. See [the embedder contract and acceptance tests](docs/custom-embedder.md).
 
 ## Requirements
@@ -73,21 +87,25 @@ export PATH="$HOME/.local/share/ui2-v:$PATH"
 ```
 
 CI builds the same pin through [the shared setup action](.github/actions/setup-v/action.yml).
-The module lives in `ui/`, the one entry in the `subdirs` field of `v.mod`.
+The module lives in `ui/`, with the native backends in `appkit/`, `windows/`
+and `uikit/`; they are the `subdirs` of `v.mod`.
 
 Build and run ui2 with V's C backend (`v -b c ...`), including the designer
 and its shared preview libraries.
 
-Desktop builds also need Pango 1.50+, FreeType and their text-library
-dependencies. The vglyph runtime is included in the repository. See
-[desktop text setup](docs/vglyph-text.md) for macOS, Linux and Windows
-installation, linking and distribution. Android, iOS and headless builds do
-not need them.
+Custom-renderer desktop builds (Linux, and macOS or Windows with
+`-d ui2_custom_rendering`) also need Pango 1.50+, FreeType and their
+text-library dependencies. The vglyph runtime is included in the repository.
+See [desktop text setup](docs/vglyph-text.md) for macOS, Linux and Windows
+installation, linking and distribution. Native, Android, iOS and headless
+builds do not need them.
 
-On iOS, sokol_app starts the app through `UIApplicationMain` and draws with
-Metal. The renderer looks for its fonts in `fonts/` or `assets/fonts/` beside
-the executable, so an app bundle has to carry them there. iOS builds are only
-typechecked (`make check-ios`); none has been run on a device yet.
+On iOS the native mode runs UIKit's controls through `UIApplicationMain`; with
+`-d ui2_custom_rendering`, sokol_app starts the app instead and draws with
+Metal, and the renderer looks for its fonts in `fonts/` or `assets/fonts/`
+beside the executable, so an app bundle has to carry them there. iOS builds
+are only typechecked (`make check-ios`, `make check-custom-ios`); none has
+been run on a device yet.
 
 To use `ui2` from a project outside this repository, link the clone into
 `~/.vmodules`:
@@ -502,18 +520,27 @@ fill color.
 
 ## Backend capabilities
 
-Call `control_support(kind)` to query support. The renderer implements every
-shared control kind; dropdowns and text areas are `partial` because the
-dropdown list is drawn by the renderer instead of a native menu and rich
-text-area runs are rendered as plain text. On Android and iOS the renderer
-draws text with Fontstash rather than vglyph, and does not offer overlays,
-motion or visual transforms (`backend_supports_overlays` and its siblings are
-false there).
+Call `control_support(kind)` to query support, and read `backend_name`
+(`appkit`, `win32`, `uikit`, `custom`, `headless` or `document`) and the
+`backend_supports_*` constants for the presentation features. The native
+backends have every shared control kind as an OS control; images are
+`partial` there (no fit modes, crops, tints or rotation), as are Windows text
+areas and iOS checkboxes and text areas. They have no overlays, motion,
+visual transforms, vector canvases or drag and drop, and
+`backend_native_controls` is true: declarations are checked against the
+native profile and anything outside it is an error naming
+`-d ui2_custom_rendering`. The custom renderer implements every shared control
+kind; dropdowns and text areas are `partial` because the dropdown list is
+drawn by the renderer instead of a native menu and rich text-area runs are
+rendered as plain text. On Android and iOS the renderer draws text with
+Fontstash rather than vglyph, and does not offer overlays, motion or visual
+transforms (`backend_supports_overlays` and its siblings are false there).
 
-A button marked `native` gets the standard bezel, including a pressed shade
-while the pointer is held on it, so it does not come out as a bare caption. A
-button the application gave its own background keeps it, since the standard
-styling stops where the application's own begins.
+A button marked `native` is the platform's push button in native mode. On the
+custom renderer it gets the standard bezel, including a pressed shade while
+the pointer is held on it, so it does not come out as a bare caption; a button
+the application gave its own background keeps it, since the standard styling
+stops where the application's own begins.
 
 Box-backed elements (`View`, `Button`, `Scroll`, `Dropdown`,
 `TextInput`, `TextArea`) can draw each border edge independently. Widths use
