@@ -19,6 +19,10 @@
 // test of a library module is written to `<name>_vml_d_vml_fixtures.v`, which
 // V compiles only with `-d vml_fixtures`, so test fixtures never reach the
 // library.
+//
+//   // vml: widgets
+//
+// writes the module's widget registry for the VML interpreter (widgets.v).
 module main
 
 import os
@@ -112,6 +116,7 @@ struct Directive {
 	dir      string // the directory of the declaring V file
 	module   string // its module
 	fixtures bool   // declared by a test of a library module
+	widgets  bool   // `// vml: widgets`: the module's widget registry
 }
 
 // generate_paths generates the builders declared under paths and returns how
@@ -125,7 +130,7 @@ fn generate_paths(paths []string) !int {
 	for path in paths {
 		for file in v_files(path)! {
 			for directive in file_directives(file)! {
-				key := '${directive.dir}|${directive.source}|${directive.name}|${directive.fixtures}'
+				key := '${directive.dir}|${directive.source}|${directive.name}|${directive.fixtures}|${directive.widgets}'
 				if key in seen {
 					continue
 				}
@@ -137,6 +142,11 @@ fn generate_paths(paths []string) !int {
 	mut outputs := map[string]string{}
 	mut origins := map[string]string{}
 	for directive in directives {
+		if directive.widgets {
+			outputs[os.join_path(directive.dir, widgets_file)] = widget_registry(directive.dir,
+				directive.module)!
+			continue
+		}
 		files := vml.generate_files(directive.source,
 			module: directive.module
 			name:   directive.name
@@ -211,9 +221,17 @@ fn file_directives(file string) ![]Directive {
 			continue
 		}
 		spec := line.all_after('// vml:').trim_space()
+		if spec == 'widgets' {
+			out << Directive{
+				dir:     dir
+				module:  module
+				widgets: true
+			}
+			continue
+		}
 		relative := spec.all_before(' as ').trim_space()
 		if !relative.ends_with('.vml') {
-			return error('${file}: `// vml:` names a .vml file, not `${relative}`')
+			return error('${file}: `// vml:` names a .vml file or `widgets`, not `${relative}`')
 		}
 		source := os.real_path(os.join_path(dir, relative))
 		if !os.is_file(source) {

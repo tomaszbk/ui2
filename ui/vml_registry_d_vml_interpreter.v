@@ -237,46 +237,10 @@ fn vml_new_dyn_node[P](mut owner CompiledVmlComponent, o VmlNodeOptions, parent 
 	return vml_root(mut owner, P{}, o)!
 }
 
-// The builtin tags: the core tags, and each kit package's tags from its
-// registry fragment (kit_registry_*_d_vml_interpreter.v).
-const vml_builtin_widgets = vml_merge_widgets(vml_core_widgets, kit_actions_widgets(),
-	kit_popups_widgets(), kit_display_widgets())
-
-// The core tags: layout, text, images, screens, menus and motion.
-const vml_core_widgets = {
-	'Screen':        vml_widget[ScreenProps]()
-	'View':          vml_widget[ViewProps]()
-	'Absolute':      vml_widget[AbsoluteProps]()
-	'Flex':          vml_widget[FlexProps]()
-	'Row':           vml_widget[RowProps]()
-	'Column':        vml_widget[ColumnProps]()
-	'Grid':          vml_widget[GridProps]()
-	'Stack':         vml_widget[StackProps]()
-	'Scroll':        vml_widget[ScrollProps]()
-	'ScaledContent': vml_widget[ScaledContentProps]()
-	'Label':         vml_widget[LabelProps]()
-	'Run':           vml_widget[RunProps]()
-	'Image':         vml_widget[ImageProps]()
-	'ScreenManager': vml_widget[ScreenManagerProps]()
-	'ManagedScreen': vml_widget[ManagedScreenProps]()
-	'ScreenView':    vml_widget[ScreenViewProps]()
-	'MenuItem':      vml_widget[MenuItemProps]()
-	'MenuSeparator': vml_widget[MenuSeparatorProps]()
-	'Menu':          vml_widget[MenuProps]()
-	'MenuBar':       vml_widget[MenuBarProps]()
-	'Timeline':      vml_widget[TimelineProps]()
-	'Keyframe':      vml_widget[KeyframeProps]()
-}
-
-fn vml_merge_widgets(groups ...map[string]VmlWidgetType) map[string]VmlWidgetType {
-	mut widgets := map[string]VmlWidgetType{}
-	for group in groups {
-		for tag, t in group {
-			widgets[tag] = t
-		}
-	}
-	return widgets
-}
+// The builtin tags, vml_builtin_widgets, are every props type of the module
+// with a `build` or `part` method: `ui2 gen` lists them in
+// vml_widgets_d_vml_interpreter.v.
+// vml: widgets
 
 @[heap]
 struct VmlWidgetRegistry {

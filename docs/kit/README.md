@@ -196,10 +196,12 @@ is never shown without the parts it lost.
 
 ## Registry
 
-Every tag is also registered for the interpreter. The kit's tags are in three
-fragments, `ui/kit_registry_{actions,popups,display}_d_vml_interpreter.v`, one
-line per tag; each fragment also lists its bindable fields and part-only tags,
-which `ui/vml_registry_test.v` checks against the props types.
+Every tag is also registered for the interpreter, with no list to maintain:
+each public `XProps` type with a `build` or `part` method is the tag `X`.
+`ui2 gen ui` writes them to `ui/vml_widgets_d_vml_interpreter.v` (the
+`// vml: widgets` directive), and the properties of each tag come from its
+props type by compile-time reflection. `ui/vml_registry_test.v` checks that
+the file is current and which tags are parts or have bindable fields.
 
 ## Button
 

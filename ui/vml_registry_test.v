@@ -7,28 +7,34 @@ import os
 // property of every tag set and read back by name.
 
 fn test_builtin_tags_cover_every_props_type() {
-	// Every props type in the VML and kit files is a tag: the core tags and
-	// the kit packages' registry fragments, which share no tag.
-	mut expected := []string{}
+	// Every props type of the module with a `build` or `part` method is a tag:
+	// `ui2 gen` writes them to vml_widgets_d_vml_interpreter.v, which must be
+	// current.
+	mut declared := []string{}
+	mut built := map[string]bool{}
 	for file in os.ls(@DIR)! {
-		if !(file.starts_with('vml_props') || file.starts_with('kit_')) || !file.ends_with('.v')
-			|| file.ends_with('_test.v') || file.contains('_d_') {
+		if !file.ends_with('.v') || file.ends_with('_test.v') || file.contains('_d_')
+			|| file.ends_with('_vml.v') {
 			continue
 		}
 		for line in os.read_lines(os.join_path(@DIR, file))! {
-			if line.starts_with('pub struct ') && (line.ends_with('Props {')
-				|| line.ends_with('Props {}')) {
-				name := line.all_after('pub struct ').all_before('Props {')
-				if name != 'Common' { expected << name }
+			if line.starts_with('pub struct ') {
+				name := line.all_after('pub struct ').all_before('{').trim_space()
+				if name.len > 5 && name.ends_with('Props') { declared << name[..name.len - 5] }
+			} else if line.starts_with('pub fn (') {
+				method := line.all_after(') ').all_before('(')
+				if method in ['build', 'part'] {
+					receiver := line.all_after('pub fn (').all_before(')').all_after_last(' ')
+					built[receiver.trim_left('&').all_before_last('Props')] = true
+				}
 			}
 		}
 	}
+	mut expected := declared.filter(it in built)
 	expected.sort()
 	mut builtins := vml_builtin_widgets.keys()
 	builtins.sort()
 	assert builtins == expected
-	assert builtins.len == vml_core_widgets.len + kit_actions_widgets().len +
-		kit_popups_widgets().len + kit_display_widgets().len
 	mut common := []VmlPropInfo{}
 	vml_collect_props(CommonProps{}, [], mut common)
 	assert common.len == 57
@@ -51,12 +57,8 @@ fn test_builtin_tags_cover_every_props_type() {
 		}
 	}
 	parts.sort()
-	mut expected_parts := ['Keyframe', 'Menu', 'MenuBar', 'MenuItem', 'MenuSeparator', 'Run', 'Timeline']
-	expected_parts << kit_actions_expected_parts()
-	expected_parts << kit_popups_expected_parts()
-	expected_parts << kit_display_expected_parts()
-	expected_parts.sort()
-	assert parts == expected_parts
+	assert parts == ['BreadcrumbItem', 'Keyframe', 'Menu', 'MenuBar', 'MenuItem', 'MenuSeparator',
+		'Option', 'Run', 'Timeline']
 	assert vml_widget_tags() == builtins
 }
 
@@ -191,12 +193,11 @@ fn test_bindable_properties_come_from_apply_event() {
 			if info.bindable { bindable << '${tag}.${info.name}' }
 		}
 	}
-	mut expected := kit_actions_expected_bindables()
-	expected << kit_popups_expected_bindables()
-	expected << kit_display_expected_bindables()
-	expected.sort()
 	bindable.sort()
-	assert bindable == expected
+	assert bindable == ['Accordion.value', 'Accordion.values', 'Carousel.index', 'Checkbox.checked',
+		'Clipboard.copied', 'Collapsible.open', 'Dropdown.text', 'Pagination.page', 'Slider.value',
+		'Switch.active', 'Tabs.value', 'TextArea.text', 'TextInput.text', 'ToggleButton.pressed',
+		'Tree.value', 'TreeItem.expanded']
 	slider := vml_widget_type('Slider') or { panic('missing Slider') }
 	orientation := slider.prop('orientation') or { panic('missing orientation') }
 	assert orientation.kind == .enumeration
