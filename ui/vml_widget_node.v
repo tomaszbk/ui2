@@ -67,6 +67,12 @@ pub fn vml_document(frame Rect, cfg VmlDocumentConfig) !&VmlDocument {
 	return document
 }
 
+// vml_parent makes the document the parent of its root: vml_child under the
+// document declares the root.
+pub fn (mut d VmlDocument) vml_parent() VmlParent {
+	return VmlParent{}
+}
+
 // finish builds the declared tree, validates it and resolves its layout.
 pub fn (mut d VmlDocument) finish() !Element {
 	mut root := d.root
@@ -266,9 +272,14 @@ pub fn vml_root[P](mut owner CompiledVmlComponent, props P, o VmlNodeOptions) !&
 	return node
 }
 
-// vml_child declares a child of a widget node or of a repeater segment.
+// vml_child declares a child of a widget node or of a repeater segment. Under
+// the document itself it declares the document root, as vml_root does, so a
+// component builder declares its root the same way wherever it is used.
 pub fn vml_child[P, N](mut parent N, mut owner CompiledVmlComponent, props P, o VmlNodeOptions) !&VmlWidgetNode[P] {
 	handle := parent.vml_parent()
+	if handle.list == unsafe { nil } {
+		return vml_root(mut owner, props, o)
+	}
 	mut node := vml_new_node(mut owner, props, o, handle.host)!
 	mut list := handle.list
 	list.children << &node.VmlNodeCore

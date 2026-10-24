@@ -131,7 +131,7 @@ fn test_input_default_type_error_reports_the_input_location() ! {
 struct Wrong { count int }
 fn main() { mut app := Wrong{}; _ = view_vml(mut app) }')!
 	os.write_file(view, 'component Typed(valid bool = app.count) { Label(text: "value") }')!
-	os.write_file(os.join_path(dir, 'view_vml.v'), vml.generate_file(view, module: 'main', dir: dir)!)!
+	vml.write_generated(view, vml.GenConfig{ module: 'main', dir: dir }, '')!
 	module_path := [os.dir(@VMODROOT), '@vlib', '@vmodules'].join(os.path_delimiter)
 	result := os.exec([@VEXE, '-b', 'c', '-path', module_path, '-check', dir])
 	assert result.exit_code != 0, result.output

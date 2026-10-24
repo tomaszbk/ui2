@@ -953,12 +953,11 @@ fn (mut app IdeApp) generate_companion(overwrite bool) !string {
 		return error('`${main_path}` already exists; it was left unchanged')
 	}
 	os.write_file(main_path, companion_main_source(app, os.file_name(vml_path)))!
-	// The builder is generated beside main.v, as `ui2 gen` would.
-	builder := vml.builder_base_name(vml_path)
-	os.write_file(os.join_path(os.dir(vml_path), '${builder}_vml.v'), vml.generate_file(vml_path,
+	// The builders are generated beside main.v, as `ui2 gen` would.
+	vml.write_generated(vml_path, vml.GenConfig{
 		module: 'main'
 		dir:    os.dir(vml_path)
-	)!)!
+	}, '')!
 	app.status = 'Generated ${main_path}.'
 	app.log(app.status)
 	return main_path

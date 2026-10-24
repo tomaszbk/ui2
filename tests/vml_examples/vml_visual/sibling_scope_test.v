@@ -359,10 +359,10 @@ fn main() {
 fn generate_sibling_fixture(root string) ?os.Result {
 	view := os.join_path(root, 'view.vml')
 	if !os.exists(view) { return none }
-	generated := vml.generate_file(view, module: 'main', dir: root) or {
+	vml.write_generated(view, vml.GenConfig{ module: 'main', dir: root }, '') or {
 		return os.Result{ exit_code: 1, output: err.msg() }
 	}
-	os.write_file(os.join_path(root, 'view_vml.v'), generated) or { panic(err) }
+	generated := os.read_file(os.join_path(root, 'view_vml.v')) or { panic(err) }
 	if !generated.contains('view_vml[A](mut app A)') {
 		main_path := os.join_path(root, 'main.v')
 		program := os.read_file(main_path) or { panic(err) }

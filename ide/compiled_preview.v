@@ -150,10 +150,11 @@ fn (mut app IdeApp) compile_preview() ! {
 	defer { os.rm(preview_source) or {} }
 	source := os.join_path(directory, 'preview.v')
 	os.write_file(source, preview_library_source(app))!
-	os.write_file(os.join_path(directory, 'preview_vml.v'), vml.generate_file(preview_source,
+	vml.write_generated(preview_source, vml.GenConfig{
 		module: 'main'
 		name:   'preview'
-	)!)!
+		dir:    directory
+	}, '')!
 	library := os.join_path(directory, dl.get_libname('preview'))
 	module_path := [os.dir(@VMODROOT), '@vlib', '@vmodules'].join(os.path_delimiter)
 	// The exported structs and callbacks use the C backend's native ABI, as do

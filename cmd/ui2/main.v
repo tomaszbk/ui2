@@ -115,44 +115,56 @@ struct Directive {
 }
 
 // generate_paths generates the builders declared under paths and returns how
-// many are up to date. A builder is rewritten only when its text changes, so
-// unchanged builders keep their modification time and V's caches.
+// many files are up to date. A document's file holds its builders; the files
+// of the components it uses are generated beside it. A file is rewritten only
+// when its text changes, so unchanged files keep their modification time and
+// V's caches.
 fn generate_paths(paths []string) !int {
-	mut directives := map[string]Directive{}
+	mut directives := []Directive{}
+	mut seen := map[string]bool{}
 	for path in paths {
 		for file in v_files(path)! {
 			for directive in file_directives(file)! {
-				key := os.join_path(directive.dir, output_name(directive))
-				if existing := directives[key] {
-					if os.real_path(existing.source) != os.real_path(directive.source) {
-						return error('${key}: `${directive.name}` names both ${existing.source} and ${directive.source}; use `as <name>`')
-					}
+				key := '${directive.dir}|${directive.source}|${directive.name}|${directive.fixtures}'
+				if key in seen {
 					continue
 				}
-				directives[key] = directive
+				seen[key] = true
+				directives << directive
 			}
 		}
 	}
-	for output, directive in directives {
-		code := vml.generate_file(directive.source,
+	mut outputs := map[string]string{}
+	mut origins := map[string]string{}
+	for directive in directives {
+		files := vml.generate_files(directive.source,
 			module: directive.module
 			name:   directive.name
 			dir:    directive.dir
 		)!
+		for file in files {
+			output := os.join_path(directive.dir, file.name + suffix(directive))
+			if existing := outputs[output] {
+				if existing != file.code && origins[output] != file.source {
+					return error('${output}: `${file.name}` names both ${origins[output]} and ${file.source}; use `as <name>`')
+				}
+				continue
+			}
+			outputs[output] = file.code
+			origins[output] = file.source
+		}
+	}
+	for output, code in outputs {
 		current := os.read_file(output) or { '' }
 		if current != code {
 			os.write_file(output, code)!
 		}
 	}
-	return directives.len
+	return outputs.len
 }
 
-fn output_name(directive Directive) string {
-	return if directive.fixtures {
-		'${directive.name}_vml_d_vml_fixtures.v'
-	} else {
-		'${directive.name}_vml.v'
-	}
+fn suffix(directive Directive) string {
+	return if directive.fixtures { '_vml_d_vml_fixtures.v' } else { '_vml.v' }
 }
 
 // v_files lists the V files under path (or path itself), skipping generated

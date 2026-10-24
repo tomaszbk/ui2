@@ -54,6 +54,10 @@ pub fn (mut p Parser) parse_document() !&Node {
 		resolve_style_declarations(mut component, p.config)!
 	}
 	if root.tag != component_tag { resolve_style_declarations(mut root, p.config)! }
+	if p.keep_components {
+		p.local_definitions = definitions.clone()
+		return root
+	}
 	mut resolved := map[string]&Node{}
 	for name, _ in definitions { resolve_local_component(name, definitions, mut resolved, [])! }
 	if root.tag == component_tag && root.component_name in resolved {

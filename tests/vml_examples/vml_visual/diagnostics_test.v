@@ -54,7 +54,7 @@ fn test_compiled_visual_dynamic_types_and_inactive_arms_report_vml_locations() {
 	] {
 		os.write_file(view, entry[0])!
 		// V reports type errors of the generated builder at the document line.
-		os.write_file(os.join_path(root, 'view_vml.v'), vml.generate_file(view, module: 'main', dir: root)!)!
+		vml.write_generated(view, vml.GenConfig{ module: 'main', dir: root }, '')!
 		result := os.exec([@VEXE, '-b', 'c', '-path', module_path, '-check', root])
 		assert result.exit_code != 0, result.output
 		assert result.output.contains('view.vml:${entry[1].all_before(':')}:'), result.output

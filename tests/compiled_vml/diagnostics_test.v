@@ -17,12 +17,12 @@ fn compiled_diagnostic(source string, index int) !string {
 	os.write_file(invalid_path, document)!
 	// Language errors are the generator's; type errors are V's in the
 	// generated builder, mapped to the document by its `#line` directives.
-	generated := vml.generate_file(invalid_path, module: 'main', dir: directory) or {
+	vml.write_generated(invalid_path, vml.GenConfig{ module: 'main', dir: directory }, '') or {
 		assert index != -1, err.msg()
 		assert err.msg().contains('invalid.vml') || err.msg().contains('item.vml'), err.msg()
 		return err.msg()
 	}
-	os.write_file(os.join_path(directory, 'invalid_vml.v'), generated)!
+	generated := os.read_file(os.join_path(directory, 'invalid_vml.v'))!
 	call := if generated.contains('invalid_vml[A](mut app A)') { 'invalid_vml(mut app)' } else { 'invalid_vml()' }
 	main_path := os.join_path(directory, 'main.v')
 	os.write_file(main_path, 'module main\nimport ui2\npub struct App {\npub:\n readonly_text string\npub mut:\n count int\n name string\n checked bool\n level f64\n rows []int\n string_offset string\n bool_offset bool\n}\npub fn (mut app App) action() {}\nfn wrong_payload(value int) {}\nfn wrong_return() int { return 1 }\nfn main() { mut app := &App{} _ = app _ = ${call} }\n')!

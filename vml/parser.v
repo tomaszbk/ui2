@@ -27,8 +27,12 @@ pub:
 	file   string
 	tokens []Token
 	config ParseConfig
+	// keep_components leaves local component invocations unexpanded and the
+	// definitions in `local_definitions` (see `parse_library`).
+	keep_components bool
 mut:
-	pos int
+	pos               int
+	local_definitions map[string]&Node
 }
 
 // new_parser returns a parser for `tokens` (from `tokenize`).

@@ -80,6 +80,9 @@ pub mut:
 	properties     []Property
 	children       []&Node
 	component_name string
+	// An invocation kept by `parse_library`: the key (`file#Name`) of the
+	// component definition it instantiates.
+	component_ref string
 	inputs         []Input
 	data           []Data
 	functions      []Function

@@ -914,33 +914,56 @@ fn vml_interp_computed(mut owner CompiledVmlComponent, name string, compute fn (
 // declare declares a node of the IR under `parent` (none for the document
 // root). `key` is the key of an enclosing component invocation.
 fn (f &VmlFrame) declare(n &VmlINode, parent ?VmlParent, key ?string) !VmlDynNode {
-	if n.slot_scope != unsafe { nil } {
-		// Slot content: the author's scope, an owner of its own.
-		lexical := if n.slot_from_caller { f.caller } else { f }
-		mut author := lexical.owner
-		mut host := f.owner
-		mut owner := author.slot_child(mut host, n.path) or { return n.src.wrap_error(err) }
-		if n.slot_scope.tokens.len > 0 {
-			owner.prepare_theme_tokens(n.slot_scope.tokens)!
-		}
-		mut frame := lexical.child_frame(owner, n.slot_scope.slots)
-		return frame.declare_node(n, parent, key)
-	}
-	return f.declare_node(n, parent, key)
-}
-
-fn (f &VmlFrame) declare_node(n &VmlINode, parent ?VmlParent, key ?string) !VmlDynNode {
 	return match n.kind {
 		.element { f.element(n, parent, key)! }
 		.component { f.component(n, parent, key)! }
 		.repeater { n.src.error('a Repeater must be the child of a container') }
+		.slot { n.src.error('a `Slot` must be the child of an element') }
 	}
+}
+
+// declare_children declares the children of a container under `parent`.
+fn (f &VmlFrame) declare_children(nodes []&VmlINode, parent VmlParent) ! {
+	for child in nodes {
+		match child.kind {
+			.repeater { f.repeater(child, parent)! }
+			.slot { f.slot(child, parent)! }
+			else { f.declare(child, parent, none)! }
+		}
+	}
+}
+
+// slot declares the content an invocation gives a component's `Slot`: in a
+// frame of the invocation's caller, under an owner of its own that the
+// receiving component owns (CompiledVmlComponent.slot_child).
+fn (f &VmlFrame) slot(n &VmlINode, parent VmlParent) ! {
+	if n.children.len == 0 {
+		return
+	}
+	mut home := unsafe { f }
+	for home.parent != unsafe { nil } {
+		home = home.parent
+	}
+	caller := home.caller
+	if caller == unsafe { nil } {
+		return n.src.error('`Slot` is only valid inside a component')
+	}
+	author := caller.owner
+	mut host := f.owner
+	mut owner := author.slot_child(mut host, n.path) or { return n.src.wrap_error(err) }
+	if n.slot_scope.tokens.len > 0 {
+		owner.prepare_theme_tokens(n.slot_scope.tokens)!
+	}
+	frame := caller.child_frame(owner, n.slot_scope.slots)
+	frame.declare_children(n.children, parent)!
 }
 
 fn (f &VmlFrame) element(n &VmlINode, parent ?VmlParent, inherited ?string) !VmlDynNode {
 	mut frame := unsafe { f }
-	key := inherited or {
-		if n.key != unsafe { nil } { vml_value_text(f.eval(n.key)!) } else { '' }
+	// An enclosing invocation's key replaces the element's own.
+	mut key := inherited or { '' }
+	if key.len == 0 && n.key != unsafe { nil } {
+		key = vml_value_text(f.eval(n.key)!)
 	}
 	mut owner := f.owner
 	mut node := n.widget.new_node(mut owner, VmlNodeOptions{
@@ -956,38 +979,42 @@ fn (f &VmlFrame) element(n &VmlINode, parent ?VmlParent, inherited ?string) !Vml
 		f.apply_prop(mut node, p)!
 	}
 	for event in n.events {
-		node.set_prop(event.name, VmlValue(VmlCallable{
-			name: event.name
-			run:  f.event_handler(event)
-		}))!
+		f.apply_event(mut node, event)!
 	}
 	for b in n.binds {
-		target := b.target
-		write := b.write
-		node.prop_value(b.prop, fn [frame, target] () !VmlValue {
-			if vml_ir_uses_app(target) {
-				frame.owner.watch_app()!
-			}
-			return frame.eval(target)!
-		})!
-		node.bind_value(b.prop, fn [frame, target, write] (value VmlValue) ! {
-			current := frame.eval(target) or { VmlValue(VmlNone{}) }
-			frame.write(write, vml_bound_value(current, value))!
-		})!
+		f.apply_bind(mut node, b)!
 	}
 	if n.ref != unsafe { nil } {
 		ref := f.up(n.ref.depth).cells[n.ref.slot].ref
 		node.bind_ref(ref)!
 	}
-	handle := node.vml_parent()
-	for child in n.children {
-		if child.kind == .repeater {
-			f.repeater(child, handle)!
-		} else {
-			f.declare(child, handle, none)!
-		}
-	}
+	f.declare_children(n.children, node.vml_parent())!
 	return node
+}
+
+fn (f &VmlFrame) apply_event(mut node VmlDynNode, event VmlIEvent) ! {
+	node.set_prop(event.name, VmlValue(VmlCallable{
+		name: event.name
+		run:  f.event_handler(event)
+	}))!
+}
+
+// apply_bind connects a bindable property to its target: an effect reads the
+// target and the control's edits write it.
+fn (f &VmlFrame) apply_bind(mut node VmlDynNode, b VmlIBind) ! {
+	frame := unsafe { f }
+	target := b.target
+	write := b.write
+	node.prop_value(b.prop, fn [frame, target] () !VmlValue {
+		if vml_ir_uses_app(target) {
+			frame.owner.watch_app()!
+		}
+		return frame.eval(target)!
+	})!
+	node.bind_value(b.prop, fn [frame, target, write] (value VmlValue) ! {
+		current := frame.eval(target) or { VmlValue(VmlNone{}) }
+		frame.write(write, vml_bound_value(current, value))!
+	})!
 }
 
 // vml_bound_value converts a control's value for its binding target:
@@ -1082,14 +1109,7 @@ fn (f &VmlFrame) repeater(n &VmlINode, parent VmlParent) ! {
 		mut scope := frame.child_frame(item_owner, r.item_scope.slots)
 		scope.cells[r.item_slot].item = unsafe { item }
 		scope.cells[r.index_slot].index = item_owner.state('@index', 0)!
-		handle := segment.vml_parent()
-		for child in r.children {
-			if child.kind == .repeater {
-				scope.repeater(child, handle)!
-			} else {
-				scope.declare(child, handle, none)!
-			}
-		}
+		scope.declare_children(r.children, segment.vml_parent())!
 	}, src)!
 }
 
@@ -1188,13 +1208,20 @@ fn (f &VmlFrame) component(n &VmlINode, parent ?VmlParent, inherited ?string) !V
 			component_frame.exec(action) or { eprintln('ui2 VML cleanup failed: ${err}') }
 		})!
 	}
+	// The invocation's own key replaces an enclosing invocation's.
 	mut key := inherited
-	if key == none && comp.key != unsafe { nil } {
+	if comp.key != unsafe { nil } {
 		key = vml_value_text(f.eval(comp.key)!)
 	}
 	mut root := frame.declare(comp.root, parent, key)!
-	for p in comp.layout {
+	for p in comp.forward {
 		f.apply_prop(mut root, p)!
+	}
+	for event in comp.events {
+		f.apply_event(mut root, event)!
+	}
+	for b in comp.binds {
+		f.apply_bind(mut root, b)!
 	}
 	if comp.ref != unsafe { nil } {
 		ref := f.up(comp.ref.depth).cells[comp.ref.slot].ref
