@@ -1,4 +1,4 @@
-// vtest vflags: -d ui2_embedder -d ui2_geometry_capture
+// vtest vflags: -d ui2_custom_rendering -d ui2_embedder -d ui2_geometry_capture
 // vfmt off
 @[has_globals]
 module ui2
@@ -7,7 +7,7 @@ $if !gcboehm ? {
 	$compile_error('Exact clip fixtures require normal Boehm GC')
 }
 
-$if macos && ui2_embedder ?&& ui2_geometry_capture ?&& !ui2_headless ? {
+$if macos && ui2_custom_rendering ?&& ui2_embedder ?&& ui2_geometry_capture ?&& !ui2_headless ? {
 	import gg
 	import math
 	import sokol.gfx
@@ -39,7 +39,7 @@ $if macos && ui2_embedder ?&& ui2_geometry_capture ?&& !ui2_headless ? {
 }
 
 fn test_rotated_dropdown_popup_closes_when_exact_owner_clip_becomes_empty() {
-	$if macos && ui2_embedder ?&& ui2_geometry_capture ?&& !ui2_headless ? {
+	$if macos && ui2_custom_rendering ?&& ui2_embedder ?&& ui2_geometry_capture ?&& !ui2_headless ? {
 		mut ctx := new_surface_draw_context(gg.Config{ width: 320, height: 240 }, dropdown_clip_environment())!
 		window := C.ui2_embedder_create(&C.ui2_embedder_config{ title: c'Dropdown exact clip fixture', width: 320, height: 240, visible: false }, &C.ui2_embedder_callbacks{}, unsafe { nil })
 		assert window != unsafe { nil }
@@ -109,7 +109,7 @@ fn test_rotated_dropdown_popup_closes_when_exact_owner_clip_becomes_empty() {
 }
 
 fn test_partial_dropdown_clip_survives_nested_scaled_scroll_and_translated_descendant() {
-	$if macos && ui2_embedder ?&& ui2_geometry_capture ?&& !ui2_headless ? {
+	$if macos && ui2_custom_rendering ?&& ui2_embedder ?&& ui2_geometry_capture ?&& !ui2_headless ? {
 		mut ctx := new_surface_draw_context(gg.Config{ width: 360, height: 280 }, dropdown_clip_environment())!
 		window := C.ui2_embedder_create(&C.ui2_embedder_config{ title: c'Dropdown nested clip fixture', width: 360, height: 280, visible: false }, &C.ui2_embedder_callbacks{}, unsafe { nil })
 		assert window != unsafe { nil }

@@ -1,7 +1,8 @@
+// vtest vflags: -d ui2_custom_rendering
 @[has_globals]
 module ui2
 
-$if (linux || macos || windows) && !ui2_headless ? {
+$if ( linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headless ? {
 	fn test_owned_text_reuses_layout_and_owns_editor_input() {
 		mut engine := new_text_engine(1)!
 		defer { engine.free() }

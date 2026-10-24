@@ -1,4 +1,5 @@
-// vtest build: macos && ui2_drag_runtime_probe? && !ui2_embedder?
+// vtest build: macos && ui2_custom_rendering? && ui2_drag_runtime_probe? && !ui2_embedder?
+// vtest vflags: -d ui2_custom_rendering
 // Opt-in macOS gg/Sokol Metal fixture: pass -d ui2_drag_runtime_probe.
 // Input is injected on the UI thread through the existing gg event handler.
 // It verifies the real renderer, resources and idle scheduler, not OS input.
@@ -8,7 +9,7 @@
 @[has_globals]
 module ui2
 
-$if macos && ui2_drag_runtime_probe ? && !ui2_embedder ? {
+$if macos && ui2_custom_rendering ? && ui2_drag_runtime_probe ? && !ui2_embedder ? {
 	import gg
 	import os
 	import time

@@ -1,7 +1,8 @@
+// vtest vflags: -d ui2_custom_rendering
 @[has_globals]
 module ui2
 
-$if (android || ios || linux || macos || windows) && !ui2_headless ? {
+$if (android || linux || ((ios || macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
 	fn anonymous_retained_measure(_text string, _style TextStyle, _width f64) !LayoutSize {
 		return LayoutSize{ width: 80, height: 24 }
 	}

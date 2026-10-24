@@ -1,9 +1,9 @@
-// vtest vflags: -d ui2_embedder
+// vtest vflags: -d ui2_custom_rendering -d ui2_embedder
 // vfmt off
 @[has_globals]
 module ui2
 
-$if macos && ui2_embedder ? && !ui2_headless ? {
+$if macos && ui2_custom_rendering ? && ui2_embedder ? && !ui2_headless ? {
 	import gg
 	import os
 	import sokol.gfx

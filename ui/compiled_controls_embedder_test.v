@@ -1,4 +1,4 @@
-// vtest vflags: -d ui2_embedder -d ui2_geometry_capture
+// vtest vflags: -d ui2_custom_rendering -d ui2_embedder -d ui2_geometry_capture
 @[has_globals]
 module ui2
 
@@ -6,7 +6,7 @@ import gg
 import sokol.gfx
 import sokol.sapp
 
-$if macos && ui2_embedder ?&& ui2_geometry_capture ?&& !ui2_headless ? {
+$if macos && ui2_custom_rendering ?&& ui2_embedder ?&& ui2_geometry_capture ?&& !ui2_headless ? {
 	__global controls_vertices = []PaintVertex{}
 
 	fn observe_controls_polygon(vertices []PaintVertex) { controls_vertices << vertices }
@@ -55,7 +55,7 @@ pub mut:
 }
 
 fn test_compiled_slider_switch_and_focus_ring_follow_the_pointer() {
-	$if macos && ui2_embedder ?&& ui2_geometry_capture ?&& !ui2_headless ? {
+	$if macos && ui2_custom_rendering ?&& ui2_embedder ?&& ui2_geometry_capture ?&& !ui2_headless ? {
 		mut ctx := new_surface_draw_context(gg.Config{ width: 400, height: 300 }, compiled_controls_environment())!
 		window := C.ui2_embedder_create(&C.ui2_embedder_config{ title: c'Compiled controls fixture', width: 400, height: 300, visible: false }, &C.ui2_embedder_callbacks{}, unsafe { nil })
 		assert window != unsafe { nil }

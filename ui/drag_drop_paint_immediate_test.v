@@ -1,8 +1,9 @@
-// vtest build: macos && !ui2_headless?
+// vtest build: macos && ui2_custom_rendering? && !ui2_headless?
+// vtest vflags: -d ui2_custom_rendering
 @[has_globals]
 module ui2
 
-$if macos && !ui2_headless ? {
+$if macos && ui2_custom_rendering ? && !ui2_headless ? {
 	__global paint_drag_events = []ElementEvent{}
 	__global paint_drag_current_events = []ElementEvent{}
 	__global paint_drag_stage = ''

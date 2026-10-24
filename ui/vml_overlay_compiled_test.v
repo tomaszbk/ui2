@@ -1,3 +1,4 @@
+// vtest vflags: -d ui2_custom_rendering
 module ui2
 
 @[heap]

@@ -1,8 +1,8 @@
-// vtest vflags: -d ui2_embedder
+// vtest vflags: -d ui2_custom_rendering -d ui2_embedder
 @[has_globals]
 module ui2
 
-$if macos && ui2_embedder ?&& !ui2_headless ? {
+$if macos && ui2_custom_rendering ?&& ui2_embedder ?&& !ui2_headless ? {
 	import gg
 	import sokol.gfx
 
@@ -28,7 +28,7 @@ $if macos && ui2_embedder ?&& !ui2_headless ? {
 }
 
 fn test_counter_tick_relayouts_and_reshapes_only_the_changed_label() {
-	$if macos && ui2_embedder ?&& !ui2_headless ? {
+	$if macos && ui2_custom_rendering ?&& ui2_embedder ?&& !ui2_headless ? {
 		mut ctx := new_surface_draw_context(gg.Config{ width: 1000, height: 700 }, frame_work_environment())!
 		window := C.ui2_embedder_create(&C.ui2_embedder_config{ title: c'Frame work fixture', width: 1000, height: 700, visible: false }, &C.ui2_embedder_callbacks{}, unsafe { nil })
 		assert window != unsafe { nil }

@@ -1,6 +1,6 @@
 module ui2
 
-$if (android || ios || linux || macos || windows) && !ui2_headless ? {
+$if (android || linux || ((ios || macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
 	import math
 }
 
@@ -116,7 +116,7 @@ fn layout_measure_require_declared_editor_style(_text string, style TextStyle, _
 }
 
 fn test_custom_intrinsic_editor_matches_wrapping_content_width_before_window_creation() {
-	$if (android || ios || linux || macos || windows) && !ui2_headless ? {
+	$if (android || linux || ((ios || macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
 		style := TextStyle{ size: 16, font_family: 'Roboto Mono', lines: 1 }
 		advance := measure_layout_text('M', style, -1)!.width
 		// With two monospaced glyphs per row, five Ms occupy three rows.
@@ -167,7 +167,7 @@ fn layout_measure_require_declared_zero_lines(_text string, style TextStyle, _wi
 }
 
 fn test_intrinsic_label_keeps_its_declared_line_limit() {
-	$if (linux || macos || windows) && !ui2_headless ? {
+	$if ( linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headless ? {
 		label_one_line := label('caption', 'one\ntwo', Rect{}, TextStyle{ lines: 0 })
 		assert measure_layout_element(label_one_line, LayoutConstraints{}, layout_measure_require_declared_zero_lines)! == LayoutSize{ width: 16, height: 20 }
 		assert label_one_line.text_style.lines == 0

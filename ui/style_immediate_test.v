@@ -1,7 +1,8 @@
+// vtest vflags: -d ui2_custom_rendering
 @[has_globals]
 module ui2
 
-$if (android || ios || linux || macos || windows) && !ui2_headless ? {
+$if (android || linux || ((ios || macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
 	fn style_backend_measure(text string, _ TextStyle, width f64) !LayoutSize {
 		return LayoutSize{ width: if width < 0 { f64(text.runes().len * 8) } else { width }, height: 30 }
 	}

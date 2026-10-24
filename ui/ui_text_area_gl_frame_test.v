@@ -1,9 +1,9 @@
-// vtest vflags: -d darwin_sokol_glcore33
+// vtest vflags: -d ui2_custom_rendering -d darwin_sokol_glcore33
 // vfmt off
 @[has_globals]
 module ui2
 
-$if macos && darwin_sokol_glcore33 ? && !ui2_headless ? {
+$if macos && ui2_custom_rendering ? && darwin_sokol_glcore33 ? && !ui2_headless ? {
 	import gg
 	import os
 	import sokol.gfx

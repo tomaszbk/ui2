@@ -1,6 +1,6 @@
 module ui2
 
-$if (linux || macos || windows) && !ui2_headless ? {
+$if (linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
 	import math
 }
 
@@ -43,7 +43,7 @@ fn test_vml_runs_inherit_and_explicit_false_overrides() {
 }
 
 fn test_vglyph_rich_metrics_tracking_line_grid_and_scale() {
-	$if (linux || macos || windows) && !ui2_headless ? {
+	$if (linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
 		mut engine := new_text_engine(1)!
 		defer { engine.free() }
 		base := TextStyle{ font_family: 'Inter', size: 24, lines: 5, line_height: 36 }
@@ -100,7 +100,7 @@ fn test_compiled_run_binding_rebuilds_intrinsic_measurement() {
 	assert b.text == 'one two three four five six seven'
 	assert a.text_runs[0].style.size == 12
 	assert b.text_runs[0].style.size == 24
-	$if (linux || macos || windows) && !ui2_headless ? {
+	$if (linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
 		assert b.frame.height > a.frame.height * 2
 	}
 	// UTF-8 slicing preserves a multi-byte tail and its style.
@@ -122,7 +122,7 @@ fn test_floating_overlay_scales_complete_typography_once() {
 }
 
 fn test_mixed_size_runs_keep_absolute_parent_line_grid() {
-	$if (linux || macos || windows) && !ui2_headless ? {
+	$if (linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
 		mut engine := new_text_engine(1)!
 		defer { engine.free() }
 		for pair in [[48.0, 15.0, 67.2], [38.0, 18.0, 38.0], [22.0, 14.0, 30.8]] {
@@ -156,7 +156,7 @@ fn test_mixed_size_runs_keep_absolute_parent_line_grid() {
 }
 
 fn test_rich_baseline_offset_is_complete_run_style() {
-	$if (linux || macos || windows) && !ui2_headless ? {
+	$if (linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
 		mut engine := new_text_engine(1)!
 		defer { engine.free() }
 		base := TextStyle{ font_family: 'Inter', size: 24, line_height: 36, baseline_offset: 3 }

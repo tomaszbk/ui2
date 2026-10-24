@@ -1,7 +1,8 @@
+// vtest vflags: -d ui2_custom_rendering
 @[has_globals]
 module ui2
 
-$if (linux || macos || windows) && !ui2_headless ? {
+$if ( linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headless ? {
 	// Check every retained string before releasing the source. On a regression
 	// this fails while the source is still valid, without reading freed bytes.
 	fn assert_shape_excludes_source_storage(shaped ShapedText, source string) {

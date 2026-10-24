@@ -1,11 +1,11 @@
-// vtest build: macos && ui2_embedder? && !ui2_headless?
-// vtest vflags: -d ui2_embedder
+// vtest build: macos && ui2_custom_rendering? && ui2_embedder? && !ui2_headless?
+// vtest vflags: -d ui2_custom_rendering -d ui2_embedder
 // Real render_element traversal/registration with a Metal drawing context.
 // No native input injection or window/swapchain is needed for hit dispatch.
 @[has_globals]
 module ui2
 
-$if macos && ui2_embedder ? && !ui2_headless ? {
+$if macos && ui2_custom_rendering ? && ui2_embedder ? && !ui2_headless ? {
 	import gg
 	import os
 	import sokol.gfx

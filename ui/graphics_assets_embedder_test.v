@@ -1,9 +1,9 @@
-// vtest vflags: -d ui2_embedder -d ui2_geometry_capture
+// vtest vflags: -d ui2_custom_rendering -d ui2_embedder -d ui2_geometry_capture
 // vfmt off
 @[has_globals]
 module ui2
 
-$if macos && ui2_embedder ? && ui2_geometry_capture ? && !ui2_headless ? {
+$if macos && ui2_custom_rendering ? && ui2_embedder ? && ui2_geometry_capture ? && !ui2_headless ? {
 	import gg
 	import math
 	import os
@@ -25,7 +25,7 @@ $if macos && ui2_embedder ? && ui2_geometry_capture ? && !ui2_headless ? {
 }
 
 fn test_combined_vector_image_text_exact_clip_rotation_once_and_sibling_scope() {
-	$if macos && ui2_embedder ? && ui2_geometry_capture ? && !ui2_headless ? {
+	$if macos && ui2_custom_rendering ? && ui2_embedder ? && ui2_geometry_capture ? && !ui2_headless ? {
 		mut ctx := new_surface_draw_context(gg.Config{width:320,height:240},graphics_seam_env())!
 		defer { ctx.destroy() }
 		window := C.ui2_embedder_create(&C.ui2_embedder_config{title:c'Graphics combination',width:320,height:240,visible:false},

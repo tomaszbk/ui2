@@ -1,6 +1,6 @@
 module ui2
 
-$if macos && ui2_embedder ?&& !ui2_headless ? {
+$if macos && ui2_custom_rendering ?&& ui2_embedder ?&& !ui2_headless ? {
 	import gg
 	import os
 	import sokol.gfx
@@ -60,7 +60,7 @@ $if macos && ui2_embedder ?&& !ui2_headless ? {
 // Keep the test functions present on other backends: the V test compiler cannot
 // currently compile a file whose every test is removed by a platform guard.
 fn test_owned_draw_resources_keep_other_window_text_and_device_alive() {
-	$if macos && ui2_embedder ?&& !ui2_headless ? {
+	$if macos && ui2_custom_rendering ?&& ui2_embedder ?&& !ui2_headless ? {
 		config := gg.Config{ width: 320, height: 240 }
 		environment := text_gpu_test_environment()
 		mut first := new_surface_draw_context(config, environment)!
@@ -146,7 +146,7 @@ fn test_owned_draw_resources_keep_other_window_text_and_device_alive() {
 }
 
 fn test_text_atlas_uploads_new_glyphs_before_on_demand_submission_and_releases_growth() {
-	$if macos && ui2_embedder ?&& !ui2_headless ? {
+	$if macos && ui2_custom_rendering ?&& ui2_embedder ?&& !ui2_headless ? {
 		mut ctx := new_surface_draw_context(gg.Config{ width: 320, height: 240 }, text_gpu_test_environment())!
 		defer { ctx.destroy() }
 		window := C.ui2_embedder_create(&C.ui2_embedder_config{
@@ -278,7 +278,7 @@ fn test_text_atlas_uploads_new_glyphs_before_on_demand_submission_and_releases_g
 }
 
 fn test_new_glyph_uploads_in_the_submission_frame_without_atlas_growth() {
-	$if macos && ui2_embedder ?&& !ui2_headless ? {
+	$if macos && ui2_custom_rendering ?&& ui2_embedder ?&& !ui2_headless ? {
 		mut ctx := new_surface_draw_context(gg.Config{ width: 320, height: 240 }, text_gpu_test_environment())!
 		defer { ctx.destroy() }
 		window := C.ui2_embedder_create(&C.ui2_embedder_config{
@@ -319,7 +319,7 @@ fn test_new_glyph_uploads_in_the_submission_frame_without_atlas_growth() {
 }
 
 fn test_atlas_growth_submits_retired_and_live_pixels_and_releases_only_retired_images() {
-	$if macos && ui2_embedder ?&& !ui2_headless ? {
+	$if macos && ui2_custom_rendering ?&& ui2_embedder ?&& !ui2_headless ? {
 		config := gg.Config{ width: 320, height: 240 }
 		environment := text_gpu_test_environment()
 		mut ctx := new_surface_draw_context(config, environment)!
@@ -429,7 +429,7 @@ fn test_atlas_growth_submits_retired_and_live_pixels_and_releases_only_retired_i
 }
 
 fn test_closing_with_deferred_atlas_images_keeps_another_context_alive() {
-	$if macos && ui2_embedder ?&& !ui2_headless ? {
+	$if macos && ui2_custom_rendering ?&& ui2_embedder ?&& !ui2_headless ? {
 		config := gg.Config{ width: 320, height: 240 }
 		environment := text_gpu_test_environment()
 		mut guard := new_surface_draw_context(config, environment)!
@@ -517,7 +517,7 @@ fn test_closing_with_deferred_atlas_images_keeps_another_context_alive() {
 }
 
 fn test_scaled_composition_gpu_submission_keeps_caret_and_layout_on_resize() {
-	$if macos && ui2_embedder ?&& !ui2_headless ? {
+	$if macos && ui2_custom_rendering ?&& ui2_embedder ?&& !ui2_headless ? {
 		mut ctx := new_surface_draw_context(gg.Config{ width: 640, height: 480 }, text_gpu_test_environment())!
 		defer { ctx.destroy() }
 		mut w := &Window{ ctx: ctx }

@@ -1,11 +1,11 @@
-// vtest vflags: -d ui2_embedder
+// vtest vflags: -d ui2_custom_rendering -d ui2_embedder
 @[has_globals]
 module ui2
 
 import gg
 import sokol.gfx
 
-$if macos && ui2_embedder ?&& !ui2_headless ? {
+$if macos && ui2_custom_rendering ?&& ui2_embedder ?&& !ui2_headless ? {
 	fn compiled_build_tick_environment() gfx.Environment {
 		return gfx.Environment{ defaults: gfx.EnvironmentDefaults{ color_format: .bgra8, depth_format: .@none, sample_count: 1 }, metal: gfx.MetalEnvironment{ device: C.ui2_embedder_metal_device() } }
 	}
@@ -24,7 +24,7 @@ pub mut:
 // compiled document. That frame must present the new value, not a patch the
 // previous build queued, and must not schedule a follow-up frame.
 fn test_compiled_build_presents_current_value_in_one_frame() {
-	$if macos && ui2_embedder ?&& !ui2_headless ? {
+	$if macos && ui2_custom_rendering ?&& ui2_embedder ?&& !ui2_headless ? {
 		mut ctx := new_surface_draw_context(gg.Config{ width: 320, height: 240 }, compiled_build_tick_environment())!
 		window := C.ui2_embedder_create(&C.ui2_embedder_config{ title: c'Compiled build fixture', width: 320, height: 240, visible: false }, &C.ui2_embedder_callbacks{}, unsafe { nil })
 		assert window != unsafe { nil }

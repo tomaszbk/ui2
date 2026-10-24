@@ -1,7 +1,7 @@
-// vtest vflags: -d ui2_embedder
+// vtest vflags: -d ui2_custom_rendering -d ui2_embedder
 module ui2
 
-$if macos && ui2_embedder ? && !ui2_headless ? {
+$if macos && ui2_custom_rendering ? && ui2_embedder ? && !ui2_headless ? {
 	import gg
 	import sokol.gfx
 	import sokol.sgl
@@ -31,7 +31,7 @@ $if macos && ui2_embedder ? && !ui2_headless ? {
 }
 
 fn test_cancel_discards_only_its_cpu_commands_without_submitting_a_metal_frame() {
-	$if macos && ui2_embedder ? && !ui2_headless ? {
+	$if macos && ui2_custom_rendering ? && ui2_embedder ? && !ui2_headless ? {
 		environment := gfx.Environment{
 			defaults: gfx.EnvironmentDefaults{color_format: .bgra8, depth_format: .@none, sample_count: 1}
 			metal: gfx.MetalEnvironment{device: C.ui2_embedder_metal_device()}

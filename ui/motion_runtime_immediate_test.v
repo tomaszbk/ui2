@@ -1,3 +1,4 @@
+// vtest vflags: -d ui2_custom_rendering
 @[has_globals]
 module ui2
 
@@ -9,7 +10,7 @@ mut:
 	now f64
 }
 
-$if (android || linux || macos || windows) && !ui2_headless ? {
+$if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
 	__global motion_runtime_pointer_events = []ElementEvent{}
 
 	fn runtime_motion_style(clock &RuntimeMotionClock) MotionConfig {

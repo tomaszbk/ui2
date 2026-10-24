@@ -1,15 +1,15 @@
-// vtest vflags: -gc boehm -d no_gc_thread_local_alloc -d ui2_embedder
+// vtest vflags: -gc boehm -d no_gc_thread_local_alloc -d ui2_custom_rendering -d ui2_embedder
 @[has_globals]
 module ui2
 
-$if macos && ui2_embedder ?&& !ui2_headless ? {
+$if macos && ui2_custom_rendering ?&& ui2_embedder ?&& !ui2_headless ? {
 	import gg
 	import sokol.gfx
 	import sokol.sgl
 }
 
 fn test_open_dropdown_hover_reuses_targets_and_refreshes_scroll_and_selection() ! {
-	$if macos && ui2_embedder ?&& !ui2_headless ? {
+	$if macos && ui2_custom_rendering ?&& ui2_embedder ?&& !ui2_headless ? {
 		environment := gfx.Environment{
 			defaults: gfx.EnvironmentDefaults{ color_format: .bgra8, depth_format: .@none, sample_count: 1 }
 			metal:    gfx.MetalEnvironment{ device: C.ui2_embedder_metal_device() }

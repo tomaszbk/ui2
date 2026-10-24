@@ -2,7 +2,7 @@
 @[has_globals]
 module ui2
 
-$if (android || ios || linux || macos || windows) && !ui2_headless ? {
+$if (android || linux || ((ios || macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
 	__global scroll_test_events = []string{}
 	__global scroll_test_payloads = []ElementEvent{}
 	__global scroll_test_measurements = 0
@@ -767,7 +767,7 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? {
 }
 
 fn test_text_area_line_ranges_follow_wrapped_source_runes() {
-	$if (android || ios) && !ui2_headless ? {
+	$if (android || (ios && ui2_custom_rendering ?)) && !ui2_headless ? {
 		lines := ['one two', 'three']
 		assert text_area_line_rune_ranges('one two three', lines) == [
 			TextAreaLineRange{
@@ -783,7 +783,7 @@ fn test_text_area_line_ranges_follow_wrapped_source_runes() {
 }
 
 fn test_text_area_line_ranges_keep_original_crlf_offsets() {
-	$if (android || ios) && !ui2_headless ? {
+	$if (android || (ios && ui2_custom_rendering ?)) && !ui2_headless ? {
 		assert text_area_line_rune_ranges('a\r\nbc', ['a', 'bc']) == [
 			TextAreaLineRange{
 				start: 0
@@ -798,7 +798,7 @@ fn test_text_area_line_ranges_keep_original_crlf_offsets() {
 }
 
 fn test_text_area_vertical_and_line_boundary_navigation() {
-	$if (android || ios || linux || macos || windows) && !ui2_headless ? {
+	$if (android || linux || ((ios || macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
 		mut w := &Window{}
 		reset_scroll_test_state(mut w)
 		w.focused_field = 'notes'
@@ -827,7 +827,7 @@ fn test_text_area_vertical_and_line_boundary_navigation() {
 }
 
 fn test_text_area_shaped_source_lines_keep_crlf_navigation_and_owned_snapshot() {
-	$if (linux || macos || windows) && !ui2_headless ? {
+	$if (linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
 		mut w := &Window{}
 		reset_scroll_test_state(mut w)
 		mut engine := new_text_engine(1)!
@@ -865,7 +865,7 @@ fn test_text_area_shaped_source_lines_keep_crlf_navigation_and_owned_snapshot() 
 }
 
 fn test_text_area_utf16_selection_preserves_rune_editor_contract_after_shaping() {
-	$if (linux || macos || windows) && !ui2_headless ? {
+	$if (linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
 		mut w := &Window{}
 		reset_scroll_test_state(mut w)
 		mut engine := new_text_engine(1)!
@@ -889,7 +889,7 @@ fn test_text_area_utf16_selection_preserves_rune_editor_contract_after_shaping()
 	}
 }
 
-$if (android || ios || linux || macos || windows) && !ui2_headless ? {
+$if (android || linux || ((ios || macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
 	fn test_registered_scroll_callbacks_keep_source_identity_and_fractional_offsets() {
 		mut w := &Window{}
 		reset_scroll_test_state(mut w)
@@ -936,7 +936,7 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? {
 }
 
 
-$if (android || ios || linux || macos || windows) && !ui2_headless ? {
+$if (android || linux || ((ios || macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
 	fn test_anonymous_scroll_uses_private_identity_and_keeps_the_event_id_empty() {
 		mut w := &Window{}
 		reset_scroll_test_state(mut w)
@@ -973,7 +973,7 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? {
 	}
 }
 
-$if (android || ios || linux || macos || windows) && !ui2_headless ? {
+$if (android || linux || ((ios || macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
 	fn test_named_scroll_id_can_equal_an_anonymous_private_key_without_sharing_state() {
 		mut w := &Window{}
 		reset_scroll_test_state(mut w)

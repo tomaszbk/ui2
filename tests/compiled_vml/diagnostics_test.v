@@ -16,7 +16,7 @@ fn compiled_diagnostic(source string, index int) !string {
 	main_path := os.join_path(directory, 'main.v')
 	os.write_file(main_path, 'module main\nimport ui2\npub struct App {\npub:\n readonly_text string\npub mut:\n count int\n name string\n checked bool\n level f64\n rows []int\n string_offset string\n bool_offset bool\n}\npub fn (mut app App) action() {}\nfn wrong_payload(value int) {}\nfn wrong_return() int { return 1 }\nfn main() { mut app := &App{} _ = \$vml("invalid.vml") }\n')!
 	module_path := [os.dir(@VMODROOT), '@vlib', '@vmodules'].join(os.path_delimiter)
-	result := os.exec([@VEXE, '-b', 'c', '-path', module_path, '-o',
+	result := os.exec([@VEXE, '-b', 'c', '-path', module_path, '-d', 'ui2_custom_rendering', '-o',
 		os.join_path(directory, 'invalid'), main_path])
 	if index == -1 {
 		assert result.exit_code == 0, result.output

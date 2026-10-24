@@ -4,7 +4,7 @@ import math
 import os
 
 fn test_vglyph_symbol_fallback_does_not_replace_the_requested_text_face() {
-	$if (linux || macos || windows) && !ui2_headless ? {
+	$if ( linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headless ? {
 		mut engine := new_text_engine(1)!
 		defer { engine.free() }
 		text := 'Latin office café · Ελληνικά · Кириллица · 123'
@@ -31,7 +31,7 @@ fn test_vglyph_symbol_fallback_does_not_replace_the_requested_text_face() {
 }
 
 fn test_vglyph_measurement_before_a_window_and_device_scale_agree() {
-	$if (linux || macos || windows) && !ui2_headless ? {
+	$if ( linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headless ? {
 		style := TextStyle{ size: 15.25, lines: 20 }
 		text := 'office café — hello world\nمرحبا بالعالم'
 		before := measure_layout_text(text, style, 117.5)!
@@ -58,7 +58,7 @@ fn test_vglyph_measurement_before_a_window_and_device_scale_agree() {
 }
 
 fn test_vglyph_intrinsic_width_and_exact_width_are_distinct() {
-	$if (linux || macos || windows) && !ui2_headless ? {
+	$if ( linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headless ? {
 		mut engine := new_text_engine(1)!
 		defer { engine.free() }
 		style := TextStyle{ size: 16, lines: 20 }
@@ -84,7 +84,7 @@ fn test_vglyph_intrinsic_width_and_exact_width_are_distinct() {
 }
 
 fn test_vglyph_preserves_empty_lines_whitespace_and_long_editor_content() {
-	$if (linux || macos || windows) && !ui2_headless ? {
+	$if ( linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headless ? {
 		mut engine := new_text_engine(1)!
 		defer { engine.free() }
 		style := TextStyle{ size: 14, lines: 20 }
@@ -112,7 +112,7 @@ fn test_vglyph_preserves_empty_lines_whitespace_and_long_editor_content() {
 }
 
 fn test_vglyph_byte_rune_boundaries_and_cluster_geometry() {
-	$if (linux || macos || windows) && !ui2_headless ? {
+	$if ( linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headless ? {
 		text := 'A🙂e\u0301👩\u200d💻Z'
 		assert text_rune_to_byte(text, 0) == 0
 		assert text_rune_to_byte(text, 2) == 5
@@ -135,7 +135,7 @@ fn test_vglyph_byte_rune_boundaries_and_cluster_geometry() {
 }
 
 fn test_vglyph_labels_cap_paragraphs_and_report_ellipsis() {
-	$if (linux || macos || windows) && !ui2_headless ? {
+	$if ( linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headless ? {
 		mut engine := new_text_engine(1)!
 		defer { engine.free() }
 		style := TextStyle{ size: 15, lines: 2 }
@@ -173,7 +173,7 @@ fn test_vglyph_labels_cap_paragraphs_and_report_ellipsis() {
 }
 
 fn test_vglyph_paint_colors_reuse_typography_including_rich_run_boundaries() {
-	$if (linux || macos || windows) && !ui2_headless ? {
+	$if ( linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headless ? {
 		mut engine := new_text_engine(1)!
 		defer { engine.free() }
 		style := TextStyle{ size: 17.25, color: 0x112233 }
@@ -214,7 +214,7 @@ fn test_vglyph_paint_colors_reuse_typography_including_rich_run_boundaries() {
 }
 
 fn test_vglyph_repaint_counts_compare_identical_scene_with_uncached_shaping() {
-	$if (linux || macos || windows) && !ui2_headless ? {
+	$if ( linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headless ? {
 		mut reference := new_text_engine(1)!
 		mut retained := new_text_engine(1)!
 		defer {
@@ -242,7 +242,7 @@ fn test_vglyph_repaint_counts_compare_identical_scene_with_uncached_shaping() {
 }
 
 fn test_vglyph_cached_tail_ellipsis_keeps_visible_run_paint_owner() {
-	$if (linux || macos || windows) && !ui2_headless ? {
+	$if ( linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headless ? {
 		mut engine := new_text_engine(1)!
 		defer { engine.free() }
 		base := TextStyle{ size: 17.25, color: 0x111111 }
@@ -272,7 +272,7 @@ fn test_vglyph_cached_tail_ellipsis_keeps_visible_run_paint_owner() {
 }
 
 fn test_vglyph_link_and_external_paint_metadata_reuse_shaping() {
-	$if (linux || macos || windows) && !ui2_headless ? {
+	$if ( linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headless ? {
 		mut engine := new_text_engine(1)!
 		defer { engine.free() }
 		base := TextStyle{ size: 17.25, color: 0xff0000 }
@@ -286,7 +286,7 @@ fn test_vglyph_link_and_external_paint_metadata_reuse_shaping() {
 }
 
 fn test_public_layout_environment_invalidates_cpu_and_window_shaping_once() {
-	$if (linux || macos || windows) && !ui2_headless ? {
+	$if ( linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headless ? {
 		mut active := new_text_engine(1)!
 		defer { active.free() }
 		mut w := &Window{ scheduler: new_frame_coordinator(), ctx: &DrawContext{ text: active, text_font_generation: 17 } }

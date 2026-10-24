@@ -1,3 +1,4 @@
+// vtest vflags: -d ui2_custom_rendering
 @[has_globals]
 module ui2
 
@@ -7,7 +8,7 @@ fn build_overlay_geometry(mut app OverlayGeometryModel) Element {
 	return $vml('fixtures/compiled_overlay_geometry.vml')
 }
 
-$if (linux || macos || windows) && !ui2_headless ? {
+$if (linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
 	fn test_overlay_clamped_geometry_publishes_final_refs_and_reflows_without_oscillating() ! {
 		mut model := OverlayGeometryModel{}
 		root := build_overlay_geometry(mut model)
@@ -45,7 +46,7 @@ $if (linux || macos || windows) && !ui2_headless ? {
 	}
 }
 
-$if (linux || macos || windows) && !ui2_headless ? {
+$if (linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
 	fn test_overlay_same_size_recenter_publishes_geometry_bindings_in_presented_frame() ! {
 		mut model := OverlayGeometryModel{}
 		root := build_overlay_geometry(mut model)
