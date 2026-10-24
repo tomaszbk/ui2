@@ -1,3 +1,4 @@
+// ui2 profiles: custom (render-thread dispatcher, Linux idle wait)
 @[has_globals]
 module main
 
