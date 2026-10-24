@@ -562,7 +562,7 @@ fn test_invalid_sibling_references_keep_vml_positions() {
     Label(id: "later", width: 40, height: 20)
 }',
 			'2:24',
-			'undefined variable: `later`',
+			'element `later` is declared after this use',
 		],
 		[
 			'Absolute() {
@@ -578,7 +578,7 @@ fn test_invalid_sibling_references_keep_vml_positions() {
     Label(width: missing.width)
 }',
 			'3:11',
-			'undefined variable: `missing`',
+			'undefined ident: `missing`',
 		],
 		[
 			'Absolute() {
@@ -586,7 +586,7 @@ fn test_invalid_sibling_references_keep_vml_positions() {
     Label(width: first.absent)
 }',
 			'3:11',
-			'undefined ident: `first`',
+			'an element id exposes only x, y, width and height',
 		],
 		[
 			'Absolute() {

@@ -49,7 +49,10 @@ fn emit_program(program &Program, library &Library, config GenConfig) ![]GenFile
 	}
 	mut files := []GenFile{}
 	for source in sources {
-		code := e.file(source)!
+		mut code := e.file(source)!
+		if config.module == runtime_module {
+			code = unqualify_runtime(code)
+		}
 		files << GenFile{
 			name:   if source == program.path && config.name.len > 0 {
 				config.name
@@ -65,6 +68,25 @@ fn emit_program(program &Program, library &Library, config GenConfig) ![]GenFile
 		}
 	}
 	return files
+}
+
+// unqualify_runtime drops the `ui2.` qualifier from code generated into
+// module ui2 itself (its test fixtures), where the runtime's names are local.
+fn unqualify_runtime(code string) string {
+	prefix := runtime_module + '.'
+	mut out := strings.new_builder(code.len)
+	mut i := 0
+	for i < code.len {
+		if code[i] == prefix[0] && i + prefix.len <= code.len && code[i..i + prefix.len] == prefix
+			&& (i == 0 || !(code[i - 1].is_letter() || code[i - 1].is_digit()
+			|| code[i - 1] in [`_`, `.`])) {
+			i += prefix.len
+			continue
+		}
+		out.write_u8(code[i])
+		i++
+	}
+	return out.str()
 }
 
 struct Emitter {
@@ -614,11 +636,16 @@ fn (mut e Emitter) def_inputs(def &IComponentDef, mut ctx Ctx) {
 			default_body = "return error('component input `${decl.name}` is required')"
 		}
 		_ = fallback
-		body := 'if args.${decl.name} != unsafe { nil } { return args.${decl.name}()! } ${default_body}'
+		// A supplied input is one memo of the caller's value: the state starts
+		// from it and follows it, so the caller's expression is evaluated once.
+		memo := '${variable}_memo'
+		e.writeln('\tmut ${memo} := if args.${decl.name} != unsafe { nil } { owner.computed(' +
+			vml_quote('@input:' + decl.name) + ', args.${decl.name}) or { panic(err) } } else { &${runtime_module}.Memo[${decl.typ}](unsafe { nil }) }')
+		ctx.declare(memo, true)
+		body := 'if args.${decl.name} != unsafe { nil } { return ${memo}.get()! } ${default_body}'
 		e.writeln('\tmut ${variable} := owner.state_factory(' + vml_quote(decl.name) + ', fn [${ctx.captures(body)}] () !${decl.typ} { ${body} }) or { panic(err) }')
 		e.writeln('\tif args.${decl.name} != unsafe { nil } {')
-		e.writeln('\t\tmut ${variable}_memo := owner.computed(' + vml_quote('@input:' + decl.name) + ', args.${decl.name}) or { panic(err) }')
-		e.writeln('\t\towner.scope.effect(' + vml_quote('@input:' + decl.name) + ', fn [mut ${variable}_memo, mut ${variable}] () ! { ${variable}.set(${variable}_memo.get()!)! }) or { panic(err) }')
+		e.writeln('\t\towner.scope.effect(' + vml_quote('@input:' + decl.name) + ', fn [mut ${memo}, mut ${variable}] () ! { ${variable}.set(${memo}.get()!)! }) or { panic(err) }')
 		e.writeln('\t}')
 		mut setter := ''
 		if decl.bindable {
@@ -1137,11 +1164,15 @@ fn (mut e Emitter) invocation(n &INode, parent string, parent_props string, mut 
 		captures = add_capture(captures, 'mut ${ctx.owner}')
 		fields << 'slot_${name}: fn [${captures}] (mut vml_slot_host ui2.CompiledVmlComponent, mut vml_slot_parent ${slot_parent}, vml_slot_base string) ! {\n${body}}'
 	}
-	if !isnil(inv.key) {
-		e.at(n.src)
-		fields << 'key: ' + e.key_value(inv.key, ctx)
-	} else if hooks.key.len > 0 {
-		fields << 'key: ${hooks.key}'
+	// An enclosing invocation's key replaces the invocation's own, as it
+	// replaces a root element's.
+	e.at(n.src)
+	own_key := if isnil(inv.key) { '' } else { e.key_value(inv.key, ctx) }
+	if hooks.key.len > 0 {
+		fallback := if own_key.len > 0 { own_key } else { "''" }
+		fields << 'key: if ${hooks.key}.len > 0 { ${hooks.key} } else { ${fallback} }'
+	} else if own_key.len > 0 {
+		fields << 'key: ' + own_key
 	}
 	forward, forward_after := e.forwards(inv, root, ctx, hooks)
 	if forward.len > 0 {

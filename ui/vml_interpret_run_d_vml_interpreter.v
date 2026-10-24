@@ -1211,9 +1211,9 @@ fn (f &VmlFrame) component(n &VmlINode, parent ?VmlParent, inherited ?string) !V
 			component_frame.exec(action) or { eprintln('ui2 VML cleanup failed: ${err}') }
 		})!
 	}
-	// The invocation's own key replaces an enclosing invocation's.
-	mut key := inherited
-	if comp.key != unsafe { nil } {
+	// An enclosing invocation's key replaces the invocation's own.
+	mut key := inherited or { '' }
+	if key.len == 0 && comp.key != unsafe { nil } {
 		key = vml_value_text(f.eval(comp.key)!)
 	}
 	mut root := frame.declare(comp.root, parent, key)!

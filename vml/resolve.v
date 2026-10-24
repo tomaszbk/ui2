@@ -32,6 +32,9 @@ mut:
 	defs             map[string]&IComponentDef
 	// The definitions being resolved, innermost last: `Slot` is valid inside one.
 	def_stack []&IComponentDef
+	// The element ids of the document or definition being resolved, innermost
+	// last: a use before the declaration is reported as such.
+	ids []map[string]bool
 }
 
 // resolve_file parses the document at `path` with the components it imports
@@ -68,7 +71,9 @@ pub fn resolve_library(library &Library) !&Program {
 		}, '0', mut scope, false)!
 		_ = def
 	} else {
+		r.ids << collect_ids(root)
 		program.root = r.node(root, '0', mut scope, false)!
+		r.ids.delete_last()
 	}
 	program.components = r.defs.clone()
 	program.module_functions = r.module_functions
@@ -81,6 +86,23 @@ pub fn resolve_library(library &Library) !&Program {
 	}
 	program.files = files
 	return program
+}
+
+// collect_ids is the set of element ids declared in a tree, slot content
+// included.
+fn collect_ids(node &Node) map[string]bool {
+	mut ids := map[string]bool{}
+	collect_ids_into(node, mut ids)
+	return ids
+}
+
+fn collect_ids_into(node &Node, mut ids map[string]bool) {
+	if node.id.len > 0 {
+		ids[node.id] = true
+	}
+	for child in node.children {
+		collect_ids_into(child, mut ids)
+	}
 }
 
 fn collect_document_files(node &Node, mut files []string) {
@@ -574,7 +596,9 @@ fn (mut r Resolver) definition(key string) !&IComponentDef {
 	}
 	r.defs[key] = def
 	r.def_stack << def
+	r.ids << collect_ids(n.children[0])
 	def.root = r.node(n.children[0], 'root', mut scope, true)!
+	r.ids.delete_last()
 	r.def_stack.delete_last()
 	def.uses_app = node_uses_path(n, 'app')
 	return def
@@ -1088,6 +1112,9 @@ fn (mut r Resolver) path(e &Expr, scope &Scope, enums bool) !&IExpr {
 		}
 	}
 	if parts.len > 1 {
+		if r.ids.len > 0 && root in r.ids.last() {
+			return src.error('element `${root}` is declared after this use; an id is visible in its own element, its subtree and what follows it')
+		}
 		// A dotted name of no VML value: a V constant or enum the module can see.
 		return &IExpr{
 			kind: .external
