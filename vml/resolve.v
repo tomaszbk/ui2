@@ -1361,6 +1361,17 @@ pub fn ir_reactive(e &IExpr) bool {
 	return false
 }
 
+// ir_constant reports whether a value reads nothing and cannot fail:
+// literals, colors, enum values and the lists and helper calls built of them.
+pub fn ir_constant(e &IExpr) bool {
+	return match e.kind {
+		.literal, .color, .enum_name { true }
+		.array, .negate, .not_ { e.args.all(ir_constant(it)) }
+		.helper { !e.fallible && e.args.all(ir_constant(it)) }
+		else { false }
+	}
+}
+
 // ir_uses_app reports whether an expression reads or writes the model.
 pub fn ir_uses_app(e &IExpr) bool {
 	if e.kind in [.app_field, .app_call, .app_method, .assign_app] {

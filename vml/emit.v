@@ -85,6 +85,17 @@ mut:
 	slot_parents map[string]string
 	// The props type of every definition's root element.
 	root_props map[string]string
+	// Constant helper values of the file being emitted, by their code.
+	constants      map[string]string
+	constant_decls []Constant
+}
+
+// Constant is a helper value that reads nothing: a module constant, computed
+// once when the program starts.
+struct Constant {
+	name     string
+	code     string
+	location Location
 }
 
 // Var is a value the generated code declared, as a capture candidate.
@@ -308,6 +319,8 @@ fn (mut e Emitter) begin(source string) {
 	e.checks = map[string]bool{}
 	e.uses_unreachable = false
 	e.guard_prefix = 'vml_check_${builder_base_name(source)}'
+	e.constants = map[string]string{}
+	e.constant_decls = []Constant{}
 }
 
 fn (mut e Emitter) writeln(line string) {
@@ -371,6 +384,16 @@ fn (mut e Emitter) file(source string) !string {
 	}
 	for decl in type_decls {
 		out.writeln(decl)
+	}
+	if e.constant_decls.len > 0 {
+		mut constants := strings.new_builder(1024)
+		mut constant_locations := []Location{}
+		for constant in e.constant_decls {
+			constants.writeln('const ${constant.name} = ${constant.code}')
+			constant_locations << constant.location
+		}
+		vml_write_mapped(mut out, constants.str(), constant_locations)
+		out.writeln('')
 	}
 	if guards.len > 0 {
 		vml_write_mapped(mut out, guards, guard_locations)
@@ -550,7 +573,7 @@ fn (mut e Emitter) def_inputs(def &IComponentDef, mut ctx Ctx) {
 		if !isnil(decl.default_value) {
 			value := if decl.default_helper {
 				namespace := type_namespace(decl.typ) or { '' }
-				e.helper_value(decl.default_value, namespace, ctx)
+				e.constant_helper(decl.default_value, namespace, ctx)
 			} else {
 				e.expr(decl.default_value, ctx)
 			}
@@ -821,7 +844,7 @@ fn (mut e Emitter) key_value(key &IExpr, ctx &Ctx) string {
 
 fn (mut e Emitter) prop_value(prop IProp, ctx &Ctx) string {
 	if prop.helper {
-		return e.helper_value(prop.expr, '${runtime_module}.${prop.name}', ctx)
+		return e.constant_helper(prop.expr, '${runtime_module}.${prop.name}', ctx)
 	}
 	return e.expr(prop.expr, ctx)
 }
@@ -1024,7 +1047,7 @@ fn (mut e Emitter) invocation(n &INode, parent string, parent_props string, mut 
 			.argument, .bound {
 				value := if arg.helper {
 					namespace := type_namespace(arg.typ) or { '' }
-					e.helper_value(arg.expr, namespace, ctx)
+					e.constant_helper(arg.expr, namespace, ctx)
 				} else {
 					e.expr(arg.expr, ctx)
 				}
@@ -1339,6 +1362,27 @@ fn member_base(value string) string {
 
 // helper_value lowers a value of helper namespace `namespace` (`ui2.style`):
 // a list or a helper call is composed, a conditional chooses between values.
+// constant_helper is a helper value, hoisted into a module constant when it
+// reads nothing and cannot fail: the constant is computed once when the
+// program starts, not at every build, and equal values of a file share one.
+fn (mut e Emitter) constant_helper(x &IExpr, namespace string, ctx &Ctx) string {
+	code := e.helper_value(x, namespace, ctx)
+	if x.kind !in [.array, .helper] || !ir_constant(x) {
+		return code
+	}
+	if name := e.constants[code] {
+		return name
+	}
+	name := '${e.guard_prefix.replace('vml_check_', 'vmlk_')}_${e.constant_decls.len}'
+	e.constants[code] = name
+	e.constant_decls << Constant{
+		name:     name
+		code:     code
+		location: e.location
+	}
+	return name
+}
+
 fn (mut e Emitter) helper_value(x &IExpr, namespace string, ctx &Ctx) string {
 	if x.kind == .conditional {
 		return '(if ${vml_condition(e.expr(x.args[0], ctx))} { ${e.helper_value(x.args[1], namespace,
