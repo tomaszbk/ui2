@@ -1,13 +1,25 @@
 V ?= v
 VFLAGS ?= -b c
 
-.PHONY: test ide check-ide examples examples-custom screenshot test-appkit check-macos check-ios check-android check-linux check-windows check-custom-macos check-custom-ios check-custom-windows check-custom check-headless check-document check-embedder-macos test-embedder check-backends bench-allocations c-api c-example c-test c-smoke
+# ui2 is the project's tool: `ui2 gen` writes the V builders of VML documents.
+UI2 ?= build/ui2
 
-test:
+.PHONY: gen test ide check-ide examples examples-custom screenshot test-appkit check-macos check-ios check-android check-linux check-windows check-custom-macos check-custom-ios check-custom-windows check-custom check-headless check-document check-embedder-macos test-embedder check-backends bench-allocations c-api c-example c-test c-smoke
+
+$(UI2): cmd/ui2/main.v $(wildcard vml/*.v)
+	@mkdir -p $(dir $(UI2))
+	$(V) $(VFLAGS) -o $(UI2) cmd/ui2
+
+# Generates the builders that the V files under these directories declare
+# with `// vml:` directives.
+gen: $(UI2)
+	$(UI2) gen ui examples tests ide benchmarks
+
+test: gen
 	$(V) $(VFLAGS) test .
 
 # The designer previews documents with the VML interpreter.
-ide:
+ide: gen
 	$(V) $(VFLAGS) -d vml_interpreter run ide
 
 check-ide:
@@ -15,10 +27,10 @@ check-ide:
 
 # macOS, Windows and iOS build their native controls unless a build opts in
 # to the custom renderer with -d ui2_custom_rendering (ui/backend.v).
-examples:
+examples: gen
 	$(V) $(VFLAGS) run examples/build_examples.vsh $(VFLAGS)
 
-examples-custom:
+examples-custom: gen
 	$(V) $(VFLAGS) run examples/build_examples.vsh $(VFLAGS) -d ui2_custom_rendering
 
 # Writes one frame of an example to a PNG, e.g.

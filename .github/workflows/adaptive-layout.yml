@@ -55,6 +55,9 @@ jobs:
           c-compiler: gcc
           tcc-revision: d6e7ac1b1bcc98aed734a6ecbfa8509f24606c74
 
+      - name: Generate VML builders
+        run: v run ui2/cmd/ui2 gen ui2/ui ui2/examples ui2/tests ui2/ide ui2/benchmarks
+
       - name: Verify custom text dependencies
         run: |
           text_modules='pango pangoft2 freetype2 harfbuzz fribidi fontconfig gobject-2.0 glib-2.0'

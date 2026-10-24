@@ -182,7 +182,7 @@ ui2.set_vml_theme(root, ui2.Theme{
 })!
 ```
 
-`root` is the element returned by `$vml`. A component also exposes
+`root` is the element returned by a generated builder. A component also exposes
 `set_theme(Theme)!`. Local tokens inherit from the nearest component ancestor,
 then the built-in default theme. Replacing a local theme drops its old overrides.
 Unknown tokens and invalid numeric values are diagnosed.

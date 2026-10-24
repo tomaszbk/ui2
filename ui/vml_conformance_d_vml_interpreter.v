@@ -4,7 +4,7 @@ import os
 
 // The conformance check between compiled and interpreted VML (design §3.6),
 // compiled only with `-d vml_interpreter`. A document is built twice against
-// the same model, once by `$vml(...)` and once by the interpreter; both
+// the same model, once by its generated builder and once by the interpreter; both
 // builds then receive the same scripted events. The resolved element trees
 // before and after the events, the event log and the model state must be
 // equal. Compiled VML is the source of truth: the interpreter may accept
@@ -24,9 +24,9 @@ pub:
 	// each build, so external callbacks may keep using a global model.
 	model &T         = unsafe { nil }
 	reset fn (mut T) = unsafe { nil }
-	// Builds the document with `$vml(path, frame)`.
+	// Builds the document with its generated builder in a frame (`<name>_vml_framed`).
 	compiled fn (mut T, Rect) Element = unsafe { nil }
-	// The compiled build follows the viewport (`$vml(path)` without a
+	// The compiled build follows the viewport (`<name>_vml` without a
 	// frame); `frame` is then the viewport both builds start in.
 	follow_viewport bool
 	// The external callbacks the document names, as the compiled build sees
@@ -349,7 +349,7 @@ fn vml_conformance_lines(stage string, compiled []string, interpreted []string, 
 	}
 }
 
-// vml_conformance_menu_document compares a compiled menu document (`$vml`
+// vml_conformance_menu_document compares a compiled menu document (its generated builder
 // of a MenuBar or Menu, which returns the menus) with the interpreted one.
 pub fn vml_conformance_menu_document(path string, compiled []Menu, callbacks map[string]ElementCallback) !VmlConformanceReport {
 	source := os.read_file(path)!

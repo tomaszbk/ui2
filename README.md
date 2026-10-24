@@ -40,7 +40,7 @@ callback, widget constructors, state access, ownership rules, and a Python
 `ctypes` example. Application code needs no V compiler once the library is built.
 
 ```sh
-v -b c run examples/users/main.v
+v run cmd/ui2 run examples/users -b c
 ```
 
 The custom renderer builds on demand. A window rebuilds after every event its elements
@@ -193,13 +193,17 @@ and the allocation-free frame contract.
 
 ## Compiled VML
 
-VML files compile to typed V constructors through `$vml`; parsing and type errors
-are reported against the source file at compile time. The window runner borrows
-the application model by reference, exposed as `app`:
+VML files compile to ordinary V. A V file declares each document it builds with
+a `// vml: file.vml` directive, and `ui2 gen` writes the document's builder,
+`<name>_vml`, into `<name>_vml.v` beside it. Language errors are reported by the
+generator and type errors by V, both at the document's line. The window runner
+borrows the application model by reference, exposed as `app`:
 
 ```v
+// vml: app.vml
+
 fn build(mut app App) ui2.Element {
-    return $vml('app.vml')
+    return app_vml(mut app)
 }
 
 fn main() {
@@ -231,9 +235,19 @@ fn main() {
 }
 ```
 
-For embedding and independent geometry fixtures, `$vml('app.vml', frame)` accepts
-an explicit logical `Rect`. Imports are resolved relative to their declaring VML
-file during compilation; VML sources are not required beside the built executable.
+Generate the builders, then build as usual, or let the tool do both:
+
+```sh
+v run cmd/ui2 gen examples/users   # writes users_vml.v
+v run cmd/ui2 run examples/users -b c   # generates, then runs
+```
+
+A document that does not read `app` has a builder without it (`app_vml()`).
+For embedding and independent geometry fixtures, `app_vml_framed(mut app, frame)`
+builds the document in an explicit logical `Rect` instead of following the window.
+Imports are resolved relative to their declaring VML file during generation; VML
+sources are not required beside the built executable. Generated files are not
+committed (`*_vml.v` is ignored).
 
 Ordinary properties read values. `bind.text` and `bind.checked` also write control
 edits to a writable source before invoking that event's handler. Numeric editing
@@ -1200,11 +1214,11 @@ controls, exponentiation, repeated equals, and division-by-zero recovery.
 Run the responsive users demo with:
 
 ```sh
-v -b c run examples/users/main.v
+v run cmd/ui2 run examples/users -b c
 ```
 
 It ports the users example from `v-ui`. The complete screen is
-declared in `examples/users/users.vml` and compiled with `$vml`; V only
+declared in `examples/users/users.vml` and compiled through its generated builder; V only
 contains the typed model and business actions. The example includes validated
 text entry, password masking, country selection, toggles, a progress indicator,
 and a keyed, scrollable user table.

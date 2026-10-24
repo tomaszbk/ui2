@@ -9,14 +9,14 @@ import ui2.vml
 // reads it, the loader (vml_interpret_check_d_vml_interpreter.v) resolves it
 // against the model's type and the widget registry, and the runtime
 // (vml_interpret_run_d_vml_interpreter.v) declares the same generic nodes as
-// compiled VML. Compiled VML (`$vml(...)`) stays the default and the source
+// compiled VML. Compiled VML (generated builders) stays the default and the source
 // of truth; the interpreter serves development and dynamic documents: the
 // IDE preview, hot reload (`run_vml` with `watch: true`) and documents
 // pushed to a debug build.
 //
 // Entry points:
 // * `vml_interpret(source, &model, config)` builds a document once and
-//   returns its root element, like `$vml(...)`;
+//   returns its root element, like a generated builder;
 // * `vml_interpreter(source, model, config)` returns a handle that builds
 //   the document and reloads it from new source, keeping state;
 // * `run_vml[T](source_path: ..., model: &app, watch: true)` runs a window,
@@ -30,7 +30,7 @@ pub:
 	// source passed to the interpreter replaces the file's contents.
 	path string
 	// The document frame. Without one, the document follows the viewport
-	// (vml_bounds()), like `$vml(path)` without a frame.
+	// (vml_bounds()), like a generated builder without a frame.
 	frame ?Rect
 	theme ?Theme
 	// The external callbacks the document names (`on_click: callback_save`).
@@ -43,7 +43,7 @@ pub:
 }
 
 // vml_interpret builds the VML document `source` against the live model. The
-// result is the document's root element, with its retained node, as `$vml`
+// result is the document's root element, with its retained node, as a generated builder
 // returns it.
 pub fn vml_interpret[T](source string, model &T, config VmlInterpretConfig) !Element {
 	mut interpreter := vml_interpreter(source, vml_model(model), config)!

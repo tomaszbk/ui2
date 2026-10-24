@@ -2,7 +2,7 @@ module ui2
 
 // Test harness for the VML props golden tests (ui/vml_props*_test.v and
 // ui/vml_widget_*_test.v); it is compiled only with `-d vml_props`. A fixture
-// is built twice: by `$vml(...)`, and from hand-written props declared
+// is built twice: by its generated builder, and from hand-written props declared
 // through the generic node runtime (vml_widget_node.v), which retains,
 // styles, rebuilds and lays out the nodes. The resolved trees must be equal
 // on every authored and derived field.

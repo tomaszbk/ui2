@@ -111,6 +111,11 @@ jobs:
           c-compiler: ${{ matrix.c_compiler }}
           tcc-revision: ${{ matrix.tcc_revision }}
 
+      # VML documents compile through the V builders `ui2 gen` writes beside
+      # the files that declare them.
+      - name: Generate VML builders
+        run: v run ui2/cmd/ui2 gen ui2/ui ui2/examples ui2/tests ui2/ide ui2/benchmarks
+
       - name: Verify text dependencies
         if: runner.os != 'Windows' && matrix.renderer
         shell: bash

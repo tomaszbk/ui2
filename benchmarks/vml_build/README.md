@@ -1,7 +1,7 @@
 # VML build benchmark
 
 Measures construction and disposal of the retained `ui2.Element` tree emitted
-by `$vml` for `form.vml`, or built by `generic.v`: the same document written by
+by the generated builder of `form.vml`, or built by `generic.v`: the same document written by
 hand in the shape of the generic lowering (`ui2.vml_document`, `vml_root`,
 `vml_child`, `vml_repeat`, `prop`). Warmup runs before timing. The checksum consumes each built tree;
 results report elapsed time, microseconds and allocated bytes per build/dispose

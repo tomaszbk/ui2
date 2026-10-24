@@ -5,7 +5,7 @@
 // Module vml parses VML, the declarative markup language of the ui2 UI library.
 // It contains only the grammar: the lexer, the AST, documents with local
 // components and named styles, and `import` resolution. It has no dependency
-// on the V compiler, so the compiler's `$vml(...)` lowering and a runtime
+// on the V compiler, so the `ui2 gen` generator and a runtime
 // interpreter parse exactly the same language. Widget knowledge (tags,
 // properties, style helpers) is supplied by the host through `ParseConfig`.
 module vml

@@ -1,6 +1,8 @@
 # Compiled VML components
 
-VML files compile to V with `$vml('app.vml')`. The compiler lowers declarations
+VML files compile to V through generated builders: a V file declares
+`// vml: app.vml` and `ui2 gen` writes `app_vml.v` beside it, whose `app_vml(mut app)`
+builds the document (see the README's Compiled VML section). The generator lowers declarations
 to the ui2 signal, component and layout APIs. A compiled document creates its
 elements once; property effects patch retained nodes and repeaters reconcile
 children by key. `app` refers to the hosting V application and its services.
@@ -140,7 +142,7 @@ calling a command without one produces a diagnostic. An unchanged declared
 text value preserves local editing.
 
 `run_compiled_vml` closes the document and its scopes when the window closes.
-Code hosting an explicit `$vml(..., frame)` tree closes it with
+Code hosting an explicit `<name>_vml_framed(...)` tree closes it with
 `root.compiled_node.dispose_document()!`, including a document whose visual root
 is an imported component.
 

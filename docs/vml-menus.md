@@ -5,14 +5,19 @@ document; `ui2.menus(el)` returns its `[]ui2.Menu`. Attach explicit callbacks an
 install the result with the window's `set_menu_bar`:
 
 ```v okfmt
+// vml: menus.vml
+
 fn file_new(event ui2.ElementEvent) {
 	println('New')
 }
 
 fn menus() []ui2.Menu {
-	return ui2.menus($vml('menus.vml')) or { panic(err) }
+	return ui2.menus(menus_vml()) or { panic(err) }
 }
 ```
+
+`on_click: file_new` names a function of the module the builder is generated
+into. A document can also name the model's callbacks (`on_click: app.file_new`).
 
 ```vml
 MenuBar {
