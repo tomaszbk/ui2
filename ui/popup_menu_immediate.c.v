@@ -7,7 +7,7 @@
 // (ui_immediate.c.v).
 module ui2
 
-$if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_document_library ? {
+$if (android || linux || ((ios || macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? && !ui2_document_library ? {
 	// The id of the drawn popup menu's overlay. Its rows and levels are parts of
 	// it (dropdown_menu_item_id).
 	const drawn_popup_menu_id = 'ui2:popup-menu'

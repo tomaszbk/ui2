@@ -1,3 +1,4 @@
+// ui2 profiles: custom (sets the title of the renderer's sokol window)
 module main
 
 import ui2

@@ -1,6 +1,6 @@
 module ui2
 
-$if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_document_library ? {
+$if (android || linux || ((ios || macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? && !ui2_document_library ? {
 	fn (mut w Window) focus_manager() &FocusManager { return w.navigation }
 
 	fn (mut w Window) custom_focus_offsets(el Element, path string, mut offsets map[string]f64, mut offsets_x map[string]f64) {

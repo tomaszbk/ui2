@@ -1,7 +1,7 @@
 // vfmt off
 module ui2
 
-$if (linux || macos || windows) && !ui2_headless ? && !ui2_document_library ? {
+$if (linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? && !ui2_document_library ? {
 	fn (mut w Window) resolve_custom_overlays(declared Element, measure LayoutTextMeasureFn) !Element {
 		viewport := if w.ctx != unsafe { nil } {
 			rect(0, 0, f64(w.ctx.width), f64(w.ctx.height) - w.menu_bar_height())
@@ -209,7 +209,7 @@ $if (linux || macos || windows) && !ui2_headless ? && !ui2_document_library ? {
 	}
 }
 
-$if (android || ios) && !ui2_headless ? && !ui2_document_library ? {
+$if (android || (ios && ui2_custom_rendering ?)) && !ui2_headless ? && !ui2_document_library ? {
 	fn (mut w Window) resolve_custom_overlays(root Element, _measure LayoutTextMeasureFn) !Element { return root }
 	fn (mut w Window) overlay_pointer_down(_x f64, _y f64) bool { return false }
 	fn (mut w Window) overlay_key(_event KeyEvent, _repeated bool) bool { return false }

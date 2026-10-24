@@ -132,6 +132,9 @@ fn validate_drag_element(el Element) ! {
 			return error('drop target requires an acceptance query')
 		}
 	}
+	if !backend_supports_drag_drop {
+		return error('drag-drop requires ${native_profile_remedy}')
+	}
 }
 
 fn drag_preview_transform(source ContentTransform, window_x f64, window_y f64) ContentTransform {

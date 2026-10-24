@@ -21,9 +21,9 @@ fn custom_window_screen_background() u32 {
 }
 
 fn custom_window_platform_note() string {
-	return if ui2.window_chrome_supported(.hidden_titlebar) {
-		'The header replaces the title bar; drag it to move the window.'
-	} else {
-		'This platform keeps its own window frame.'
+	$if (macos || windows) && !ui2_custom_rendering ? {
+		return 'The empty area around these cards is the desktop.'
+	} $else {
+		return 'Frameless transparency is demonstrated by the native macOS and Windows backends.'
 	}
 }

@@ -160,6 +160,9 @@ pub fn kit_button(ctx VmlBuildContext, part string, p ButtonProps) !Element {
 }
 
 fn kit_button_element(t KitTokens, id string, frame Rect, p ButtonProps, children []Element, layouts []VmlLayoutItem) !Element {
+	if backend_native_controls {
+		return kit_native_button(t, id, frame, p, children)
+	}
 	m := t.metrics(p.size)
 	enabled := p.enabled or { true }
 	c := button_variant_colors(t, p.variant, p.selected, enabled)
@@ -232,6 +235,35 @@ fn kit_button_element(t KitTokens, id string, frame Rect, p ButtonProps, childre
 		} else {
 			InteractionStyle{}
 		}
+	}
+}
+
+// kit_native_button is a Button where the operating system draws controls
+// (backend_native_controls): the platform's push button with the caption, at
+// the size's font. The OS bezel stands in for every variant's colors, as it
+// does for the hover, pressed and focus states. What a push button cannot
+// show (icons, a spinner, a selected state, children) is a diagnostic.
+fn kit_native_button(t KitTokens, id string, frame Rect, p ButtonProps, children []Element) !Element {
+	which := if id.len > 0 { ' (${id})' } else { '' }
+	if p.icon != .none || p.icon_end != .none || p.loading || children.len > 0 {
+		return error('a native Button shows its caption only; icons, loading and children require ${native_profile_remedy}${which}')
+	}
+	if p.selected {
+		return error('a native Button has no selected state; use a ToggleButton or ${native_profile_remedy}${which}')
+	}
+	m := t.metrics(p.size)
+	enabled := p.enabled or { true }
+	caption := p.text.str()
+	el := with_native_style(button(id, caption, frame, BoxStyle{}, apply_text_style(TextStyle{
+		color: t.text
+		size:  m.font_size
+	}, p.style)!))
+	callback := p.element_callback()
+	return Element{
+		...el
+		enabled:             enabled
+		accessibility_label: caption
+		on_event:            if voidptr(callback) == unsafe { nil } { kit_ignore_event } else { callback }
 	}
 }
 

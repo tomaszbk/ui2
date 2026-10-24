@@ -3,7 +3,7 @@
 // renderer (headless, document library) never compile gg and sokol.
 module ui2
 
-$if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_document_library ? {
+$if (android || linux || ((ios || macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? && !ui2_document_library ? {
 	import gg
 	import math
 	import sokol.sapp

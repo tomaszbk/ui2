@@ -4,7 +4,7 @@
 // this adapter.
 module ui2
 
-$if (android || ios) && !ui2_headless ? && !ui2_document_library ? {
+$if (android || (ios && ui2_custom_rendering ?)) && !ui2_headless ? && !ui2_document_library ? {
 	import fontstash
 	import gg
 	import math

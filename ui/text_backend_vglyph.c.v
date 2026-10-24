@@ -4,7 +4,7 @@ module ui2
 
 // Desktop custom text owns its Pango context independently of the window/GPU.
 // Android, iOS and headless builds use Fontstash instead (ui_text_fontstash.c.v).
-$if (linux || macos || windows) && !ui2_headless ? && !ui2_document_library ? {
+$if (linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? && !ui2_document_library ? {
 	import gg
 	import hash
 	import math
