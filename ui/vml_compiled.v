@@ -60,6 +60,15 @@ pub fn vml_bounds() Rect {
 fn (mut controller CompiledVmlController[T]) build_frame(mut w Window) Element {
 	w.begin_compiled_snapshot()
 	defer { w.end_compiled_snapshot() }
+	$if ui2_dev ? {
+		$if vml_interpreter ? {
+			// `ui2 dev`: a reloaded document replaces the window's root, which
+			// the generated builder returns (vml_dev_d_vml_interpreter.v).
+			if vml_dev_frame(mut w, controller.node) {
+				controller.node = unsafe { nil }
+			}
+		}
+	}
 	mut built := controller.fresh
 	controller.fresh = false
 	if !built && controller.update != unsafe { nil } { controller.update(mut controller.model) }

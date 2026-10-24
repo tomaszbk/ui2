@@ -870,12 +870,15 @@ fn (f &VmlFrame) state(mut owner CompiledVmlComponent, name string, initialize f
 	mut initial := &VmlInitialValue[VmlValue]{
 		value: VmlNone{}
 	}
+	owner.runtime.untracked(fn [mut initial, initialize] () ! {
+		initial.value = initialize()!
+	})!
+	// A state the previous document held survives while its kind is the
+	// same: a changed initializer type starts again.
 	if carried := f.run.carry[carry_key] {
-		initial.value = carried
-	} else {
-		owner.runtime.untracked(fn [mut initial, initialize] () ! {
-			initial.value = initialize()!
-		})!
+		if vml_value_same_kind(carried, initial.value) {
+			initial.value = carried
+		}
 	}
 	signal := new_signal(mut owner.scope, initial.value, SignalOptions[VmlValue]{
 		name:   name

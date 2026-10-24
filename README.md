@@ -249,6 +249,25 @@ Imports are resolved relative to their declaring VML file during generation; VML
 sources are not required beside the built executable. Generated files are not
 committed (`*_vml.v` is ignored).
 
+While developing, `ui2 dev` runs the program and keeps it current:
+
+```sh
+v run cmd/ui2 dev examples/users -b c
+```
+
+It builds the program with `-d vml_interpreter -d ui2_dev`, where every
+generated builder builds its document with the interpreter from the `.vml`
+file. Saving a document or a component it imports reloads it in the running
+window. Saving a `.v` file rebuilds the program while the running one stays
+open; when the build succeeds, the running program saves its component state
+and closes, and the new one starts from that state. In both cases a state
+survives when its component path and name are unchanged and its initial value
+has the same kind; ids and keys keep focus, scroll and edit buffers. A build
+that fails leaves the running program alone, and a document the interpreter
+cannot run (one that calls V functions in expressions) is built compiled and
+updated by a restart. Release builds contain neither the interpreter nor these
+hooks.
+
 Ordinary properties read values. `bind.text` and `bind.checked` also write control
 edits to a writable source before invoking that event's handler. Numeric editing
 requires explicit conversion to a string; display `text` accepts strings and numbers.
@@ -292,9 +311,10 @@ states and theme updates.
 ### Interpreted VML
 
 Development builds and dynamic documents can also run VML without compiling
-it. Built with `-d vml_interpreter`, ui2 parses a document with the compiler's
-VML parser, checks it against the model type and the widget registry when it
-loads, and declares the same retained nodes as compiled VML:
+it. Built with `-d vml_interpreter`, ui2 reads a document into the same resolved
+form the generator prints (`ui2.vml`), checks it against the model type and the
+widget registry when it loads, and declares the same retained nodes as compiled
+VML:
 
 ```v
 ui2.run_vml[App](source_path: 'app.vml', model: &App{}, watch: true)!

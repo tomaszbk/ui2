@@ -27,6 +27,7 @@ struct Resolver {
 mut:
 	next_scope       int
 	module_functions []string
+	module_callbacks []string
 	uses_app         bool
 	defs             map[string]&IComponentDef
 	// The definitions being resolved, innermost last: `Slot` is valid inside one.
@@ -71,6 +72,7 @@ pub fn resolve_library(library &Library) !&Program {
 	}
 	program.components = r.defs.clone()
 	program.module_functions = r.module_functions
+	program.module_callbacks = r.module_callbacks
 	program.uses_app = r.uses_app
 	mut files := []string{}
 	collect_document_files(root, mut files)
@@ -1271,6 +1273,9 @@ fn (mut r Resolver) handler(e &Expr, mut scope Scope, payload []Parameter) !&IEx
 		}
 		if value !in r.module_functions {
 			r.module_functions << value
+		}
+		if value !in r.module_callbacks {
+			r.module_callbacks << value
 		}
 		return &IExpr{
 			kind: .module_fn

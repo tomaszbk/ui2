@@ -395,8 +395,10 @@ pub mut:
 	components map[string]&IComponentDef
 	// The root is a menu document (`Menu` or `MenuBar`).
 	menus bool
-	// Functions of the module that the document's handlers name.
+	// Functions of the module that the document's handlers name or call.
 	module_functions []string
+	// The module functions handlers name as callbacks (`on_click: save`).
+	module_callbacks []string
 	// Every file of the document: the root and its imports.
 	files []string
 	// The document reads `app`.

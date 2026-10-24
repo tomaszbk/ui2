@@ -438,6 +438,7 @@ fn (mut e Emitter) document_builder() ! {
 	}
 	start := e.out.len
 	start_line := e.locations.len
+	e.dev_build(app)
 	e.writeln('\tmut vml_doc := ui2.vml_document(vml_template_frame, follow_viewport: vml_follow_viewport) or { panic(err) }')
 	e.writeln('\tmut vml_root_component := vml_doc.owner')
 	mut ctx := Ctx{
@@ -454,6 +455,36 @@ fn (mut e Emitter) document_builder() ! {
 	if app {
 		e.genericize(start, start_line)
 	}
+}
+
+// dev_build lets a development build (`ui2 dev`: -d vml_interpreter
+// -d ui2_dev) build the document with the interpreter from its file, which
+// reloads it when the file changes; a document the interpreter cannot run is
+// built compiled.
+fn (mut e Emitter) dev_build(app bool) {
+	program := e.program
+	mut callbacks := []string{}
+	for name in program.module_callbacks {
+		callbacks << '${vml_quote(name)}: ui2.vml_callback(${name}, refresh: false)'
+	}
+	callback_map := if callbacks.len == 0 {
+		'map[string]ui2.ElementCallback{}'
+	} else {
+		'{' + callbacks.join(', ') + '}'
+	}
+	path := 'ui2.vml_dev_path(@DIR, ${vml_quote(program.path)})'
+	call := if app {
+		'ui2.vml_dev_build(mut app, ${path}, vml_template_frame, vml_follow_viewport, ${callback_map})'
+	} else {
+		'ui2.vml_dev_build_static(${path}, vml_template_frame, vml_follow_viewport, ${callback_map})'
+	}
+	e.writeln('\t\$if ui2_dev ? {')
+	e.writeln('\t\t\$if vml_interpreter ? {')
+	e.writeln('\t\t\tif vml_dev_element := ${call} {')
+	e.writeln('\t\t\t\treturn vml_dev_element')
+	e.writeln('\t\t\t}')
+	e.writeln('\t\t}')
+	e.writeln('\t}')
 }
 
 // genericize gives the model's type parameter to every closure written since

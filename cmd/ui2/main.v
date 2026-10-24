@@ -4,6 +4,9 @@
 //   ui2 gen [paths...]          generate the builders the V files under paths declare
 //   ui2 run <dir> [v flags] [-- args]   generate, build and run
 //   ui2 build <dir> [v flags]           generate, then build with `v`
+//   ui2 dev <dir> [v flags] [-- args]   run, reloading saved .vml files in place
+//                                       and restarting on saved .v files, keeping
+//                                       state (dev.v)
 //
 // run and build print V's diagnostics in VML documents in VML terms:
 // `element \`Slider\` has no property named \`maxx\`` rather than the props type
@@ -28,7 +31,7 @@ module main
 import os
 import ui2.vml
 
-const usage = 'usage: ui2 gen [paths...] | ui2 run <dir> [v flags] | ui2 build <dir> [v flags]'
+const usage = 'usage: ui2 gen [paths...] | ui2 run <dir> [v flags] | ui2 build <dir> [v flags] | ui2 dev <dir> [v flags]'
 
 fn main() {
 	if os.args.len < 2 {
@@ -46,26 +49,29 @@ fn main() {
 			}
 			println('ui2 gen: ${count} builder(s) up to date')
 		}
-		'run', 'build' {
+		'run', 'build', 'dev' {
 			if rest.len == 0 {
 				eprintln(usage)
 				exit(1)
 			}
 			target := rest[0]
-			generate_paths([target]) or {
-				eprintln('ui2 gen: ${err}')
-				exit(1)
-			}
 			mut flags := rest[1..].clone()
-			if command == 'build' {
-				exit(compile(flags, target))
-			}
-			// `ui2 run <dir> [v flags] [-- program arguments]`
+			// `ui2 run|dev <dir> [v flags] [-- program arguments]`
 			mut program_args := []string{}
 			separator := flags.index('--')
 			if separator >= 0 {
 				program_args = flags[separator + 1..].clone()
 				flags = flags[..separator].clone()
+			}
+			if command == 'dev' {
+				exit(dev(target, flags, program_args))
+			}
+			generate_paths([target]) or {
+				eprintln('ui2 gen: ${err}')
+				exit(1)
+			}
+			if command == 'build' {
+				exit(compile(flags, target))
 			}
 			binary := os.join_path(os.vtmp_dir(), 'ui2-run-${os.getpid()}', os.file_name(os.real_path(target)))
 			os.mkdir_all(os.dir(binary)) or {}
