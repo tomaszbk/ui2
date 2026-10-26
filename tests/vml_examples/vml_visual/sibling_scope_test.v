@@ -1,15 +1,16 @@
 module main
 
 import os
+import ui2.vml
 
 fn test_checkbox_binding_uses_change_checked_payload_in_both_directions() {
-	run_bounded_layout_fixture('checkbox_binding', 'Checkbox(id: "consent", width: 100, height: 24, bind.checked: app.checked)', 'import ui2
+	run_bounded_layout_fixture('checkbox_binding', 'Checkbox(id: consent, width: 100, height: 24, bind.checked: app.checked)', 'import ui2
 @[heap]
 struct State {
 pub mut:
     checked bool
 }
-fn build(mut app State) ui2.Element { return $vml("view.vml") }
+fn build(mut app State) ui2.Element { return view_vml(mut app) }
 fn main() {
     mut app := &State{}
     checkbox := build(mut app)
@@ -32,7 +33,7 @@ fn main() {
 fn test_checkbox_change_binds_before_action_and_keeps_tap_and_sibling_actions_separate() {
 	run_bounded_layout_fixture('checkbox_actions', 'Row(width: 200, height: 30, align_items: start) {
     View(width: 100, height: 24) {
-        Checkbox(id: "consent", width: 100, height: 24, bind.checked: app.checked, on_change: app.changed(app.note), on_click: app.tapped())
+        Checkbox(id: consent, width: 100, height: 24, bind.checked: app.checked, on_change: app.changed(app.note), on_click: app.tapped())
     }
     Absolute {
         Button(width: consent.width, height: 24, text: ("Consent ñ"), on_click: app.accept("Consent ñ"))
@@ -57,7 +58,7 @@ pub fn (mut app State) changed(note string) {
 pub fn (mut app State) tapped() { app.taps++ }
 // accept records the independent sibling action argument.
 pub fn (mut app State) accept(caption string) { app.accepted = caption }
-fn build(mut app State) ui2.Element { return $vml("view.vml") }
+fn build(mut app State) ui2.Element { return view_vml(mut app) }
 fn main() {
     mut app := &State{}
     tree := build(mut app)
@@ -106,12 +107,12 @@ fn test_shared_builders_export_visible_children_to_parent_menu_declarations() {
 	run_bounded_layout_fixture('shared_menu_scope', 'Absolute(width: 100, height: 30) {
     Row(width: 100, height: 30, align_items: start) {
         MenuItem(text: ("Menu caption"))
-        Label(id: "item", width: 20, height: 20)
+        Label(id: item, width: 20, height: 20)
         MenuItem(text: "Width \${item.width}")
     }
 }', 'import ui2
 fn main() {
-    tree := $vml("view.vml")
+    tree := view_vml(mut app)
     assert tree.children[0].children[0].frame == ui2.rect(0, 0, 20, 20)
     assert tree.children[0].menu.len == 2
     assert tree.children[0].menu[0].title == "Menu caption"
@@ -122,7 +123,7 @@ fn main() {
 fn test_vertical_wrap_omitted_width_and_following_nested_sibling() {
 	run_bounded_layout_fixture('vertical_wrap', 'Absolute(width: 500, height: 200) {
     Row(width: 300, height: 80, align_items: start) {
-        Column(id: "wrapped", height: 40, wrap: true, gap: 5, align_items: start) {
+        Column(id: wrapped, height: 40, wrap: true, gap: 5, align_items: start) {
             Label(width: 30, height: 20, text: "a")
             Label(width: 30, height: 20, text: "b")
             Label(width: 30, height: 20, text: "c")
@@ -134,7 +135,7 @@ fn test_vertical_wrap_omitted_width_and_following_nested_sibling() {
     Label(x: wrapped.width, width: wrapped.width, height: 20, text: "extent")
 }', 'import ui2
 fn main() {
-    tree := $vml("view.vml")
+    tree := view_vml(mut app)
     row := tree.children[0]
     wrapped := row.children[0]
     assert wrapped.frame == ui2.rect(0, 0, 100, 40)
@@ -167,7 +168,7 @@ fn test_vertical_wrap_fractional_padding_and_distinct_gaps() {
     }
 }', 'import ui2
 fn main() {
-    tree := $vml("view.vml")
+    tree := view_vml(mut app)
     row := tree.children[0]
     assert row.children[0].frame == ui2.rect(1.25, 1.25, 110.75, 48)
     assert row.children[0].children.map(it.frame) == [ui2.rect(2.5, 1.5, 30.5, 21.25), ui2.rect(39.75, 1.5, 30.5, 21.25), ui2.rect(77, 1.5, 30.5, 21.25)]
@@ -192,7 +193,7 @@ pub mut:
 pub fn (mut app State) leaf_width() f64 { app.evaluations++; return f64(app.value) }
 // accept records the live action argument.
 pub fn (mut app State) accept(value int) { app.received = value }
-fn build(mut app State) ui2.Element { return $vml("view.vml") }
+fn build(mut app State) ui2.Element { return view_vml(mut app) }
 fn leaf(tree ui2.Element) ui2.Element {
     mut element := tree
     for _ in 0 .. ${depth} { assert element.children.len == 1; element = element.children[0] }
@@ -220,7 +221,7 @@ fn main() {
 fn test_shared_layout_builders_refresh_allocated_sibling_references() {
 	run_bounded_layout_fixture('shared_grid_scope', 'Absolute(width: 300, height: 120) {
     Grid(width: 200, height: 100, columns: 2, rows: 1) {
-        View(id: "seed", height: 20) {
+        View(id: seed, height: 20) {
             Label(width: 20, height: 20, text: "seed")
         }
         Row(align_items: start) {
@@ -232,7 +233,7 @@ fn test_shared_layout_builders_refresh_allocated_sibling_references() {
     Label(x: seed.x, width: seed.width, height: 20, text: "following")
 }', 'import ui2
 fn main() {
-    tree := $vml("view.vml")
+    tree := view_vml(mut app)
     grid := tree.children[0]
     assert grid.children[0].frame == ui2.rect(0, 0, 100, 100)
     assert grid.children[1].frame == ui2.rect(100, 0, 100, 100)
@@ -250,7 +251,7 @@ fn test_shared_layout_build_work_with_input_dependent_properties() {
 		for _ in 1 .. depth { divisor *= 4 }
 		for index in 0 .. depth {
 			width := if index == depth - 1 { 512.0 } else { 1024.0 / divisor }
-			view = 'Row(id: "level_${index}", width: app.offered * ${width} / 1024, height: 20, align_items: start) { ${view} }'
+			view = 'Row(id: level_${index}, width: app.offered * ${width} / 1024, height: 20, align_items: start) { ${view} }'
 			divisor /= 4
 		}
 		view = 'Absolute(width: 1024, height: 60) { ${view} }'
@@ -265,7 +266,7 @@ pub mut:
 pub fn (mut app State) record(value f64) f64 { app.evaluations++; return value }
 fn main() {
     mut app := &State{}
-    tree := $vml("view.vml")
+    tree := view_vml(mut app)
     mut element := tree.children[0]
     mut width := 512.0
     assert element.frame == ui2.rect(0, 0, width, 20)
@@ -308,7 +309,7 @@ fn test_shared_builders_keep_slider_and_interaction_enum_types() {
     }
 }', 'import ui2
 fn main() {
-    tree := $vml("view.vml")
+    tree := view_vml(mut app)
     row := tree.children[0]
     assert row.children[0].orientation == .horizontal
     assert row.children[1].orientation == .vertical
@@ -326,14 +327,14 @@ fn main() {
 fn test_vertical_wrap_measured_and_inherited_container_widths() {
 	run_bounded_layout_fixture('inherited_vertical_wrap', 'Absolute(width: 500, height: 120) {
     View(width: 0, height: 40) {
-        Column(id: "natural", height: 40, wrap: true, gap: 5, align_items: start) {
+        Column(id: natural, height: 40, wrap: true, gap: 5, align_items: start) {
             Label(width: 30, height: 20, text: "a")
             Label(width: 30, height: 20, text: "b")
             Label(width: 30, height: 20, text: "c")
         }
     }
     View(width: 200, height: 40) {
-        Column(id: "inherited", height: 40, wrap: true, gap: 5, align_items: start) {
+        Column(id: inherited, height: 40, wrap: true, gap: 5, align_items: start) {
             Label(width: 30, height: 20, text: "a")
             Label(width: 30, height: 20, text: "b")
             Label(width: 30, height: 20, text: "c")
@@ -342,7 +343,7 @@ fn test_vertical_wrap_measured_and_inherited_container_widths() {
     Label(x: natural.width, width: inherited.width, height: 20, text: "following")
 }', 'import ui2
 fn main() {
-    tree := $vml("view.vml")
+    tree := view_vml(mut app)
     assert tree.children[0].frame == ui2.rect(0, 0, 0, 40)
     assert tree.children[0].children[0].frame == ui2.rect(0, 0, 100, 40)
     assert tree.children[1].frame == ui2.rect(0, 0, 200, 40)
@@ -352,10 +353,33 @@ fn main() {
 }')
 }
 
+// generate_sibling_fixture writes the builder of the fixture's view.vml beside
+// its main.v, as `ui2 gen` would. A view that does not read `app` has a
+// builder without it. Generator errors are returned as the compiler output.
+fn generate_sibling_fixture(root string) ?os.Result {
+	view := os.join_path(root, 'view.vml')
+	if !os.exists(view) { return none }
+	vml.write_generated(view, vml.GenConfig{ module: 'main', dir: root }, '') or {
+		return os.Result{ exit_code: 1, output: err.msg() }
+	}
+	generated := os.read_file(os.join_path(root, 'view_vml.v')) or { panic(err) }
+	if !generated.contains('view_vml[A](mut app A)') {
+		main_path := os.join_path(root, 'main.v')
+		program := os.read_file(main_path) or { panic(err) }
+		os.write_file(main_path, program.replace('view_vml(mut app)', 'view_vml()').replace('view_vml_framed(mut app, ', 'view_vml_framed(')) or { panic(err) }
+	}
+	return none
+}
+
 fn compile_sibling_fixture(root string) os.Result {
+	if failed := generate_sibling_fixture(root) {
+		os.write_file(os.join_path(root, 'compile.log'), failed.output) or { panic(err) }
+		os.write_file(os.join_path(root, 'compile-exit.txt'), failed.exit_code.str()) or { panic(err) }
+		return failed
+	}
 	module_path := [os.dir(@VMODROOT), '@vlib', '@vmodules'].join(os.path_delimiter)
 	args := [@VEXE, '-b', 'c', '-nocache', '-path', module_path, '-no-retry-compilation', '-o',
-		os.join_path(root, 'app'), os.join_path(root, 'main.v')]
+		os.join_path(root, 'app'), root]
 	os.write_file(os.join_path(root, 'compile-command.txt'), args.join('\n')) or { panic(err) }
 	mut environment := []string{}
 	for key in ['VFLAGS', 'VMODULES', 'V_MACOS_V3_NO_FALLBACK', 'VJOBS', 'PATH', 'VTMP', 'TMPDIR'] {
@@ -381,19 +405,19 @@ fn run_sibling_geometry(tag string, config string, expected string, inner_x int,
     computed ink := app.ink
     computed half := unit / 2
     Absolute(width: 400, height: 400) {
-        ${tag}(id: "layout", x: 10, y: 15, width: 200, height: 80, ${config}) {
-            Label(id: "first", width: unit, height: 20, text: caption, on_click: app.accept(app.argument), style: [weight(strong ? 700 : 400), foreground(ink)])
-            Absolute(id: "middle") {
+        ${tag}(id: layout, x: 10, y: 15, width: 200, height: 80, ${config}) {
+            Label(id: first, width: unit, height: 20, text: caption, on_click: app.accept(app.argument), style: [weight(strong ? 700 : 400), foreground(ink)])
+            Absolute(id: middle) {
                 Column(width: first.width, align_items: start) {
                     Absolute {
-                        Label(id: "inner", width: half, height: first.height, style: [font_size(18)]) {
+                        Label(id: inner, width: half, height: first.height, style: [font_size(18)]) {
                             Run(text: caption, style: [weight(strong ? 700 : 400), foreground(ink)])
                         }
                     }
                 }
             }
             Absolute {
-                TextInput(id: "input", width: half, height: inner.height, bind.text: app.name, on_submit: app.submit(app.name))
+                TextInput(id: input, width: half, height: inner.height, bind.text: app.name, on_submit: app.submit(app.name))
             }
         }
         Label(x: middle.x, y: inner.y, width: half, height: inner.height, text: caption)
@@ -416,7 +440,7 @@ pub mut:
 pub fn (mut app State) accept(value int) { app.received = value }
 // submit records the current bound text.
 pub fn (mut app State) submit(value string) { app.submitted = value }
-fn build(mut app State) ui2.Element { return $vml("view.vml") }
+fn build(mut app State) ui2.Element { return view_vml(mut app) }
 fn main() {
     mut app := &State{}
     tree := build(mut app)
@@ -486,11 +510,11 @@ fn test_width_measurement_skips_only_the_current_child_scope() {
 	}
 	os.write_file(os.join_path(root, 'view.vml'), 'Absolute(width: 300, height: 200) {
     Column(width: 300, height: 200, align_items: start) {
-        Row(id: "row", width: 300, gap: 5, align_items: start) {
-            Label(id: "fixed", width: 40, height: 20, text: "Fixed")
-            Absolute(id: "measured") {
+        Row(id: row, width: 300, gap: 5, align_items: start) {
+            Label(id: fixed, width: 40, height: 20, text: "Fixed")
+            Absolute(id: measured) {
                 Column(width: fixed.width, align_items: start) {
-                    Label(id: "descendant", width: 40, height: 20, text: "Nested")
+                    Label(id: descendant, width: 40, height: 20, text: "Nested")
                 }
             }
             Absolute {
@@ -509,7 +533,7 @@ fn test_width_measurement_skips_only_the_current_child_scope() {
 }') or { panic(err) }
 	os.write_file(os.join_path(root, 'main.v'), 'import ui2
 fn main() {
-    root := $vml("view.vml")
+    root := view_vml(mut app)
     row := root.children[0].children[0]
     assert row.frame == ui2.rect(0, 0, 300, 40)
     assert row.children.map(it.frame) == [ui2.rect(0, 0, 40, 20), ui2.rect(45, 0, 40, 20), ui2.rect(90, 0, 40, 20), ui2.rect(135, 0, 40, 40)]
@@ -523,26 +547,26 @@ fn main() {
 	assert result.exit_code == 0, result.output
 }
 
-fn test_invalid_sibling_references_keep_vml_positions_and_call_sites() {
+fn test_invalid_sibling_references_keep_vml_positions() {
 	root := sibling_fixture_root('invalid')
 	defer {
 		if os.getenv('VML_SIBLING_KEEP_FIXTURES') != '1' { os.rmdir_all(root) or {} }
 	}
 	view := os.join_path(root, 'view.vml')
 	source := os.join_path(root, 'main.v')
-	os.write_file(source, 'import ui2\nfn main() { _ = $vml("view.vml") }') or { panic(err) }
+	os.write_file(source, 'import ui2\nfn main() { mut app := 0 _ = app _ = view_vml(mut app) }') or { panic(err) }
 	for index, entry in [
 		[
 			'Absolute() {
-    Label(id: "first", width: later.width, height: 20)
-    Label(id: "later", width: 40, height: 20)
+    Label(id: first, width: later.width, height: 20)
+    Label(id: later, width: 40, height: 20)
 }',
 			'2:24',
-			'undefined variable: `later`',
+			'element `later` is declared after this use',
 		],
 		[
 			'Absolute() {
-    Label(id: "first", width: 40, height: 20)
+    Label(id: first, width: 40, height: 20)
     Label(width: ("bad"), height: 20)
 }',
 			'3:11',
@@ -550,23 +574,23 @@ fn test_invalid_sibling_references_keep_vml_positions_and_call_sites() {
 		],
 		[
 			'Absolute() {
-    Label(id: "first", width: 40, height: 20)
+    Label(id: first, width: 40, height: 20)
     Label(width: missing.width)
 }',
 			'3:11',
-			'undefined variable: `missing`',
+			'undefined ident: `missing`',
 		],
 		[
 			'Absolute() {
-    Label(id: "first", width: 40, height: 20)
+    Label(id: first, width: 40, height: 20)
     Label(width: first.absent)
 }',
 			'3:11',
-			'undefined ident: `first`',
+			'an element id exposes only x, y, width and height',
 		],
 		[
 			'Absolute() {
-    Label(id: "first", width: 40, height: 20)
+    Label(id: first, width: 40, height: 20)
     Label(width: (true))
 }',
 			'3:11',
@@ -575,7 +599,7 @@ fn test_invalid_sibling_references_keep_vml_positions_and_call_sites() {
 		[
 			'Absolute() {
     View() {
-        Label(id: "inner", text: "WWW")
+        Label(id: inner, text: "WWW")
     }
     Label(width: ("bad"), height: 20)
 }',
@@ -589,8 +613,8 @@ fn test_invalid_sibling_references_keep_vml_positions_and_call_sites() {
 			os.cp(os.join_path(root, name), os.join_path(root, '${index}_${name}')) or { panic(err) }
 		}
 		assert result.exit_code != 0, result.output
-		assert result.output.contains('${view}:${entry[1]}: error: ${entry[2]}'), result.output
-		assert result.output.contains('called from ${source}'), result.output
+		line := entry[1].all_before(':')
+		assert result.output.contains('view.vml:${line}:') && result.output.contains(entry[2]), result.output
 	}
 }
 
@@ -611,7 +635,7 @@ fn run_intrinsic_sibling_fixture(name string, view string, program string) {
 
 fn test_intrinsic_width_survives_explicit_height_skipped_sibling() {
 	run_intrinsic_sibling_fixture('intrinsic_skipped', 'Column(width: 300, height: 100, gap: 7, align_items: start) {
-    Label(id: "first", text: "WWW", height: 20)
+    Label(id: first, text: "WWW", height: 20)
     Absolute {
         Label(text: "Copy", width: first.width, height: 20)
     }
@@ -619,15 +643,15 @@ fn test_intrinsic_width_survives_explicit_height_skipped_sibling() {
 fn main() {
     size := ui2.measure_layout_text("WWW", ui2.TextStyle{}, -1) or { panic(err) }
     assert size.width > 0
-    tree := $vml("view.vml")
+    tree := view_vml(mut app)
     assert tree.children.map(it.frame) == [ui2.rect(0, 0, size.width, 20), ui2.rect(0, 27, size.width, 20)]
 }')
 }
 
 fn test_intrinsic_leaf_and_unsized_nested_layout_expose_measured_geometry() {
 	run_intrinsic_sibling_fixture('intrinsic_nested', 'Absolute(width: 300, height: 300) {
-    Column(id: "block", gap: 7, align_items: start) {
-        Label(id: "first", text: "WWW")
+    Column(id: block, gap: 7, align_items: start) {
+        Label(id: first, text: "WWW")
         Absolute {
             Label(text: "Copy", width: first.width, height: first.height)
         }
@@ -637,7 +661,7 @@ fn test_intrinsic_leaf_and_unsized_nested_layout_expose_measured_geometry() {
 fn main() {
     size := ui2.measure_layout_text("WWW", ui2.TextStyle{}, -1) or { panic(err) }
     assert size.width > 0 && size.height > 0
-    tree := $vml("view.vml")
+    tree := view_vml(mut app)
     block := tree.children[0]
     height := size.height * 2 + 7
     assert block.frame == ui2.rect(0, 0, size.width, height)
@@ -648,9 +672,9 @@ fn main() {
 
 fn test_width_pass_sibling_height_uses_wrapped_leaf_measurement() {
 	run_intrinsic_sibling_fixture('intrinsic_width_pass', 'Row(width: 80, height: 200, align_items: start) {
-    Label(id: "first", text: "WW WW WW WW", flex_basis: 40, flex_shrink: 0, style: [lines(10)])
+    Label(id: first, text: "WW WW WW WW", flex_basis: 40, flex_shrink: 0, style: [lines(10)])
     Absolute(flex_basis: 40, flex_shrink: 0) {
-        Label(id: "second", width: first.width, text: "Copy", style: [line_height((first.height))])
+        Label(id: second, width: first.width, text: "Copy", style: [line_height((first.height))])
     }
 }', 'import ui2
 fn main() {
@@ -658,7 +682,7 @@ fn main() {
     natural := ui2.measure_layout_text("WW WW WW WW", style, -1) or { panic(err) }
     wrapped := ui2.measure_layout_text("WW WW WW WW", style, 40) or { panic(err) }
     assert natural.width > 40 && wrapped.height > natural.height
-    tree := $vml("view.vml")
+    tree := view_vml(mut app)
     assert tree.children.map(it.frame) == [ui2.rect(0, 0, 40, wrapped.height), ui2.rect(40, 0, 40, wrapped.height)]
     assert tree.children[1].children[0].text_style.line_height == wrapped.height
 }')
@@ -666,8 +690,8 @@ fn main() {
 
 fn test_intrinsic_sibling_sizes_determine_wrapped_flex_autoheight() {
 	run_intrinsic_sibling_fixture('intrinsic_wrap', 'Absolute(width: 300, height: 300) {
-    Flex(id: "flow", width: app.width, wrap: true, gap: 5, line_gap: 9, align_items: start) {
-        Label(id: "first", text: "WWW")
+    Flex(id: flow, width: app.width, wrap: true, gap: 5, line_gap: 9, align_items: start) {
+        Label(id: first, text: "WWW")
         Absolute {
             Label(text: "Copy", width: first.width, height: first.height)
         }
@@ -682,7 +706,7 @@ struct State {
 pub mut:
     width f64
 }
-fn build(mut app State) ui2.Element { return $vml("view.vml") }
+fn build(mut app State) ui2.Element { return view_vml(mut app) }
 fn main() {
     size := ui2.measure_layout_text("WWW", ui2.TextStyle{}, -1) or { panic(err) }
     assert size.width > 0 && size.height > 0
@@ -704,11 +728,11 @@ fn test_nested_grid_width_measurement_keeps_explicit_height_descendant_ids() {
 	}
 	os.write_file(os.join_path(root, 'view.vml'), 'Absolute(width: 300, height: 200) {
     Column(width: 200, height: 120, align_items: start) {
-        Grid(id: "grid", width: 200, columns: 2) {
-            View(id: "cell", width: 50, height: 20) {
-                Label(id: "seed", width: 50, height: 20, text: "Seed")
+        Grid(id: grid, width: 200, columns: 2) {
+            View(id: cell, width: 50, height: 20) {
+                Label(id: seed, width: 50, height: 20, text: "Seed")
             }
-            Absolute(id: "sized") {
+            Absolute(id: sized) {
                 Column(width: seed.width, align_items: start) {
                     Absolute {
                         Label(width: seed.width, height: cell.width, text: "Sized")
@@ -721,7 +745,7 @@ fn test_nested_grid_width_measurement_keeps_explicit_height_descendant_ids() {
 }') or { panic(err) }
 	os.write_file(os.join_path(root, 'main.v'), 'import ui2
 fn main() {
-    root := $vml("view.vml")
+    root := view_vml(mut app)
     grid := root.children[0].children[0]
     assert grid.frame == ui2.rect(0, 0, 200, 100)
     assert grid.children.map(it.frame) == [ui2.rect(0, 0, 100, 100), ui2.rect(100, 0, 100, 100)]
@@ -740,7 +764,7 @@ fn main() {
 fn test_auto_view_descendant_height_is_visible_to_following_sibling() {
 	run_intrinsic_sibling_fixture('descendant_auto', 'Row(width: 300, height: 80, align_items: start) {
     View {
-        Label(id: "inner", text: "WWW")
+        Label(id: inner, text: "WWW")
     }
     Absolute {
         Label(width: 40, height: inner.height, text: "Copy")
@@ -749,7 +773,7 @@ fn test_auto_view_descendant_height_is_visible_to_following_sibling() {
 fn main() {
     size := ui2.measure_layout_text("WWW", ui2.TextStyle{}, -1) or { panic(err) }
     assert size.height > 0
-    tree := $vml("view.vml")
+    tree := view_vml(mut app)
     assert tree.children[0].frame == ui2.rect(0, 0, size.width, size.height)
     assert tree.children[0].children[0].frame == ui2.rect(0, 0, size.width, size.height)
     assert tree.children[1].frame == ui2.rect(size.width, 0, 40, size.height)
@@ -760,7 +784,7 @@ fn test_nested_view_autoheight_keeps_offered_width_for_wrapping() {
 	run_intrinsic_sibling_fixture('descendant_fixed_width', 'Row(width: 300, height: 200, align_items: start) {
     View(width: 120) {
         View {
-            Label(id: "inner", text: "WW WW WW WW WW WW", style: [lines(10)])
+            Label(id: inner, text: "WW WW WW WW WW WW", style: [lines(10)])
         }
     }
     Absolute {
@@ -773,7 +797,7 @@ fn main() {
     natural := ui2.measure_layout_text(text, style, -1) or { panic(err) }
     size := ui2.measure_layout_text(text, style, 120) or { panic(err) }
     assert size.height > natural.height
-    tree := $vml("view.vml")
+    tree := view_vml(mut app)
     assert tree.children.map(it.frame) == [ui2.rect(0, 0, 120, size.height), ui2.rect(120, 0, 40, size.height)]
     assert tree.children[0].children[0].frame == ui2.rect(0, 0, 120, size.height)
     assert tree.children[0].children[0].children[0].frame == ui2.rect(0, 0, 120, size.height)
@@ -784,7 +808,7 @@ fn test_nested_view_autowidth_keeps_inherited_fixed_height() {
 	run_intrinsic_sibling_fixture('descendant_fixed_height', 'Column(width: 300, height: 100, align_items: start) {
     View(height: 30) {
         View {
-            Label(id: "inner", text: "WWW")
+            Label(id: inner, text: "WWW")
         }
     }
     Absolute {
@@ -794,7 +818,7 @@ fn test_nested_view_autowidth_keeps_inherited_fixed_height() {
 fn main() {
     size := ui2.measure_layout_text("WWW", ui2.TextStyle{}, -1) or { panic(err) }
     assert size.width > 0
-    tree := $vml("view.vml")
+    tree := view_vml(mut app)
     assert tree.children.map(it.frame) == [ui2.rect(0, 0, size.width, 30), ui2.rect(0, 30, size.width, 20)]
     assert tree.children[0].children[0].children[0].frame == ui2.rect(0, 0, size.width, 30)
 }')
@@ -803,7 +827,7 @@ fn main() {
 fn test_view_measures_nested_layout_ids_with_inherited_width() {
 	run_intrinsic_sibling_fixture('descendant_layouts', 'Row(width: 300, height: 100, align_items: start) {
     View(width: 100) {
-        Row(id: "nested", gap: 7, align_items: start, style: [padding(5)]) {
+        Row(id: nested, gap: 7, align_items: start, style: [padding(5)]) {
             Label(width: 20, height: 10, text: "A")
             Label(width: 30, height: 15, text: "B")
         }
@@ -813,7 +837,7 @@ fn test_view_measures_nested_layout_ids_with_inherited_width() {
     }
 }', 'import ui2
 fn main() {
-    tree := $vml("view.vml")
+    tree := view_vml(mut app)
     assert tree.children.map(it.frame) == [ui2.rect(0, 0, 100, 25), ui2.rect(100, 0, 40, 25)]
     nested := tree.children[0].children[0]
     assert nested.frame == ui2.rect(0, 0, 100, 25)
@@ -821,7 +845,7 @@ fn main() {
 }')
 	run_intrinsic_sibling_fixture('descendant_grid', 'Row(width: 300, height: 100, align_items: start) {
     View(width: 100) {
-        Grid(id: "nested", columns: 2) {
+        Grid(id: nested, columns: 2) {
             Label(width: 20, height: 10, text: "A")
             Label(width: 30, height: 15, text: "B")
         }
@@ -831,7 +855,7 @@ fn main() {
     }
 }', 'import ui2
 fn main() {
-    tree := $vml("view.vml")
+    tree := view_vml(mut app)
     assert tree.children.map(it.frame) == [ui2.rect(0, 0, 100, 15), ui2.rect(100, 0, 40, 15)]
     nested := tree.children[0].children[0]
     assert nested.frame == ui2.rect(0, 0, 100, 15)
@@ -872,7 +896,7 @@ fn test_generic_normal_containers_keep_fixed_axes_and_absolute_auto_axes() {
 }', 'import ui2
 fn main() {
     size := ui2.measure_layout_text("WWW", ui2.TextStyle{}, -1) or { panic(err) }
-    tree := $vml("view.vml")
+    tree := view_vml(mut app)
     for i in [0, 2] {
         assert tree.children[i].children[0].frame == ui2.rect(0, 0, 120, 30)
         assert tree.children[i].children[0].children[0].frame == ui2.rect(0, 0, 120, 30)
@@ -894,7 +918,7 @@ fn main() {
 fn test_measured_view_keeps_explicit_zero_and_live_bindings_callbacks() {
 	run_intrinsic_sibling_fixture('descendant_live', 'Row(width: 300, height: 80, align_items: start) {
     View(width: 80, height: 30) {
-        Label(id: "inner", width: 0, height: 0, hidden: false, on_click: app.accept(app.argument))
+        Label(id: inner, width: 0, height: 0, hidden: false, on_click: app.accept(app.argument))
         TextInput(width: 40, height: 20, bind.text: app.name, on_submit: app.submit(app.name))
     }
     Absolute {
@@ -913,7 +937,7 @@ pub mut:
 pub fn (mut app State) accept(value int) { app.received = value }
 // submit records the bound value when the event fires.
 pub fn (mut app State) submit(value string) { app.submitted = value }
-fn build(mut app State) ui2.Element { return $vml("view.vml") }
+fn build(mut app State) ui2.Element { return view_vml(mut app) }
 fn main() {
     mut app := &State{}
     tree := build(mut app)
@@ -938,12 +962,12 @@ fn main() {
 
 fn test_selected_auto_grid_width_remeasures_five_rows_and_exports_final_geometry() {
 	run_bounded_layout_fixture('selected_auto_grid_five', 'Absolute(width: 300, height: 300) {
-    Grid(id: "cells", auto_columns_min_width: 100) {
-        Label(id: "first", width: 20, height: 20)
+    Grid(id: cells, auto_columns_min_width: 100) {
+        Label(id: first, width: 20, height: 20)
         Label(width: 20, height: 20)
         Label(width: 20, height: 20)
         Label(width: 20, height: 20)
-        Label(id: "last", width: 20, height: 20)
+        Label(id: last, width: 20, height: 20)
     }
     Label(x: cells.width, y: cells.height, width: last.width, height: last.height, text: ("five rows ñ"))
 }', 'import ui2
@@ -957,7 +981,7 @@ fn main() {
     assert ui2.grid_frames(ui2.GridConfig{...config, frame: ui2.rect(0, 0, 60, 100)}, 5)! == one_column
     assert ui2.grid_preferred_size(ui2.GridConfig{...config, frame: ui2.rect(0, 0, 60, 300), auto_columns_min_width: 20}, sizes)! == ui2.rect(0, 0, 60, 40)
     assert ui2.grid_frames(ui2.GridConfig{...config, frame: ui2.rect(0, 0, 60, 40), auto_columns_min_width: 20}, 5)! == [ui2.rect(0, 0, 20, 20), ui2.rect(20, 0, 20, 20), ui2.rect(40, 0, 20, 20), ui2.rect(0, 20, 20, 20), ui2.rect(20, 20, 20, 20)]
-    tree := $vml("view.vml")
+    tree := view_vml(mut app)
     assert tree.children[0].frame == ui2.rect(0, 0, 60, 100)
     assert tree.children[0].children.map(it.frame) == one_column
     // Geometry references expose the final assigned child frames.
@@ -983,7 +1007,7 @@ pub mut:
     minimum f64 = 30
     child_width f64 = 11.9375
 }
-fn build(mut app State) ui2.Element { return $vml("view.vml") }
+fn build(mut app State) ui2.Element { return view_vml(mut app) }
 fn main() {
     mut app := &State{}
     below := build(mut app).children[0]
@@ -1031,7 +1055,7 @@ pub mut:
     minimum f64 = 100
     cap int
 }
-fn build(mut app State) ui2.Element { return $vml("view.vml") }
+fn build(mut app State) ui2.Element { return view_vml(mut app) }
 fn main() {
     sizes := [ui2.rect(0, 0, 20.5, 10.25), ui2.rect(0, 0, 20.5, 10.25), ui2.rect(0, 0, 20.5, 10.25), ui2.rect(0, 0, 20.5, 10.25), ui2.rect(0, 0, 20.5, 10.25)]
     config := ui2.GridConfig{frame: ui2.rect(0, 0, 300, 300), auto_columns_min_width: 100, padding: ui2.GridPadding{left: 2.5, right: 3.25, top: 1.5, bottom: 2.5}, spacing: ui2.GridSpacing{horizontal: 2.5, vertical: 1.25}}
@@ -1092,7 +1116,7 @@ pub mut:
 }
 // leaf_width counts property evaluation while returning a stable construction value.
 pub fn (mut app State) leaf_width() f64 { app.evaluations++; return app.value }
-fn build(mut app State) ui2.Element { return $vml("view.vml") }
+fn build(mut app State) ui2.Element { return view_vml(mut app) }
 fn main() {
     mut app := &State{}
     first := build(mut app).children[0]
@@ -1141,7 +1165,7 @@ fn test_selected_auto_grid_preserves_authored_inherited_and_allocated_zero_axes(
     }
 }', 'import ui2
 fn main() {
-    tree := $vml("view.vml")
+    tree := view_vml(mut app)
     zero := tree.children[0]
     assert zero.frame == ui2.rect(0, 0, 0, 0)
     assert zero.children.map(it.frame) == [ui2.rect(0, 0, 0, 0), ui2.rect(0, 0, 0, 0)]
@@ -1160,9 +1184,9 @@ fn main() {
 
 fn test_auto_grid_natural_padding_and_following_descendant_refs() {
 	run_bounded_layout_fixture('auto_grid_natural', 'Row(width: 300, height: 100, align_items: start) {
-    View(id: "shell") {
-        Grid(id: "cells", columns: 2, style: [padding(10)]) {
-            Label(id: "cell", width: 20, height: 20)
+    View(id: shell) {
+        Grid(id: cells, columns: 2, style: [padding(10)]) {
+            Label(id: cell, width: 20, height: 20)
         }
     }
     Absolute {
@@ -1170,7 +1194,7 @@ fn test_auto_grid_natural_padding_and_following_descendant_refs() {
     }
 }', 'import ui2
 fn main() {
-    tree := $vml("view.vml")
+    tree := view_vml(mut app)
     shell := tree.children[0]
     grid := shell.children[0]
     assert shell.frame == ui2.rect(0, 0, 60, 40)
@@ -1185,7 +1209,7 @@ fn main() {
 fn test_auto_grid_constraint_axes_fractional_tracks_and_width_remeasurement() {
 	run_bounded_layout_fixture('auto_grid_constraints', 'Absolute(width: 300, height: 300) {
     View(width: 100, height: 60) {
-        Grid(id: "inherited", columns: 2, spacing_x: 2.5, style: [padding(1.25)]) {
+        Grid(id: inherited, columns: 2, spacing_x: 2.5, style: [padding(1.25)]) {
             Label(width: 20.5, height: 10)
         }
     }
@@ -1207,7 +1231,7 @@ fn test_auto_grid_constraint_axes_fractional_tracks_and_width_remeasurement() {
     Label(x: inherited.width, width: inherited.height, height: 20)
 }', 'import ui2
 fn main() {
-    tree := $vml("view.vml")
+    tree := view_vml(mut app)
     inherited := tree.children[0].children[0]
     assert inherited.frame == ui2.rect(0, 0, 100, 60)
     assert inherited.children[0].frame == ui2.rect(1.25, 1.25, 47.5, 57.5)
@@ -1233,9 +1257,9 @@ fn test_auto_wrap_unoffered_main_axes_and_following_sibling_refs() {
 		'Column': '30, 45'
 	} {
 		run_bounded_layout_fixture('auto_wrap_${tag}', 'Absolute {
-    View(id: "shell") {
-        ${tag}(id: "flow", wrap: true, gap: 5, align_items: start) {
-            Label(id: "first", width: 30, height: 20)
+    View(id: shell) {
+        ${tag}(id: flow, wrap: true, gap: 5, align_items: start) {
+            Label(id: first, width: 30, height: 20)
             Absolute {
                 Label(width: first.width, height: first.height)
             }
@@ -1244,7 +1268,7 @@ fn test_auto_wrap_unoffered_main_axes_and_following_sibling_refs() {
     Label(x: flow.width, y: shell.height, width: shell.width, height: flow.height)
 }', 'import ui2
 fn main() {
-    tree := $vml("view.vml")
+    tree := view_vml(mut app)
     shell := tree.children[0]
     flow := shell.children[0]
     assert shell.frame == ui2.rect(0, 0, ${expected})
@@ -1321,7 +1345,7 @@ fn test_auto_wrap_fractional_padding_gaps_and_explicit_constraints() {
     }
 }', 'import ui2
 fn main() {
-    tree := $vml("view.vml")
+    tree := view_vml(mut app)
     assert tree.children[0].frame == ui2.rect(0, 0, 71, 25.25)
     assert tree.children[0].children[0].children.map(it.frame) == [ui2.rect(2.5, 1.5, 30.5, 21.25), ui2.rect(37.25, 1.5, 30.5, 21.25)]
     assert tree.children[1].frame == ui2.rect(0, 0, 36.25, 50.75)
@@ -1339,13 +1363,13 @@ fn main() {
 fn test_auto_wrap_and_grid_explicit_and_allocated_zero_are_not_natural_axes() {
 	run_bounded_layout_fixture('auto_axes_zero', 'Absolute() {
     View() {
-        Row(id: "row", width: 0, wrap: true, gap: 5, align_items: start) {
+        Row(id: row, width: 0, wrap: true, gap: 5, align_items: start) {
             Label(width: 30, height: 20)
             Label(width: 30, height: 20)
         }
     }
     View() {
-        Column(id: "column", height: 0, wrap: true, gap: 5, align_items: start) {
+        Column(id: column, height: 0, wrap: true, gap: 5, align_items: start) {
             Label(width: 30, height: 20)
             Label(width: 30, height: 20)
         }
@@ -1369,7 +1393,7 @@ fn test_auto_wrap_and_grid_explicit_and_allocated_zero_are_not_natural_axes() {
     Label(x: row.width, width: column.height, height: 20)
 }', 'import ui2
 fn main() {
-    tree := $vml("view.vml")
+    tree := view_vml(mut app)
     assert tree.children[0].children[0].frame == ui2.rect(0, 0, 0, 45)
     assert tree.children[1].children[0].frame == ui2.rect(0, 0, 65, 0)
     assert tree.children[2].children[0].frame == ui2.rect(0, 0, 0, 45)
@@ -1389,7 +1413,7 @@ fn main() {
         }
     }
 }')!
-	os.write_file(os.join_path(root, 'main.v'), 'import ui2\nfn main() { _ = $vml("view.vml") }')!
+	os.write_file(os.join_path(root, 'main.v'), 'import ui2\nfn main() { mut app := 0 _ = app _ = view_vml(mut app) }')!
 	build := compile_sibling_fixture(root)
 	assert build.exit_code == 0, build.output
 	result := os.exec([os.join_path(root, 'app')])

@@ -1,5 +1,7 @@
-// vtest vflags: -d vml_props
+// vtest vflags: -d vml_props -d vml_fixtures
 module ui2
+
+// vml: ../examples/screen_manager/screen_manager.vml
 
 // Golden equivalence of hand-written props with the screen manager example
 // used verbatim.
@@ -48,7 +50,7 @@ pub fn (mut app PropsScreensDemo) show_details() {
 }
 
 fn props_screens_compiled(mut app PropsScreensDemo, frame Rect) Element {
-	return $vml('../examples/screen_manager/screen_manager.vml', frame)
+	return screen_manager_vml_framed(mut app, frame)
 }
 
 fn props_screen_button(mut app PropsScreensDemo, text string, current string, width f64, style StylePatch) PNode {

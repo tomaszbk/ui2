@@ -1,4 +1,4 @@
-// vtest vflags: -gc boehm -d no_gc_thread_local_alloc
+// vtest vflags: -gc boehm -d no_gc_thread_local_alloc -d ui2_custom_rendering
 module ui2
 
 @[heap]
@@ -7,7 +7,7 @@ mut:
 	now f64
 }
 
-$if (android || linux || macos || windows) && !ui2_headless ?&& !ui2_document_library ? {
+$if (android || linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ?&& !ui2_document_library ? {
 	fn preparation_static_group() Element {
 		mut children := []Element{cap: 300}
 		for i in 0 .. 300 {

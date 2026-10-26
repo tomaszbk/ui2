@@ -1,12 +1,12 @@
 Screen(
-    id: "root",
+    id: root,
     style: [background(#F1F5F9)],
 ) {
     Absolute(
         style: [transparent(true)],
     ) {
         View(
-            id: "card",
+            id: card,
             x: 16,
             y: 16,
             width: root.width - 32,
@@ -18,7 +18,7 @@ Screen(
             ) {
                 Label(text: "Nested clipping", x: 18, y: 14, width: 260, height: 28, style: [foreground(#111827), font_size(18), weight(700)])
                 Button(
-                    id: "clip_all",
+                    id: clip_all,
                     text: "Clip all",
                     on_click: app.clip_all(),
                     native: true,
@@ -28,7 +28,7 @@ Screen(
                     height: 34,
                 )
                 Button(
-                    id: "clip_none",
+                    id: clip_none,
                     text: "Clip none",
                     on_click: app.clip_none(),
                     native: true,
@@ -46,7 +46,7 @@ Screen(
                     style: [foreground(#64748B), font_size(12)],
                 )
                 Button(
-                    id: "quadrant1",
+                    id: quadrant1,
                     text: "Quadrant 1",
                     on_click: app.toggle_quadrant(1),
                     native: true,
@@ -56,7 +56,7 @@ Screen(
                     height: 30,
                 )
                 Button(
-                    id: "quadrant2",
+                    id: quadrant2,
                     text: "Quadrant 2",
                     on_click: app.toggle_quadrant(2),
                     native: true,
@@ -66,7 +66,7 @@ Screen(
                     height: 30,
                 )
                 Button(
-                    id: "quadrant3",
+                    id: quadrant3,
                     text: "Quadrant 3",
                     on_click: app.toggle_quadrant(3),
                     native: true,
@@ -76,7 +76,7 @@ Screen(
                     height: 30,
                 )
                 Button(
-                    id: "quadrant4",
+                    id: quadrant4,
                     text: "Quadrant 4",
                     on_click: app.toggle_quadrant(4),
                     native: true,
@@ -86,7 +86,7 @@ Screen(
                     height: 30,
                 )
                 View(
-                    id: "stage",
+                    id: stage,
                     x: 18,
                     y: 114,
                     width: card.width - 36,
@@ -96,10 +96,7 @@ Screen(
                     Absolute(
                         style: [transparent(true)],
                     ) {
-                        Repeater(
-                            model: app.boxes,
-                            key: item.key,
-                        ) {
+                        for item in app.boxes key item.key {
                             View(
                                 x: 10 + item.column *((root.width - 88) / 4),
                                 y: 10 + item.row *((root.height - 226) / 4),
@@ -184,7 +181,7 @@ Screen(
                     }
                 }
                 Label(
-                    id: "clip_status",
+                    id: clip_status,
                     text: app.status,
                     x: 18,
                     y: card.height - 42,

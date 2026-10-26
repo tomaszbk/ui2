@@ -1,5 +1,7 @@
 module main
 
+// vml: demo_label.vml
+
 import ui2
 
 const demo_label_width = 420
@@ -19,9 +21,9 @@ fn main() {
 }
 
 fn build_demo_label(mut app DemoLabel) ui2.Element {
-	return $vml('demo_label.vml')
+	return demo_label_vml()
 }
 
 fn demo_label_tree(mut app DemoLabel, frame ui2.Rect) ui2.Element {
-	return $vml('demo_label.vml', frame)
+	return demo_label_vml_framed(frame)
 }

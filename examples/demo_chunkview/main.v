@@ -1,5 +1,7 @@
 module main
 
+// vml: demo_chunkview.vml
+
 import ui2
 
 const chunkview_width = 820
@@ -56,9 +58,9 @@ fn main() {
 }
 
 fn build_demo_chunkview(mut app ChunkviewDemo) ui2.Element {
-	return $vml('demo_chunkview.vml')
+	return demo_chunkview_vml(mut app)
 }
 
 fn demo_chunkview_tree(mut app ChunkviewDemo, frame ui2.Rect) ui2.Element {
-	return $vml('demo_chunkview.vml', frame)
+	return demo_chunkview_vml_framed(mut app, frame)
 }

@@ -1,5 +1,7 @@
 module main
 
+// vml: rectangles.vml
+
 import ui2
 
 const rectangles_width = 360
@@ -19,9 +21,9 @@ fn main() {
 }
 
 fn build_rectangles(mut app RectanglesDemo) ui2.Element {
-	return $vml('rectangles.vml')
+	return rectangles_vml()
 }
 
 fn rectangles_tree(mut app RectanglesDemo, frame ui2.Rect) ui2.Element {
-	return $vml('rectangles.vml', frame)
+	return rectangles_vml_framed(frame)
 }

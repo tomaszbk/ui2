@@ -1,5 +1,7 @@
 module main
 
+// vml: app.vml
+
 import os
 import ui2
 
@@ -40,7 +42,7 @@ pub fn (mut app CatalogApp) advance() {
 }
 
 fn build_catalog(mut app CatalogApp) ui2.Element {
-	return $vml('app.vml')
+	return app_vml(mut app)
 }
 
 fn main() {

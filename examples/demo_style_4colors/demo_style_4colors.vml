@@ -1,12 +1,12 @@
 Screen(
-    id: "root",
+    id: root,
     style: [background(#F1F5F9)],
 ) {
     Absolute(
         style: [transparent(true)],
     ) {
         View(
-            id: "card",
+            id: card,
             x: 16,
             y: 16,
             width: root.width - 32,
@@ -33,7 +33,7 @@ Screen(
                     style: [foreground(#64748B), font_size(12)],
                 )
                 Dropdown(
-                    id: "palette",
+                    id: palette,
                     bind.text: app.palette,
                     on_change: app.palette_changed(),
                     x: 18,
@@ -48,7 +48,7 @@ Screen(
                     Option(text: "Forest")
                 }
                 View(
-                    id: "swatch0",
+                    id: swatch0,
                     x: 214,
                     y: 72,
                     width: (card.width - 250) / 4,
@@ -59,7 +59,7 @@ Screen(
                         style: [transparent(true)],
                     ) {
                         View(
-                            id: "color0",
+                            id: color0,
                             x: 1,
                             y: 1,
                             width: swatch0.width - 2,
@@ -69,7 +69,7 @@ Screen(
                     }
                 }
                 View(
-                    id: "swatch1",
+                    id: swatch1,
                     x: 222 +(card.width - 250) / 4,
                     y: 72,
                     width: (card.width - 250) / 4,
@@ -80,7 +80,7 @@ Screen(
                         style: [transparent(true)],
                     ) {
                         View(
-                            id: "color1",
+                            id: color1,
                             x: 1,
                             y: 1,
                             width: swatch1.width - 2,
@@ -90,7 +90,7 @@ Screen(
                     }
                 }
                 View(
-                    id: "swatch2",
+                    id: swatch2,
                     x: 230 +(card.width - 250) / 2,
                     y: 72,
                     width: (card.width - 250) / 4,
@@ -101,7 +101,7 @@ Screen(
                         style: [transparent(true)],
                     ) {
                         View(
-                            id: "color2",
+                            id: color2,
                             x: 1,
                             y: 1,
                             width: swatch2.width - 2,
@@ -111,7 +111,7 @@ Screen(
                     }
                 }
                 View(
-                    id: "swatch3",
+                    id: swatch3,
                     x: 238 +(card.width - 250) * 0.75,
                     y: 72,
                     width: (card.width - 250) / 4,
@@ -122,7 +122,7 @@ Screen(
                         style: [transparent(true)],
                     ) {
                         View(
-                            id: "color3",
+                            id: color3,
                             x: 1,
                             y: 1,
                             width: swatch3.width - 2,
@@ -132,7 +132,7 @@ Screen(
                     }
                 }
                 View(
-                    id: "preview",
+                    id: preview,
                     x: 18,
                     y: 132,
                     width: card.width - 36,
@@ -169,7 +169,7 @@ Screen(
                                     style: [foreground(app.color3), font_size(12)],
                                 )
                                 Checkbox(
-                                    id: "sample_enabled",
+                                    id: sample_enabled,
                                     text: "Example setting",
                                     bind.checked: app.enabled,
                                     x: 16,
@@ -179,7 +179,7 @@ Screen(
                                     style: [foreground(app.color3), font_size(13)],
                                 )
                                 Button(
-                                    id: "apply_palette",
+                                    id: apply_palette,
                                     text: "Apply palette",
                                     on_click: app.apply_palette(),
                                     native: true,
@@ -194,7 +194,7 @@ Screen(
                     }
                 }
                 Label(
-                    id: "palette_status",
+                    id: palette_status,
                     text: app.status,
                     x: 18,
                     y: card.height - 42,

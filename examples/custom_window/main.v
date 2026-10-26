@@ -1,5 +1,7 @@
 module main
 
+// vml: custom_window.vml
+
 import ui2
 
 const custom_window_width = 440
@@ -50,28 +52,38 @@ fn (mut app CustomWindowDemo) update_completed_label() {
 
 fn custom_window_callbacks() map[string]ui2.ElementCallback {
 	return {
-		'increment':   fn (event ui2.ElementEvent) {
-			mut state := unsafe { custom_window_state }
-			state.add_completed()
-			event.window.request_refresh()
-		}
-		'decrement':   fn (event ui2.ElementEvent) {
-			mut state := unsafe { custom_window_state }
-			state.remove_completed()
-			event.window.request_refresh()
-		}
-		'reset':       fn (event ui2.ElementEvent) {
-			mut state := unsafe { custom_window_state }
-			state.reset()
-			event.window.request_refresh()
-		}
-		'close':       fn (event ui2.ElementEvent) {
-			event.window.quit()
-		}
-		'window_drag': fn (event ui2.ElementEvent) {
-			if event.kind == .pointer_down { event.window.start_move() }
-		}
+		'increment':   callback_increment
+		'decrement':   callback_decrement
+		'reset':       callback_reset
+		'close':       callback_close
+		'window_drag': callback_window_drag
 	}
+}
+
+fn callback_increment(event ui2.ElementEvent) {
+	mut state := unsafe { custom_window_state }
+	state.add_completed()
+	event.window.request_refresh()
+}
+
+fn callback_decrement(event ui2.ElementEvent) {
+	mut state := unsafe { custom_window_state }
+	state.remove_completed()
+	event.window.request_refresh()
+}
+
+fn callback_reset(event ui2.ElementEvent) {
+	mut state := unsafe { custom_window_state }
+	state.reset()
+	event.window.request_refresh()
+}
+
+fn callback_close(event ui2.ElementEvent) {
+	event.window.quit()
+}
+
+fn callback_window_drag(event ui2.ElementEvent) {
+	if event.kind == .pointer_down { event.window.start_move() }
 }
 
 fn main() {
@@ -92,23 +104,11 @@ fn main() {
 }
 
 fn build_custom_window(mut app CustomWindowDemo) ui2.Element {
-	callbacks := custom_window_callbacks()
-	callback_window_drag := callbacks['window_drag'] or { panic('missing window_drag callback') }
-	callback_close := callbacks['close'] or { panic('missing close callback') }
-	callback_decrement := callbacks['decrement'] or { panic('missing decrement callback') }
-	callback_reset := callbacks['reset'] or { panic('missing reset callback') }
-	callback_increment := callbacks['increment'] or { panic('missing increment callback') }
-	return $vml('custom_window.vml')
+	return custom_window_vml(mut app)
 }
 
 fn custom_window_tree(mut app CustomWindowDemo, frame ui2.Rect) ui2.Element {
-	callbacks := custom_window_callbacks()
-	callback_window_drag := callbacks['window_drag'] or { panic('missing window_drag callback') }
-	callback_close := callbacks['close'] or { panic('missing close callback') }
-	callback_decrement := callbacks['decrement'] or { panic('missing decrement callback') }
-	callback_reset := callbacks['reset'] or { panic('missing reset callback') }
-	callback_increment := callbacks['increment'] or { panic('missing increment callback') }
-	return $vml('custom_window.vml', frame)
+	return custom_window_vml_framed(mut app, frame)
 }
 
 fn update_custom_window(mut app CustomWindowDemo) { app.prepare_window() }

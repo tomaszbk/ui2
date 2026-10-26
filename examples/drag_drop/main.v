@@ -1,3 +1,4 @@
+// ui2 profiles: custom (drag and drop, render-thread dispatcher)
 module main
 
 import ui2

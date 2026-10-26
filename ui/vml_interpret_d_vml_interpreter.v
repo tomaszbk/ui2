@@ -2,21 +2,22 @@ module ui2
 
 import os
 import time
-import vml
+import ui2.vml
 
 // The VML interpreter (design §3), compiled only with `-d vml_interpreter`.
-// It runs a VML document without compiling it: the shared parser (vlib/vml)
-// reads it, the loader (vml_interpret_check_d_vml_interpreter.v) resolves it
-// against the model's type and the widget registry, and the runtime
+// It runs a VML document without compiling it: the shared parser and
+// resolver (ui2.vml) read it into the IR the generator prints, the loader
+// (vml_interpret_check_d_vml_interpreter.v) checks it against the model's
+// type and the widget registry, and the runtime
 // (vml_interpret_run_d_vml_interpreter.v) declares the same generic nodes as
-// compiled VML. Compiled VML (`$vml(...)`) stays the default and the source
+// compiled VML. Compiled VML (generated builders) stays the default and the source
 // of truth; the interpreter serves development and dynamic documents: the
 // IDE preview, hot reload (`run_vml` with `watch: true`) and documents
 // pushed to a debug build.
 //
 // Entry points:
 // * `vml_interpret(source, &model, config)` builds a document once and
-//   returns its root element, like `$vml(...)`;
+//   returns its root element, like a generated builder;
 // * `vml_interpreter(source, model, config)` returns a handle that builds
 //   the document and reloads it from new source, keeping state;
 // * `run_vml[T](source_path: ..., model: &app, watch: true)` runs a window,
@@ -30,7 +31,7 @@ pub:
 	// source passed to the interpreter replaces the file's contents.
 	path string
 	// The document frame. Without one, the document follows the viewport
-	// (vml_bounds()), like `$vml(path)` without a frame.
+	// (vml_bounds()), like a generated builder without a frame.
 	frame ?Rect
 	theme ?Theme
 	// The external callbacks the document names (`on_click: callback_save`).
@@ -43,7 +44,7 @@ pub:
 }
 
 // vml_interpret builds the VML document `source` against the live model. The
-// result is the document's root element, with its retained node, as `$vml`
+// result is the document's root element, with its retained node, as a generated builder
 // returns it.
 pub fn vml_interpret[T](source string, model &T, config VmlInterpretConfig) !Element {
 	mut interpreter := vml_interpreter(source, vml_model(model), config)!
@@ -118,16 +119,16 @@ fn (i &VmlInterpreter) new_run(program &VmlProgram, carry map[string]VmlValue) &
 	}
 }
 
-// vml_load parses and checks a document. It returns the program and the
-// files it was read from.
+// vml_load parses, resolves and checks a document. It returns the program
+// and the files it was read from.
 fn vml_load(source string, model &VmlModel, config VmlInterpretConfig) !(&VmlProgram, []string) {
 	mut files := &[]string{}
-	root := if config.path.len == 0 {
-		vml.parse_source(source)!
+	library := if config.path.len == 0 {
+		vml.parse_library_source(source, '', vml.ParseConfig{})!
 	} else {
 		path := os.real_path(config.path)
 		reader := config.read_file
-		vml.parse_file(path, vml.ParseConfig{
+		vml.parse_library(path, vml.ParseConfig{
 			read_file: fn [path, source, reader, mut files] (file string) !string {
 				if file !in files { files << file }
 				if file == path { return source }
@@ -136,9 +137,12 @@ fn vml_load(source string, model &VmlModel, config VmlInterpretConfig) !(&VmlPro
 			}
 		})!
 	}
-	program := vml_check(root, model, config.callbacks, config.fallback != none)!
+	resolved := vml.resolve_library(library)!
+	program := vml_check(resolved, model, config.callbacks, config.fallback != none)!
 	mut program_files := program.files.clone()
-	program_files << *files
+	for file in *files {
+		if file !in program_files { program_files << file }
+	}
 	return program, program_files
 }
 

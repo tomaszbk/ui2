@@ -1,5 +1,7 @@
 module main
 
+// vml: box_layout_with_textbox.vml
+
 import ui2
 
 const box_textbox_width = 560
@@ -41,9 +43,9 @@ fn main() {
 }
 
 fn build_box_layout_with_textbox(mut app BoxLayoutTextboxDemo) ui2.Element {
-	return $vml('box_layout_with_textbox.vml')
+	return box_layout_with_textbox_vml(mut app)
 }
 
 fn box_layout_with_textbox_tree(mut app BoxLayoutTextboxDemo, frame ui2.Rect) ui2.Element {
-	return $vml('box_layout_with_textbox.vml', frame)
+	return box_layout_with_textbox_vml_framed(mut app, frame)
 }

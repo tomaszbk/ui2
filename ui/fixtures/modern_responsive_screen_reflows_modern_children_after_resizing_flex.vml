@@ -4,7 +4,7 @@ Screen {
         style: [padding(24)],
     ) {
         Flex(
-            id: "body",
+            id: body,
             height: 100,
             gap: 10,
         ) {

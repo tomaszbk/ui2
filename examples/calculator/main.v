@@ -1,5 +1,7 @@
 module main
 
+// vml: calculator.vml
+
 import math
 import ui2
 
@@ -271,9 +273,9 @@ fn main() {
 }
 
 fn build_calculator(mut app Calculator) ui2.Element {
-	return $vml('calculator.vml')
+	return calculator_vml(mut app)
 }
 
 fn calculator_tree(mut app Calculator, frame ui2.Rect) ui2.Element {
-	return $vml('calculator.vml', frame)
+	return calculator_vml_framed(mut app, frame)
 }

@@ -1,5 +1,7 @@
 module main
 
+// vml: relative_layout.vml
+
 import ui2
 
 const relative_width = 400
@@ -19,9 +21,9 @@ fn main() {
 }
 
 fn build_relative_layout(mut app RelativeLayoutDemo) ui2.Element {
-	return $vml('relative_layout.vml')
+	return relative_layout_vml()
 }
 
 fn relative_layout_tree(mut app RelativeLayoutDemo, frame ui2.Rect) ui2.Element {
-	return $vml('relative_layout.vml', frame)
+	return relative_layout_vml_framed(frame)
 }

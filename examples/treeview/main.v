@@ -1,5 +1,7 @@
 module main
 
+// vml: treeview.vml
+
 import ui2
 
 const treeview_width = 680
@@ -120,9 +122,9 @@ fn main() {
 }
 
 fn build_treeview(mut app TreeviewDemo) ui2.Element {
-	return $vml('treeview.vml')
+	return treeview_vml(mut app)
 }
 
 fn treeview_tree(mut app TreeviewDemo, frame ui2.Rect) ui2.Element {
-	return $vml('treeview.vml', frame)
+	return treeview_vml_framed(mut app, frame)
 }

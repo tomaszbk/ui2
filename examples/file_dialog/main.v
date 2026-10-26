@@ -1,5 +1,7 @@
 module main
 
+// vml: file_dialog.vml
+
 import os
 import ui2
 
@@ -60,9 +62,9 @@ fn main() {
 }
 
 fn build_file_dialog(mut app FileDialogDemo) ui2.Element {
-	return $vml('file_dialog.vml')
+	return file_dialog_vml(mut app)
 }
 
 fn file_dialog_tree(mut app FileDialogDemo, frame ui2.Rect) ui2.Element {
-	return $vml('file_dialog.vml', frame)
+	return file_dialog_vml_framed(mut app, frame)
 }

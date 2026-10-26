@@ -2,6 +2,9 @@
 // vtest build: vml_conformance?
 module main
 
+// vml: contract.vml
+// vml: named_slots.vml
+
 import ui2
 
 // Conformance of the interpreter with compiled VML (ui2.vml_conformance) for
@@ -31,11 +34,11 @@ pub fn (mut app ContractApp) record_cleanup(value int, doubled int) {
 }
 
 fn contract_tree(mut app ContractApp, frame ui2.Rect) ui2.Element {
-	return $vml('contract.vml', frame)
+	return contract_vml_framed(mut app, frame)
 }
 
 fn named_slots_tree(mut app ContractApp, frame ui2.Rect) ui2.Element {
-	return $vml('named_slots.vml', frame)
+	return named_slots_vml_framed(mut app, frame)
 }
 
 fn contract_reset(mut app ContractApp) {

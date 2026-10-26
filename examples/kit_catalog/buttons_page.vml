@@ -3,35 +3,35 @@ component ButtonsPage() {
         Label(text: "Buttons", style: [font_size(typography.title), weight(700), foreground(color.text)])
         Label(text: "Variants", style: [foreground(color.muted)])
         Row(gap: 8, align_items: center) {
-            Button(id: "primary", text: "Primary", variant: primary, on_click: app.click())
-            Button(id: "secondary", text: "Secondary", on_click: app.click())
-            Button(id: "outline", text: "Outline", variant: outline, on_click: app.click())
-            Button(id: "ghost", text: "Ghost", variant: ghost, on_click: app.click())
-            Button(id: "link", text: "Link", variant: link, on_click: app.click())
+            Button(id: primary, text: "Primary", variant: primary, on_click: app.click())
+            Button(id: secondary, text: "Secondary", on_click: app.click())
+            Button(id: outline, text: "Outline", variant: outline, on_click: app.click())
+            Button(id: ghost, text: "Ghost", variant: ghost, on_click: app.click())
+            Button(id: link, text: "Link", variant: link, on_click: app.click())
         }
         Row(gap: 8, align_items: center) {
-            Button(id: "danger", text: "Danger", variant: danger, on_click: app.click())
-            Button(id: "success", text: "Success", variant: success, on_click: app.click())
-            Button(id: "warning", text: "Warning", variant: warning, on_click: app.click())
+            Button(id: danger, text: "Danger", variant: danger, on_click: app.click())
+            Button(id: success, text: "Success", variant: success, on_click: app.click())
+            Button(id: warning, text: "Warning", variant: warning, on_click: app.click())
         }
         Label(text: "Sizes", style: [foreground(color.muted)])
         Row(gap: 8, align_items: center) {
-            Button(id: "small", text: "Small", size: small, on_click: app.click())
-            Button(id: "medium", text: "Medium", on_click: app.click())
-            Button(id: "large", text: "Large", size: large, on_click: app.click())
+            Button(id: small, text: "Small", size: small, on_click: app.click())
+            Button(id: medium, text: "Medium", on_click: app.click())
+            Button(id: large, text: "Large", size: large, on_click: app.click())
         }
         Label(text: "Icons and states", style: [foreground(color.muted)])
         Row(gap: 8, align_items: center) {
-            Button(id: "save", text: "Save", variant: primary, icon: check, on_click: app.click())
-            Button(id: "next", text: "Next", icon_end: chevron_right, on_click: app.click())
-            Button(id: "delete", icon: trash, variant: ghost, accessibility_label: "Delete", on_click: app.click())
-            Button(id: "selected", text: "Selected", selected: true, on_click: app.click())
-            Button(id: "disabled", text: "Disabled", enabled: false, on_click: app.click())
+            Button(id: save, text: "Save", variant: primary, icon: check, on_click: app.click())
+            Button(id: next, text: "Next", icon_end: chevron_right, on_click: app.click())
+            Button(id: delete, icon: trash, variant: ghost, accessibility_label: "Delete", on_click: app.click())
+            Button(id: selected, text: "Selected", selected: true, on_click: app.click())
+            Button(id: disabled, text: "Disabled", enabled: false, on_click: app.click())
         }
         Row(gap: 8, align_items: center) {
-            Button(id: "loading", text: "Loading", variant: primary, loading: app.loading)
-            Button(id: "toggle_loading", text: app.loading ? "Stop loading" : "Start loading", on_click: app.toggle_loading())
-            Label(id: "clicks", text: "Clicked ${app.clicks} times", style: [foreground(color.text)])
+            Button(id: loading, text: "Loading", variant: primary, loading: app.loading)
+            Button(id: toggle_loading, text: app.loading ? "Stop loading" : "Start loading", on_click: app.toggle_loading())
+            Label(id: clicks, text: "Clicked ${app.clicks} times", style: [foreground(color.text)])
         }
         Label(text: "Icons", style: [foreground(color.muted)])
         Row(gap: 12, align_items: center) {

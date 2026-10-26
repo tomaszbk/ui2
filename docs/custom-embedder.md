@@ -4,11 +4,11 @@ The embedder is a macOS host variant of the renderer (see `ui/platform.v`):
 instead of drawing in a sokol_app window, the same renderer draws into AppKit
 windows and Metal surfaces that ui2 owns, with its own event loop. That gives
 it several windows, NSTextInputClient text input and an event loop that sleeps
-while idle. Compile with `-d ui2_embedder`; it requires macOS/Metal, and every
-other OS keeps its sokol window.
+while idle. Compile with `-d ui2_custom_rendering -d ui2_embedder`; it requires
+macOS/Metal, and every other OS keeps its sokol window.
 
 ```sh
-v -d ui2_embedder run examples/text_input
+v -d ui2_custom_rendering -d ui2_embedder run examples/text_input
 ```
 
 `App` and the VML runners use the owned host under this define. The
@@ -88,7 +88,7 @@ it never runs the `sokol_app` loop on this path.
 ```sh
 make check-backends
 make test-embedder
-v -d ui2_embedder -o /tmp/ui2-embedder tests/embedder
+v -d ui2_custom_rendering -d ui2_embedder -o /tmp/ui2-embedder tests/embedder
 /tmp/ui2-embedder --seconds 30
 /tmp/ui2-embedder --interactive --japanese-ime
 xcrun clang -std=c11 -Wall -Wextra -Werror -fobjc-arc \

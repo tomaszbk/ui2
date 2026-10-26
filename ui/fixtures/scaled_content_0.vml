@@ -1,6 +1,6 @@
 Screen {
     ScaledContent(
-        id: "slide",
+        id: slide,
         content_width: 1280,
         content_height: 720,
     ) {
@@ -11,5 +11,5 @@ Screen {
             View(height: 100)
         }
     }
-    Button(id: "next", width: 44, height: 64)
+    Button(id: next, width: 44, height: 64)
 }

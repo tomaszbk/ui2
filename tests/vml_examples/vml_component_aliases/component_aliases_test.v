@@ -1,5 +1,8 @@
 module main
 
+// vml: aliases.vml
+// vml: keyed.vml
+
 import ui2
 
 pub struct AliasRow {
@@ -21,9 +24,9 @@ pub fn (mut app AliasApp) remember(name string, reference &ui2.VmlRef[ui2.ViewPr
 	app.refs[name] = reference
 }
 
-fn alias_tree(mut app AliasApp) ui2.Element { return $vml('aliases.vml') }
+fn alias_tree(mut app AliasApp) ui2.Element { return aliases_vml(mut app) }
 
-fn keyed_alias_tree(mut app AliasApp) ui2.Element { return $vml('keyed.vml') }
+fn keyed_alias_tree(mut app AliasApp) ui2.Element { return keyed_vml(mut app) }
 
 fn test_invocation_ids_alias_real_private_anonymous_and_nested_roots() ! {
 	mut app := &AliasApp{ rows: [AliasRow{'a', 10}] }
@@ -58,9 +61,9 @@ fn test_invocation_ids_alias_real_private_anonymous_and_nested_roots() ! {
 	children[5].on_event(ui2.ElementEvent{ kind: .click })
 	assert app.level == 301
 	mut owner := root.component
-	mut named := owner.ref[ui2.ViewProps]('named')!
-	mut anonymous := owner.ref[ui2.ViewProps]('anonymous')!
-	mut nested := owner.ref[ui2.ViewProps]('nested')!
+	mut named := owner.ref[ui2.ViewProps]('first')!
+	mut anonymous := owner.ref[ui2.ViewProps]('second')!
+	mut nested := owner.ref[ui2.ViewProps]('third')!
 	assert named.element()!.compiled_node == children[1].compiled_node
 	assert anonymous.element()!.compiled_node == children[2].compiled_node
 	assert nested.element()!.compiled_node == children[3].compiled_node

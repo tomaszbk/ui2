@@ -1,12 +1,12 @@
 Screen(
-    id: "root",
+    id: root,
     style: [background(#F1F5F9)],
 ) {
     Absolute(
         style: [transparent(true)],
     ) {
         View(
-            id: "card",
+            id: card,
             x: 16,
             y: 16,
             width: root.width - 32,
@@ -18,7 +18,7 @@ Screen(
             ) {
                 Label(text: "Editor", x: 18, y: 14, width: 100, height: 28, style: [foreground(#111827), font_size(18), weight(700)])
                 Checkbox(
-                    id: "sidebar_open",
+                    id: sidebar_open,
                     text: "Files",
                     bind.checked: app.sidebar_open,
                     x: 126,
@@ -36,7 +36,7 @@ Screen(
                     style: [text_align(center), foreground(app.dirty ? #B45309 : #64748B), font_size(11)],
                 )
                 TextInput(
-                    id: "new_name",
+                    id: new_name,
                     bind.text: app.new_name,
                     on_submit: app.create_file(),
                     placeholder: "new_file.v",
@@ -47,7 +47,7 @@ Screen(
                     style: [background(#F8FAFC), radius(7), font_size(11)],
                 )
                 Button(
-                    id: "create_file",
+                    id: create_file,
                     text: "New",
                     on_click: app.create_file(),
                     native: true,
@@ -57,7 +57,7 @@ Screen(
                     height: 34,
                 )
                 Button(
-                    id: "save_file",
+                    id: save_file,
                     text: "Save",
                     on_click: app.save_file(),
                     enabled: app.current_path.len > 0,
@@ -68,7 +68,7 @@ Screen(
                     height: 34,
                 )
                 View(
-                    id: "file_panel",
+                    id: file_panel,
                     hidden: ! app.sidebar_open,
                     x: 18,
                     y: 62,
@@ -88,7 +88,7 @@ Screen(
                             style: [foreground(#64748B), font_size(9)],
                         )
                         Scroll(
-                            id: "editor_files",
+                            id: editor_files,
                             x: 8,
                             y: 32,
                             width: file_panel.width - 16,
@@ -98,10 +98,7 @@ Screen(
                             Absolute(
                                 style: [transparent(true)],
                             ) {
-                                Repeater(
-                                    model: app.files,
-                                    key: item.path,
-                                ) {
+                                for index, item in app.files key item.path {
                                     Button(
                                         text: item.name,
                                         on_click: app.open_file(item.id),
@@ -118,7 +115,7 @@ Screen(
                     }
                 }
                 TextArea(
-                    id: "editor_text",
+                    id: editor_text,
                     bind.text: app.text,
                     on_change: app.mark_dirty(),
                     x: app.sidebar_open ? 220 : 18,
@@ -128,7 +125,7 @@ Screen(
                     style: [background(#FFFBEB), foreground(#1E293B), font_family("Courier New"), font_size(12), radius(8)],
                 )
                 Label(
-                    id: "editor_status",
+                    id: editor_status,
                     text: app.status,
                     x: 18,
                     y: card.height - 40,

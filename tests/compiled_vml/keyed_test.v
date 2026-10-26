@@ -1,5 +1,8 @@
 module main
 
+// vml: nested.vml
+// vml: keyed.vml
+
 import ui2
 
 pub struct KeyedContractRow {
@@ -30,7 +33,7 @@ fn test_compiled_nested_repeaters_flatten_and_preserve_independent_keyed_instanc
 			KeyedContractGroup{ id: 'b', rows: [KeyedContractRow{'x', 'B'}] },
 		]
 	}
-	initial := $vml('nested.vml', ui2.rect(0, 0, 400, 300))
+	initial := nested_vml_framed(mut app, ui2.rect(0, 0, 400, 300))
 	mut root := initial.compiled_node
 	root.mount()!
 	children := root.element().children[0].children
@@ -80,7 +83,7 @@ pub fn (mut app KeyedContractApp) new_counter() int {
 }
 
 fn keyed_contract_tree(mut app KeyedContractApp) ui2.Element {
-	return $vml('keyed.vml', ui2.rect(0, 0, 400, 300))
+	return keyed_vml_framed(mut app, ui2.rect(0, 0, 400, 300))
 }
 
 fn test_compiled_keyed_components_keep_instance_state_and_lexical_slot_sources() ! {

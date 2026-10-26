@@ -1,12 +1,12 @@
 Screen(
-    id: "root",
+    id: root,
     style: [background(#F1F5F9)],
 ) {
     Absolute(
         style: [transparent(true)],
     ) {
         View(
-            id: "card",
+            id: card,
             x: 16,
             y: 16,
             width: root.width - 32,
@@ -18,7 +18,7 @@ Screen(
             ) {
                 Label(text: "Split panel", x: 18, y: 14, width: 150, height: 28, style: [foreground(#111827), font_size(18), weight(700)])
                 Label(
-                    id: "split_status",
+                    id: split_status,
                     text: app.status,
                     x: 176,
                     y: 18,
@@ -31,7 +31,7 @@ Screen(
                 Button(text: "Left −", on_click: app.left_less(), native: true, x: card.width - 150, y: 12, width: 60, height: 32)
                 Button(text: "Left +", on_click: app.left_more(), native: true, x: card.width - 84, y: 12, width: 66, height: 32)
                 Button(
-                    id: "reset_splits",
+                    id: reset_splits,
                     text: "Reset",
                     on_click: app.reset_splits(),
                     native: true,
@@ -41,7 +41,7 @@ Screen(
                     height: 32,
                 )
                 View(
-                    id: "stage",
+                    id: stage,
                     x: 18,
                     y: 94,
                     width: card.width - 36,
@@ -52,7 +52,7 @@ Screen(
                         style: [transparent(true)],
                     ) {
                         View(
-                            id: "top_panel",
+                            id: top_panel,
                             x: 1,
                             y: 1,
                             width: stage.width - 2,
@@ -81,7 +81,7 @@ Screen(
                             }
                         }
                         View(
-                            id: "lower_panel",
+                            id: lower_panel,
                             x: 1,
                             y: (stage.height - 10) * app.top_weight + 9,
                             width: stage.width - 2,
@@ -92,7 +92,7 @@ Screen(
                                 style: [transparent(true)],
                             ) {
                                 TextArea(
-                                    id: "split_notes",
+                                    id: split_notes,
                                     bind.text: app.notes,
                                     x: 0,
                                     y: 0,
@@ -101,7 +101,7 @@ Screen(
                                     style: [background(#FEF3C7), foreground(#713F12), font_size(12), radius(7)],
                                 )
                                 Scroll(
-                                    id: "split_grid",
+                                    id: split_grid,
                                     x: (lower_panel.width - 8) * app.left_weight + 8,
                                     y: 0,
                                     width: lower_panel.width -(lower_panel.width - 8) * app.left_weight - 8,
@@ -147,10 +147,7 @@ Screen(
                                                 )
                                             }
                                         }
-                                        Repeater(
-                                            model: app.rows,
-                                            key: item.id,
-                                        ) {
+                                        for index, item in app.rows key item.id {
                                             View(
                                                 x: 0,
                                                 y: 34 + index * 34,

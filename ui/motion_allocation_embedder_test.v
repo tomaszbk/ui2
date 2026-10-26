@@ -1,8 +1,8 @@
-// vtest vflags: -gc boehm -d no_gc_thread_local_alloc -d ui2_embedder
+// vtest vflags: -gc boehm -d no_gc_thread_local_alloc -d ui2_custom_rendering -d ui2_embedder
 @[has_globals]
 module ui2
 
-$if macos && ui2_embedder ?&& !ui2_headless ? {
+$if macos && ui2_custom_rendering ?&& ui2_embedder ?&& !ui2_headless ? {
 	import gg
 	import sokol.gfx
 	import sokol.sgl
@@ -38,7 +38,7 @@ fn test_actual_rotating_scaled_scroll_motion_frames_allocate_nothing() ! {
 }
 
 fn motion_allocation_acceptance(rotating bool) ! {
-	$if macos && ui2_embedder ?&& !ui2_headless ? {
+	$if macos && ui2_custom_rendering ?&& ui2_embedder ?&& !ui2_headless ? {
 		mut ctx := new_surface_draw_context(gg.Config{ width: 400, height: 300 },
 			motion_allocation_environment())!
 		window := C.ui2_embedder_create(&C.ui2_embedder_config{

@@ -1,6 +1,7 @@
 module main
 
 import os
+import ui2.vml
 
 fn compiled_diagnostic(source string, index int) !string {
 	directory := os.join_path(os.temp_dir(), 'ui2-vml-diagnostics-${os.getpid()}', index.str())
@@ -10,14 +11,24 @@ fn compiled_diagnostic(source string, index int) !string {
 	if source.starts_with('component Item(') {
 		boundary := source.last_index(' Screen ') or { panic('missing contract instance') }
 		os.write_file(os.join_path(directory, 'item.vml'), source[..boundary])!
-		document = 'import Item\n' + source[boundary + 1..]
+		document = source[boundary + 1..]
 	}
-	os.write_file(os.join_path(directory, 'invalid.vml'), document)!
+	invalid_path := os.join_path(directory, 'invalid.vml')
+	os.write_file(invalid_path, document)!
+	// Language errors are the generator's; type errors are V's in the
+	// generated builder, mapped to the document by its `#line` directives.
+	vml.write_generated(invalid_path, vml.GenConfig{ module: 'main', dir: directory }, '') or {
+		assert index != -1, err.msg()
+		assert err.msg().contains('invalid.vml') || err.msg().contains('item.vml'), err.msg()
+		return err.msg()
+	}
+	generated := os.read_file(os.join_path(directory, 'invalid_vml.v'))!
+	call := if generated.contains('invalid_vml[A](mut app A)') { 'invalid_vml(mut app)' } else { 'invalid_vml()' }
 	main_path := os.join_path(directory, 'main.v')
-	os.write_file(main_path, 'module main\nimport ui2\npub struct App {\npub:\n readonly_text string\npub mut:\n count int\n name string\n checked bool\n level f64\n rows []int\n string_offset string\n bool_offset bool\n}\npub fn (mut app App) action() {}\nfn wrong_payload(value int) {}\nfn wrong_return() int { return 1 }\nfn main() { mut app := &App{} _ = \$vml("invalid.vml") }\n')!
+	os.write_file(main_path, 'module main\nimport ui2\npub struct App {\npub:\n readonly_text string\npub mut:\n count int\n name string\n checked bool\n level f64\n rows []int\n string_offset string\n bool_offset bool\n}\npub fn (mut app App) action() {}\nfn wrong_payload(value int) {}\nfn wrong_return() int { return 1 }\nfn main() { mut app := &App{} _ = app _ = ${call} }\n')!
 	module_path := [os.dir(@VMODROOT), '@vlib', '@vmodules'].join(os.path_delimiter)
-	result := os.exec([@VEXE, '-b', 'c', '-path', module_path, '-o',
-		os.join_path(directory, 'invalid'), main_path])
+	result := os.exec([@VEXE, '-b', 'c', '-path', module_path, '-d', 'ui2_custom_rendering', '-o',
+		os.join_path(directory, 'invalid'), directory])
 	if index == -1 {
 		assert result.exit_code == 0, result.output
 		return result.output
@@ -52,11 +63,11 @@ fn test_compiled_vml_diagnoses_removed_syntax_and_invalid_types_at_source() {
 		'LayoutVariation {}',
 		'View(x: 0, y: 0)',
 		'Column { View(width: app.count, x: 0) }',
-		'Column { Repeater(model: [1, 2]) { View(x: 2) } }',
+		'Column { for item in [1, 2] key item { View(x: 2) } }',
 		'Label(style: [text_align(.right)])',
 		'Label(style: [text_align("right")])',
 		'Label(style: [text_align(app.name)])',
-		'Label(id: unquoted)',
+		'Label(id: "quoted")',
 		'View(adaptive: true)',
 		'View(size_hint_x: 1)',
 		'View(layout_x: end)',
@@ -97,7 +108,7 @@ fn test_compiled_vml_diagnoses_removed_syntax_and_invalid_types_at_source() {
 		'Column { View(x: 12) }',
 		'Stack { View(x: 1) }',
 		'Grid(columns: 1) { View(y: 2) }',
-		'Column { Repeater(model: app.rows) { View(x: 2) } }',
+		'Column { for row in app.rows key row { View(x: 2) } }',
 	] {
 		compiled_diagnostic(source, index)!
 	}
@@ -142,15 +153,15 @@ fn test_component_contract_rejects_unknown_inputs_readonly_writes_and_bad_events
 		'component Item(changed event(value int)) { Button(on_click: changed("wrong")) } Screen { Item {} }',
 		'component Item(changed event(value int)) { Button(on_click: changed(true)) } Screen { Item {} }',
 		'component Item(changed event(value int)) { Button(on_click: changed(1)) } Screen { Item(on_changed: "changed") }',
-		'component Item(title string) { Label(id: "title", text: title) } Screen { Item(title: "a") }',
+		'component Item(title string) { Label(id: title, text: title) } Screen { Item(title: "a") }',
 		'component Item(title string) { state title := "other" Label(text: title) } Screen { Item(title: "a") }',
 		'component Item(title string) { TextInput(bind.text: title) } Screen { Item(bind.title: app.name) }',
 		'component Item(bind title string) { TextInput(bind.text: title) } Screen { Item(bind.title: app.count * 2) }',
 		'component Item(changed event(value string)) { Button(on_click: changed("x")) } Screen { Item(on_changed: wrong_payload) }',
 		'component Item() { state count := 0 computed bad := app.action() Label(text: bad) } Screen { Item {} }',
-		'component Item() { ref input TextInput Label(ref: input, text: "wrong kind") } Screen { Item {} }',
-		'component Item() { ref input TextInput Label(text: input) } Screen { Item {} }',
-		'component Item() { ref input TextInput TextInput(bind.text: input) } Screen { Item {} }',
+		'component Item() { Column { Label(id: input, text: "wrong kind") Button(on_click: input.set_text("x")) } } Screen { Item {} }',
+		'component Item() { Column { TextInput(id: input) Label(text: input) Button(on_click: input.focus()) } } Screen { Item {} }',
+		'component Item() { Column { for item in app.rows key item { TextInput(id: input) } Button(on_click: input.focus()) } } Screen { Item {} }',
 		'component Item(title string) { fn reset(title int) {} Label(text: title) } Screen { Item(title: "x") }',
 		'component Item(visible bool) { View(width: visible) } Screen { Item(visible: false) }',
 		'component Item() { state checked := false View(width: checked) } Screen { Item {} }',
@@ -176,7 +187,7 @@ fn test_style_contract_rejects_aliases_cycles_collisions_and_wrong_value_types()
 		'View(style: [app.name])',
 		'style first = [second] style second = [first] View(style: [first])',
 		'style card = [radius(8)] style card = [radius(4)] View(style: [card])',
-		'style card = [radius(8)] View(id: "card", style: [card])',
+		'style card = [radius(8)] View(id: card, style: [card])',
 		'component Item(title string) { style title = [radius(8)] View(style: [title]) } Screen { Item(title: "x") }',
 	] {
 		compiled_diagnostic(source, 200 + index)!

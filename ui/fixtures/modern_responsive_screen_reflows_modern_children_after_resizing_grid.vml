@@ -4,7 +4,7 @@ Screen {
         style: [padding(24)],
     ) {
         Grid(
-            id: "body",
+            id: body,
             height: 100,
             columns: 2,
             spacing: 10,

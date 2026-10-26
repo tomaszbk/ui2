@@ -1,5 +1,5 @@
 Screen(
-    id: "root",
+    id: root,
     style: [background(#F1F5F9)],
 ) {
     Absolute(
@@ -23,10 +23,7 @@ Screen(
                     height: 48,
                     style: [foreground(#FFFFFF), font_size(28), text_align(right)],
                 )
-                Repeater(
-                    model: app.keys,
-                    key: item.text,
-                ) {
+                for item in app.keys key item.text {
                     Button(
                         text: item.text,
                         x: 6 + item.column *((((root.width - 24) - 30) / 4) + 6),

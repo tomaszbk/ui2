@@ -390,6 +390,38 @@ fn (f &VmlFrame) eval(e &VmlIExpr) !VmlValue {
 			}
 			return VmlValue(patch)
 		}
+		.index {
+			base := f.eval(e.args[0])!
+			index := f.eval(e.args[1])!
+			if index !is i64 {
+				return e.src.error('an index must be an integer, not ${vml_value_description(index)}')
+			}
+			at := index as i64
+			match base {
+				[]VmlValue {
+					if at < 0 || at >= base.len {
+						return e.src.error('index ${at} is out of range for ${base.len} elements')
+					}
+					return base[int(at)]
+				}
+				string {
+					if at < 0 || at >= base.len {
+						return e.src.error('index ${at} is out of range for ${base.len} bytes')
+					}
+					return VmlValue(i64(base[int(at)]))
+				}
+				else {
+					return e.src.error('${vml_value_description(base)} cannot be indexed')
+				}
+			}
+		}
+		.or_else {
+			value := f.eval(e.args[0]) or { return f.eval(e.args[1])! }
+			if value is VmlNone {
+				return f.eval(e.args[1])!
+			}
+			return value
+		}
 		.app_method, .fn_ref, .event_ref, .external {
 			return VmlValue(VmlCallable{
 				name: e.name
@@ -420,28 +452,54 @@ fn (f &VmlFrame) exec(e &VmlIExpr) ! {
 	}
 }
 
-// write assigns `value` to an assignment target.
+// write assigns `value` to an assignment target with the target's operator.
 fn (f &VmlFrame) write(target &VmlIExpr, value VmlValue) ! {
 	match target.kind {
 		.assign_app {
 			model := f.run.model
 			current := model.read(model.data, target.name) or { VmlValue(VmlNone{}) }
-			model.write(model.data, target.name, vml_assign_value(current, value)) or {
+			next := vml_apply_op(target.op, current, value, target.src)!
+			model.write(model.data, target.name, vml_assign_value(current, next)) or {
 				return target.src.error(err.msg())
 			}
 		}
 		.assign_state {
 			mut signal := f.up(target.depth).cells[target.slot].signal
-			signal.set(vml_assign_value(signal.peek()!, value))!
+			current := signal.peek()!
+			signal.set(vml_assign_value(current, vml_apply_op(target.op, current, value,
+				target.src)!))!
 		}
 		.assign_input {
-			setter := f.up(target.depth).cells[target.slot].setter
-			setter(value)!
+			cell := f.up(target.depth).cells[target.slot]
+			mut next := value
+			if target.op.len > 0 && target.op != '=' {
+				signal := cell.signal
+				next = vml_apply_op(target.op, signal.peek()!, value, target.src)!
+			}
+			setter := cell.setter
+			setter(next)!
 		}
 		else {
 			return target.src.error('not an assignment target')
 		}
 	}
+}
+
+// vml_apply_op is the value an assignment `current op value` stores: `=`
+// stores `value`, `+=` and the others apply their operator, `<<` appends.
+fn vml_apply_op(op string, current VmlValue, value VmlValue, src VmlSourceLocation) !VmlValue {
+	if op.len == 0 || op == '=' {
+		return value
+	}
+	if op == '<<' {
+		if current is []VmlValue {
+			mut items := current.clone()
+			items << value
+			return VmlValue(items)
+		}
+		return src.error('`<<` appends to an array, not to ${vml_value_description(current)}')
+	}
+	return vml_binary(op[..1], current, value, src)!
 }
 
 fn (f &VmlFrame) call_function(e &VmlIExpr, args []VmlValue) ! {
@@ -870,12 +928,15 @@ fn (f &VmlFrame) state(mut owner CompiledVmlComponent, name string, initialize f
 	mut initial := &VmlInitialValue[VmlValue]{
 		value: VmlNone{}
 	}
+	owner.runtime.untracked(fn [mut initial, initialize] () ! {
+		initial.value = initialize()!
+	})!
+	// A state the previous document held survives while its kind is the
+	// same: a changed initializer type starts again.
 	if carried := f.run.carry[carry_key] {
-		initial.value = carried
-	} else {
-		owner.runtime.untracked(fn [mut initial, initialize] () ! {
-			initial.value = initialize()!
-		})!
+		if vml_value_same_kind(carried, initial.value) {
+			initial.value = carried
+		}
 	}
 	signal := new_signal(mut owner.scope, initial.value, SignalOptions[VmlValue]{
 		name:   name
@@ -914,33 +975,57 @@ fn vml_interp_computed(mut owner CompiledVmlComponent, name string, compute fn (
 // declare declares a node of the IR under `parent` (none for the document
 // root). `key` is the key of an enclosing component invocation.
 fn (f &VmlFrame) declare(n &VmlINode, parent ?VmlParent, key ?string) !VmlDynNode {
-	if n.slot_scope != unsafe { nil } {
-		// Slot content: the author's scope, an owner of its own.
-		lexical := if n.slot_from_caller { f.caller } else { f }
-		mut author := lexical.owner
-		mut host := f.owner
-		mut owner := author.slot_child(mut host, n.path) or { return n.src.wrap_error(err) }
-		if n.slot_scope.tokens.len > 0 {
-			owner.prepare_theme_tokens(n.slot_scope.tokens)!
-		}
-		mut frame := lexical.child_frame(owner, n.slot_scope.slots)
-		return frame.declare_node(n, parent, key)
-	}
-	return f.declare_node(n, parent, key)
-}
-
-fn (f &VmlFrame) declare_node(n &VmlINode, parent ?VmlParent, key ?string) !VmlDynNode {
 	return match n.kind {
 		.element { f.element(n, parent, key)! }
 		.component { f.component(n, parent, key)! }
-		.repeater { n.src.error('a Repeater must be the child of a container') }
+		.repeater, .cond { n.src.error('`if` and `for` must be children of a container') }
+		.slot { n.src.error('a `Slot` must be the child of an element') }
 	}
+}
+
+// declare_children declares the children of a container under `parent`.
+fn (f &VmlFrame) declare_children(nodes []&VmlINode, parent VmlParent) ! {
+	for child in nodes {
+		match child.kind {
+			.repeater { f.repeater(child, parent)! }
+			.cond { f.cond(child, parent)! }
+			.slot { f.slot(child, parent)! }
+			else { f.declare(child, parent, none)! }
+		}
+	}
+}
+
+// slot declares the content an invocation gives a component's `Slot`: in a
+// frame of the invocation's caller, under an owner of its own that the
+// receiving component owns (CompiledVmlComponent.slot_child).
+fn (f &VmlFrame) slot(n &VmlINode, parent VmlParent) ! {
+	if n.children.len == 0 {
+		return
+	}
+	mut home := unsafe { f }
+	for home.parent != unsafe { nil } {
+		home = home.parent
+	}
+	caller := home.caller
+	if caller == unsafe { nil } {
+		return n.src.error('`Slot` is only valid inside a component')
+	}
+	author := caller.owner
+	mut host := f.owner
+	mut owner := author.slot_child(mut host, n.path) or { return n.src.wrap_error(err) }
+	if n.slot_scope.tokens.len > 0 {
+		owner.prepare_theme_tokens(n.slot_scope.tokens)!
+	}
+	frame := caller.child_frame(owner, n.slot_scope.slots)
+	frame.declare_children(n.children, parent)!
 }
 
 fn (f &VmlFrame) element(n &VmlINode, parent ?VmlParent, inherited ?string) !VmlDynNode {
 	mut frame := unsafe { f }
-	key := inherited or {
-		if n.key != unsafe { nil } { vml_value_text(f.eval(n.key)!) } else { '' }
+	// An enclosing invocation's key replaces the element's own.
+	mut key := inherited or { '' }
+	if key.len == 0 && n.key != unsafe { nil } {
+		key = vml_value_text(f.eval(n.key)!)
 	}
 	mut owner := f.owner
 	mut node := n.widget.new_node(mut owner, VmlNodeOptions{
@@ -956,38 +1041,42 @@ fn (f &VmlFrame) element(n &VmlINode, parent ?VmlParent, inherited ?string) !Vml
 		f.apply_prop(mut node, p)!
 	}
 	for event in n.events {
-		node.set_prop(event.name, VmlValue(VmlCallable{
-			name: event.name
-			run:  f.event_handler(event)
-		}))!
+		f.apply_event(mut node, event)!
 	}
 	for b in n.binds {
-		target := b.target
-		write := b.write
-		node.prop_value(b.prop, fn [frame, target] () !VmlValue {
-			if vml_ir_uses_app(target) {
-				frame.owner.watch_app()!
-			}
-			return frame.eval(target)!
-		})!
-		node.bind_value(b.prop, fn [frame, target, write] (value VmlValue) ! {
-			current := frame.eval(target) or { VmlValue(VmlNone{}) }
-			frame.write(write, vml_bound_value(current, value))!
-		})!
+		f.apply_bind(mut node, b)!
 	}
 	if n.ref != unsafe { nil } {
 		ref := f.up(n.ref.depth).cells[n.ref.slot].ref
 		node.bind_ref(ref)!
 	}
-	handle := node.vml_parent()
-	for child in n.children {
-		if child.kind == .repeater {
-			f.repeater(child, handle)!
-		} else {
-			f.declare(child, handle, none)!
-		}
-	}
+	f.declare_children(n.children, node.vml_parent())!
 	return node
+}
+
+fn (f &VmlFrame) apply_event(mut node VmlDynNode, event VmlIEvent) ! {
+	node.set_prop(event.name, VmlValue(VmlCallable{
+		name: event.name
+		run:  f.event_handler(event)
+	}))!
+}
+
+// apply_bind connects a bindable property to its target: an effect reads the
+// target and the control's edits write it.
+fn (f &VmlFrame) apply_bind(mut node VmlDynNode, b VmlIBind) ! {
+	frame := unsafe { f }
+	target := b.target
+	write := b.write
+	node.prop_value(b.prop, fn [frame, target] () !VmlValue {
+		if vml_ir_uses_app(target) {
+			frame.owner.watch_app()!
+		}
+		return frame.eval(target)!
+	})!
+	node.bind_value(b.prop, fn [frame, target, write] (value VmlValue) ! {
+		current := frame.eval(target) or { VmlValue(VmlNone{}) }
+		frame.write(write, vml_bound_value(current, value))!
+	})!
 }
 
 // vml_bound_value converts a control's value for its binding target:
@@ -1066,7 +1155,7 @@ fn (f &VmlFrame) repeater(n &VmlINode, parent VmlParent) ! {
 			}
 			return items
 		}
-		return src.error('a Repeater model must be an array, not ${vml_value_description(value)}')
+		return src.error('a `for` iterates an array, not ${vml_value_description(value)}')
 	}, fn [frame, r, src] (item VmlItem) string {
 		mut scope := frame.child_frame(frame.owner, r.key_scope.slots)
 		scope.cells[0].value = item.value
@@ -1082,15 +1171,68 @@ fn (f &VmlFrame) repeater(n &VmlINode, parent VmlParent) ! {
 		mut scope := frame.child_frame(item_owner, r.item_scope.slots)
 		scope.cells[r.item_slot].item = unsafe { item }
 		scope.cells[r.index_slot].index = item_owner.state('@index', 0)!
-		handle := segment.vml_parent()
-		for child in r.children {
-			if child.kind == .repeater {
-				scope.repeater(child, handle)!
-			} else {
-				scope.declare(child, handle, none)!
+		scope.declare_children(r.children, segment.vml_parent())!
+	}, src)!
+}
+
+// cond declares an `if` chain: a keyed list of at most one item, the index
+// of the branch whose condition holds, as compiled VML lowers it.
+fn (f &VmlFrame) cond(n &VmlINode, parent VmlParent) ! {
+	frame := unsafe { f }
+	c := n.cond
+	mut host := parent
+	vml_repeat[int, VmlParent](mut host, c.name, fn [frame, c] () ![]int {
+		if c.cond_uses_app {
+			frame.owner.watch_app()!
+		}
+		for index, branch in c.branches {
+			if branch.cond == unsafe { nil } {
+				return [index]
+			}
+			value := frame.eval(branch.cond)!
+			if branch.bind_slot >= 0 {
+				if value !is VmlNone {
+					return [index]
+				}
+				continue
+			}
+			if value !is bool {
+				return branch.cond.src.error('a condition requires a bool, not ${vml_value_description(value)}')
+			}
+			if value as bool {
+				return [index]
 			}
 		}
-	}, src)!
+		return []int{}
+	}, fn [c] (branch int) string {
+		// Sibling `if` chains share their parent's keys.
+		return '${c.name}:${branch}'
+	}, fn [frame, c] (mut owner CompiledVmlComponent, mut segment VmlSegment, selected &Signal[int]) ! {
+		index := selected.peek()!
+		if index < 0 || index >= c.branches.len {
+			return
+		}
+		branch := c.branches[index]
+		if branch.scope.tokens.len > 0 {
+			owner.prepare_theme_tokens(branch.scope.tokens)!
+		}
+		mut scope := frame.child_frame(owner, branch.scope.slots)
+		if branch.bind_slot >= 0 {
+			condition := branch.cond
+			scope.cells[branch.bind_slot].signal = scope.state(mut owner, '@unwrapped',
+				fn [frame, condition] () !VmlValue {
+				return frame.eval(condition)!
+			})!
+			mut signal := scope.cells[branch.bind_slot].signal
+			owner.scope.effect('@unwrapped', fn [frame, condition, mut signal] () ! {
+				value := frame.eval(condition)!
+				if value !is VmlNone {
+					signal.set(value)!
+				}
+			})!
+		}
+		scope.declare_children(branch.children, segment.vml_parent())!
+	}, n.src)!
 }
 
 fn (f &VmlFrame) component(n &VmlINode, parent ?VmlParent, inherited ?string) !VmlDynNode {
@@ -1170,6 +1312,23 @@ fn (f &VmlFrame) component(n &VmlINode, parent ?VmlParent, inherited ?string) !V
 			})!
 		}
 	}
+	for index, watch in comp.watches {
+		expr := watch.expr
+		body := watch.body
+		slots := watch.scope.slots
+		uses_app := watch.uses_app
+		owner.watch_by[VmlValue]('watch:${index}', fn [component_frame, expr, uses_app] () !VmlValue {
+			if uses_app {
+				component_frame.owner.watch_app()!
+			}
+			return component_frame.eval(expr)!
+		}, fn [component_frame, body, slots] (old VmlValue, now VmlValue) ! {
+			mut scope := component_frame.child_frame(component_frame.owner, slots)
+			scope.cells[0].value = old
+			scope.cells[1].value = now
+			scope.exec(body)!
+		}, vml_value_equal)!
+	}
 	if comp.mount != unsafe { nil } {
 		action := comp.mount
 		owner.on_mount('mount', fn [component_frame, action] () ! {
@@ -1188,13 +1347,20 @@ fn (f &VmlFrame) component(n &VmlINode, parent ?VmlParent, inherited ?string) !V
 			component_frame.exec(action) or { eprintln('ui2 VML cleanup failed: ${err}') }
 		})!
 	}
-	mut key := inherited
-	if key == none && comp.key != unsafe { nil } {
+	// An enclosing invocation's key replaces the invocation's own.
+	mut key := inherited or { '' }
+	if key.len == 0 && comp.key != unsafe { nil } {
 		key = vml_value_text(f.eval(comp.key)!)
 	}
 	mut root := frame.declare(comp.root, parent, key)!
-	for p in comp.layout {
+	for p in comp.forward {
 		f.apply_prop(mut root, p)!
+	}
+	for event in comp.events {
+		f.apply_event(mut root, event)!
+	}
+	for b in comp.binds {
+		f.apply_bind(mut root, b)!
 	}
 	if comp.ref != unsafe { nil } {
 		ref := f.up(comp.ref.depth).cells[comp.ref.slot].ref
@@ -1278,6 +1444,13 @@ fn vml_build(run &VmlSession, frame Rect, config VmlDocumentConfig) !Element {
 		run:   run
 		owner: owner
 		cells: []VmlCell{len: program.scope.slots}
+	}
+	for reference in program.refs {
+		root.cells[reference.slot].ref = &VmlDynRef{
+			name:  reference.name
+			kind:  reference.kind
+			owner: owner
+		}
 	}
 	root.declare(program.root, none, none) or {
 		d.owner.dispose() or {}

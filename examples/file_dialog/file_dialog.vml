@@ -1,12 +1,12 @@
 Screen(
-    id: "root",
+    id: root,
     style: [background(#F1F5F9)],
 ) {
     Absolute(
         style: [transparent(true)],
     ) {
         View(
-            id: "card",
+            id: card,
             x: 16,
             y: 16,
             width: root.width - 32,
@@ -33,7 +33,7 @@ Screen(
                     style: [foreground(#64748B), font_size(12)],
                 )
                 Button(
-                    id: "open_source",
+                    id: open_source,
                     text: "Open source",
                     on_click: app.open_source(),
                     native: true,
@@ -43,7 +43,7 @@ Screen(
                     height: 38,
                 )
                 Button(
-                    id: "save_text",
+                    id: save_text,
                     text: "Save text",
                     on_click: app.save_text(),
                     native: true,
@@ -53,7 +53,7 @@ Screen(
                     height: 38,
                 )
                 Button(
-                    id: "choose_folder",
+                    id: choose_folder,
                     text: "Choose folder",
                     on_click: app.choose_folder(),
                     native: true,
@@ -63,7 +63,7 @@ Screen(
                     height: 38,
                 )
                 Label(
-                    id: "selection",
+                    id: selection,
                     text: app.selection,
                     x: 20,
                     y: 166,

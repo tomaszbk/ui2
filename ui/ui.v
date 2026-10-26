@@ -696,7 +696,7 @@ fn validate_element_properties(el Element, path string) ! {
 			return error('an overlay requires a View with a stable id at ${path}')
 		}
 		if !backend_supports_overlays {
-			return error('overlays require the desktop custom renderer at ${path}')
+			return error('overlays require the desktop custom renderer${custom_renderer_hint()} at ${path}')
 		}
 	}
 	validate_drag_element(el)!
@@ -707,13 +707,13 @@ fn validate_element_properties(el Element, path string) ! {
 	if config := el.motion { config.validate()! }
 	if el.opacity != 1 || el.motion != none {
 		if !backend_supports_motion {
-			return error('opacity and motion require the desktop custom renderer at ${path}')
+			return error('opacity and motion require the desktop custom renderer${custom_renderer_hint()} at ${path}')
 		}
 	}
 	el.authored_visual_transform().matrix(el.frame)!
 	if el.authored_visual_transform() != VisualTransform{} {
 		if !backend_supports_visual_transforms {
-			return error('visual transforms require the custom renderer with desktop text at ${path}')
+			return error('visual transforms require the custom renderer with desktop text${custom_renderer_hint()} at ${path}')
 		}
 	}
 	if (el.focus_scope || el.focus_policy == .focusable) && el.id.len == 0 {
@@ -727,6 +727,9 @@ fn validate_element_properties(el Element, path string) ! {
 		validate_layout_frame(el.frame)!
 		for shape in el.vector_shapes {
 			if !shape.prepared { return error('vector canvas needs prepared geometry at ${path}') }
+		}
+		if !backend_supports_vector_canvas {
+			return error('vector canvas requires ${native_profile_remedy} at ${path}')
 		}
 	}
 	el.image_asset.validate()!
@@ -742,6 +745,12 @@ fn validate_element_properties(el Element, path string) ! {
 	if el.content_size.width != 0 || el.content_size.height != 0 {
 		if el.kind != .view { return error('scaled content must be a view at ${path}') }
 		contain_content(el.frame, el.content_size.width, el.content_size.height)!
+		if !backend_supports_vector_canvas {
+			return error('scaled content requires ${native_profile_remedy} at ${path}')
+		}
+	}
+	if backend_native_controls {
+		validate_native_element(el)!
 	}
 }
 
@@ -1030,8 +1039,10 @@ pub fn button(id string, title string, frame Rect, box_ BoxStyle, style TextStyl
 	}
 }
 
-// with_native_style draws a button's standard bezel and interaction states
-// while it has no declared fill; a declared fill still wins.
+// with_native_style lets the platform render a button's standard bezel and
+// interaction states: the OS control on the native backends, and the
+// standard bezel on the custom renderer while the button has no declared
+// fill.
 pub fn with_native_style(el Element) Element {
 	return Element{
 		...el

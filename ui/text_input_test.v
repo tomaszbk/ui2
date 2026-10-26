@@ -1,4 +1,11 @@
+// vtest vflags: -d vml_fixtures
 module ui2
+
+// vml: fixtures/text_input_routing.vml
+// vml: fixtures/text_input_0.vml
+// vml: fixtures/text_input_1.vml
+// vml: fixtures/text_input_2.vml
+// vml: fixtures/text_input_3.vml
 
 fn test_text_area_preserves_multiline_content_and_events() {
 	el := text_area(
@@ -141,7 +148,7 @@ fn test_text_input_repeated_actions_keep_identity_separate_from_routing() {
 	mut app := InputRoutingModel{
 		items: [InputRoutingItem{ id: 1 }, InputRoutingItem{ id: 2 }]
 	}
-	root := $vml('fixtures/text_input_routing.vml', rect(0, 0, 200, 100))
+	root := text_input_routing_vml_framed(mut app, rect(0, 0, 200, 100))
 	assert root.children.len == 2
 	assert root.children[0].key == '1'
 	assert root.children[1].key == '2'
@@ -166,17 +173,29 @@ fn test_vml_text_area_preserves_rich_runs_and_typography_inheritance() {
 }
 
 fn compiled_text_input_0(frame Rect) Element {
-	return $vml('fixtures/text_input_0.vml', frame)
+	return text_input_0_vml_framed(frame)
 }
 
 fn compiled_text_input_1(frame Rect) Element {
-	return $vml('fixtures/text_input_1.vml', frame)
+	return text_input_1_vml_framed(frame)
 }
 
 fn compiled_text_input_2(frame Rect) Element {
-	return $vml('fixtures/text_input_2.vml', frame)
+	return text_input_2_vml_framed(frame)
+}
+
+// TextInputFixture is the model of the text input fixture: its actions.
+@[heap]
+struct TextInputFixture {
+pub:
+	callback_changed ElementCallback = unsafe { nil }
+	callback_submit  ElementCallback = unsafe { nil }
 }
 
 fn compiled_text_input_3(frame Rect, callback_changed ElementCallback, callback_submit ElementCallback) Element {
-	return $vml('fixtures/text_input_3.vml', frame)
+	mut app := &TextInputFixture{
+		callback_changed: callback_changed
+		callback_submit:  callback_submit
+	}
+	return text_input_3_vml_framed(mut app, frame)
 }

@@ -1,12 +1,14 @@
-// vtest vflags: -d vml_props
+// vtest vflags: -d vml_props -d vml_fixtures
 module ui2
+
+// vml: fixtures/props_composites.vml
 
 // Golden equivalence of the composite props (Accordion, Collapsible, Tabs,
 // Carousel, ScreenManager, Tree and their child declarations).
 
 
 fn props_composites_compiled(mut app PropsApp, frame Rect) Element {
-	return $vml('fixtures/props_composites.vml', frame)
+	return props_composites_vml_framed(mut app, frame)
 }
 
 fn props_composites_tree(mut app PropsApp) PNode {

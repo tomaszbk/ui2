@@ -1,5 +1,5 @@
 Screen(
-    id: "root",
+    id: root,
     style: [background(#F1F5F9)],
 ) {
     Flex(
@@ -8,7 +8,7 @@ Screen(
         style: [padding(16), transparent(true)],
     ) {
         Column(
-            id: "card",
+            id: card,
             width: 368,
             max_width: 368,
             height: 358,
@@ -17,7 +17,7 @@ Screen(
         ) {
             Label(text: "Book a flight", height: 28, style: [foreground(#111827), font_size(20), weight(700)])
             Dropdown(
-                id: "flight-type",
+                id: flight_type,
                 bind.text: app.flight_type,
                 on_change: app.flight_type_changed(),
                 height: 40,
@@ -32,7 +32,7 @@ Screen(
             ) {
                 Label(text: "Departure(DD.MM.YYYY)", height: 18, style: [foreground(#475569), font_size(12)])
                 TextInput(
-                    id: "departure",
+                    id: departure,
                     bind.text: app.departure,
                     on_change: app.validate_departure(),
                     height: 28,
@@ -49,7 +49,7 @@ Screen(
                     style: [foreground((app.flight_type == "return flight") ? #475569 : #94A3B8), font_size(12)],
                 )
                 TextInput(
-                    id: "return-date",
+                    id: return_date,
                     bind.text: app.return_date,
                     on_change: app.validate_return(),
                     enabled: (app.flight_type == "return flight"),
@@ -59,7 +59,7 @@ Screen(
             }
             View(height: 12, style: [transparent(true)])
             Button(
-                id: "book",
+                id: book,
                 text: "Book",
                 on_click: app.book(),
                 native: true,
@@ -68,7 +68,7 @@ Screen(
                 style: [background((app.departure_valid &&(!(app.flight_type == "return flight") || app.return_valid)) ? #3478D4 : #CBD5E1), foreground(#FFFFFF), weight(700), text_align(center), radius(7)],
             )
             Label(
-                id: "confirmation",
+                id: confirmation,
                 text: app.confirmation,
                 hidden: app.confirmation.len == 0,
                 height: 34,

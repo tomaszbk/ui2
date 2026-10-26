@@ -1,12 +1,12 @@
 Screen(
-    id: "root",
+    id: root,
     style: [background(#F1F5F9)],
 ) {
     Absolute(
         style: [transparent(true)],
     ) {
         View(
-            id: "card",
+            id: card,
             x: 16,
             y: 16,
             width: root.width - 32,
@@ -18,7 +18,7 @@ Screen(
             ) {
                 Label(text: "Chunk view", x: 18, y: 14, width: 160, height: 28, style: [foreground(#111827), font_size(18), weight(700)])
                 Checkbox(
-                    id: "first_open",
+                    id: first_open,
                     text: "First chunk",
                     bind.checked: app.first_open,
                     on_click: app.sections_changed(),
@@ -29,7 +29,7 @@ Screen(
                     style: [foreground(#334155), font_size(11)],
                 )
                 Checkbox(
-                    id: "second_open",
+                    id: second_open,
                     text: "Second chunk",
                     bind.checked: app.second_open,
                     on_click: app.sections_changed(),
@@ -40,7 +40,7 @@ Screen(
                     style: [foreground(#334155), font_size(11)],
                 )
                 Dropdown(
-                    id: "alignment",
+                    id: alignment,
                     bind.text: app.alignment,
                     on_change: app.alignment_changed(),
                     x: card.width - 234,
@@ -54,7 +54,7 @@ Screen(
                     Option(text: "Right")
                 }
                 Button(
-                    id: "reset_chunks",
+                    id: reset_chunks,
                     text: "Reset",
                     on_click: app.reset_chunks(),
                     native: true,
@@ -64,7 +64,7 @@ Screen(
                     height: 34,
                 )
                 View(
-                    id: "chunk_stage",
+                    id: chunk_stage,
                     x: 18,
                     y: 62,
                     width: card.width - 36,
@@ -75,7 +75,7 @@ Screen(
                         style: [transparent(true)],
                     ) {
                         View(
-                            id: "first_chunk",
+                            id: first_chunk,
                             hidden: ! app.first_open,
                             x: 16,
                             y: 16,
@@ -129,7 +129,7 @@ Screen(
                             }
                         }
                         View(
-                            id: "second_chunk",
+                            id: second_chunk,
                             hidden: ! app.second_open,
                             x: 16,
                             y: 32 +(chunk_stage.height - 48) / 2,
@@ -169,7 +169,7 @@ Screen(
                     }
                 }
                 Label(
-                    id: "chunk_status",
+                    id: chunk_status,
                     text: app.status,
                     x: 18,
                     y: card.height - 40,

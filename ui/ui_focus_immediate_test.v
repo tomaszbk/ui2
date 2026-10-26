@@ -1,7 +1,8 @@
+// vtest vflags: -d ui2_custom_rendering
 @[has_globals]
 module ui2
 
-$if (android || ios || linux || macos || windows) && !ui2_headless ? {
+$if (android || linux || ((ios || macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
 	import gg
 	import sokol.sapp
 
@@ -424,7 +425,7 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? {
 	}
 }
 
-$if (android || ios || linux || macos || windows) && !ui2_headless ? {
+$if (android || linux || ((ios || macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
 	fn test_custom_dropdown_tab_and_slider_keys_keep_control_meanings() {
 		mut w := &Window{}
 		mount_focus_fixture(mut w, screen(0xffffff, [
@@ -479,7 +480,7 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? {
 	}
 }
 
-$if (android || ios || linux || macos || windows) && !ui2_headless ? {
+$if (android || linux || ((ios || macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
 	fn test_custom_hidden_mounted_inputs_retain_edits_but_cannot_take_focus() {
 		mut w := &Window{}
 		root := screen(0xffffff, [view('parent', rect(0, 0, 200, 100), BoxStyle{}, [Element{ kind: .text_field, id: 'edit', text: 'declared' }])])
@@ -496,7 +497,7 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? {
 	}
 }
 
-$if (android || ios || linux || macos || windows) && !ui2_headless ? {
+$if (android || linux || ((ios || macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
 	fn test_custom_tab_with_only_programmatic_targets_is_consumed_without_moving() {
 		mut w := &Window{}
 		mount_focus_fixture(mut w, screen(0xffffff, [Element{ kind: .text_field, id: 'edit', text: 'ñ', tab_index: -1 }]))

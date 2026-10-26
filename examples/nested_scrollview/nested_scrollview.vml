@@ -1,12 +1,12 @@
 Screen(
-    id: "root",
+    id: root,
     style: [background(#F1F5F9)],
 ) {
     Absolute(
         style: [transparent(true)],
     ) {
         View(
-            id: "card",
+            id: card,
             x: 16,
             y: 16,
             width: root.width - 32,
@@ -33,7 +33,7 @@ Screen(
                     style: [foreground(#64748B), font_size(12)],
                 )
                 Scroll(
-                    id: "outer_scroll",
+                    id: outer_scroll,
                     x: 16,
                     y: 74,
                     width: card.width - 32,
@@ -43,10 +43,7 @@ Screen(
                     Absolute(
                         style: [transparent(true)],
                     ) {
-                        Repeater(
-                            model: app.boxes,
-                            key: item.id,
-                        ) {
+                        for index, item in app.boxes key item.id {
                             View(
                                 x: 8,
                                 y: 8 + index * 116,

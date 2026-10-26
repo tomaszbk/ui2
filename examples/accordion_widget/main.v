@@ -1,5 +1,7 @@
 module main
 
+// vml: accordion_widget.vml
+
 import ui2
 
 const accordion_width = 440
@@ -22,9 +24,9 @@ fn main() {
 }
 
 fn build_accordion_widget(mut app AccordionDemo) ui2.Element {
-	return $vml('accordion_widget.vml')
+	return accordion_widget_vml(mut app)
 }
 
 fn accordion_widget_tree(mut app AccordionDemo, frame ui2.Rect) ui2.Element {
-	return $vml('accordion_widget.vml', frame)
+	return accordion_widget_vml_framed(mut app, frame)
 }

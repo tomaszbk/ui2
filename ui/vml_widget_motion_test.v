@@ -1,5 +1,7 @@
-// vtest vflags: -d vml_props
+// vtest vflags: -d vml_props -d vml_fixtures
 module ui2
+
+// vml: ../tests/compiled_vml/motion.vml
 
 // Motion and transform properties of a component root
 // (tests/compiled_vml/motion.vml) against the compiled lowering, and the
@@ -18,7 +20,7 @@ pub mut:
 }
 
 fn w_motion_compiled(mut app WMotionApp) Element {
-	return $vml('../tests/compiled_vml/motion.vml', rect(0, 0, 160, 80))
+	return motion_vml_framed(mut app, rect(0, 0, 160, 80))
 }
 
 fn w_motion_generic(mut app WMotionApp) !Element {

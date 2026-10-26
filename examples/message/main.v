@@ -1,5 +1,7 @@
 module main
 
+// vml: message.vml
+
 import ui2
 
 const message_width = 420
@@ -50,9 +52,9 @@ fn main() {
 }
 
 fn build_message(mut app MessageDemo) ui2.Element {
-	return $vml('message.vml')
+	return message_vml(mut app)
 }
 
 fn message_tree(mut app MessageDemo, frame ui2.Rect) ui2.Element {
-	return $vml('message.vml', frame)
+	return message_vml_framed(mut app, frame)
 }

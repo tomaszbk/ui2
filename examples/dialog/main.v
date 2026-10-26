@@ -1,5 +1,7 @@
 module main
 
+// vml: dialog.vml
+
 import ui2
 
 const dialog_width = 460
@@ -38,9 +40,9 @@ fn main() {
 }
 
 fn build_dialog(mut app DialogDemo) ui2.Element {
-	return $vml('dialog.vml')
+	return dialog_vml(mut app)
 }
 
 fn dialog_tree(mut app DialogDemo, frame ui2.Rect) ui2.Element {
-	return $vml('dialog.vml', frame)
+	return dialog_vml_framed(mut app, frame)
 }

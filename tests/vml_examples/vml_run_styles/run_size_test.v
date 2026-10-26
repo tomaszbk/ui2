@@ -1,5 +1,7 @@
 module main
 
+// vml: runs.vml
+
 import ui2
 
 @[heap]
@@ -9,7 +11,7 @@ pub mut:
 }
 
 fn run_size_tree(mut app RunSizeApp) ui2.Element {
-	return $vml('runs.vml', ui2.rect(0, 0, 300, 120))
+	return runs_vml_framed(mut app, ui2.rect(0, 0, 300, 120))
 }
 
 fn test_static_run_style_overrides_inherited_font_size() ! {

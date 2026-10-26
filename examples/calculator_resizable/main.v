@@ -1,5 +1,7 @@
 module main
 
+// vml: calculator_resizable.vml
+
 import math
 import ui2
 
@@ -219,9 +221,9 @@ fn main() {
 }
 
 fn build_calculator_resizable(mut app ResizableCalculator) ui2.Element {
-	return $vml('calculator_resizable.vml')
+	return calculator_resizable_vml(mut app)
 }
 
 fn calculator_resizable_tree(mut app ResizableCalculator, frame ui2.Rect) ui2.Element {
-	return $vml('calculator_resizable.vml', frame)
+	return calculator_resizable_vml_framed(mut app, frame)
 }

@@ -1,5 +1,7 @@
 module main
 
+// vml: grid_layout.vml
+
 import ui2
 
 const grid_width = 360
@@ -19,9 +21,9 @@ fn main() {
 }
 
 fn build_grid_layout(mut app GridLayoutDemo) ui2.Element {
-	return $vml('grid_layout.vml')
+	return grid_layout_vml()
 }
 
 fn grid_layout_tree(mut app GridLayoutDemo, frame ui2.Rect) ui2.Element {
-	return $vml('grid_layout.vml', frame)
+	return grid_layout_vml_framed(frame)
 }

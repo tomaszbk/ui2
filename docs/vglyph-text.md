@@ -9,9 +9,10 @@ There is no separate `v install vglyph` step.
 
 | Build | Text path |
 | --- | --- |
-| Linux, macOS and Windows | vglyph |
-| macOS with `-d ui2_embedder` | vglyph with the owned Metal context |
-| Android, iOS and `-d ui2_headless` | Fontstash text and CPU measurement |
+| Linux, and macOS or Windows with `-d ui2_custom_rendering` | vglyph |
+| macOS with `-d ui2_custom_rendering -d ui2_embedder` | vglyph with the owned Metal context |
+| Android, iOS with `-d ui2_custom_rendering`, and `-d ui2_headless` | Fontstash text and CPU measurement |
+| Native macOS, Windows and iOS | the operating system's text: AppKit measures with NSAttributedString; Win32 and UIKit use CPU measurement |
 
 The iOS, Android and headless paths do not import the vendored runtime and
 do not require its C libraries. The remaining Fontstash helpers serve those

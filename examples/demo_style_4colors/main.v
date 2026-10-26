@@ -1,5 +1,7 @@
 module main
 
+// vml: demo_style_4colors.vml
+
 import ui2
 
 const style_colors_width = 640
@@ -63,9 +65,9 @@ fn main() {
 }
 
 fn build_demo_style_4colors(mut app StyleFourColorsDemo) ui2.Element {
-	return $vml('demo_style_4colors.vml')
+	return demo_style_4colors_vml(mut app)
 }
 
 fn demo_style_4colors_tree(mut app StyleFourColorsDemo, frame ui2.Rect) ui2.Element {
-	return $vml('demo_style_4colors.vml', frame)
+	return demo_style_4colors_vml_framed(mut app, frame)
 }

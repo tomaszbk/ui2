@@ -233,7 +233,7 @@ fn test_screen_manager_selected_content_fills_its_slot() {
 	}
 }
 
-$if linux || macos || windows || ui2_headless ?|| ui2_document_library ? {
+$if linux || ((macos || windows) && ui2_custom_rendering ?) || ui2_headless ?|| ui2_document_library ? {
 	fn test_overlay_content_reflows_and_reopens_without_promoting_authored_descendant_frames() ! {
 		for kind in [OverlayKind.dialog, .popover] {
 			for layout in [LayoutKind.flex, .grid, .stack] {
@@ -318,7 +318,7 @@ fn slot_runtime_content(layout LayoutKind) !Element {
 	}
 }
 
-$if macos && !ui2_headless ? {
+$if macos && ui2_custom_rendering ? && !ui2_headless ? {
 	fn test_custom_composite_resize_preserves_local_edit_selection_focus_scroll_and_ime() {
 		for composite in [SlotComposite.screen_manager] {
 			for layout in [LayoutKind.flex, .grid, .stack] {

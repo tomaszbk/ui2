@@ -1,4 +1,7 @@
+// ui2 profiles: custom (sets the title of the renderer's sokol window)
 module main
+
+// vml: change_title.vml
 
 import ui2
 
@@ -39,9 +42,9 @@ fn main() {
 }
 
 fn build_change_title(mut app ChangeTitleDemo) ui2.Element {
-	return $vml('change_title.vml')
+	return change_title_vml(mut app)
 }
 
 fn change_title_tree(mut app ChangeTitleDemo, frame ui2.Rect) ui2.Element {
-	return $vml('change_title.vml', frame)
+	return change_title_vml_framed(mut app, frame)
 }

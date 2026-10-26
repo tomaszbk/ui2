@@ -1,0 +1,20 @@
+component ScoreCard(label string, choice ?string, scores map[string]int, format fn (int) string, picked event(value string)) {
+    state count := 0
+    state steps := [0]
+    watch old, now := count {
+        app.watched(old, now)
+    }
+    Column {
+        Label(text: label)
+        if name := choice {
+            Label(text: "chose ${name}")
+        } else {
+            Label(text: "no choice")
+        }
+        Label(text: format(scores["a"]))
+        Button(text: "${count}", on_click: { count += 2; steps << count })
+        Label(text: "${steps.len}:${steps[steps.len - 1]}")
+        TextInput(id: name_field)
+        Button(on_click: { name_field.set_text(label); picked(label) })
+    }
+}

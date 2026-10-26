@@ -10,6 +10,8 @@
 // toggling one the menu bar is installed again with the new value.
 module main
 
+// vml: menubar.vml
+
 import ui2
 
 const menubar_width = 660
@@ -201,18 +203,18 @@ fn menubar_callback(action string) ui2.ElementCallback {
 
 fn menubar_callbacks() map[string]ui2.ElementCallback {
 	return {
-		'reset': menubar_callback('reset')
+		'reset': callback_reset
 	}
 }
 
+fn callback_reset(event ui2.ElementEvent) {
+	menubar_callback('reset')(event)
+}
+
 fn build_menubar(mut app MenubarDemo) ui2.Element {
-	callbacks := menubar_callbacks()
-	callback_reset := callbacks['reset'] or { panic('missing reset callback') }
-	return $vml('menubar.vml')
+	return menubar_vml(mut app)
 }
 
 fn menubar_tree(mut app MenubarDemo, frame ui2.Rect) ui2.Element {
-	callbacks := menubar_callbacks()
-	callback_reset := callbacks['reset'] or { panic('missing reset callback') }
-	return $vml('menubar.vml', frame)
+	return menubar_vml_framed(mut app, frame)
 }

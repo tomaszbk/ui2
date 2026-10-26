@@ -1,5 +1,5 @@
 Screen(
-    id: "root",
+    id: root,
     style: [background(#F1F5F9)],
 ) {
     Absolute(
@@ -14,7 +14,7 @@ Screen(
             style: [text_align(center), foreground(#0F172A), font_size(22), weight(700)],
         )
         Button(
-            id: "open_editor",
+            id: open_editor,
             text: "Edit profile",
             on_click: app.open_editor(),
             x: (root.width - 140) / 2,
@@ -24,7 +24,7 @@ Screen(
             style: [background(#2563EB), foreground(#FFFFFF), radius(8)],
         )
         Dialog(
-            id: "editor",
+            id: editor,
             width: 340,
             height: 260,
             open: app.editing,
@@ -34,12 +34,12 @@ Screen(
             Absolute(
                 style: [transparent(true)],
             ) {
-                Label(id: "editor_title", text: "Edit profile", x: 24, y: 16, width: 292, height: 30,
+                Label(id: editor_title, text: "Edit profile", x: 24, y: 16, width: 292, height: 30,
                     style: [text_align(center), foreground(#0F172A), font_size(20), weight(700)])
                 View(x: 0, y: 52, width: 340, height: 1, style: [background(#E2E8F0)])
                 Label(text: "Display name", x: 24, y: 73, width: 292, height: 22, style: [foreground(#475569)])
                 TextInput(
-                    id: "name",
+                    id: name,
                     bind.text: app.name,
                     x: 24,
                     y: 101,
@@ -48,7 +48,7 @@ Screen(
                     style: [background(#F8FAFC), radius(7)],
                 )
                 Button(
-                    id: "cancel",
+                    id: cancel,
                     text: "Cancel",
                     on_click: app.close_editor(),
                     x: 46,
@@ -58,7 +58,7 @@ Screen(
                     style: [background(#E2E8F0), foreground(#334155), radius(8)],
                 )
                 Button(
-                    id: "save",
+                    id: save,
                     text: "Save",
                     on_click: app.save_editor(),
                     x: 184,

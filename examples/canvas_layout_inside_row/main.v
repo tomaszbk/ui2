@@ -1,5 +1,7 @@
 module main
 
+// vml: canvas_layout_inside_row.vml
+
 import os
 import ui2
 
@@ -99,39 +101,45 @@ pub fn (mut app InsideRowDemo) rotate() {
 
 fn canvas_layout_inside_row_callbacks() map[string]ui2.ElementCallback {
 	return {
-		'return': fn (event ui2.ElementEvent) {
-			mut state := unsafe { inside_row_state }
-			state.return_to_tray()
-			event.window.request_refresh()
-		}
-		'rotate': fn (event ui2.ElementEvent) {
-			mut state := unsafe { inside_row_state }
-			state.rotate()
-			event.window.request_refresh()
-		}
-		'logo':   fn (event ui2.ElementEvent) {
-			if event.kind !in [.pointer_down, .pointer_drag, .pointer_up] {
-				return
-			}
-			// Events are inverse-mapped through the logo's current affine transform.
-			// Recover the window point before changing placement (and its pivot).
-			// An unpresented/removed logo or card intentionally ignores input.
-			_ = event.window.visual_geometry('logo') or { return }
-			_ = event.window.visual_geometry('card') or { return }
-			logo := event.window.mounted_geometry('logo') or { return }
-			card := event.window.mounted_geometry('card') or { return }
-			window := logo.transform.point(event.x, event.y)
-			mut state := unsafe { inside_row_state }
-			match event.kind {
-				.pointer_down { state.grab_logo(window.x, window.y, card) }
-				.pointer_drag, .pointer_up {
-					state.drag_logo(window.x, window.y, card)
-				}
-				else {}
-			}
-			event.window.request_refresh()
-		}
+		'return': callback_return
+		'rotate': callback_rotate
+		'logo':   callback_logo
 	}
+}
+
+fn callback_return(event ui2.ElementEvent) {
+	mut state := unsafe { inside_row_state }
+	state.return_to_tray()
+	event.window.request_refresh()
+}
+
+fn callback_rotate(event ui2.ElementEvent) {
+	mut state := unsafe { inside_row_state }
+	state.rotate()
+	event.window.request_refresh()
+}
+
+fn callback_logo(event ui2.ElementEvent) {
+	if event.kind !in [.pointer_down, .pointer_drag, .pointer_up] {
+		return
+	}
+	// Events are inverse-mapped through the logo's current affine transform.
+	// Recover the window point before changing placement (and its pivot).
+	// An unpresented/removed logo or card intentionally ignores input.
+	_ = event.window.visual_geometry('logo') or { return }
+	_ = event.window.visual_geometry('card') or { return }
+	logo := event.window.mounted_geometry('logo') or { return }
+	card := event.window.mounted_geometry('card') or { return }
+	window := logo.transform.point(event.x, event.y)
+	mut state := unsafe { inside_row_state }
+	match event.kind {
+		.pointer_down { state.grab_logo(window.x, window.y, card) }
+		.pointer_drag, .pointer_up {
+			state.drag_logo(window.x, window.y, card)
+		}
+		else {}
+	}
+	event.window.request_refresh()
 }
 
 fn main() {
@@ -149,17 +157,9 @@ fn main() {
 }
 
 fn build_canvas_layout_inside_row(mut app InsideRowDemo) ui2.Element {
-	callbacks := canvas_layout_inside_row_callbacks()
-	callback_rotate := callbacks['rotate'] or { panic('missing rotate callback') }
-	callback_return := callbacks['return'] or { panic('missing return callback') }
-	callback_logo := callbacks['logo'] or { panic('missing logo callback') }
-	return $vml('canvas_layout_inside_row.vml')
+	return canvas_layout_inside_row_vml(mut app)
 }
 
 fn canvas_layout_inside_row_tree(mut app InsideRowDemo, frame ui2.Rect) ui2.Element {
-	callbacks := canvas_layout_inside_row_callbacks()
-	callback_rotate := callbacks['rotate'] or { panic('missing rotate callback') }
-	callback_return := callbacks['return'] or { panic('missing return callback') }
-	callback_logo := callbacks['logo'] or { panic('missing logo callback') }
-	return $vml('canvas_layout_inside_row.vml', frame)
+	return canvas_layout_inside_row_vml_framed(mut app, frame)
 }

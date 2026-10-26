@@ -2,7 +2,7 @@
 
 UI2 uses declarative containers to assign parent-local frames. New screens can
 use `Flex`, `Grid`, explicit alignment, and viewport expressions.
-They work with compiled VML (`$vml`) and the
+They work with compiled VML (generated builders) and the
 V API, on every backend. Resizing invalidates layout.
 
 The layout containers are Flex (including Row and Column), Grid, Stack, Absolute,
@@ -162,8 +162,8 @@ syntax, named grid areas, CSS track expressions, baseline alignment or subgrid.
 Other container types should keep explicit preferred dimensions when nested in
 Flex. Text shaping, bidirectional layout and complete grapheme handling remain
 the separate text-stack work in the product plan. Font metrics may differ
-across backends. The external V compiler's `$vml` lowering
-supports Flex/Grid/Stack/Absolute with the same typed V layout API.
+across backends. The VML generator (`ui2 gen`) lowers Flex/Grid/Stack/Absolute
+to the same typed V layout API.
 
 ## Verification
 
@@ -202,5 +202,5 @@ removed. Authored child `x`/`y`, including zero, require a direct Absolute paren
 Element geometry expressions such as `root.width - 32` in width/height require
 the same context, including preferred-size limits, basis, gap, padding and track
 dimensions. Viewport predicates can still select visibility or responsive modes.
-Repeaters inherit their containing layout. App and item data
+`for` items inherit their containing layout. App and item data
 remain valid size bindings. Layout-generated frames are already allocated.

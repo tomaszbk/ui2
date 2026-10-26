@@ -1,5 +1,7 @@
 module main
 
+// vml: resizable_menu_window.vml
+
 import ui2
 
 const menu_window_width = 680
@@ -47,9 +49,9 @@ fn main() {
 }
 
 fn build_resizable_menu_window(mut app ResizableMenuDemo) ui2.Element {
-	return $vml('resizable_menu_window.vml')
+	return resizable_menu_window_vml(mut app)
 }
 
 fn resizable_menu_window_tree(mut app ResizableMenuDemo, frame ui2.Rect) ui2.Element {
-	return $vml('resizable_menu_window.vml', frame)
+	return resizable_menu_window_vml_framed(mut app, frame)
 }

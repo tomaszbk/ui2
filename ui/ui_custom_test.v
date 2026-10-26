@@ -1,7 +1,7 @@
 @[has_globals]
 module ui2
 
-$if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_document_library ? {
+$if (android || linux || ((ios || macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? && !ui2_document_library ? {
 	fn set_checkbox_checked(mut w Window, id string, checked bool) {
 		if id !in w.active_checkboxes {
 			return
@@ -681,7 +681,7 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_doc
 }
 
 fn test_text_field_selection_text_uses_rune_offsets() {
-	$if (android || ios) && !ui2_headless ? {
+	$if (android || (ios && ui2_custom_rendering ?)) && !ui2_headless ? {
 		before, selected := text_field_selection_text('a🙂bc', TextSelection{
 			anchor: 4
 			caret:  1
@@ -692,7 +692,7 @@ fn test_text_field_selection_text_uses_rune_offsets() {
 }
 
 fn test_text_field_selection_origin_respects_text_alignment() {
-	$if (android || ios || linux || macos || windows) && !ui2_headless ? {
+	$if (android || linux || ((ios || macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
 		assert text_field_aligned_text_origin(10, 100, 40, .left) == 10
 		assert text_field_aligned_text_origin(10, 100, 40, .center) == 40
 		assert text_field_aligned_text_origin(10, 100, 40, .right) == 70

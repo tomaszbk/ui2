@@ -1,0 +1,21 @@
+Screen {
+    Column {
+        if app.mode == 0 {
+            Label(text: "zero")
+        } else if app.mode == 1 {
+            Label(text: "one")
+        } else {
+            Label(text: "many")
+        }
+        for r, row in app.board key row.id {
+            Row {
+                for c, cell in row.cells key cell.id {
+                    Button(text: "${r}.${c}=${app.board[r].cells[c].value}", on_click: app.board[r].cells[c].value += 10)
+                }
+            }
+        }
+        Label(text: app.player().name.to_upper())
+        Button(on_click: { app.log << "x"; app.total *= 3 })
+        ScoreCard(label: "card", choice: app.choice, scores: app.scores, format: app.format_score, on_picked: app.picked)
+    }
+}

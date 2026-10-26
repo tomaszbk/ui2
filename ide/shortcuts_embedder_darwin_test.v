@@ -1,11 +1,11 @@
-// vtest vflags: -d vml_interpreter -d ui2_embedder
+// vtest vflags: -d vml_interpreter -d ui2_custom_rendering -d ui2_embedder
 // vfmt off
 @[has_globals]
 module main
 
 import ui2
 
-$if macos && ui2_embedder ? && !ui2_headless ? {
+$if macos && ui2_custom_rendering ? && ui2_embedder ? && !ui2_headless ? {
 	import macos
 
 	#include "@VMODROOT/ide/shortcuts_embedder_darwin_test.h"
@@ -76,7 +76,7 @@ $if macos && ui2_embedder ? && !ui2_headless ? {
 }
 
 fn test_mounted_ide_navigator_focus_preserves_backspace_and_delete_commands() {
-	$if macos && ui2_embedder ? && !ui2_headless ? {
+	$if macos && ui2_custom_rendering ? && ui2_embedder ? && !ui2_headless ? {
 		pool := macos.autorelease_pool_new()
 		defer { macos.release(pool) }
 		previous := *ide_state
@@ -99,7 +99,7 @@ fn test_mounted_ide_navigator_focus_preserves_backspace_and_delete_commands() {
 }
 
 fn test_mounted_ide_control_focus_consumes_nudge_undo_and_redo_once() {
-	$if macos && ui2_embedder ? && !ui2_headless ? {
+	$if macos && ui2_custom_rendering ? && ui2_embedder ? && !ui2_headless ? {
 		pool := macos.autorelease_pool_new()
 		defer { macos.release(pool) }
 		previous := *ide_state
@@ -140,7 +140,7 @@ fn test_mounted_ide_control_focus_consumes_nudge_undo_and_redo_once() {
 }
 
 fn test_mounted_ide_editor_focus_preserves_draft_selection_and_composition() {
-	$if macos && ui2_embedder ? && !ui2_headless ? {
+	$if macos && ui2_custom_rendering ? && ui2_embedder ? && !ui2_headless ? {
 		pool := macos.autorelease_pool_new()
 		defer { macos.release(pool) }
 		previous := *ide_state

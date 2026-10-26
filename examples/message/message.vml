@@ -1,5 +1,5 @@
 Screen(
-    id: "root",
+    id: root,
     style: [background(#F1F5F9)],
 ) {
     Absolute(
@@ -32,7 +32,7 @@ Screen(
                     style: [foreground(#64748B), font_size(13)],
                 )
                 Button(
-                    id: "show_native_message",
+                    id: show_native_message,
                     text: "Show native message",
                     on_click: app.show_native_message(),
                     native: true,
@@ -42,7 +42,7 @@ Screen(
                     height: 36,
                 )
                 Button(
-                    id: "ask_native_question",
+                    id: ask_native_question,
                     text: "Ask a native question",
                     on_click: app.ask_native_question(),
                     native: true,
@@ -52,7 +52,7 @@ Screen(
                     height: 36,
                 )
                 Button(
-                    id: "show_message",
+                    id: show_message,
                     text: "Show drawn message",
                     on_click: app.show_message(),
                     native: true,
@@ -62,7 +62,7 @@ Screen(
                     height: 36,
                 )
                 Label(
-                    id: "answer",
+                    id: answer,
                     text: app.answer,
                     x: 16,
                     y: 228,
@@ -73,13 +73,13 @@ Screen(
             }
         }
         MessageBox(
-            id: "overlay",
+            id: overlay,
             hidden: ! app.visible,
             title: "Hello World",
             text: "This message came from the ui example.",
             dialog_width: 360,
         ) {
-            Button(id: "close_message", text: "OK", on_click: app.close_message())
+            Button(id: close_message, text: "OK", on_click: app.close_message())
         }
     }
 }

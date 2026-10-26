@@ -4,7 +4,7 @@ module ui2
 // Every window owns its input, text, focus, scroll, menu and timing state, so
 // two windows that mount the same ids never see each other's state.
 
-$if (android || ios || linux || macos || windows) && !ui2_headless ? {
+$if (android || linux || ((ios || macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
 	struct WindowStateEvent {
 		window string
 		event  ElementEvent
@@ -39,7 +39,7 @@ $if (android || ios || linux || macos || windows) && !ui2_headless ? {
 }
 
 fn test_custom_windows_same_ids_keep_independent_edits_focus_scroll_and_menus() {
-	$if (android || ios || linux || macos || windows) && !ui2_headless ? {
+	$if (android || linux || ((ios || macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
 		previous_events := window_state_events.clone()
 		mut first := &Window{}
 		mut second := &Window{}
@@ -102,7 +102,7 @@ fn test_custom_windows_same_ids_keep_independent_edits_focus_scroll_and_menus() 
 }
 
 fn test_custom_windows_keep_focus_and_pending_scroll_requests_apart() {
-	$if (android || ios || linux || macos || windows) && !ui2_headless ? {
+	$if (android || linux || ((ios || macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
 		mut first := &Window{}
 		mut second := &Window{}
 		first.focused_field = 'first focus'
@@ -119,7 +119,7 @@ fn test_custom_windows_keep_focus_and_pending_scroll_requests_apart() {
 // Motion is retained by each window's own motion tree; visual deadlines are
 // window state too.
 fn test_custom_windows_isolate_visual_deadlines() {
-	$if (android || ios || linux || macos || windows) && !ui2_headless ? {
+	$if (android || linux || ((ios || macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
 		mut first := &Window{}
 		mut second := &Window{}
 		assert voidptr(first.motion_tree) != voidptr(second.motion_tree)
@@ -141,7 +141,7 @@ fn test_custom_windows_isolate_visual_deadlines() {
 }
 
 fn test_custom_windows_keep_scroll_callback_declarations_independent() {
-	$if (android || ios || linux || macos || windows) && !ui2_headless ? {
+	$if (android || linux || ((ios || macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
 		mut first := &Window{}
 		mut second := &Window{}
 		mut first_events := &[]ElementEvent{}

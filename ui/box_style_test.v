@@ -1,4 +1,8 @@
+// vtest vflags: -d vml_fixtures
 module ui2
+
+// vml: fixtures/box_style_0.vml
+// vml: fixtures/box_style_1.vml
 
 import math
 
@@ -159,9 +163,9 @@ fn test_fractional_rounded_border_retains_subunit_outer_and_inner_corners() {
 }
 
 fn compiled_box_style_0(frame Rect) Element {
-	return $vml('fixtures/box_style_0.vml', frame)
+	return box_style_0_vml_framed(frame)
 }
 
 fn compiled_box_style_1(frame Rect) Element {
-	return $vml('fixtures/box_style_1.vml', frame)
+	return box_style_1_vml_framed(frame)
 }

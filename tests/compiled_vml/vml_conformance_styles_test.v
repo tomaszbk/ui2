@@ -2,6 +2,11 @@
 // vtest build: vml_conformance?
 module main
 
+// vml: styles.vml
+// vml: styles_local.vml
+// vml: styles_custom_tokens.vml
+// vml: motion.vml
+
 import ui2
 
 // Conformance of the interpreter with compiled VML (ui2.vml_conformance) for
@@ -23,19 +28,19 @@ pub mut:
 }
 
 fn styles_tree(mut app StylesContractApp, frame ui2.Rect) ui2.Element {
-	return $vml('styles.vml', frame)
+	return styles_vml_framed(mut app, frame)
 }
 
 fn local_styles_tree(mut app StylesContractApp, frame ui2.Rect) ui2.Element {
-	return $vml('styles_local.vml', frame)
+	return styles_local_vml_framed(mut app, frame)
 }
 
 fn custom_tokens_tree(mut app StylesContractApp, frame ui2.Rect) ui2.Element {
-	return $vml('styles_custom_tokens.vml', frame)
+	return styles_custom_tokens_vml_framed(frame)
 }
 
 fn motion_tree(mut app StylesContractApp, frame ui2.Rect) ui2.Element {
-	return $vml('motion.vml', frame)
+	return motion_vml_framed(mut app, frame)
 }
 
 fn styles_reset(mut app StylesContractApp) {

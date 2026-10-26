@@ -1,11 +1,11 @@
-View(id: "document", width: 420, height: 300) {
-    Dialog(id: "surface", width: 360, height: 180, open: true) {
+View(id: document, width: 420, height: 300) {
+    Dialog(id: surface, width: 360, height: 180, open: true) {
         Absolute {
-            TextInput(id: "draft", text: "España ñ", x: 8, y: 8,
+            TextInput(id: draft, text: "España ñ", x: 8, y: 8,
                 width: surface.width - 16, height: 30)
-            Label(id: "resolved_width", text: surface.width, x: 8, y: 48,
+            Label(id: resolved_width, text: surface.width, x: 8, y: 48,
                 width: surface.width - 16, height: 30)
-            Label(id: "resolved_x", text: surface.x, x: 8, y: 86,
+            Label(id: resolved_x, text: surface.x, x: 8, y: 86,
                 width: surface.width - 16, height: 30)
         }
     }

@@ -1,5 +1,8 @@
-// vtest vflags: -d vml_props
+// vtest vflags: -d vml_props -d vml_fixtures
 module ui2
+
+// vml: ../tests/compiled_vml/keyed.vml
+// vml: ../tests/compiled_vml/nested.vml
 
 // The keyed repeater fixture (tests/compiled_vml/keyed.vml): a Repeater of
 // RowItem components with state and a slot, written by hand in the shape of
@@ -33,7 +36,7 @@ pub fn (mut app WKeyedApp) new_counter() int {
 }
 
 fn w_keyed_compiled(mut app WKeyedApp, frame Rect) Element {
-	return $vml('../tests/compiled_vml/keyed.vml', frame)
+	return keyed_vml_framed(mut app, frame)
 }
 
 // RowItem(title: item.title) { Label(text: "${item.title}/${app.suffix}") },
@@ -154,7 +157,7 @@ fn test_generic_keyed_repeater_matches_compiled_vml() {
 }
 
 fn w_nested_compiled(mut app WKeyedApp, frame Rect) Element {
-	return $vml('../tests/compiled_vml/nested.vml', frame)
+	return nested_vml_framed(mut app, frame)
 }
 
 // A repeater inside a repeater item: the item's roots and the inner

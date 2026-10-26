@@ -1,6 +1,4 @@
-import MotionCard
-
-Screen(id: "root", style: [background(#F1F5F9)]) {
+Screen(id: root, style: [background(#F1F5F9)]) {
     Column(gap: 16, style: [padding(24)]) {
         Label(text: "Motion and presence", height: 36, style: [font_size(28), weight(700), foreground(#0F172A)])
         Label(text: "Interrupt an exit to keep each card's counter and local edits.", height: 24, style: [foreground(#475569)])
@@ -11,8 +9,8 @@ Screen(id: "root", style: [background(#F1F5F9)]) {
             Button(text: "Reduced motion", flex_grow: 1, on_click: app.toggle_reduced())
         }
         Label(text: "Reduced motion: ${app.reduced}; completed card cleanups: ${app.cleaned}", height: 24, style: [foreground(#166534)])
-        Column(id: "panel", hidden: !app.shown, motion: app.panel_motion(), translate_x: app.panel_x(), rotation: app.panel_rotation(), origin_x: 280, origin_y: 100, gap: 12, height: 240, style: [padding(16), background(#FFFFFF), radius(12)]) {
-            Repeater(model: app.rows, key: item.id) {
+        Column(id: panel, hidden: !app.shown, motion: app.panel_motion(), translate_x: app.panel_x(), rotation: app.panel_rotation(), origin_x: 280, origin_y: 100, gap: 12, height: 240, style: [padding(16), background(#FFFFFF), radius(12)]) {
+            for item in app.rows key item.id {
                 MotionCard(title: item.title)
             }
         }

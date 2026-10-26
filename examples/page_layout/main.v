@@ -1,5 +1,7 @@
 module main
 
+// vml: page_layout.vml
+
 import ui2
 
 const page_width = 420
@@ -30,9 +32,9 @@ fn main() {
 }
 
 fn build_page_layout(mut app PageLayoutDemo) ui2.Element {
-	return $vml('page_layout.vml')
+	return page_layout_vml(mut app)
 }
 
 fn page_layout_tree(mut app PageLayoutDemo, frame ui2.Rect) ui2.Element {
-	return $vml('page_layout.vml', frame)
+	return page_layout_vml_framed(mut app, frame)
 }

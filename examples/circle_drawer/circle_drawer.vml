@@ -1,12 +1,12 @@
 Screen(
-    id: "root",
+    id: root,
     style: [background(#F1F5F9)],
 ) {
     Absolute(
         style: [transparent(true)],
     ) {
         View(
-            id: "card",
+            id: card,
             x: 16,
             y: 16,
             width: root.width - 32,
@@ -18,7 +18,7 @@ Screen(
             ) {
                 Label(text: "Circle drawer", x: 18, y: 14, width: 180, height: 28, style: [foreground(#111827), font_size(18), weight(700)])
                 Button(
-                    id: "undo",
+                    id: undo,
                     text: "Undo",
                     on_click: callback_undo,
                     enabled: app.can_undo,
@@ -29,7 +29,7 @@ Screen(
                     height: 34,
                 )
                 Button(
-                    id: "redo",
+                    id: redo,
                     text: "Redo",
                     on_click: callback_redo,
                     enabled: app.can_redo,
@@ -40,7 +40,7 @@ Screen(
                     height: 34,
                 )
                 Button(
-                    id: "radius_less",
+                    id: radius_less,
                     text: "Radius −",
                     on_click: callback_radius_less,
                     enabled: app.selected_id >= 0,
@@ -51,7 +51,7 @@ Screen(
                     height: 34,
                 )
                 Button(
-                    id: "radius_more",
+                    id: radius_more,
                     text: "+",
                     on_click: callback_radius_more,
                     enabled: app.selected_id >= 0,
@@ -62,7 +62,7 @@ Screen(
                     height: 34,
                 )
                 View(
-                    id: "circle_canvas",
+                    id: circle_canvas,
                     on_pointer_up: callback_circle_canvas,
                     clickable: true,
                     cursor: "pointing_hand",
@@ -84,10 +84,7 @@ Screen(
                             height: 24,
                             style: [text_align(center), foreground(#94A3B8), font_size(13)],
                         )
-                        Repeater(
-                            model: app.circles,
-                            key: item.id,
-                        ) {
+                        for item in app.circles key item.id {
                             View(
                                 x: item.x - item.radius - 3,
                                 y: item.y - item.radius - 3,
@@ -124,7 +121,7 @@ Screen(
                     }
                 }
                 Label(
-                    id: "circle_status",
+                    id: circle_status,
                     text: app.status,
                     x: 18,
                     y: card.height - 40,

@@ -1,5 +1,7 @@
 module main
 
+// vml: accent_color.vml
+
 import ui2
 
 const accent_color_width = 800
@@ -149,37 +151,49 @@ fn accent_track_width(frame ui2.Rect) f64 {
 
 fn accent_color_callbacks() map[string]ui2.ElementCallback {
 	return {
-		'reset':        fn (event ui2.ElementEvent) {
-			mut state := unsafe { accent_color_state }
-			state.reset()
-			event.window.request_refresh()
-		}
-		'subscribe':    fn (event ui2.ElementEvent) {
-			mut state := unsafe { accent_color_state }
-			state.subscribed = event.checked
-			event.window.request_refresh()
-		}
-		'sample_input': fn (event ui2.ElementEvent) {
-			mut state := unsafe { accent_color_state }
-			state.sample = event.text
-			event.window.request_refresh()
-		}
-		'track_red':    fn (event ui2.ElementEvent) {
-			mut state := unsafe { accent_color_state }
-			state.track_channel('red', event, accent_track_width(event.window.bounds()))
-			event.window.request_refresh()
-		}
-		'track_green':  fn (event ui2.ElementEvent) {
-			mut state := unsafe { accent_color_state }
-			state.track_channel('green', event, accent_track_width(event.window.bounds()))
-			event.window.request_refresh()
-		}
-		'track_blue':   fn (event ui2.ElementEvent) {
-			mut state := unsafe { accent_color_state }
-			state.track_channel('blue', event, accent_track_width(event.window.bounds()))
-			event.window.request_refresh()
-		}
+		'reset':        callback_reset
+		'subscribe':    callback_subscribe
+		'sample_input': callback_sample_input
+		'track_red':    callback_track_red
+		'track_green':  callback_track_green
+		'track_blue':   callback_track_blue
 	}
+}
+
+fn callback_reset(event ui2.ElementEvent) {
+	mut state := unsafe { accent_color_state }
+	state.reset()
+	event.window.request_refresh()
+}
+
+fn callback_subscribe(event ui2.ElementEvent) {
+	mut state := unsafe { accent_color_state }
+	state.subscribed = event.checked
+	event.window.request_refresh()
+}
+
+fn callback_sample_input(event ui2.ElementEvent) {
+	mut state := unsafe { accent_color_state }
+	state.sample = event.text
+	event.window.request_refresh()
+}
+
+fn callback_track_red(event ui2.ElementEvent) {
+	mut state := unsafe { accent_color_state }
+	state.track_channel('red', event, accent_track_width(event.window.bounds()))
+	event.window.request_refresh()
+}
+
+fn callback_track_green(event ui2.ElementEvent) {
+	mut state := unsafe { accent_color_state }
+	state.track_channel('green', event, accent_track_width(event.window.bounds()))
+	event.window.request_refresh()
+}
+
+fn callback_track_blue(event ui2.ElementEvent) {
+	mut state := unsafe { accent_color_state }
+	state.track_channel('blue', event, accent_track_width(event.window.bounds()))
+	event.window.request_refresh()
 }
 
 fn main() {
@@ -203,25 +217,11 @@ fn (mut app AccentColorDemo) track_channel(channel string, event ui2.ElementEven
 }
 
 fn build_accent_color(mut app AccentColorDemo) ui2.Element {
-	callbacks := accent_color_callbacks()
-	callback_reset := callbacks['reset'] or { panic('missing reset callback') }
-	callback_track_red := callbacks['track_red'] or { panic('missing track_red callback') }
-	callback_track_green := callbacks['track_green'] or { panic('missing track_green callback') }
-	callback_track_blue := callbacks['track_blue'] or { panic('missing track_blue callback') }
-	callback_subscribe := callbacks['subscribe'] or { panic('missing subscribe callback') }
-	callback_sample_input := callbacks['sample_input'] or { panic('missing sample_input callback') }
-	return $vml('accent_color.vml')
+	return accent_color_vml(mut app)
 }
 
 fn accent_color_tree(mut app AccentColorDemo, frame ui2.Rect) ui2.Element {
-	callbacks := accent_color_callbacks()
-	callback_reset := callbacks['reset'] or { panic('missing reset callback') }
-	callback_track_red := callbacks['track_red'] or { panic('missing track_red callback') }
-	callback_track_green := callbacks['track_green'] or { panic('missing track_green callback') }
-	callback_track_blue := callbacks['track_blue'] or { panic('missing track_blue callback') }
-	callback_subscribe := callbacks['subscribe'] or { panic('missing subscribe callback') }
-	callback_sample_input := callbacks['sample_input'] or { panic('missing sample_input callback') }
-	return $vml('accent_color.vml', frame)
+	return accent_color_vml_framed(mut app, frame)
 }
 
 pub fn (app &AccentColorDemo) display_color() string {

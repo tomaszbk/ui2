@@ -45,4 +45,4 @@ label's concatenated text remains visible, but new typography attributes and
 per-run styles are not drawn there. Existing rich TextArea contracts remain
 unchanged. This does not extend grapheme editing,
 IME or accessibility support. Run syntax is lowered by the pinned V compiler
-through `$vml`; unsupported presentation properties are diagnosed.
+through generated builders; unsupported presentation properties are diagnosed.

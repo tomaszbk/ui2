@@ -1,41 +1,51 @@
 module main
 
+// vml: typography.vml
+// vml: scaled.vml
+// vml: styles.vml
+// vml: bound_input.vml
+// vml: flex.vml
+// vml: grid.vml
+// vml: wrap.vml
+// vml: intrinsic.vml
+// vml: dynamic.vml
+
 import ui2
 
 fn typography() ui2.Element {
-	return $vml('typography.vml')
+	return typography_vml()
 }
 
 fn composition() ui2.Element {
-	return $vml('scaled.vml')
+	return scaled_vml()
 }
 
 fn styled(mut app VisualApp) ui2.Element {
-	return $vml('styles.vml')
+	return styles_vml(mut app)
 }
 
 fn bound_input(mut app VisualApp) ui2.Element {
-	return $vml('bound_input.vml')
+	return bound_input_vml(mut app)
 }
 
 fn flex_row() ui2.Element {
-	return $vml('flex.vml')
+	return flex_vml()
 }
 
 fn grid_view() ui2.Element {
-	return $vml('grid.vml')
+	return grid_vml()
 }
 
 fn wrapped() ui2.Element {
-	return $vml('wrap.vml')
+	return wrap_vml()
 }
 
 fn intrinsic() ui2.Element {
-	return $vml('intrinsic.vml')
+	return intrinsic_vml()
 }
 
 fn dynamic_typography(mut app VisualApp) ui2.Element {
-	return $vml('dynamic.vml')
+	return dynamic_vml(mut app)
 }
 
 fn assert_equivalent_element(actual ui2.Element, expected ui2.Element) {

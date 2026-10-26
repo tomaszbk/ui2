@@ -1,5 +1,7 @@
 module main
 
+// vml: showcase.vml
+
 import ui2
 
 @[heap]
@@ -20,7 +22,7 @@ pub fn (mut app VisualApp) submit() {
 }
 
 fn build(mut app VisualApp) ui2.Element {
-	return $vml('showcase.vml')
+	return showcase_vml(mut app)
 }
 
 fn main() {

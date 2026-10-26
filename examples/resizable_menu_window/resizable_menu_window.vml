@@ -1,12 +1,12 @@
 Screen(
-    id: "root",
+    id: root,
     style: [background(#F1F5F9)],
 ) {
     Absolute(
         style: [transparent(true)],
     ) {
         View(
-            id: "card",
+            id: card,
             x: 16,
             y: 16,
             width: root.width - 32,
@@ -33,7 +33,7 @@ Screen(
                     style: [foreground(#64748B), font_size(12)],
                 )
                 Checkbox(
-                    id: "compact",
+                    id: compact,
                     text: "Compact menu width",
                     bind.checked: app.compact,
                     x: 18,
@@ -43,7 +43,7 @@ Screen(
                     style: [foreground(#334155), font_size(13)],
                 )
                 View(
-                    id: "menu_stage",
+                    id: menu_stage,
                     x: 18,
                     y: 120,
                     width: card.width - 36,
@@ -54,7 +54,7 @@ Screen(
                         style: [transparent(true)],
                     ) {
                         Button(
-                            id: "actions",
+                            id: actions,
                             text: "Actions",
                             on_click: app.open_actions(),
                             native: true,
@@ -63,13 +63,13 @@ Screen(
                             width: app.compact ? 190 : menu_stage.width - 28,
                             height: 36,
                         ) {
-                            MenuItem(id: "delete_developers", text: "Delete all developers", on_click: app.delete_developers())
-                            MenuItem(id: "delete_users", text: "Delete users", on_click: app.delete_users())
-                            MenuItem(id: "export_users", text: "Export users", on_click: app.export_users())
-                            MenuItem(id: "exit_selected", text: "Exit", on_click: app.exit_selected())
+                            MenuItem(id: delete_developers, text: "Delete all developers", on_click: app.delete_developers())
+                            MenuItem(id: delete_users, text: "Delete users", on_click: app.delete_users())
+                            MenuItem(id: export_users, text: "Export users", on_click: app.export_users())
+                            MenuItem(id: exit_selected, text: "Exit", on_click: app.exit_selected())
                         }
                         Button(
-                            id: "add_user",
+                            id: add_user,
                             text: "Add user",
                             on_click: app.add_user(),
                             native: true,
@@ -91,7 +91,7 @@ Screen(
                         style: [transparent(true)],
                     ) {
                         Label(
-                            id: "menu_status",
+                            id: menu_status,
                             text: app.status,
                             x: 10,
                             y: 14,

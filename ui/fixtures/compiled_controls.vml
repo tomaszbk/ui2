@@ -1,16 +1,14 @@
-import ControlPanel
-
-Screen(id: "root") {
+Screen(id: root) {
     ControlPanel {
         // Centered controls without a declared height use their intrinsic size.
         Row(gap: 12, height: 32, align_items: center) {
-            Slider(id: "level", bind.value: app.level, width: 200)
+            Slider(id: level, bind.value: app.level, width: 200)
             Label(text: "Level ${app.level}", width: 120)
         }
         Row(gap: 12, height: 32, align_items: center) {
-            Switch(id: "dark", bind.active: app.dark)
+            Switch(id: dark, bind.active: app.dark)
             Label(text: app.dark ? "Dark" : "Light", width: 120)
         }
-        View(id: "tile", button_behavior: true, on_click: app.taps++, width: 80, height: 80, style: [border_width(2), border_color(#64748B), focus([outline_color(#10B981), outline_width(3), outline_offset(3)])])
+        View(id: tile, button_behavior: true, on_click: app.taps++, width: 80, height: 80, style: [border_width(2), border_color(#64748B), focus([outline_color(#10B981), outline_width(3), outline_offset(3)])])
     }
 }

@@ -13,13 +13,17 @@ $if ui2_document_library ? {
 	pub const backend_supports_overlays = true
 	pub const backend_supports_motion = true
 	pub const backend_supports_visual_transforms = true
+	pub const backend_supports_vector_canvas = true
+	pub const backend_supports_drag_drop = true
+	pub const backend_native_controls = false
 	pub const backend_embedder = false
 	pub const backend_needs_host = true
 	// The designer builds a document library with its own backend flags, so the
 	// library builds components and measures controls the way its host will
-	// draw them: with the custom renderer, unless the host is headless. This is
-	// the only backend condition this backend reads.
-	const document_host_custom = $if ui2_headless ? { false } $else { true }
+	// draw them: with the custom renderer, with AppKit's controls, or headless.
+	// These are the only backend conditions this backend reads.
+	const document_host_custom = $if (android || linux || ((ios || macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? { true } $else { false }
+	const document_host_appkit = $if macos && !ui2_custom_rendering ? && !ui2_headless ? { true } $else { false }
 
 	@[noreturn]
 	fn document_without_window(api string) {
@@ -163,6 +167,7 @@ $if ui2_document_library ? {
 
 	fn backend_control_insets(element Element) ?LayoutPadding {
 		if document_host_custom { return custom_renderer_insets(element) }
+		if document_host_appkit { return appkit_insets(element) }
 		return none
 	}
 

@@ -1,5 +1,5 @@
 Screen(
-    id: "root",
+    id: root,
     style: [background(#F1F5F9)],
 ) {
     Absolute(
@@ -14,7 +14,7 @@ Screen(
             style: [foreground(#0F172A), font_size(20), weight(700)],
         )
         Flex(
-            id: "actions",
+            id: actions,
             x: 20,
             y: 68,
             width: root.width - 40,

@@ -2,6 +2,8 @@
 // vtest build: vml_conformance?
 module main
 
+// vml: motion_helpers.vml
+
 import ui2
 
 // Conformance of the interpreter with compiled VML (ui2.vml_conformance) for
@@ -18,7 +20,7 @@ pub mut:
 }
 
 fn motion_conformance_tree(mut app MotionConformanceApp, frame ui2.Rect) ui2.Element {
-	return $vml('motion_helpers.vml', frame)
+	return motion_helpers_vml_framed(mut app, frame)
 }
 
 fn motion_conformance_reset(mut app MotionConformanceApp) {

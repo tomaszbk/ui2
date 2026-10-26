@@ -1,5 +1,5 @@
 Screen(
-    id: "root",
+    id: root,
     style: [background(#F1F5F9)],
 ) {
     Stack(
@@ -8,7 +8,7 @@ Screen(
         style: [transparent(true)],
     ) {
         Scroll(
-            id: "users_page",
+            id: users_page,
             style: [background(#F1F5F9)],
         ) {
             Row(
@@ -24,7 +24,7 @@ Screen(
                 ) {
                     Label(text: "Add user", height: 26, style: [font_size(18), weight(700)])
                     TextInput(
-                        id: "first_name",
+                        id: first_name,
                         bind.text: app.first_name,
                         on_change: app.clear_error(),
                         placeholder: "First name",
@@ -32,7 +32,7 @@ Screen(
                         style: [background(app.is_error ? #FFEEEE : #FFFFFF), radius(6)],
                     )
                     TextInput(
-                        id: "last_name",
+                        id: last_name,
                         bind.text: app.last_name,
                         on_change: app.clear_error(),
                         placeholder: "Last name",
@@ -40,7 +40,7 @@ Screen(
                         style: [background(app.is_error ? #FFEEEE : #FFFFFF), radius(6)],
                     )
                     TextInput(
-                        id: "age",
+                        id: age,
                         bind.text: app.age,
                         on_change: app.clear_error(),
                         placeholder: "Age",
@@ -49,7 +49,7 @@ Screen(
                         style: [background(app.is_error ? #FFEEEE : #FFFFFF), radius(6)],
                     )
                     TextInput(
-                        id: "password",
+                        id: password,
                         bind.text: app.password,
                         placeholder: "Password",
                         secure: true,
@@ -57,14 +57,14 @@ Screen(
                         style: [background(#FFFFFF), radius(6)],
                     )
                     Checkbox(
-                        id: "online_registration",
+                        id: online_registration,
                         text: "Online registration",
                         bind.checked: app.online_registration,
                         height: 30,
                         style: [font_size(12)],
                     )
                     Checkbox(
-                        id: "subscribe",
+                        id: subscribe,
                         text: "Subscribe to the newsletter",
                         bind.checked: app.subscribe,
                         height: 30,
@@ -72,7 +72,7 @@ Screen(
                     )
                     Label(text: "Country", height: 18, style: [foreground(#475569), font_size(12)])
                     Dropdown(
-                        id: "country",
+                        id: country,
                         bind.text: app.country,
                         height: 32,
                         style: [background(#FFFFFF), font_size(12), radius(6)],
@@ -88,7 +88,7 @@ Screen(
                         style: [transparent(true)],
                     ) {
                         Button(
-                            id: "add-user",
+                            id: add_user,
                             text: "Add user",
                             enabled: app.users.len < app.max_users,
                             on_click: app.add_user(),
@@ -97,7 +97,7 @@ Screen(
                             style: [background(#3478D4), foreground(#FFFFFF), radius(6), weight(700), text_align(center)],
                         )
                         Button(
-                            id: "help",
+                            id: help,
                             text: "?",
                             on_click: app.open_help(),
                             native: true,
@@ -128,7 +128,7 @@ Screen(
                     style: [transparent(true)],
                 ) {
                     Scroll(
-                        id: "users_table",
+                        id: users_table,
                         height: 270,
                         persistent: true,
                         style: [background(#FFFFFF)],
@@ -149,10 +149,7 @@ Screen(
                                 Label(text: "Age", flex_basis: 0, flex_grow: 12, style: [foreground(#FFFFFF), font_size(13), weight(700)])
                                 Label(text: "Country", flex_basis: 0, flex_grow: 42, style: [foreground(#FFFFFF), font_size(13), weight(700)])
                             }
-                            Repeater(
-                                model: app.users,
-                                key: item.id,
-                            ) {
+                            for index, item in app.users key item.id {
                                 Row(
                                     height: 32,
                                     flex_shrink: 0,
@@ -179,13 +176,13 @@ Screen(
                         justify: end,
                         style: [transparent(true)],
                     ) {
-                        Image(id: "v_logo", source: app.logo_path, width: 50, height: 50)
+                        Image(id: v_logo, source: app.logo_path, width: 50, height: 50)
                     }
                 }
             }
         }
         Column(
-            id: "help_dialog",
+            id: help_dialog,
             hidden: ! app.show_help,
             align_self_x: center,
             align_self_y: center,
@@ -201,7 +198,7 @@ Screen(
                 style: [transparent(true)],
             ) {
                 Button(
-                    id: "close-help",
+                    id: close_help,
                     text: "Close",
                     on_click: app.close_help(),
                     native: true,

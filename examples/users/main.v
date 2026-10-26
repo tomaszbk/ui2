@@ -1,4 +1,7 @@
+// ui2 profiles: custom (rounded text inputs)
 module main
+
+// vml: users.vml
 
 import json2
 import os
@@ -20,7 +23,7 @@ pub:
 	country    string
 }
 
-pub struct App {
+pub struct UsersApp {
 	data_path string
 pub:
 	max_users int = maximum_users
@@ -41,11 +44,11 @@ pub mut:
 	window &ui2.Window = unsafe { nil }
 }
 
-fn initial_app() App {
+fn initial_app() UsersApp {
 	return app_with_data_path(users_data_path())
 }
 
-fn app_with_data_path(data_path string) App {
+fn app_with_data_path(data_path string) UsersApp {
 	mut users := default_users()
 	if os.exists(data_path) {
 		users = load_users(data_path) or {
@@ -53,7 +56,7 @@ fn app_with_data_path(data_path string) App {
 			default_users()
 		}
 	}
-	app := App{
+	app := UsersApp{
 		data_path: data_path
 		logo_path: users_logo_path()
 		users:     users
@@ -102,12 +105,12 @@ fn next_user_id(users []User) int {
 	return next_id
 }
 
-fn (app &App) save_users() ! {
+fn (app &UsersApp) save_users() ! {
 	os.mkdir_all(os.dir(app.data_path))!
 	os.write_file(app.data_path, json2.encode(app.users, escape_unicode: true))!
 }
 
-fn (app &App) persist_users() {
+fn (app &UsersApp) persist_users() {
 	app.save_users() or { eprintln('ui2 users: could not save `${app.data_path}`: ${err}') }
 }
 
@@ -137,11 +140,11 @@ fn numeric_age(value string) string {
 	return characters.string()
 }
 
-pub fn (mut app App) clear_error() {
+pub fn (mut app UsersApp) clear_error() {
 	app.is_error = false
 }
 
-pub fn (mut app App) add_user() {
+pub fn (mut app UsersApp) add_user() {
 	if app.users.len >= app.max_users {
 		return
 	}
@@ -171,23 +174,23 @@ pub fn (mut app App) add_user() {
 	}
 }
 
-pub fn (mut app App) remove_user(id int) {
+pub fn (mut app UsersApp) remove_user(id int) {
 	app.users = app.users.filter(it.id != id)
 	app.persist_users()
 }
 
-pub fn (mut app App) open_help() {
+pub fn (mut app UsersApp) open_help() {
 	app.show_help = true
 }
 
-pub fn (mut app App) close_help() {
+pub fn (mut app UsersApp) close_help() {
 	app.show_help = false
 }
 
 fn main() {
 	mut model := initial_app()
 	mut app := ui2.new_app()
-	model.window = ui2.open_compiled_vml[App](mut app,
+	model.window = ui2.open_compiled_vml[UsersApp](mut app,
 		build:     build_users
 		model:     &model
 		title:     'V UI Demo'
@@ -200,10 +203,10 @@ fn main() {
 	app.run()
 }
 
-fn build_users(mut app App) ui2.Element {
-	return $vml('users.vml')
+fn build_users(mut app UsersApp) ui2.Element {
+	return users_vml(mut app)
 }
 
-fn users_tree(mut app App, frame ui2.Rect) ui2.Element {
-	return $vml('users.vml', frame)
+fn users_tree(mut app UsersApp, frame ui2.Rect) ui2.Element {
+	return users_vml_framed(mut app, frame)
 }

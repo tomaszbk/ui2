@@ -1,12 +1,12 @@
 Screen(
-    id: "root",
+    id: root,
     style: [background(#F1F5F9)],
 ) {
     Absolute(
         style: [transparent(true)],
     ) {
         View(
-            id: "card",
+            id: card,
             x: 16,
             y: 16,
             width: root.width - 32,
@@ -33,7 +33,7 @@ Screen(
                     style: [foreground(#64748B), font_size(12)],
                 )
                 Scroll(
-                    id: "tree_list",
+                    id: tree_list,
                     x: 18,
                     y: 76,
                     width: card.width - 36,
@@ -43,10 +43,7 @@ Screen(
                     Absolute(
                         style: [transparent(true)],
                     ) {
-                        Repeater(
-                            model: app.visible,
-                            key: item.id,
-                        ) {
+                        for index, item in app.visible key item.id {
                             Button(
                                 text: item.folder ?(item.expanded ? "▾  ${item.title}" : "▸  ${item.title}") : "•  ${item.title}",
                                 on_click: app.select_node(item.id),
@@ -60,7 +57,7 @@ Screen(
                     }
                 }
                 Label(
-                    id: "tree_status",
+                    id: tree_status,
                     text: app.status,
                     x: 18,
                     y: card.height - 40,

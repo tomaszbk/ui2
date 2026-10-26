@@ -2,7 +2,7 @@
 // Keep gg imports out of the headless and document builds.
 module ui2
 
-$if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_document_library ? {
+$if (android || linux || ((ios || macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? && !ui2_document_library ? {
 	import math
 
 	const text_area_vertical_padding = 8.0

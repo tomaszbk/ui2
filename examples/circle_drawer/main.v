@@ -1,5 +1,7 @@
 module main
 
+// vml: circle_drawer.vml
+
 import math
 import ui2
 
@@ -150,34 +152,44 @@ fn (mut app CircleDrawerDemo) redo() {
 
 fn circle_drawer_callbacks() map[string]ui2.ElementCallback {
 	return {
-		'undo':          fn (event ui2.ElementEvent) {
-			mut state := unsafe { circle_drawer_state }
-			state.undo()
-			event.window.request_refresh()
-		}
-		'redo':          fn (event ui2.ElementEvent) {
-			mut state := unsafe { circle_drawer_state }
-			state.redo()
-			event.window.request_refresh()
-		}
-		'radius_less':   fn (event ui2.ElementEvent) {
-			mut state := unsafe { circle_drawer_state }
-			state.adjust_radius(-4)
-			event.window.request_refresh()
-		}
-		'radius_more':   fn (event ui2.ElementEvent) {
-			mut state := unsafe { circle_drawer_state }
-			state.adjust_radius(4)
-			event.window.request_refresh()
-		}
-		'circle_canvas': fn (event ui2.ElementEvent) {
-			mut state := unsafe { circle_drawer_state }
-			if event.kind == .pointer_up {
-				state.add_or_select(event.x - circle_canvas_root_x, event.y - circle_canvas_root_y)
-			}
-			event.window.request_refresh()
-		}
+		'undo':          callback_undo
+		'redo':          callback_redo
+		'radius_less':   callback_radius_less
+		'radius_more':   callback_radius_more
+		'circle_canvas': callback_circle_canvas
 	}
+}
+
+fn callback_undo(event ui2.ElementEvent) {
+	mut state := unsafe { circle_drawer_state }
+	state.undo()
+	event.window.request_refresh()
+}
+
+fn callback_redo(event ui2.ElementEvent) {
+	mut state := unsafe { circle_drawer_state }
+	state.redo()
+	event.window.request_refresh()
+}
+
+fn callback_radius_less(event ui2.ElementEvent) {
+	mut state := unsafe { circle_drawer_state }
+	state.adjust_radius(-4)
+	event.window.request_refresh()
+}
+
+fn callback_radius_more(event ui2.ElementEvent) {
+	mut state := unsafe { circle_drawer_state }
+	state.adjust_radius(4)
+	event.window.request_refresh()
+}
+
+fn callback_circle_canvas(event ui2.ElementEvent) {
+	mut state := unsafe { circle_drawer_state }
+	if event.kind == .pointer_up {
+		state.add_or_select(event.x - circle_canvas_root_x, event.y - circle_canvas_root_y)
+	}
+	event.window.request_refresh()
 }
 
 fn main() {
@@ -191,21 +203,9 @@ fn main() {
 }
 
 fn build_circle_drawer(mut app CircleDrawerDemo) ui2.Element {
-	callbacks := circle_drawer_callbacks()
-	callback_undo := callbacks['undo'] or { panic('missing undo callback') }
-	callback_redo := callbacks['redo'] or { panic('missing redo callback') }
-	callback_radius_less := callbacks['radius_less'] or { panic('missing radius_less callback') }
-	callback_radius_more := callbacks['radius_more'] or { panic('missing radius_more callback') }
-	callback_circle_canvas := callbacks['circle_canvas'] or { panic('missing circle_canvas callback') }
-	return $vml('circle_drawer.vml')
+	return circle_drawer_vml(mut app)
 }
 
 fn circle_drawer_tree(mut app CircleDrawerDemo, frame ui2.Rect) ui2.Element {
-	callbacks := circle_drawer_callbacks()
-	callback_undo := callbacks['undo'] or { panic('missing undo callback') }
-	callback_redo := callbacks['redo'] or { panic('missing redo callback') }
-	callback_radius_less := callbacks['radius_less'] or { panic('missing radius_less callback') }
-	callback_radius_more := callbacks['radius_more'] or { panic('missing radius_more callback') }
-	callback_circle_canvas := callbacks['circle_canvas'] or { panic('missing circle_canvas callback') }
-	return $vml('circle_drawer.vml', frame)
+	return circle_drawer_vml_framed(mut app, frame)
 }

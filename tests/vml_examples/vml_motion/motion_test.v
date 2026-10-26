@@ -1,5 +1,7 @@
 module main
 
+// vml: view.vml
+
 import ui2
 
 @[heap]
@@ -9,7 +11,7 @@ pub mut:
 }
 
 fn motion_tree(mut app MotionApp) ui2.Element {
-	return $vml('view.vml', ui2.rect(0, 0, 200, 100))
+	return view_vml_framed(mut app, ui2.rect(0, 0, 200, 100))
 }
 
 fn test_motion_opacity_and_transform_arguments_patch_one_retained_node() ! {

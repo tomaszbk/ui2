@@ -1,5 +1,7 @@
 module main
 
+// vml: view.vml
+
 import ui2
 
 @[heap]
@@ -30,7 +32,7 @@ pub fn (mut app ComputedApp) unused() int {
 }
 
 fn computed_app_tree(mut app ComputedApp) ui2.Element {
-	return $vml('view.vml', ui2.rect(0, 0, 240, 160))
+	return view_vml_framed(mut app, ui2.rect(0, 0, 240, 160))
 }
 
 fn test_computed_app_reads_refresh_after_binding_and_external_invalidation() ! {

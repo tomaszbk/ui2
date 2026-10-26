@@ -1,5 +1,5 @@
 Screen(
-    id: "root",
+    id: root,
     style: [background(#F1F5F9)],
 ) {
     Absolute(
@@ -7,7 +7,7 @@ Screen(
     ) {
         Label(text: "Screen manager", x: 20, y: 14, width: root.width - 40, height: 30, style: [foreground(#0F172A), font_size(20), weight(700)])
         ScreenManager(
-            id: "navigation",
+            id: navigation,
             x: 20,
             y: 56,
             width: root.width - 40,
@@ -16,7 +16,7 @@ Screen(
             style: [background(#FFFFFF), radius(10)],
         ) {
             Screen(
-                id: "home",
+                id: home,
             ) {
                 Absolute(
                     style: [transparent(true)],
@@ -35,7 +35,7 @@ Screen(
                 }
             }
             Screen(
-                id: "details",
+                id: details,
                 style: [background(#EFF6FF)],
             ) {
                 Absolute(

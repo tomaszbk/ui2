@@ -1,5 +1,5 @@
 Screen(
-    id: "root",
+    id: root,
     style: [background(#F1F5F9)],
 ) {
     Absolute(
@@ -7,7 +7,7 @@ Screen(
     ) {
         Label(text: "Dashboard", x: 20, y: 16, width: root.width - 40, height: 32, style: [foreground(#0F172A), font_size(22), weight(700)])
         Grid(
-            id: "dashboard",
+            id: dashboard,
             x: 20,
             y: 60,
             width: root.width - 40,

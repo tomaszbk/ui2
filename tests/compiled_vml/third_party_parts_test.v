@@ -1,5 +1,7 @@
 module main
 
+// vml: third_party_parts.vml
+
 import ui2
 import ui2.tests.compiled_vml.timeline
 
@@ -9,7 +11,7 @@ pub mut:
 }
 
 fn build_timeline(mut app TimelineApp) ui2.Element {
-	return $vml('third_party_parts.vml')
+	return third_party_parts_vml(mut app)
 }
 
 // A tag pair defined outside ui2 needs no compiler support: the Timeline

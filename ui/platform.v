@@ -2,23 +2,24 @@ module ui2
 
 // # Host services
 //
-// ui2 draws every control itself, the way a browser engine does: the custom
+// ui2 runs in one of two modes (backend.v): native, where macOS, Windows and
+// iOS show the operating system's own controls, and custom, where the custom
 // renderer (backend_custom.c.v and the `*_immediate.c.v` files) paints the
-// whole window with sokol through gg on every OS. The operating system is
-// only the host the renderer runs in. It provides the services below and no
-// controls.
+// whole window with sokol through gg. Either way the operating system is the
+// host the window runs in, and it provides the services below.
 //
 // Each service is a set of `host_*` functions and constants that every OS
 // defines, in files named after the service with V's OS suffixes
 // (`_darwin.v`, `_ios.v`, `_windows.c.v`, `_linux.v`, `_default.c.v`, ...).
 // They hold plain `$if macos`-style checks at most, never a backend flag
 // (backend.v), and the headless and document backends compile them too:
-// shared code and tests may call any of them. The custom backend forwards the
-// backend contract's menu, tray, dialog, safe area and scanner hooks to them.
+// shared code and tests may call any of them. The windowed backends forward
+// the backend contract's menu, tray, dialog, safe area and scanner hooks to
+// them.
 //
 // | Service            | macOS                    | Windows           | Linux                 | Android     | iOS                      |
 // |--------------------|--------------------------|-------------------|-----------------------|-------------|--------------------------|
-// | window, event loop | sokol_app (or embedder)  | sokol_app         | sokol_app (X11, EGL)  | sokol_app   | sokol_app (UIKit, Metal) |
+// | window, event loop | NSApp; custom: sokol_app | message loop; custom: sokol_app | sokol_app (X11, EGL) | sokol_app | UIApplicationMain; custom: sokol_app |
 // | menu bar           | global NSMenu bar        | window HMENU      | drawn by the renderer | drawn       | none                     |
 // | tray               | NSStatusItem             | notification area | none                  | none        | none                     |
 // | popup menu         | NSMenu pop-up            | TrackPopupMenuEx  | drawn by the renderer | drawn       | drawn                    |
@@ -30,13 +31,24 @@ module ui2
 // | safe area          | none                     | none              | none                  | none        | root view safeAreaInsets |
 // | barcode scanner    | none                     | none              | none                  | none        | AVFoundation camera      |
 //
+// "custom" is the custom renderer on an OS whose default is native (macOS,
+// Windows, iOS); Linux and Android run only the renderer, and "drawn" means
+// the renderer draws the service inside its window.
+//
 // ## Window and event loop
 //
+// The native backends own their event loop: AppKit runs NSApp, which shows
+// each App window as an NSWindow (appkit/window_appkit_darwin.v); Win32 pumps
+// one message loop for its top-level windows (windows/window_windows.v); UIKit
+// runs UIApplicationMain with the one window an iOS app has
+// (uikit/ui_ios.v). Each records its Window in a process host so that the
+// OS's callbacks, which name only a native object, reach it.
+//
 // The renderer opens its window with gg (ui_immediate.c.v Window.run_sokol),
-// whose sokol_app owns the event loop on every OS, one window per process; on
-// iOS sokol_app runs UIApplicationMain itself, which is why the renderer
-// defines SOKOL_NO_ENTRY there. Once the window exists the renderer records
-// its native handle (an NSWindow, an HWND, or nil) and installs the menus the
+// whose sokol_app owns the event loop, one window per process; on iOS
+// sokol_app runs UIApplicationMain itself, which is why the renderer defines
+// SOKOL_NO_ENTRY there. Once the window exists the renderer records its
+// native handle (an NSWindow, an HWND, or nil) and installs the menus the
 // window declared. The macOS embedder (-d ui2_embedder,
 // embedder_*_darwin.c.v) is a host variant of the same renderer: it owns
 // AppKit windows and their Metal surfaces instead of a sokol window, which

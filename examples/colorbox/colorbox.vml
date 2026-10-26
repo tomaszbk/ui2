@@ -1,12 +1,12 @@
 Screen(
-    id: "root",
+    id: root,
     style: [background(#F1F5F9)],
 ) {
     Absolute(
         style: [transparent(true)],
     ) {
         View(
-            id: "card",
+            id: card,
             x: 16,
             y: 16,
             width: root.width - 32,
@@ -18,7 +18,7 @@ Screen(
             ) {
                 Label(text: "Color box", x: 18, y: 14, width: 220, height: 28, style: [foreground(#111827), font_size(18), weight(700)])
                 Button(
-                    id: "store",
+                    id: store,
                     text: "Store in slot",
                     on_click: callback_store,
                     native: true,
@@ -28,7 +28,7 @@ Screen(
                     height: 34,
                 )
                 View(
-                    id: "hue_strip",
+                    id: hue_strip,
                     on_pointer_down: callback_hue_strip,
                     on_pointer_drag: callback_hue_strip,
                     on_pointer_up: callback_hue_strip,
@@ -44,17 +44,14 @@ Screen(
                     Absolute(
                         style: [transparent(true)],
                     ) {
-                        Repeater(
-                            model: app.hue_cells,
-                            key: item.key,
-                        ) {
+                        for item in app.hue_cells key item.key {
                             View(x: 0, y: item.index * 8, width: 32, height: 8, style: [background(item.color)])
                         }
                         View(x: 0, y: app.hue_marker - 2, width: 32, height: 4, style: [background(#FFFFFF)])
                     }
                 }
                 View(
-                    id: "sv_square",
+                    id: sv_square,
                     on_pointer_down: callback_sv_square,
                     on_pointer_drag: callback_sv_square,
                     on_pointer_up: callback_sv_square,
@@ -70,10 +67,7 @@ Screen(
                     Absolute(
                         style: [transparent(true)],
                     ) {
-                        Repeater(
-                            model: app.sv_cells,
-                            key: item.key,
-                        ) {
+                        for item in app.sv_cells key item.key {
                             View(x: item.column * 16, y: item.row * 16, width: 16, height: 16, style: [background(item.color)])
                         }
                         View(
@@ -92,7 +86,7 @@ Screen(
                     }
                 }
                 View(
-                    id: "swatch_grid",
+                    id: swatch_grid,
                     on_pointer_up: callback_swatch_grid,
                     clickable: true,
                     cursor: "pointing_hand",
@@ -105,10 +99,7 @@ Screen(
                     Absolute(
                         style: [transparent(true)],
                     ) {
-                        Repeater(
-                            model: app.swatches,
-                            key: item.key,
-                        ) {
+                        for item in app.swatches key item.key {
                             View(
                                 x: item.column * 80,
                                 y: item.row * 43,
@@ -128,7 +119,7 @@ Screen(
                 Label(text: "Click a slot to recall it.", x: 332, y: 192, width: 200, height: 18, style: [foreground(#64748B), font_size(11)])
                 Label(text: "R", x: 500, y: 64, width: 20, height: 20, style: [foreground(#334155), font_size(13), weight(700)])
                 TextInput(
-                    id: "red_input",
+                    id: red_input,
                     text: app.red_text,
                     on_change: callback_red_input,
                     on_submit: callback_red_input,
@@ -141,7 +132,7 @@ Screen(
                 )
                 Label(text: "G", x: 500, y: 104, width: 20, height: 20, style: [foreground(#334155), font_size(13), weight(700)])
                 TextInput(
-                    id: "green_input",
+                    id: green_input,
                     text: app.green_text,
                     on_change: callback_green_input,
                     on_submit: callback_green_input,
@@ -154,7 +145,7 @@ Screen(
                 )
                 Label(text: "B", x: 500, y: 144, width: 20, height: 20, style: [foreground(#334155), font_size(13), weight(700)])
                 TextInput(
-                    id: "blue_input",
+                    id: blue_input,
                     text: app.blue_text,
                     on_change: callback_blue_input,
                     on_submit: callback_blue_input,
@@ -166,7 +157,7 @@ Screen(
                     style: [background(app.valid ? #FFFFFF : #FEE2E2), radius(7), text_align(center)],
                 )
                 View(
-                    id: "current_color",
+                    id: current_color,
                     x: 500,
                     y: 186,
                     width: card.width - 518,
@@ -187,7 +178,7 @@ Screen(
                     }
                 }
                 View(
-                    id: "preview",
+                    id: preview,
                     x: 18,
                     y: 332,
                     width: card.width - 36,
@@ -216,7 +207,7 @@ Screen(
                     style: [foreground(#64748B), font_size(11)],
                 )
                 Label(
-                    id: "colorbox_status",
+                    id: colorbox_status,
                     text: app.status,
                     x: 18,
                     y: card.height - 40,

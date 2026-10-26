@@ -6,7 +6,7 @@ import gg
 // No host shows a popup menu before the renderer publishes a window to it
 // (platform.v), so here a context menu is the renderer's drawn overlay and a
 // select keeps its drawn list, as on Linux.
-$if (linux || macos || windows) && !ui2_headless ? {
+$if (linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
 	__global popup_menu_choices = []string{}
 	__global popup_menu_results = []PopupMenuResult{}
 

@@ -1,12 +1,12 @@
 Screen(
-    id: "root",
+    id: root,
     style: [background(#F1F5F9)],
 ) {
     Absolute(
         style: [transparent(true)],
     ) {
         View(
-            id: "card",
+            id: card,
             x: ((root.width -(root.width - 32 < 348 ? root.width - 32 : 348)) / 2),
             y: 16,
             width: (root.width - 32 < 348 ? root.width - 32 : 348),
@@ -25,7 +25,7 @@ Screen(
                     style: [foreground(#111827), font_size(18), weight(700)],
                 )
                 View(
-                    id: "preview",
+                    id: preview,
                     x: 16,
                     y: 50,
                     width: card.width - 32,
@@ -70,7 +70,7 @@ Screen(
                     style: [text_align(center), foreground(#1E40AF)],
                 )
                 TextInput(
-                    id: "red",
+                    id: red,
                     bind.text: app.red,
                     on_change: app.update_color(),
                     x: 16,
@@ -80,7 +80,7 @@ Screen(
                     style: [background(app.valid ? #F8FAFC : #FEE2E2), radius(7)],
                 )
                 TextInput(
-                    id: "green",
+                    id: green,
                     bind.text: app.green,
                     on_change: app.update_color(),
                     x: 32 +(((root.width - 32 < 348 ? root.width - 32 : 348) - 64) / 3),
@@ -90,7 +90,7 @@ Screen(
                     style: [background(app.valid ? #F8FAFC : #FEE2E2), radius(7)],
                 )
                 TextInput(
-                    id: "blue",
+                    id: blue,
                     bind.text: app.blue,
                     on_change: app.update_color(),
                     x: 48 +(((root.width - 32 < 348 ? root.width - 32 : 348) - 64) / 3) * 2,
@@ -100,7 +100,7 @@ Screen(
                     style: [background(app.valid ? #F8FAFC : #FEE2E2), radius(7)],
                 )
                 Button(
-                    id: "show_color",
+                    id: show_color,
                     text: "Show RGB color",
                     on_click: app.show_color(),
                     native: true,
@@ -111,7 +111,7 @@ Screen(
                     style: [background(#3478D4), foreground(#FFFFFF), radius(7)],
                 )
                 Label(
-                    id: "value",
+                    id: value,
                     text: app.message,
                     x: 16,
                     y: 266,

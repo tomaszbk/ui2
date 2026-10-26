@@ -1,14 +1,14 @@
-// vtest vflags: -gc boehm -d no_gc_thread_local_alloc -d ui2_embedder
+// vtest vflags: -gc boehm -d no_gc_thread_local_alloc -d ui2_custom_rendering -d ui2_embedder
 module ui2
 
-$if macos && ui2_embedder ? && !ui2_headless ? {
+$if macos && ui2_custom_rendering ? && ui2_embedder ? && !ui2_headless ? {
 	import gg
 	import sokol.gfx
 	import sokol.sgl
 }
 
 fn test_retained_glyph_clip_and_primitive_submission_allocate_nothing() {
-	$if macos && ui2_embedder ? && !ui2_headless ? {
+	$if macos && ui2_custom_rendering ? && ui2_embedder ? && !ui2_headless ? {
 		environment := gfx.Environment{defaults: gfx.EnvironmentDefaults{color_format: .bgra8, depth_format: .@none, sample_count: 1},
 			metal: gfx.MetalEnvironment{device: C.ui2_embedder_metal_device()}}
 		mut ctx := new_surface_draw_context(gg.Config{width: 320, height: 240}, environment)!
@@ -40,7 +40,7 @@ fn test_retained_glyph_clip_and_primitive_submission_allocate_nothing() {
 }
 
 fn test_interaction_text_palettes_and_selection_reuse_owned_shapes() {
-	$if macos && ui2_embedder ? && !ui2_headless ? {
+	$if macos && ui2_custom_rendering ? && ui2_embedder ? && !ui2_headless ? {
 		environment := gfx.Environment{defaults: gfx.EnvironmentDefaults{color_format: .bgra8, depth_format: .@none, sample_count: 1},
 			metal: gfx.MetalEnvironment{device: C.ui2_embedder_metal_device()}}
 		mut ctx := new_surface_draw_context(gg.Config{width: 320, height: 240}, environment)!

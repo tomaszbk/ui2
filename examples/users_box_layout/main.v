@@ -1,5 +1,7 @@
 module main
 
+// vml: users_box_layout.vml
+
 import os
 import ui2
 
@@ -191,9 +193,9 @@ fn main() {
 }
 
 fn build_users_box_layout(mut app UsersBoxLayoutDemo) ui2.Element {
-	return $vml('users_box_layout.vml')
+	return users_box_layout_vml(mut app)
 }
 
 fn users_box_layout_tree(mut app UsersBoxLayoutDemo, frame ui2.Rect) ui2.Element {
-	return $vml('users_box_layout.vml', frame)
+	return users_box_layout_vml_framed(mut app, frame)
 }

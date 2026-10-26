@@ -1,12 +1,12 @@
 Screen(
-    id: "root",
+    id: root,
     style: [background(#F1F5F9)],
 ) {
     Column(
         style: [padding(16), transparent(true)],
     ) {
         Column(
-            id: "card",
+            id: card,
             flex_grow: 1,
             gap: 12,
             style: [padding(18), background(#FFFFFF), radius(10)],
@@ -23,14 +23,14 @@ Screen(
                 style: [transparent(true)],
             ) {
                 Column(
-                    id: "form",
+                    id: form,
                     width: 232,
                     flex_shrink: 0,
                     gap: 4,
                     style: [padding(16), background(#F8FAFC), radius(9)],
                 ) {
                     TextInput(
-                        id: "first_name",
+                        id: first_name,
                         placeholder: "First name",
                         bind.text: app.first_name,
                         on_change: app.first_name_changed(),
@@ -38,7 +38,7 @@ Screen(
                         style: [background(app.is_error ? #FEE2E2 : #FFFFFF), radius(7)],
                     )
                     TextInput(
-                        id: "last_name",
+                        id: last_name,
                         placeholder: "Last name",
                         bind.text: app.last_name,
                         on_change: app.last_name_changed(),
@@ -46,7 +46,7 @@ Screen(
                         style: [background(app.is_error ? #FEE2E2 : #FFFFFF), radius(7)],
                     )
                     TextInput(
-                        id: "age",
+                        id: age,
                         placeholder: "Age",
                         bind.text: app.age,
                         on_change: app.age_changed(),
@@ -55,7 +55,7 @@ Screen(
                         style: [background(app.is_error ? #FEE2E2 : #FFFFFF), radius(7)],
                     )
                     TextInput(
-                        id: "password",
+                        id: password,
                         placeholder: "Password",
                         bind.text: app.password,
                         secure: true,
@@ -63,7 +63,7 @@ Screen(
                         style: [background(#FFFFFF), radius(7)],
                     )
                     Checkbox(
-                        id: "online",
+                        id: online,
                         text: "Online registration",
                         checked: app.online,
                         on_click: app.toggle_online(),
@@ -71,7 +71,7 @@ Screen(
                         style: [foreground(#1E293B), font_size(12)],
                     )
                     Checkbox(
-                        id: "subscribed",
+                        id: subscribed,
                         text: "Subscribe to the newsletter",
                         checked: app.subscribed,
                         on_click: app.toggle_subscribed(),
@@ -79,10 +79,7 @@ Screen(
                         style: [foreground(#1E293B), font_size(12)],
                     )
                     Label(text: "Country", height: 18, style: [foreground(#334155), font_size(12), weight(700)])
-                    Repeater(
-                        model: app.countries,
-                        key: item.key,
-                    ) {
+                    for item in app.countries key item.key {
                         Checkbox(
                             text: item.name,
                             checked: item.name == app.country,
@@ -97,27 +94,27 @@ Screen(
                         style: [transparent(true)],
                     ) {
                         Button(
-                            id: "add_user",
+                            id: add_user,
                             text: "Add user",
                             on_click: app.add_user(),
                             native: true,
                             tooltip: "Required fields:\nFirst name, last name, age",
                             flex_grow: 1,
                         )
-                        Button(id: "about", text: "?", on_click: app.about(), native: true, tooltip: "about", width: 44)
-                        Button(id: "reset", text: "Clear", on_click: app.reset(), native: true, width: 44)
+                        Button(id: about, text: "?", on_click: app.about(), native: true, tooltip: "about", width: 44)
+                        Button(id: reset, text: "Clear", on_click: app.reset(), native: true, width: 44)
                     }
                     View(flex_grow: 1, style: [transparent(true)])
                     Progress(height: 14, value: app.progress, max: 1)
                     Label(
-                        id: "progress_label",
+                        id: progress_label,
                         text: app.progress_label,
                         height: 18,
                         style: [text_align(center), foreground(#334155), font_size(11)],
                     )
                 }
                 Column(
-                    id: "table",
+                    id: table,
                     flex_grow: 1,
                     gap: 4,
                     style: [padding(14), background(#FFF0F0), radius(9)],
@@ -132,7 +129,7 @@ Screen(
                         Label(text: "Country", flex_basis: 0, flex_grow: 1, style: [foreground(#F8FAFC), font_size(11), weight(700)])
                     }
                     Scroll(
-                        id: "user_rows",
+                        id: user_rows,
                         flex_grow: 1,
                         style: [background(#FFFFFF)],
                     ) {
@@ -141,10 +138,7 @@ Screen(
                             gap: 1,
                             style: [transparent(true)],
                         ) {
-                            Repeater(
-                                model: app.users,
-                                key: item.key,
-                            ) {
+                            for item in app.users key item.key {
                                 Row(
                                     height: 29,
                                     flex_shrink: 0,
@@ -184,13 +178,13 @@ Screen(
                         style: [transparent(true)],
                     ) {
                         Label(
-                            id: "users_status",
+                            id: users_status,
                             text: app.status,
                             flex_grow: 1,
                             height: 20,
                             style: [foreground(app.is_error ? #991B1B : #166534), font_size(12)],
                         )
-                        Image(id: "users_logo", source: app.logo_path, width: 56, height: 56)
+                        Image(id: users_logo, source: app.logo_path, width: 56, height: 56)
                     }
                 }
             }

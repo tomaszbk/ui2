@@ -1,4 +1,4 @@
-// vtest vflags: -d ui2_embedder
+// vtest vflags: -d ui2_custom_rendering -d ui2_embedder
 // vfmt off
 @[has_globals]
 module ui2
@@ -9,7 +9,7 @@ import os
 import sokol.gfx
 import sokol.sgl
 
-$if macos && ui2_embedder ? && !ui2_headless ? {
+$if macos && ui2_custom_rendering ? && ui2_embedder ? && !ui2_headless ? {
 	#include "@VMODROOT/tests/render_scheduler/draw_commands.h"
 	fn C.ui2_test_command_count(context sgl.Context) int
 	fn C.ui2_test_vertex_count(context sgl.Context) int

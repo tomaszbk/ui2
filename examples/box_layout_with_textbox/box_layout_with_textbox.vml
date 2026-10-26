@@ -1,12 +1,12 @@
 Screen(
-    id: "root",
+    id: root,
     style: [background(#F1F5F9)],
 ) {
     Absolute(
         style: [transparent(true)],
     ) {
         View(
-            id: "card",
+            id: card,
             x: 16,
             y: 16,
             width: root.width - 32,
@@ -33,7 +33,7 @@ Screen(
                     style: [foreground(#64748B), font_size(12)],
                 )
                 View(
-                    id: "canvas",
+                    id: canvas,
                     x: 18,
                     y: 74,
                     width: card.width - 36,
@@ -43,9 +43,9 @@ Screen(
                     Absolute(
                         style: [transparent(true)],
                     ) {
-                        View(id: "fixed_red", x: 0, y: 0, width: 58, height: 58, style: [background(#FF6464), radius(7)])
+                        View(id: fixed_red, x: 0, y: 0, width: 58, height: 58, style: [background(#FF6464), radius(7)])
                         View(
-                            id: "stretched_green",
+                            id: stretched_green,
                             x: 58,
                             y: 58,
                             width: canvas.width - 88,
@@ -53,7 +53,7 @@ Screen(
                             style: [background(#BBF7D0), radius(8)],
                         )
                         TextArea(
-                            id: "notes",
+                            id: notes,
                             bind.text: app.text,
                             on_change: app.text_changed(),
                             x: canvas.width / 2,
@@ -63,7 +63,7 @@ Screen(
                             style: [background(#FEF3C7), foreground(#713F12), font_size(12), radius(7)],
                         )
                         View(
-                            id: "corner_anchor",
+                            id: corner_anchor,
                             x: canvas.width - 58,
                             y: canvas.height - 58,
                             width: 58,
@@ -74,7 +74,7 @@ Screen(
                                 style: [transparent(true)],
                             ) {
                                 View(
-                                    id: "nested_anchor",
+                                    id: nested_anchor,
                                     x: 10,
                                     y: 10,
                                     width: 38,
@@ -84,7 +84,7 @@ Screen(
                             }
                         }
                         Button(
-                            id: "show_message",
+                            id: show_message,
                             text: "Show message",
                             on_click: app.show_message(),
                             native: true,
@@ -96,7 +96,7 @@ Screen(
                     }
                 }
                 Label(
-                    id: "status",
+                    id: status,
                     text: app.status,
                     x: 18,
                     y: card.height - 42,

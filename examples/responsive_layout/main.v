@@ -1,5 +1,7 @@
 module main
 
+// vml: responsive_layout.vml
+
 import os
 import ui2
 
@@ -35,9 +37,9 @@ fn main() {
 }
 
 fn build_responsive_layout(mut app ResponsiveApp) ui2.Element {
-	return $vml('responsive_layout.vml')
+	return responsive_layout_vml(mut app)
 }
 
 fn responsive_layout_tree(mut app ResponsiveApp, frame ui2.Rect) ui2.Element {
-	return $vml('responsive_layout.vml', frame)
+	return responsive_layout_vml_framed(mut app, frame)
 }

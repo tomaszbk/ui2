@@ -1,5 +1,7 @@
 module main
 
+// vml: canvas_layout.vml
+
 import ui2
 
 const canvas_layout_width = 900
@@ -136,70 +138,92 @@ fn canvas_sheet_width(frame ui2.Rect) f64 {
 
 fn canvas_layout_callbacks() map[string]ui2.ElementCallback {
 	return {
-		'theme_dropdown': fn (event ui2.ElementEvent) {
-			mut state := unsafe { canvas_layout_state }
-			state.apply_theme(event.text)
-			event.window.request_refresh()
-		}
-		'reset_tile':     fn (event ui2.ElementEvent) {
-			mut state := unsafe { canvas_layout_state }
-			state.reset_tile()
-			event.window.request_refresh()
-		}
-		'add_note':       fn (event ui2.ElementEvent) {
-			mut state := unsafe { canvas_layout_state }
-			state.add_note()
-			event.window.request_refresh()
-		}
-		'clear_notes':    fn (event ui2.ElementEvent) {
-			mut state := unsafe { canvas_layout_state }
-			state.clear_notes()
-			event.window.request_refresh()
-		}
-		'toggle_menu':    fn (event ui2.ElementEvent) {
-			mut state := unsafe { canvas_layout_state }
-			state.toggle_menu()
-			event.window.request_refresh()
-		}
-		'menu_delete':    fn (event ui2.ElementEvent) {
-			mut state := unsafe { canvas_layout_state }
-			state.choose_menu_item('Delete all users')
-			event.window.request_refresh()
-		}
-		'menu_export':    fn (event ui2.ElementEvent) {
-			mut state := unsafe { canvas_layout_state }
-			state.choose_menu_item('Export users')
-			event.window.request_refresh()
-		}
-		'menu_exit':      fn (event ui2.ElementEvent) {
-			mut state := unsafe { canvas_layout_state }
-			state.choose_menu_item('Exit')
-			event.window.request_refresh()
-		}
-		'about':          fn (event ui2.ElementEvent) {
-			ui2.alert('Canvas layout', 'Built with V UI')
-			event.window.request_refresh()
-		}
-		'canvas_tile':    fn (event ui2.ElementEvent) {
-			mut state := unsafe { canvas_layout_state }
-			scroll := event.window.scroll_offset('canvas')
-			match event.kind {
-				.pointer_down { state.grab_tile(event.x, event.y, scroll) }
-				.pointer_drag, .pointer_up {
-					state.drag_tile(event.x, event.y, scroll, canvas_sheet_width(event.window.bounds()))
-				}
-				else {}
-			}
-			event.window.request_refresh()
-		}
-		'canvas_sheet':   fn (event ui2.ElementEvent) {
-			mut state := unsafe { canvas_layout_state }
-			if event.kind in [.pointer_down, .pointer_drag, .pointer_up] {
-				state.track_pointer(event.x, event.y, event.window.scroll_offset('canvas'))
-			}
-			event.window.request_refresh()
-		}
+		'theme_dropdown': callback_theme_dropdown
+		'reset_tile':     callback_reset_tile
+		'add_note':       callback_add_note
+		'clear_notes':    callback_clear_notes
+		'toggle_menu':    callback_toggle_menu
+		'menu_delete':    callback_menu_delete
+		'menu_export':    callback_menu_export
+		'menu_exit':      callback_menu_exit
+		'about':          callback_about
+		'canvas_tile':    callback_canvas_tile
+		'canvas_sheet':   callback_canvas_sheet
 	}
+}
+
+fn callback_theme_dropdown(event ui2.ElementEvent) {
+	mut state := unsafe { canvas_layout_state }
+	state.apply_theme(event.text)
+	event.window.request_refresh()
+}
+
+fn callback_reset_tile(event ui2.ElementEvent) {
+	mut state := unsafe { canvas_layout_state }
+	state.reset_tile()
+	event.window.request_refresh()
+}
+
+fn callback_add_note(event ui2.ElementEvent) {
+	mut state := unsafe { canvas_layout_state }
+	state.add_note()
+	event.window.request_refresh()
+}
+
+fn callback_clear_notes(event ui2.ElementEvent) {
+	mut state := unsafe { canvas_layout_state }
+	state.clear_notes()
+	event.window.request_refresh()
+}
+
+fn callback_toggle_menu(event ui2.ElementEvent) {
+	mut state := unsafe { canvas_layout_state }
+	state.toggle_menu()
+	event.window.request_refresh()
+}
+
+fn callback_menu_delete(event ui2.ElementEvent) {
+	mut state := unsafe { canvas_layout_state }
+	state.choose_menu_item('Delete all users')
+	event.window.request_refresh()
+}
+
+fn callback_menu_export(event ui2.ElementEvent) {
+	mut state := unsafe { canvas_layout_state }
+	state.choose_menu_item('Export users')
+	event.window.request_refresh()
+}
+
+fn callback_menu_exit(event ui2.ElementEvent) {
+	mut state := unsafe { canvas_layout_state }
+	state.choose_menu_item('Exit')
+	event.window.request_refresh()
+}
+
+fn callback_about(event ui2.ElementEvent) {
+	ui2.alert('Canvas layout', 'Built with V UI')
+	event.window.request_refresh()
+}
+
+fn callback_canvas_tile(event ui2.ElementEvent) {
+	mut state := unsafe { canvas_layout_state }
+	scroll := event.window.scroll_offset('canvas')
+	match event.kind {
+		.pointer_down { state.grab_tile(event.x, event.y, scroll) }
+		.pointer_drag, .pointer_up {
+			state.drag_tile(event.x, event.y, scroll, canvas_sheet_width(event.window.bounds()))
+		}
+		else {}
+	}
+	event.window.request_refresh()
+}
+
+fn callback_canvas_sheet(event ui2.ElementEvent) {
+	mut state := unsafe { canvas_layout_state }
+	if event.kind in [.pointer_down, .pointer_drag, .pointer_up] {
+		state.track_pointer(event.x, event.y, event.window.scroll_offset('canvas'))
+	}
+	event.window.request_refresh()
 }
 
 fn main() {
@@ -213,33 +237,9 @@ fn main() {
 }
 
 fn build_canvas_layout(mut app CanvasLayoutDemo) ui2.Element {
-	callbacks := canvas_layout_callbacks()
-	callback_theme_dropdown := callbacks['theme_dropdown'] or { panic('missing theme_dropdown callback') }
-	callback_about := callbacks['about'] or { panic('missing about callback') }
-	callback_clear_notes := callbacks['clear_notes'] or { panic('missing clear_notes callback') }
-	callback_add_note := callbacks['add_note'] or { panic('missing add_note callback') }
-	callback_reset_tile := callbacks['reset_tile'] or { panic('missing reset_tile callback') }
-	callback_toggle_menu := callbacks['toggle_menu'] or { panic('missing toggle_menu callback') }
-	callback_canvas_sheet := callbacks['canvas_sheet'] or { panic('missing canvas_sheet callback') }
-	callback_menu_delete := callbacks['menu_delete'] or { panic('missing menu_delete callback') }
-	callback_menu_export := callbacks['menu_export'] or { panic('missing menu_export callback') }
-	callback_menu_exit := callbacks['menu_exit'] or { panic('missing menu_exit callback') }
-	callback_canvas_tile := callbacks['canvas_tile'] or { panic('missing canvas_tile callback') }
-	return $vml('canvas_layout.vml')
+	return canvas_layout_vml(mut app)
 }
 
 fn canvas_layout_tree(mut app CanvasLayoutDemo, frame ui2.Rect) ui2.Element {
-	callbacks := canvas_layout_callbacks()
-	callback_theme_dropdown := callbacks['theme_dropdown'] or { panic('missing theme_dropdown callback') }
-	callback_about := callbacks['about'] or { panic('missing about callback') }
-	callback_clear_notes := callbacks['clear_notes'] or { panic('missing clear_notes callback') }
-	callback_add_note := callbacks['add_note'] or { panic('missing add_note callback') }
-	callback_reset_tile := callbacks['reset_tile'] or { panic('missing reset_tile callback') }
-	callback_toggle_menu := callbacks['toggle_menu'] or { panic('missing toggle_menu callback') }
-	callback_canvas_sheet := callbacks['canvas_sheet'] or { panic('missing canvas_sheet callback') }
-	callback_menu_delete := callbacks['menu_delete'] or { panic('missing menu_delete callback') }
-	callback_menu_export := callbacks['menu_export'] or { panic('missing menu_export callback') }
-	callback_menu_exit := callbacks['menu_exit'] or { panic('missing menu_exit callback') }
-	callback_canvas_tile := callbacks['canvas_tile'] or { panic('missing canvas_tile callback') }
-	return $vml('canvas_layout.vml', frame)
+	return canvas_layout_vml_framed(mut app, frame)
 }

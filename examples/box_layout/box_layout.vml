@@ -1,5 +1,5 @@
 Screen(
-    id: "root",
+    id: root,
     style: [background(#F1F5F9)],
 ) {
     Absolute(
@@ -14,7 +14,7 @@ Screen(
             style: [foreground(#111827), font_size(18), weight(700)],
         )
         View(
-            id: "canvas",
+            id: canvas,
             x: 16,
             y: 54,
             width: root.width - 32,
@@ -25,7 +25,7 @@ Screen(
                 style: [transparent(true)],
             ) {
                 View(
-                    id: "red",
+                    id: red,
                     x: 16,
                     y: 16,
                     width: 72,
@@ -46,7 +46,7 @@ Screen(
                     }
                 }
                 View(
-                    id: "green",
+                    id: green,
                     x: 104,
                     y: 48,
                     width: canvas.width - 136,
@@ -67,7 +67,7 @@ Screen(
                     }
                 }
                 View(
-                    id: "blue",
+                    id: blue,
                     x: canvas.width / 2,
                     y: canvas.height / 2,
                     width: canvas.width / 2 - 16,
@@ -78,7 +78,7 @@ Screen(
                         style: [transparent(true)],
                     ) {
                         Label(
-                            id: "blue_caption",
+                            id: blue_caption,
                             text: "50% anchored",
                             x: 12,
                             y: blue.height - 32,
@@ -89,7 +89,7 @@ Screen(
                     }
                 }
                 View(
-                    id: "white_anchor",
+                    id: white_anchor,
                     x: canvas.width - 72,
                     y: canvas.height - 72,
                     width: 56,
@@ -99,7 +99,7 @@ Screen(
                     Absolute(
                         style: [transparent(true)],
                     ) {
-                        View(id: "black_anchor", x: 8, y: 8, width: 40, height: 40, style: [background(#111827), radius(6)])
+                        View(id: black_anchor, x: 8, y: 8, width: 40, height: 40, style: [background(#111827), radius(6)])
                     }
                 }
             }

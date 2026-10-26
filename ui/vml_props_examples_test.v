@@ -1,5 +1,10 @@
-// vtest vflags: -d vml_props
+// vtest vflags: -d vml_props -d vml_fixtures
 module ui2
+
+// vml: ../examples/switch/switch.vml
+// vml: ../examples/message/message.vml
+// vml: fixtures/text_typography_0.vml
+// vml: fixtures/compiled_overlay_surface.vml
 
 // Golden equivalence of hand-written props with example documents used
 // verbatim: switch, message, typography runs and an overlay surface.
@@ -10,7 +15,7 @@ pub mut:
 }
 
 fn props_switch_compiled(mut app PropsSwitchDemo, frame Rect) Element {
-	return $vml('../examples/switch/switch.vml', frame)
+	return switch_vml_framed(mut app, frame)
 }
 
 fn props_switch_tree(mut app PropsSwitchDemo, frame Rect) PNode {
@@ -68,7 +73,7 @@ fn props_switch_tree(mut app PropsSwitchDemo, frame Rect) PNode {
 										on_change:    fn [mut app] (e ElementEvent) {
 											app.enabled = e.checked
 										}
-									}, id: 'switch-control', bind: true),
+									}, id: 'switch_control', bind: true),
 								]
 							),
 						]
@@ -119,7 +124,7 @@ pub fn (mut app PropsMessageDemo) ask_native_question() {
 }
 
 fn props_message_compiled(mut app PropsMessageDemo, frame Rect) Element {
-	return $vml('../examples/message/message.vml', frame)
+	return message_vml_framed(mut app, frame)
 }
 
 fn props_message_button(mut app PropsMessageDemo, id string, text string, y f64, frame Rect, action fn (mut PropsMessageDemo)) PNode {
@@ -244,7 +249,7 @@ pub mut:
 }
 
 fn props_typography_compiled(mut app PropsTypographyApp, frame Rect) Element {
-	return $vml('fixtures/text_typography_0.vml', frame)
+	return text_typography_0_vml_framed(mut app, frame)
 }
 
 fn test_props_typography_runs_match_compiled_vml() {
@@ -316,7 +321,7 @@ pub fn (mut app PropsOverlayModel) hide_tip() {
 }
 
 fn props_overlay_surface_compiled(mut app PropsOverlayModel) Element {
-	return $vml('fixtures/compiled_overlay_surface.vml', rect(0, 0, 500, 400))
+	return compiled_overlay_surface_vml_framed(mut app, rect(0, 0, 500, 400))
 }
 
 fn props_overlay_surface_tree(mut app PropsOverlayModel) PNode {

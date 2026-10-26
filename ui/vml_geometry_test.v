@@ -1,4 +1,16 @@
+// vtest vflags: -d vml_fixtures
 module ui2
+
+// vml: fixtures/geometry_model_dimension.vml
+// vml: fixtures/geometry_allocated_row.vml
+// vml: fixtures/geometry_allocated_grid.vml
+// vml: fixtures/geometry_allocated_stack.vml
+// vml: fixtures/vml_geometry_0.vml
+// vml: fixtures/vml_geometry_1.vml
+// vml: fixtures/vml_geometry_2.vml
+// vml: fixtures/vml_geometry_3.vml
+// vml: fixtures/vml_geometry_4.vml
+// vml: fixtures/vml_geometry_5.vml
 
 pub struct GeometryModel {
 pub:
@@ -14,7 +26,7 @@ fn test_view_replaces_rectangle() {
 
 fn test_geometry_references_require_absolute_but_model_dimensions_do_not() {
 	mut app := GeometryModel{}
-	el := $vml('fixtures/geometry_model_dimension.vml', rect(0, 0, 100, 100))
+	el := geometry_model_dimension_vml_framed(mut app, rect(0, 0, 100, 100))
 	assert el.children[0].frame.width == 100
 	assert el.children[0].frame.height == 20
 }
@@ -50,34 +62,34 @@ fn test_repeaters_use_the_containing_layout_context() {
 
 fn test_allocated_flex_grid_and_stack_coordinates_are_valid() {
 	frame := rect(0, 0, 100, 100)
-	row := $vml('fixtures/geometry_allocated_row.vml', frame)
-	grid := $vml('fixtures/geometry_allocated_grid.vml', frame)
-	layers := $vml('fixtures/geometry_allocated_stack.vml', frame)
+	row := geometry_allocated_row_vml_framed(frame)
+	grid := geometry_allocated_grid_vml_framed(frame)
+	layers := geometry_allocated_stack_vml_framed(frame)
 	assert row.children[1].frame == rect(24, 0, 20, 100)
 	assert grid.children.map(it.frame) == [rect(0, 0, 50, 100), rect(50, 0, 50, 100)]
 	assert layers.children[0].frame == rect(80, 90, 20, 10)
 }
 
 fn compiled_vml_geometry_0(mut app GeometryModel, frame Rect) Element {
-	return $vml('fixtures/vml_geometry_0.vml', frame)
+	return vml_geometry_0_vml_framed(mut app, frame)
 }
 
 fn compiled_vml_geometry_1(frame Rect) Element {
-	return $vml('fixtures/vml_geometry_1.vml', frame)
+	return vml_geometry_1_vml_framed(frame)
 }
 
 fn compiled_vml_geometry_2(frame Rect) Element {
-	return $vml('fixtures/vml_geometry_2.vml', frame)
+	return vml_geometry_2_vml_framed(frame)
 }
 
 fn compiled_vml_geometry_3(frame Rect) Element {
-	return $vml('fixtures/vml_geometry_3.vml', frame)
+	return vml_geometry_3_vml_framed(frame)
 }
 
 fn compiled_vml_geometry_4(frame Rect) Element {
-	return $vml('fixtures/vml_geometry_4.vml', frame)
+	return vml_geometry_4_vml_framed(frame)
 }
 
 fn compiled_vml_geometry_5(frame Rect) Element {
-	return $vml('fixtures/vml_geometry_5.vml', frame)
+	return vml_geometry_5_vml_framed(frame)
 }

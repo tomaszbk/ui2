@@ -1,4 +1,10 @@
+// vtest vflags: -d vml_fixtures
 module ui2
+
+// vml: fixtures/absolute_layout_0.vml
+// vml: fixtures/absolute_layout_1.vml
+// vml: fixtures/absolute_layout_2.vml
+// vml: fixtures/absolute_layout_4.vml
 
 import math
 
@@ -71,17 +77,17 @@ fn test_absolute_extent_rejects_arithmetic_overflow() {
 }
 
 fn compiled_absolute_layout_0(frame Rect) Element {
-	return $vml('fixtures/absolute_layout_0.vml', frame)
+	return absolute_layout_0_vml_framed(frame)
 }
 
 fn compiled_absolute_layout_1(mut app AbsoluteScrollModel, frame Rect) Element {
-	return $vml('fixtures/absolute_layout_1.vml', frame)
+	return absolute_layout_1_vml_framed(mut app, frame)
 }
 
 fn compiled_absolute_layout_2(frame Rect) Element {
-	return $vml('fixtures/absolute_layout_2.vml', frame)
+	return absolute_layout_2_vml_framed(frame)
 }
 
 fn compiled_absolute_layout_4(frame Rect) Element {
-	return $vml('fixtures/absolute_layout_4.vml', frame)
+	return absolute_layout_4_vml_framed(frame)
 }

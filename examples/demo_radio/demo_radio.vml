@@ -1,12 +1,12 @@
 Screen(
-    id: "root",
+    id: root,
     style: [background(#F1F5F9)],
 ) {
     Absolute(
         style: [transparent(true)],
     ) {
         View(
-            id: "card",
+            id: card,
             x: ((root.width -(root.width - 32 < 648 ? root.width - 32 : 648)) / 2),
             y: 16,
             width: (root.width - 32 < 648 ? root.width - 32 : 648),
@@ -33,7 +33,7 @@ Screen(
                     style: [foreground(#64748B), font_size(12)],
                 )
                 Checkbox(
-                    id: "compact_switch",
+                    id: compact_switch,
                     text: "Compact horizontal layout",
                     bind.checked: app.compact,
                     x: 18,
@@ -43,7 +43,7 @@ Screen(
                     style: [foreground(#334155), font_size(13)],
                 )
                 View(
-                    id: "choices",
+                    id: choices,
                     x: 18,
                     y: 112,
                     width: card.width - 36,
@@ -53,10 +53,7 @@ Screen(
                     Absolute(
                         style: [transparent(true)],
                     ) {
-                        Repeater(
-                            model: app.countries,
-                            key: item.id,
-                        ) {
+                        for index, item in app.countries key item.id {
                             Checkbox(
                                 text: item.name,
                                 checked: item.name == app.selected_country,
@@ -81,7 +78,7 @@ Screen(
                         style: [transparent(true)],
                     ) {
                         Label(
-                            id: "selected_country",
+                            id: selected_country,
                             text: app.message,
                             x: 10,
                             y: 11,

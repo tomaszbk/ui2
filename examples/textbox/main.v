@@ -1,5 +1,7 @@
 module main
 
+// vml: textbox.vml
+
 import ui2
 
 const textbox_width = 640
@@ -34,9 +36,9 @@ fn main() {
 }
 
 fn build_textbox(mut app TextboxDemo) ui2.Element {
-	return $vml('textbox.vml')
+	return textbox_vml(mut app)
 }
 
 fn textbox_tree(mut app TextboxDemo, frame ui2.Rect) ui2.Element {
-	return $vml('textbox.vml', frame)
+	return textbox_vml_framed(mut app, frame)
 }

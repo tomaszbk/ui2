@@ -1,5 +1,7 @@
 module main
 
+// vml: nested_scrollview_box_layout.vml
+
 import ui2
 
 const nested_box_width = 660
@@ -45,9 +47,9 @@ fn main() {
 }
 
 fn build_nested_scrollview_box_layout(mut app NestedScrollBoxLayoutDemo) ui2.Element {
-	return $vml('nested_scrollview_box_layout.vml')
+	return nested_scrollview_box_layout_vml(mut app)
 }
 
 fn nested_scrollview_box_layout_tree(mut app NestedScrollBoxLayoutDemo, frame ui2.Rect) ui2.Element {
-	return $vml('nested_scrollview_box_layout.vml', frame)
+	return nested_scrollview_box_layout_vml_framed(mut app, frame)
 }

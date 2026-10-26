@@ -1,5 +1,7 @@
 module main
 
+// vml: timer.vml
+
 import math
 import sync
 import time
@@ -148,29 +150,35 @@ fn refresh_timer_until_cancelled(window &ui2.Window, generation u64) {
 
 fn timer_callbacks() map[string]ui2.ElementCallback {
 	return {
-		'start':           fn (event ui2.ElementEvent) {
-			mut state := unsafe { timer_state }
-			state.start_at(time.ticks())
-			schedule_timer_refresh(event.window)
-			event.window.request_refresh()
-		}
-		'pause':           fn (event ui2.ElementEvent) {
-			mut state := unsafe { timer_state }
-			if state.running {
-				state.pause_at(time.ticks())
-				cancel_timer_refresh()
-			} else {
-				state.resume_at(time.ticks())
-				schedule_timer_refresh(event.window)
-			}
-			event.window.request_refresh()
-		}
-		'duration_slider': fn (event ui2.ElementEvent) {
-			mut state := unsafe { timer_state }
-			state.set_duration(event.value)
-			event.window.request_refresh()
-		}
+		'start':           callback_start
+		'pause':           callback_pause
+		'duration_slider': callback_duration_slider
 	}
+}
+
+fn callback_start(event ui2.ElementEvent) {
+	mut state := unsafe { timer_state }
+	state.start_at(time.ticks())
+	schedule_timer_refresh(event.window)
+	event.window.request_refresh()
+}
+
+fn callback_pause(event ui2.ElementEvent) {
+	mut state := unsafe { timer_state }
+	if state.running {
+		state.pause_at(time.ticks())
+		cancel_timer_refresh()
+	} else {
+		state.resume_at(time.ticks())
+		schedule_timer_refresh(event.window)
+	}
+	event.window.request_refresh()
+}
+
+fn callback_duration_slider(event ui2.ElementEvent) {
+	mut state := unsafe { timer_state }
+	state.set_duration(event.value)
+	event.window.request_refresh()
 }
 
 fn main() {
@@ -185,19 +193,11 @@ fn main() {
 }
 
 fn build_timer(mut app TimerDemo) ui2.Element {
-	callbacks := timer_callbacks()
-	callback_duration_slider := callbacks['duration_slider'] or { panic('missing duration_slider callback') }
-	callback_start := callbacks['start'] or { panic('missing start callback') }
-	callback_pause := callbacks['pause'] or { panic('missing pause callback') }
-	return $vml('timer.vml')
+	return timer_vml(mut app)
 }
 
 fn timer_tree(mut app TimerDemo, frame ui2.Rect) ui2.Element {
-	callbacks := timer_callbacks()
-	callback_duration_slider := callbacks['duration_slider'] or { panic('missing duration_slider callback') }
-	callback_start := callbacks['start'] or { panic('missing start callback') }
-	callback_pause := callbacks['pause'] or { panic('missing pause callback') }
-	return $vml('timer.vml', frame)
+	return timer_vml_framed(mut app, frame)
 }
 
 fn update_timer(mut app TimerDemo) {

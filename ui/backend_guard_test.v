@@ -5,15 +5,18 @@ import os
 // The backend contract (backend.v) keeps the flags that select a backend out
 // of shared code. This test reads the sources and enforces it.
 
-const backend_flags = ['ui2_headless', 'ui2_embedder', 'ui2_document_library']
+const backend_flags = ['ui2_custom_rendering', 'ui2_headless', 'ui2_embedder', 'ui2_document_library']
 
 const backend_guards = {
 	'document':       r'$if ui2_document_library ? {'
 	'headless':       r'$if ui2_headless ? && !ui2_document_library ? {'
-	'custom':         r'$if (android || ios || linux || macos || windows) && !ui2_headless ? && !ui2_document_library ? {'
-	'custom desktop': r'$if (linux || macos || windows) && !ui2_headless ? && !ui2_document_library ? {'
-	'custom mobile':  r'$if (android || ios) && !ui2_headless ? && !ui2_document_library ? {'
-	'embedder':       r'$if macos && ui2_embedder ? && !ui2_headless ? && !ui2_document_library ? {'
+	'appkit':         r'$if macos && !ui2_custom_rendering ? && !ui2_headless ? && !ui2_document_library ? {'
+	'win32':          r'$if windows && !ui2_custom_rendering ? && !ui2_headless ? && !ui2_document_library ? {'
+	'uikit':          r'$if ios && !ui2_custom_rendering ? && !ui2_headless ? && !ui2_document_library ? {'
+	'custom':         r'$if (android || linux || ((ios || macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? && !ui2_document_library ? {'
+	'custom desktop': r'$if (linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? && !ui2_document_library ? {'
+	'custom mobile':  r'$if (android || (ios && ui2_custom_rendering ?)) && !ui2_headless ? && !ui2_document_library ? {'
+	'embedder':       r'$if macos && ui2_custom_rendering ? && ui2_embedder ? && !ui2_headless ? && !ui2_document_library ? {'
 }
 
 // Branches a backend may take inside its own files, by file.
@@ -25,10 +28,12 @@ const backend_branch_exceptions = {
 		r'pub const backend_embedder = $if ui2_embedder ? { true } $else { false }',
 	]
 	'ui/backend_document.v': [
-		r'const document_host_custom = $if ui2_headless ? { false } $else { true }',
+		r'const document_host_custom = $if (android || linux || ((ios || macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? { true } $else { false }',
+		r'const document_host_appkit = $if macos && !ui2_custom_rendering ? && !ui2_headless ? { true } $else { false }',
 	]
 	'ui/embedder_options.v': [
 		r'$if ui2_embedder ? {',
+		r'$if !ui2_custom_rendering ? {',
 		r'$if ui2_headless ? {',
 	]
 }
@@ -36,12 +41,21 @@ const backend_branch_exceptions = {
 // The custom renderer selects its embedder host with this branch.
 const embedder_surface_branch = r'$if macos && ui2_embedder ? {'
 
+// Each native backend lives in a directory of its own.
+const backend_directories = {
+	'appkit':  'appkit'
+	'uikit':   'uikit'
+	'windows': 'win32'
+}
+
 fn backend_source_files() []string {
 	root := os.dir(@DIR)
 	mut files := []string{}
-	for name in os.ls(os.join_path(root, 'ui')) or { panic(err) } {
-		if name.ends_with('.v') && !name.ends_with('_test.v') {
-			files << 'ui/${name}'
+	for dir in ['ui', 'appkit', 'uikit', 'windows'] {
+		for name in os.ls(os.join_path(root, dir)) or { panic(err) } {
+			if name.ends_with('.v') && !name.ends_with('_test.v') {
+				files << '${dir}/${name}'
+			}
 		}
 	}
 	files.sort()
@@ -91,6 +105,14 @@ fn test_backend_flags_appear_only_in_backend_guards() {
 		offending.join('\n')
 }
 
+fn test_native_backend_directories_hold_only_their_backend() {
+	for path in backend_source_files() {
+		dir := path.all_before('/')
+		backend := backend_directories[dir] or { continue }
+		assert file_guard(backend_source_lines(path)) == backend, '${path} must open with the ${backend} guard from ui/backend.v'
+	}
+}
+
 fn test_backend_contract_documents_every_guard() {
 	contract := os.read_file(os.join_path(@DIR, 'backend.v')) or { panic(err) }
 	for name, guard in backend_guards {
@@ -107,5 +129,5 @@ fn test_every_backend_defines_its_name() {
 			}
 		}
 	}
-	assert names.keys().sorted() == ['custom', 'document', 'headless']
+	assert names.keys().sorted() == ['appkit', 'custom', 'document', 'headless', 'uikit', 'win32']
 }

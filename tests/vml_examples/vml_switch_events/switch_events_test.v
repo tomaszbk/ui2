@@ -1,5 +1,7 @@
 module main
 
+// vml: switch_events.vml
+
 import ui2
 
 @[heap]
@@ -35,7 +37,7 @@ fn switch_event_app(expects_active bool) &SwitchEventApp {
 }
 
 fn switch_event_tree(mut app SwitchEventApp) ui2.Element {
-	return $vml('switch_events.vml', ui2.rect(0, 0, 300, 90))
+	return switch_events_vml_framed(mut app, ui2.rect(0, 0, 300, 90))
 }
 
 fn test_switch_calls_both_typed_handlers_in_order_and_binds_once() ! {

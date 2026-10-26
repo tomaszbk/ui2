@@ -6,14 +6,28 @@
 <img height="280" alt="image" src="https://github.com/user-attachments/assets/0fb17bf1-ba64-4d70-bba9-76e08069e009" />
 
 
-`ui2` is a compact declarative UI module for V. It draws every control itself,
-the way a browser engine does: one immediate-mode `gg`/Sokol renderer paints
-and handles the whole window on Linux, macOS, Windows, Android and iOS. The
-operating system is only the host: it
-provides the window and event loop, input, the clipboard, menus, dialogs, the
-tray, window chrome, key modifiers and, on iOS, the barcode scanner, as
-described in
+`ui2` is a compact declarative UI module for V with two modes:
+
+- **Native** (the default on macOS, Windows and iOS): the controls are the
+  operating system's own — AppKit's `NSButton`, `NSTextField` and
+  `NSPopUpButton`, their Win32 and UIKit equivalents — and boxes are
+  layer-backed views with their background, corner radius and borders. ui2
+  computes the layout and reconciles the declared tree into those views.
+- **Custom renderer** (always on Linux and Android; opt in on macOS, Windows
+  and iOS with `-d ui2_custom_rendering`): ui2 draws every control itself, the
+  way a browser engine does, with one immediate-mode `gg`/Sokol renderer.
+
+Either way the operating system is the host: it provides the window and event
+loop, input, the clipboard, menus, dialogs, the tray, window chrome, key
+modifiers and, on iOS, the barcode scanner, as described in
 [host services](ui/platform.v). There is no GTK dependency on Linux.
+
+The native mode shows what the platform's controls can show. Overlays, motion,
+visual transforms, vector canvases, drag and drop, interaction styles,
+outlines and other renderer-only presentation are validation errors there that
+name `-d ui2_custom_rendering`, never silently dropped. The kit's `Button` is
+the platform's push button in native mode; see the
+[backend contract](ui/backend.v) for the native profile and the kit mapping.
 
 The V API includes responsive Flex and Grid placement with intrinsic text
 measurement. See the [layout guide](docs/modern-layout.md) and
@@ -26,10 +40,10 @@ callback, widget constructors, state access, ownership rules, and a Python
 `ctypes` example. Application code needs no V compiler once the library is built.
 
 ```sh
-v -b c run examples/users/main.v
+v run cmd/ui2 run examples/users -b c
 ```
 
-The renderer builds on demand. A window rebuilds after every event its elements
+The custom renderer builds on demand. A window rebuilds after every event its elements
 handle and after its timers run; other model changes call `request_refresh()`
 on the window they belong to (an event carries it as `event.window`). Workers
 can post changes through a captured `window.dispatcher()`. Idle drawing currently stops on macOS Metal. GL/EGL/D3D
@@ -55,10 +69,10 @@ MenuOverlay, ContextMenu and Tooltip, with controlled open state, focus
 containment and anchored placement. Run
 `v -b c run examples/overlays` to try all five.
 
-On macOS, the experimental owned embedder is a host variant that replaces the
-sokol window with AppKit windows and Metal surfaces of its own, adding IME
-composition and a blocking event loop that sleeps while idle. Enable it with
-`-d ui2_embedder`. An `App` runs any number of independent windows opened with
+On macOS, the experimental owned embedder is a host variant of the custom
+renderer that replaces the sokol window with AppKit windows and Metal surfaces
+of its own, adding IME composition and a blocking event loop that sleeps while
+idle. Enable it with `-d ui2_custom_rendering -d ui2_embedder`. An `App` runs any number of independent windows opened with
 `app.new_window`, each with its own state, updates and dispatcher. See [the embedder contract and acceptance tests](docs/custom-embedder.md).
 
 ## Requirements
@@ -73,21 +87,25 @@ export PATH="$HOME/.local/share/ui2-v:$PATH"
 ```
 
 CI builds the same pin through [the shared setup action](.github/actions/setup-v/action.yml).
-The module lives in `ui/`, the one entry in the `subdirs` field of `v.mod`.
+The module lives in `ui/`, with the native backends in `appkit/`, `windows/`
+and `uikit/`; they are the `subdirs` of `v.mod`.
 
 Build and run ui2 with V's C backend (`v -b c ...`), including the designer
 and its shared preview libraries.
 
-Desktop builds also need Pango 1.50+, FreeType and their text-library
-dependencies. The vglyph runtime is included in the repository. See
-[desktop text setup](docs/vglyph-text.md) for macOS, Linux and Windows
-installation, linking and distribution. Android, iOS and headless builds do
-not need them.
+Custom-renderer desktop builds (Linux, and macOS or Windows with
+`-d ui2_custom_rendering`) also need Pango 1.50+, FreeType and their
+text-library dependencies. The vglyph runtime is included in the repository.
+See [desktop text setup](docs/vglyph-text.md) for macOS, Linux and Windows
+installation, linking and distribution. Native, Android, iOS and headless
+builds do not need them.
 
-On iOS, sokol_app starts the app through `UIApplicationMain` and draws with
-Metal. The renderer looks for its fonts in `fonts/` or `assets/fonts/` beside
-the executable, so an app bundle has to carry them there. iOS builds are only
-typechecked (`make check-ios`); none has been run on a device yet.
+On iOS the native mode runs UIKit's controls through `UIApplicationMain`; with
+`-d ui2_custom_rendering`, sokol_app starts the app instead and draws with
+Metal, and the renderer looks for its fonts in `fonts/` or `assets/fonts/`
+beside the executable, so an app bundle has to carry them there. iOS builds
+are only typechecked (`make check-ios`, `make check-custom-ios`); none has
+been run on a device yet.
 
 To use `ui2` from a project outside this repository, link the clone into
 `~/.vmodules`:
@@ -158,8 +176,8 @@ Keyframe timelines loop, sequence and run in parallel, on the element or on
 descendants named by id. In VML a `Timeline` part declares one:
 
 ```vml
-View(id: "card", motion: app.card_motion()) {
-    Image(id: "logo", width: 48, height: 48, source: "logo.png")
+View(id: card, motion: app.card_motion()) {
+    Image(id: logo, width: 48, height: 48, source: "logo.png")
     Timeline(duration: 1.2, repeat: true) {
         Keyframe(target: "logo", at: 0.5, opacity: 0.4, scale: 1.1, easing: in_out_sine)
         Keyframe(target: "logo", at: 1, opacity: 1, scale: 1)
@@ -175,13 +193,17 @@ and the allocation-free frame contract.
 
 ## Compiled VML
 
-VML files compile to typed V constructors through `$vml`; parsing and type errors
-are reported against the source file at compile time. The window runner borrows
-the application model by reference, exposed as `app`:
+VML files compile to ordinary V. A V file declares each document it builds with
+a `// vml: file.vml` directive, and `ui2 gen` writes the document's builder,
+`<name>_vml`, into `<name>_vml.v` beside it. Language errors are reported by the
+generator and type errors by V, both at the document's line. The window runner
+borrows the application model by reference, exposed as `app`:
 
 ```v
+// vml: app.vml
+
 fn build(mut app App) ui2.Element {
-    return $vml('app.vml')
+    return app_vml(mut app)
 }
 
 fn main() {
@@ -213,9 +235,38 @@ fn main() {
 }
 ```
 
-For embedding and independent geometry fixtures, `$vml('app.vml', frame)` accepts
-an explicit logical `Rect`. Imports are resolved relative to their declaring VML
-file during compilation; VML sources are not required beside the built executable.
+Generate the builders, then build as usual, or let the tool do both:
+
+```sh
+v run cmd/ui2 gen examples/users   # writes users_vml.v
+v run cmd/ui2 run examples/users -b c   # generates, then runs
+```
+
+A document that does not read `app` has a builder without it (`app_vml()`).
+For embedding and independent geometry fixtures, `app_vml_framed(mut app, frame)`
+builds the document in an explicit logical `Rect` instead of following the window.
+Imports are resolved relative to their declaring VML file during generation; VML
+sources are not required beside the built executable. Generated files are not
+committed (`*_vml.v` is ignored).
+
+While developing, `ui2 dev` runs the program and keeps it current:
+
+```sh
+v run cmd/ui2 dev examples/users -b c
+```
+
+It builds the program with `-d vml_interpreter -d ui2_dev`, where every
+generated builder builds its document with the interpreter from the `.vml`
+file. Saving a document or a component it imports reloads it in the running
+window. Saving a `.v` file rebuilds the program while the running one stays
+open; when the build succeeds, the running program saves its component state
+and closes, and the new one starts from that state. In both cases a state
+survives when its component path and name are unchanged and its initial value
+has the same kind; ids and keys keep focus, scroll and edit buffers. A build
+that fails leaves the running program alone, and a document the interpreter
+cannot run (one that calls V functions in expressions) is built compiled and
+updated by a restart. Release builds contain neither the interpreter nor these
+hooks.
 
 Ordinary properties read values. `bind.text` and `bind.checked` also write control
 edits to a writable source before invoking that event's handler. Numeric editing
@@ -233,13 +284,15 @@ from components carry their declared payload, accept a matching callback or a
 callback with no parameters, and are safe to emit without a listener.
 
 ```vml
-Repeater(model: app.users, key: item.id) {
+for item in app.users key item.id {
     Label(text: "${item.name}")
 }
 ```
 
-A repeater's key identifies siblings independently of position. `item` and `index`
-are scoped to each item, and callbacks retain the rendered item's identity.
+A `for` key identifies siblings independently of position. The loop names
+(`for index, user in app.users key user.id`) are scoped to each item, and
+callbacks retain the rendered item's identity. `if`, `else if` and `else`
+mount and unmount their branches; see [VML syntax](docs/vml-syntax.md).
 Application services and business logic can remain in `.v` files.
 
 Presentation uses typed style values:
@@ -260,9 +313,10 @@ states and theme updates.
 ### Interpreted VML
 
 Development builds and dynamic documents can also run VML without compiling
-it. Built with `-d vml_interpreter`, ui2 parses a document with the compiler's
-VML parser, checks it against the model type and the widget registry when it
-loads, and declares the same retained nodes as compiled VML:
+it. Built with `-d vml_interpreter`, ui2 reads a document into the same resolved
+form the generator prints (`ui2.vml`), checks it against the model type and the
+widget registry when it loads, and declares the same retained nodes as compiled
+VML:
 
 ```v
 ui2.run_vml[App](source_path: 'app.vml', model: &App{}, watch: true)!
@@ -297,7 +351,7 @@ Absolute(
     style: [transparent(true)],
 ) {
     Button(
-        id: "save",
+        id: save,
         text: "Save",
         on_click: app.save(),
         x: 20,
@@ -319,7 +373,7 @@ Absolute(
     style: [transparent(true)],
 ) {
     View(
-        id: "save_card",
+        id: save_card,
         button_behavior: true,
         on_click: app.save(),
         x: 20,
@@ -378,10 +432,10 @@ component Counter(title string = "Count", changed event(value int)) {
 }
 ```
 
-The application imports it from `counter.vml`:
+The application uses it from `counter.vml` in the same folder, with no import
+(components of other folders come from `import widgets { Counter }`):
 
 ```vml
-import Counter
 Screen {
     Counter(title: "First")
     Counter(title: "Second")
@@ -502,18 +556,27 @@ fill color.
 
 ## Backend capabilities
 
-Call `control_support(kind)` to query support. The renderer implements every
-shared control kind; dropdowns and text areas are `partial` because the
-dropdown list is drawn by the renderer instead of a native menu and rich
-text-area runs are rendered as plain text. On Android and iOS the renderer
-draws text with Fontstash rather than vglyph, and does not offer overlays,
-motion or visual transforms (`backend_supports_overlays` and its siblings are
-false there).
+Call `control_support(kind)` to query support, and read `backend_name`
+(`appkit`, `win32`, `uikit`, `custom`, `headless` or `document`) and the
+`backend_supports_*` constants for the presentation features. The native
+backends have every shared control kind as an OS control; images are
+`partial` there (no fit modes, crops, tints or rotation), as are Windows text
+areas and iOS checkboxes and text areas. They have no overlays, motion,
+visual transforms, vector canvases or drag and drop, and
+`backend_native_controls` is true: declarations are checked against the
+native profile and anything outside it is an error naming
+`-d ui2_custom_rendering`. The custom renderer implements every shared control
+kind; dropdowns and text areas are `partial` because the dropdown list is
+drawn by the renderer instead of a native menu and rich text-area runs are
+rendered as plain text. On Android and iOS the renderer draws text with
+Fontstash rather than vglyph, and does not offer overlays, motion or visual
+transforms (`backend_supports_overlays` and its siblings are false there).
 
-A button marked `native` gets the standard bezel, including a pressed shade
-while the pointer is held on it, so it does not come out as a bare caption. A
-button the application gave its own background keeps it, since the standard
-styling stops where the application's own begins.
+A button marked `native` is the platform's push button in native mode. On the
+custom renderer it gets the standard bezel, including a pressed shade while
+the pointer is held on it, so it does not come out as a bare caption; a button
+the application gave its own background keeps it, since the standard styling
+stops where the application's own begins.
 
 Box-backed elements (`View`, `Button`, `Scroll`, `Dropdown`,
 `TextInput`, `TextArea`) can draw each border edge independently. Widths use
@@ -594,12 +657,12 @@ card's actions:
 
 ```vml
 MessageBox(
-    id: "overlay",
+    id: overlay,
     hidden: ! app.visible,
     title: "Hello World",
     text: "This message came from the ui example.",
 ) {
-    Button(id: "close_message", text: "OK", on_click: app.close_message())
+    Button(id: close_message, text: "OK", on_click: app.close_message())
 }
 ```
 
@@ -841,7 +904,7 @@ ui2.scroll_with_mode('columns', frame, 0xffffff, .horizontal_only, columns)
 ```
 
 ```vml
-Scroll(id: "columns", scroll_mode: horizontal_only) { ... }
+Scroll(id: columns, scroll_mode: horizontal_only) { ... }
 ```
 
 The horizontal scroller runs along the bottom edge. A trackpad or a tilt wheel
@@ -1166,18 +1229,18 @@ v -b c run examples/calculator/main.v
 ```
 
 It ports the `v-ui` calculator to typed VML: the display reads from the model,
-a keyed `Repeater` builds the keypad, and button actions call the calculator's
+a keyed `for` builds the keypad, and button actions call the calculator's
 business logic directly. It includes decimal input, sign and percentage
 controls, exponentiation, repeated equals, and division-by-zero recovery.
 
 Run the responsive users demo with:
 
 ```sh
-v -b c run examples/users/main.v
+v run cmd/ui2 run examples/users -b c
 ```
 
 It ports the users example from `v-ui`. The complete screen is
-declared in `examples/users/users.vml` and compiled with `$vml`; V only
+declared in `examples/users/users.vml` and compiled through its generated builder; V only
 contains the typed model and business actions. The example includes validated
 text entry, password masking, country selection, toggles, a progress indicator,
 and a keyed, scrollable user table.

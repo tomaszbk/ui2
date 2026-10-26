@@ -1,5 +1,7 @@
 module main
 
+// vml: flight_booker.vml
+
 import time
 import ui2
 
@@ -102,9 +104,9 @@ fn main() {
 }
 
 fn build_flight_booker(mut app FlightBooker) ui2.Element {
-	return $vml('flight_booker.vml')
+	return flight_booker_vml(mut app)
 }
 
 fn flight_booker_tree(mut app FlightBooker, frame ui2.Rect) ui2.Element {
-	return $vml('flight_booker.vml', frame)
+	return flight_booker_vml_framed(mut app, frame)
 }

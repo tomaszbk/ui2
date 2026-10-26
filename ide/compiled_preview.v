@@ -4,6 +4,7 @@ import dl
 import os
 import rand
 import ui2
+import ui2.vml
 
 // A preview library allocates from the designer's Boehm collector. V links libgc
 // statically into every executable and shared library, so a library built the
@@ -61,21 +62,27 @@ fn preview_command(command ui2.VmlHostCommand) ! {
 	}
 }
 
-fn preview_library_source(app &IdeApp, source_path string) string {
+fn preview_library_source(app &IdeApp) string {
 	mut actions := []string{}
 	for component in app.components {
 		if component.event_handler.len > 0 && component.event_handler !in actions {
 			actions << component.event_handler
 		}
 	}
-	mut locals := ''
+	// The document's actions are methods of the preview's model; each one
+	// reports the event to the designer.
+	mut methods := ''
 	for action in actions {
-		locals += '\t${action} := on_event\n'
+		methods += 'pub fn (mut app PreviewApp) ${action}(event ui2.ElementEvent) {\n\tapp.on_event(event)\n}\n\n'
 	}
-	path_literal := vml_escape(source_path).replace('$', '\\$')
+	build := if actions.len > 0 {
+		'\tmut app := &PreviewApp{\n\t\ton_event: on_event\n\t}\n\treturn preview_vml_framed(mut app, frame)'
+	} else {
+		'\t_ = on_event\n\treturn preview_vml_framed(frame)'
+	}
 	// The document graph lives in the designer's collector, which also traces
 	// the designer's references to it, so the library keeps no roots of its own.
-	return 'module main\n\nimport ui2\n\n@[export: \'ui2_designer_build\']\npub fn designer_build(frame ui2.Rect, on_event ui2.ElementCallback) ui2.Element {\n${locals}\treturn \$vml("${path_literal}", frame)\n}\n'
+	return 'module main\n\nimport ui2\n\n@[heap]\npub struct PreviewApp {\n\ton_event ui2.ElementCallback = unsafe { nil }\n}\n\n${methods}@[export: \'ui2_designer_build\']\npub fn designer_build(frame ui2.Rect, on_event ui2.ElementCallback) ui2.Element {\n${build}\n}\n'
 }
 
 // host_collector_libs returns the linker flags that let a preview library leave
@@ -142,7 +149,12 @@ fn (mut app IdeApp) compile_preview() ! {
 	os.write_file(preview_source, app.source_text)!
 	defer { os.rm(preview_source) or {} }
 	source := os.join_path(directory, 'preview.v')
-	os.write_file(source, preview_library_source(app, preview_source))!
+	os.write_file(source, preview_library_source(app))!
+	vml.write_generated(preview_source, vml.GenConfig{
+		module: 'main'
+		name:   'preview'
+		dir:    directory
+	}, '')!
 	library := os.join_path(directory, dl.get_libname('preview'))
 	module_path := [os.dir(@VMODROOT), '@vlib', '@vmodules'].join(os.path_delimiter)
 	// The exported structs and callbacks use the C backend's native ABI, as do
@@ -156,7 +168,7 @@ fn (mut app IdeApp) compile_preview() ! {
 	// runtime start-up would otherwise also install its GC warning callback in
 	// that collector, where it would outlive the library's code.
 	command << ['-d', 'dynamic_boehm', '-d', 'gc_warn_on_stderr']
-	command << ['-shared', '-o', library, source]
+	command << ['-shared', '-o', library, directory]
 	result := run_preview_compiler(command, write_host_collector_package(directory, collector_libs)!)
 	if result.exit_code != 0 { return error(result.output.trim_space()) }
 	handle := dl.open_opt(library, dl.rtld_now | dl.rtld_local)!

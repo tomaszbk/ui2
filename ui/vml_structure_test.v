@@ -85,7 +85,7 @@ fn test_composite_structure_updates_helpers_and_preserves_authored_instances() !
 	owner.dispose()!
 }
 
-$if linux || macos || windows || ui2_headless ?|| ui2_document_library ? {
+$if linux || ((macos || windows) && ui2_custom_rendering ?) || ui2_headless ?|| ui2_document_library ? {
 	fn test_nested_composite_sources_keep_actual_parent_and_refresh_snapshots() ! {
 		mut owner := new_vml_document('dialog')!
 		mut fixture := &VmlStructureFixture{}

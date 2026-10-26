@@ -1,4 +1,9 @@
+// vtest vflags: -d vml_fixtures
 module ui2
+
+// vml: fixtures/measure_nested_6.vml
+// vml: fixtures/measure_nested_12.vml
+// vml: fixtures/measure_repeated_items.vml
 
 pub struct MeasureCacheItem {
 pub:
@@ -23,9 +28,9 @@ fn measure_cache_fixture_text(text string, style TextStyle, max_width f64) !Layo
 fn measure_cache_computations(depth int) u64 {
 	frame := rect(0, 0, 800, 600)
 	root := if depth == 6 {
-		$vml('fixtures/measure_nested_6.vml', frame)
+		measure_nested_6_vml_framed(frame)
 	} else {
-		$vml('fixtures/measure_nested_12.vml', frame)
+		measure_nested_12_vml_framed(frame)
 	}
 	mut tree := LayoutTree{}
 	tree.replace(root) or { panic(err) }
@@ -54,7 +59,7 @@ fn test_nested_measurement_keeps_repeated_items_distinct() {
 		items: [MeasureCacheItem{1, 'Short'}, MeasureCacheItem{2, long_text},
 			MeasureCacheItem{3, 'Short'}]
 	}
-	root := $vml('fixtures/measure_repeated_items.vml', rect(0, 0, 600, 400))
+	root := measure_repeated_items_vml_framed(mut app, rect(0, 0, 600, 400))
 	row := root.children[0]
 	items := row.children
 	assert items.len == 3

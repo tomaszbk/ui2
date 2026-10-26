@@ -1,1 +1,1 @@
-Scroll(key: "first", on_scroll: callback_changed)
+Scroll(key: "first", on_scroll: app.callback_changed)

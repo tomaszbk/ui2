@@ -1,5 +1,10 @@
 module main
 
+// vml: import_layout_scope.vml
+// vml: measured_sibling_capture.vml
+// vml: repeater_placement.vml
+// vml: repeater_scaled.vml
+
 import ui2
 
 struct CompositionRow {
@@ -23,18 +28,18 @@ pub mut:
 	extra    f64
 }
 
-fn import_layout_scope() ui2.Element { return $vml('import_layout_scope.vml') }
+fn import_layout_scope() ui2.Element { return import_layout_scope_vml() }
 
 fn measured_sibling_capture(mut app CompositionApp) ui2.Element {
-	return $vml('measured_sibling_capture.vml')
+	return measured_sibling_capture_vml(mut app)
 }
 
 fn repeater_placement(mut app CompositionApp) ui2.Element {
-	return $vml('repeater_placement.vml')
+	return repeater_placement_vml(mut app)
 }
 
 fn repeater_scaled(mut app CompositionApp) ui2.Element {
-	return $vml('repeater_scaled.vml')
+	return repeater_scaled_vml(mut app)
 }
 
 fn test_imported_layouts_export_their_root_and_preserve_caller_refs() {

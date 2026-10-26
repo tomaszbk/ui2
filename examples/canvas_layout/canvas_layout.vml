@@ -1,12 +1,12 @@
 Screen(
-    id: "root",
+    id: root,
     style: [background(#F1F5F9)],
 ) {
     Absolute(
         style: [transparent(true)],
     ) {
         View(
-            id: "card",
+            id: card,
             x: 16,
             y: 16,
             width: root.width - 32,
@@ -18,7 +18,7 @@ Screen(
             ) {
                 Label(text: "Canvas layout", x: 18, y: 18, width: 160, height: 26, style: [foreground(#111827), font_size(18), weight(700)])
                 Dropdown(
-                    id: "theme_dropdown",
+                    id: theme_dropdown,
                     text: app.theme,
                     on_change: callback_theme_dropdown,
                     x: 186,
@@ -33,9 +33,9 @@ Screen(
                     Option(text: "Green")
                     Option(text: "Slate")
                 }
-                Button(id: "about", text: "About", on_click: callback_about, native: true, x: 346, y: 13, width: 96, height: 34)
+                Button(id: about, text: "About", on_click: callback_about, native: true, x: 346, y: 13, width: 96, height: 34)
                 Button(
-                    id: "clear_notes",
+                    id: clear_notes,
                     text: "X",
                     on_click: callback_clear_notes,
                     native: true,
@@ -44,9 +44,9 @@ Screen(
                     width: 44,
                     height: 34,
                 )
-                Button(id: "add_note", text: "Add", on_click: callback_add_note, native: true, x: 506, y: 13, width: 80, height: 34)
+                Button(id: add_note, text: "Add", on_click: callback_add_note, native: true, x: 506, y: 13, width: 80, height: 34)
                 Button(
-                    id: "reset_tile",
+                    id: reset_tile,
                     text: "Reset tile",
                     on_click: callback_reset_tile,
                     native: true,
@@ -56,7 +56,7 @@ Screen(
                     height: 34,
                 )
                 Button(
-                    id: "toggle_menu",
+                    id: toggle_menu,
                     text: app.menu_label,
                     on_click: callback_toggle_menu,
                     native: true,
@@ -74,7 +74,7 @@ Screen(
                     style: [foreground(#64748B), font_size(11)],
                 )
                 Scroll(
-                    id: "canvas",
+                    id: canvas,
                     x: 18,
                     y: 84,
                     width: card.width - 36,
@@ -85,7 +85,7 @@ Screen(
                         style: [transparent(true)],
                     ) {
                         View(
-                            id: "sheet",
+                            id: sheet,
                             on_pointer_down: callback_canvas_sheet,
                             on_pointer_drag: callback_canvas_sheet,
                             on_pointer_up: callback_canvas_sheet,
@@ -109,7 +109,7 @@ Screen(
                                     style: [foreground(#94A3B8), font_size(11)],
                                 )
                                 TextArea(
-                                    id: "canvas_text",
+                                    id: canvas_text,
                                     text: app.text,
                                     x: sheet.width - 320,
                                     y: 40,
@@ -118,7 +118,7 @@ Screen(
                                     style: [background(#FEF9C3), foreground(#111827), font_size(12), radius(8)],
                                 )
                                 View(
-                                    id: "canvas_menu",
+                                    id: canvas_menu,
                                     hidden: app.menu_hidden,
                                     x: 240,
                                     y: 120,
@@ -138,7 +138,7 @@ Screen(
                                             style: [foreground(#E2E8F0), font_size(12), weight(700)],
                                         )
                                         Button(
-                                            id: "menu_delete",
+                                            id: menu_delete,
                                             text: "Delete all users",
                                             on_click: callback_menu_delete,
                                             native: true,
@@ -148,7 +148,7 @@ Screen(
                                             height: 32,
                                         )
                                         Button(
-                                            id: "menu_export",
+                                            id: menu_export,
                                             text: "Export users",
                                             on_click: callback_menu_export,
                                             native: true,
@@ -158,7 +158,7 @@ Screen(
                                             height: 32,
                                         )
                                         Button(
-                                            id: "menu_exit",
+                                            id: menu_exit,
                                             text: "Exit",
                                             on_click: callback_menu_exit,
                                             native: true,
@@ -169,10 +169,7 @@ Screen(
                                         )
                                     }
                                 }
-                                Repeater(
-                                    model: app.notes,
-                                    key: item.key,
-                                ) {
+                                for item in app.notes key item.key {
                                     View(
                                         x: item.x,
                                         y: item.y,
@@ -203,7 +200,7 @@ Screen(
                                     }
                                 }
                                 View(
-                                    id: "canvas_tile",
+                                    id: canvas_tile,
                                     on_pointer_down: callback_canvas_tile,
                                     on_pointer_drag: callback_canvas_tile,
                                     on_pointer_up: callback_canvas_tile,
@@ -260,7 +257,7 @@ Screen(
                         style: [transparent(true)],
                     ) {
                         Label(
-                            id: "pointer_readout",
+                            id: pointer_readout,
                             text: app.pointer_text,
                             x: 0,
                             y: 5,
@@ -271,7 +268,7 @@ Screen(
                     }
                 }
                 Label(
-                    id: "canvas_status",
+                    id: canvas_status,
                     text: app.status,
                     x: 150,
                     y: card.height - 41,

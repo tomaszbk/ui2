@@ -1,12 +1,12 @@
 Screen(
-    id: "root",
+    id: root,
     style: [background(#F1F5F9)],
 ) {
     Absolute(
         style: [transparent(true)],
     ) {
         View(
-            id: "card",
+            id: card,
             x: 16,
             y: 16,
             width: root.width - 32,
@@ -33,7 +33,7 @@ Screen(
                     style: [foreground(#64748B), font_size(12)],
                 )
                 Button(
-                    id: "toggle_details",
+                    id: toggle_details,
                     text: app.show_details ? "Hide details" : "Show details",
                     on_click: app.toggle_details(),
                     native: true,
@@ -43,7 +43,7 @@ Screen(
                     height: 34,
                 )
                 View(
-                    id: "image_frame",
+                    id: image_frame,
                     x: 18,
                     y: 76,
                     width: card.width - 36,
@@ -54,7 +54,7 @@ Screen(
                         style: [transparent(true)],
                     ) {
                         Image(
-                            id: "logo",
+                            id: logo,
                             source: app.image_path,
                             x: (image_frame.width - 260) / 2,
                             y: (image_frame.height - 260) / 2,
@@ -85,7 +85,7 @@ Screen(
                     }
                 }
                 Label(
-                    id: "raster_status",
+                    id: raster_status,
                     text: app.status,
                     x: 18,
                     y: card.height - 40,

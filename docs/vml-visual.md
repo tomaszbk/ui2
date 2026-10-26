@@ -1,18 +1,19 @@
 # VML visual primitives
 
-`$vml('view.vml')` builds a retained `ui2.Element` with the installed ui2 module.
-The compiler lowers each tag to a props type of ui2 (`Label` is `ui2.LabelProps`,
-`pkg.Gauge` is `pkg.GaugeProps`) and leaves the widgets to ui2: layout, font
-measurement, rendering, interaction patches and editor state are implemented here.
-VML parsing happens during compilation; the application does not interpret these files.
-Build the compiler pinned in `scripts/v-pin.env`.
+A generated builder (`view_vml`, from `// vml: view.vml` and `ui2 gen`) builds a
+retained `ui2.Element` with the installed ui2 module. The generator lowers each tag
+to a props type of ui2 (`Label` is `ui2.LabelProps`, `pkg.Gauge` is `pkg.GaugeProps`)
+and leaves the widgets to ui2: layout, font measurement, rendering, interaction
+patches and editor state are implemented here. VML parsing happens during
+generation; the application does not interpret these files. Build the compiler
+pinned in `scripts/v-pin.env`.
 
 Use bare VML enum names (`text_align(right)`), quoted strings, numeric values and bool conditions.
 String interpolation is explicit: `text: "Count ${app.count}"`. Display text accepts
 numbers and strings; other properties have no implicit string/number conversion.
 V type-checks the lowered props, so unknown elements, properties, enum values and
-wrong value types are errors. Diagnostics identify the VML file, line and column,
-name props types as elements and retain the enclosing `$vml` call site. V does not
+wrong value types are errors. Diagnostics identify the VML file and line and name
+props types as elements. V does not
 check the second arm of a conditional value (`text: ready ? "on" : 1`); the C
 compiler rejects a wrong type there.
 
@@ -77,7 +78,7 @@ the surface; ui2 resolves its global position, clipping, focus and dismissal.
 
 ```vml
 Dialog(
-    id: "confirmation",
+    id: confirmation,
     width: 320,
     height: 180,
     open: app.confirm_open,
@@ -247,7 +248,7 @@ geometry dependencies without recreating components.
 and the full `ui2.GridOrientation` enum. Padding uses the same style helpers.
 Children accept `column_span` and `row_span`.
 Props build through ui2's layout functions.
-Keyed Repeater groups flatten into the container alongside static siblings before
+Keyed `for` groups flatten into the container alongside static siblings before
 allocation, with each child retaining its typed layout constraints.
 
 ## Motion and presence
@@ -275,10 +276,13 @@ including immediate completion when reduced motion is enabled.
 
 ## Verification
 
-ui2 draws every control with its own renderer on every platform, so each
-property in this guide is available everywhere.
+The custom renderer shows every property in this guide on every platform.
+In native mode (macOS, Windows and iOS without `-d ui2_custom_rendering`) the
+operating system's controls show what they can, and a property they cannot
+show is a validation error that names the custom renderer; see the native
+profile in `ui/backend.v`.
 
-`ui/vml_props_*_test.v` build each fixture both through `$vml` and through
+`ui/vml_props_*_test.v` build each fixture both through its generated builder and through
 hand-written props, and compare the two Element trees. `tests/compiled_vml` covers
 keyed lists, components, styles, motion and compile-time diagnostics.
 `tests/vml_examples/vml_visual` is an executable parity fixture for this guide:

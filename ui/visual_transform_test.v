@@ -1,4 +1,8 @@
+// vtest vflags: -d vml_fixtures
 module ui2
+
+// vml: fixtures/transform_binding.vml
+// vml: fixtures/visual_transform_0.vml
 
 import math
 
@@ -164,7 +168,7 @@ pub:
 
 fn test_vml_model_transform_binding_and_nonfinite_runtime_validation() {
 	mut app := TransformNumberModel{ offset: 12 }
-	el := $vml('fixtures/transform_binding.vml', rect(0, 0, 100, 100))
+	el := transform_binding_vml_framed(mut app, rect(0, 0, 100, 100))
 	assert el.translate_x == 12
 	invalid := with_transform(view('invalid', rect(0, 0, 100, 100), BoxStyle{}, []Element{}), VisualTransform{ translate_x: math.inf(1) })
 	if _ := validate_element_tree(invalid) {
@@ -183,5 +187,5 @@ fn test_inverse_roundoff_keeps_the_independently_derived_rotated_boundary() {
 }
 
 fn compiled_visual_transform_0(frame Rect) Element {
-	return $vml('fixtures/visual_transform_0.vml', frame)
+	return visual_transform_0_vml_framed(frame)
 }

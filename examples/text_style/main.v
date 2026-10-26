@@ -1,5 +1,7 @@
 module main
 
+// vml: text_style.vml
+
 import os
 import ui2
 
@@ -190,9 +192,9 @@ fn main() {
 }
 
 fn build_text_style(mut app TextStyleDemo) ui2.Element {
-	return $vml('text_style.vml')
+	return text_style_vml(mut app)
 }
 
 fn text_style_tree(mut app TextStyleDemo, frame ui2.Rect) ui2.Element {
-	return $vml('text_style.vml', frame)
+	return text_style_vml_framed(mut app, frame)
 }

@@ -1,5 +1,7 @@
 module main
 
+// vml: demo_radio.vml
+
 import ui2
 
 const radio_width = 680
@@ -48,9 +50,9 @@ fn main() {
 }
 
 fn build_demo_radio(mut app RadioDemo) ui2.Element {
-	return $vml('demo_radio.vml')
+	return demo_radio_vml(mut app)
 }
 
 fn demo_radio_tree(mut app RadioDemo, frame ui2.Rect) ui2.Element {
-	return $vml('demo_radio.vml', frame)
+	return demo_radio_vml_framed(mut app, frame)
 }

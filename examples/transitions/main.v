@@ -1,5 +1,7 @@
 module main
 
+// vml: transitions.vml
+
 import math
 import ui2
 
@@ -78,10 +80,12 @@ fn transition_stage_size(frame ui2.Rect) (f64, f64) {
 
 fn transitions_callbacks() map[string]ui2.ElementCallback {
 	return {
-		'slide': fn (event ui2.ElementEvent) {
-			handle_transitions_event(mut event.window, 'slide')
-		}
+		'slide': callback_slide
 	}
+}
+
+fn callback_slide(event ui2.ElementEvent) {
+	handle_transitions_event(mut event.window, 'slide')
 }
 
 fn handle_transitions_event(mut w ui2.Window, event string) {
@@ -106,13 +110,9 @@ fn main() {
 }
 
 fn build_transitions(mut app TransitionsDemo) ui2.Element {
-	callbacks := transitions_callbacks()
-	callback_slide := callbacks['slide'] or { panic('missing slide callback') }
-	return $vml('transitions.vml')
+	return transitions_vml(mut app)
 }
 
 fn transitions_tree(mut app TransitionsDemo, frame ui2.Rect) ui2.Element {
-	callbacks := transitions_callbacks()
-	callback_slide := callbacks['slide'] or { panic('missing slide callback') }
-	return $vml('transitions.vml', frame)
+	return transitions_vml_framed(mut app, frame)
 }

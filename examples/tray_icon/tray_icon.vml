@@ -1,12 +1,12 @@
 Screen(
-    id: "root",
+    id: root,
     style: [background(#F1F5F9)],
 ) {
     Absolute(
         style: [transparent(true)],
     ) {
         View(
-            id: "card",
+            id: card,
             x: 16,
             y: 16,
             width: root.width - 32,
@@ -25,7 +25,7 @@ Screen(
                     style: [foreground(#111827), font_size(18), weight(700)],
                 )
                 Label(
-                    id: "backend_note",
+                    id: backend_note,
                     text: app.backend_note,
                     x: 18,
                     y: 44,
@@ -45,7 +45,7 @@ Screen(
                     ) {
                         Label(text: "Docked", x: 12, y: 8, width: 126, height: 16, style: [foreground(#1D4ED8), font_size(11)])
                         Label(
-                            id: "docked_state",
+                            id: docked_state,
                             text: app.docked ? "yes" : "no",
                             x: 12,
                             y: 26,
@@ -67,7 +67,7 @@ Screen(
                     ) {
                         Label(text: "Status", x: 12, y: 8, width: 126, height: 16, style: [foreground(#1D4ED8), font_size(11)])
                         Label(
-                            id: "status_state",
+                            id: status_state,
                             text: app.status,
                             x: 12,
                             y: 26,
@@ -89,7 +89,7 @@ Screen(
                     ) {
                         Label(text: "Notifications", x: 12, y: 8, width: 126, height: 16, style: [foreground(#1D4ED8), font_size(11)])
                         Label(
-                            id: "notifications_state",
+                            id: notifications_state,
                             text: app.notifications ? "on" : "off",
                             x: 12,
                             y: 26,
@@ -110,7 +110,7 @@ Screen(
                         style: [transparent(true)],
                     ) {
                         Label(
-                            id: "last_action",
+                            id: last_action,
                             text: app.last_action,
                             x: 14,
                             y: 0,
@@ -121,7 +121,7 @@ Screen(
                     }
                 }
                 Button(
-                    id: "tray_show",
+                    id: tray_show,
                     text: "Dock tray icon",
                     on_click: callback_tray_show,
                     native: true,
@@ -132,7 +132,7 @@ Screen(
                     height: 32,
                 )
                 Button(
-                    id: "tray_hide",
+                    id: tray_hide,
                     text: "Hide tray icon",
                     on_click: callback_tray_hide,
                     native: true,
@@ -143,7 +143,7 @@ Screen(
                     height: 32,
                 )
                 Label(
-                    id: "fallback_title",
+                    id: fallback_title,
                     hidden: app.supported,
                     text: "The same rows, without a status area",
                     x: 18,
@@ -153,7 +153,7 @@ Screen(
                     style: [foreground(#64748B), font_size(12)],
                 )
                 Button(
-                    id: "fallback_status",
+                    id: fallback_status,
                     hidden: app.supported,
                     text: "Show status",
                     on_click: callback_tray_status,
@@ -164,7 +164,7 @@ Screen(
                     height: 30,
                 )
                 Button(
-                    id: "fallback_notifications",
+                    id: fallback_notifications,
                     hidden: app.supported,
                     text: "Notifications",
                     on_click: callback_tray_notifications,
@@ -175,7 +175,7 @@ Screen(
                     height: 30,
                 )
                 Button(
-                    id: "fallback_available",
+                    id: fallback_available,
                     hidden: app.supported,
                     text: "Available",
                     on_click: callback_status_available,
@@ -186,7 +186,7 @@ Screen(
                     height: 30,
                 )
                 Button(
-                    id: "fallback_busy",
+                    id: fallback_busy,
                     hidden: app.supported,
                     text: "Busy",
                     on_click: callback_status_busy,
@@ -197,7 +197,7 @@ Screen(
                     height: 30,
                 )
                 Button(
-                    id: "fallback_away",
+                    id: fallback_away,
                     hidden: app.supported,
                     text: "Away",
                     on_click: callback_status_away,
@@ -208,7 +208,7 @@ Screen(
                     height: 30,
                 )
                 TextArea(
-                    id: "tray_log",
+                    id: tray_log,
                     text: app.log,
                     readonly: true,
                     x: 18,

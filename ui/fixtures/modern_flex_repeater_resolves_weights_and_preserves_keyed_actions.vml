@@ -1,10 +1,7 @@
 Flex(
     gap: 10,
 ) {
-    Repeater(
-        model: app.items,
-        key: item.id,
-    ) {
+    for item in app.items key item.id {
         Button(text: item.title, flex_basis: item.basis, flex_grow: item.grow, on_click: app.select(item.id))
     }
 }

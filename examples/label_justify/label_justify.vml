@@ -1,12 +1,12 @@
 Screen(
-    id: "root",
+    id: root,
     style: [background(#F1F5F9)],
 ) {
     Absolute(
         style: [transparent(true)],
     ) {
         View(
-            id: "card",
+            id: card,
             x: 16,
             y: 16,
             width: root.width - 32,
@@ -35,7 +35,7 @@ Screen(
                         style: [transparent(true)],
                     ) {
                         Label(
-                            id: "left_label",
+                            id: left_label,
                             text: "Left aligned",
                             x: 12,
                             y: 0,
@@ -56,7 +56,7 @@ Screen(
                         style: [transparent(true)],
                     ) {
                         Label(
-                            id: "center_label",
+                            id: center_label,
                             text: "Centered text",
                             x: 12,
                             y: 0,
@@ -77,7 +77,7 @@ Screen(
                         style: [transparent(true)],
                     ) {
                         Label(
-                            id: "right_label",
+                            id: right_label,
                             text: "Right aligned",
                             x: 12,
                             y: 0,
@@ -88,7 +88,7 @@ Screen(
                     }
                 }
                 Label(
-                    id: "clipped_label",
+                    id: clipped_label,
                     text: "A deliberately long label is clipped to this narrow frame",
                     x: 16,
                     y: 242,

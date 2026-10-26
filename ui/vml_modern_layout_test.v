@@ -1,4 +1,20 @@
+// vtest vflags: -d vml_fixtures
 module ui2
+
+// vml: fixtures/modern_flex_parent_owns_final_frame_with_explicit_preferred_dimensions.vml
+// vml: fixtures/modern_nested_flex_expressions_see_assigned_parent_size.vml
+// vml: fixtures/modern_nested_wrapping_flex_measures_height_at_assigned_width.vml
+// vml: fixtures/modern_flex_remeasures_multiline_and_width_dependent_text.vml
+// vml: fixtures/modern_vertical_flex_measures_height_after_cross_axis_maximum.vml
+// vml: fixtures/modern_intrinsic_grid_measures_rows_at_assigned_cell_width.vml
+// vml: fixtures/modern_responsive_screen_reflows_modern_children_after_resizing_flex.vml
+// vml: fixtures/modern_responsive_screen_reflows_modern_children_after_resizing_grid.vml
+// vml: fixtures/modern_column_repeaters_preserve_hidden_state_keys_and_actions.vml
+// vml: fixtures/modern_flex_wrap_uses_intrinsic_text_sizes_without_window.vml
+// vml: fixtures/modern_flex_repeater_resolves_weights_and_preserves_keyed_actions.vml
+// vml: fixtures/modern_flex_measurement_preserves_binding_and_never_invokes_action.vml
+// vml: fixtures/modern_grid_auto_columns_spans_nested_flex_and_metadata_resize_together.vml
+// vml: ../examples/responsive_layout/responsive_layout.vml
 
 import math
 
@@ -315,35 +331,35 @@ fn test_responsive_example_fits_wide_and_compact_windows_and_keeps_actions() {
 }
 
 fn modern_flex_parent_owns_final_frame_with_explicit_preferred_dimensions_tree(mut app ModernLayoutApp, frame Rect) Element {
-	return $vml('fixtures/modern_flex_parent_owns_final_frame_with_explicit_preferred_dimensions.vml', frame)
+	return modern_flex_parent_owns_final_frame_with_explicit_preferred_dimensions_vml_framed(frame)
 }
 
 fn modern_nested_flex_expressions_see_assigned_parent_size_tree(mut app ModernLayoutApp, frame Rect) Element {
-	return $vml('fixtures/modern_nested_flex_expressions_see_assigned_parent_size.vml', frame)
+	return modern_nested_flex_expressions_see_assigned_parent_size_vml_framed(frame)
 }
 
 fn modern_nested_wrapping_flex_measures_height_at_assigned_width_tree(mut app ModernLayoutApp, frame Rect) Element {
-	return $vml('fixtures/modern_nested_wrapping_flex_measures_height_at_assigned_width.vml', frame)
+	return modern_nested_wrapping_flex_measures_height_at_assigned_width_vml_framed(frame)
 }
 
 fn modern_flex_remeasures_multiline_and_width_dependent_text_tree(mut app ModernLayoutApp, frame Rect) Element {
-	return $vml('fixtures/modern_flex_remeasures_multiline_and_width_dependent_text.vml', frame)
+	return modern_flex_remeasures_multiline_and_width_dependent_text_vml_framed(frame)
 }
 
 fn modern_vertical_flex_measures_height_after_cross_axis_maximum_tree(mut app ModernLayoutApp, frame Rect) Element {
-	return $vml('fixtures/modern_vertical_flex_measures_height_after_cross_axis_maximum.vml', frame)
+	return modern_vertical_flex_measures_height_after_cross_axis_maximum_vml_framed(frame)
 }
 
 fn modern_intrinsic_grid_measures_rows_at_assigned_cell_width_tree(mut app ModernLayoutApp, frame Rect) Element {
-	return $vml('fixtures/modern_intrinsic_grid_measures_rows_at_assigned_cell_width.vml', frame)
+	return modern_intrinsic_grid_measures_rows_at_assigned_cell_width_vml_framed(frame)
 }
 
 fn modern_responsive_screen_reflows_modern_children_after_resizing_tree_flex(mut app ModernLayoutApp, frame Rect) Element {
-	return $vml('fixtures/modern_responsive_screen_reflows_modern_children_after_resizing_flex.vml', frame)
+	return modern_responsive_screen_reflows_modern_children_after_resizing_flex_vml_framed(frame)
 }
 
 fn modern_responsive_screen_reflows_modern_children_after_resizing_tree_grid(mut app ModernLayoutApp, frame Rect) Element {
-	return $vml('fixtures/modern_responsive_screen_reflows_modern_children_after_resizing_grid.vml', frame)
+	return modern_responsive_screen_reflows_modern_children_after_resizing_grid_vml_framed(frame)
 }
 
 fn modern_responsive_screen_reflows_modern_children_after_resizing_tree(mut app ModernLayoutApp, frame Rect, tag string) Element {
@@ -355,25 +371,25 @@ fn modern_responsive_screen_reflows_modern_children_after_resizing_tree(mut app 
 }
 
 fn modern_column_repeaters_preserve_hidden_state_keys_and_actions_tree(mut app ModernLayoutApp, frame Rect) Element {
-	return $vml('fixtures/modern_column_repeaters_preserve_hidden_state_keys_and_actions.vml', frame)
+	return modern_column_repeaters_preserve_hidden_state_keys_and_actions_vml_framed(mut app, frame)
 }
 
 fn modern_flex_wrap_uses_intrinsic_text_sizes_without_window_tree(mut app ModernLayoutApp, frame Rect) Element {
-	return $vml('fixtures/modern_flex_wrap_uses_intrinsic_text_sizes_without_window.vml', frame)
+	return modern_flex_wrap_uses_intrinsic_text_sizes_without_window_vml_framed(frame)
 }
 
 fn modern_flex_repeater_resolves_weights_and_preserves_keyed_actions_tree(mut app ModernLayoutApp, frame Rect) Element {
-	return $vml('fixtures/modern_flex_repeater_resolves_weights_and_preserves_keyed_actions.vml', frame)
+	return modern_flex_repeater_resolves_weights_and_preserves_keyed_actions_vml_framed(mut app, frame)
 }
 
 fn modern_flex_measurement_preserves_binding_and_never_invokes_action_tree(mut app ModernLayoutApp, frame Rect) Element {
-	return $vml('fixtures/modern_flex_measurement_preserves_binding_and_never_invokes_action.vml', frame)
+	return modern_flex_measurement_preserves_binding_and_never_invokes_action_vml_framed(mut app, frame)
 }
 
 fn modern_grid_auto_columns_spans_nested_flex_and_metadata_resize_together_tree(mut app ModernLayoutApp, frame Rect) Element {
-	return $vml('fixtures/modern_grid_auto_columns_spans_nested_flex_and_metadata_resize_together.vml', frame)
+	return modern_grid_auto_columns_spans_nested_flex_and_metadata_resize_together_vml_framed(frame)
 }
 
 fn modern_responsive_example_fits_wide_and_compact_windows_and_keeps_actions_tree(mut app ModernLayoutApp, frame Rect) Element {
-	return $vml('../examples/responsive_layout/responsive_layout.vml', frame)
+	return responsive_layout_vml_framed(mut app, frame)
 }

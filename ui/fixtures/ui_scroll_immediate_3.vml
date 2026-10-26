@@ -1,1 +1,1 @@
-Scroll(id: "pane", on_scroll: callback_changed)
+Scroll(id: pane, on_scroll: app.callback_changed)

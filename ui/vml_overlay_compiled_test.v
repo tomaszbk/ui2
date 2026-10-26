@@ -1,4 +1,10 @@
+// vtest vflags: -d ui2_custom_rendering -d vml_fixtures
 module ui2
+
+// vml: fixtures/compiled_overlay_surface.vml
+// vml: fixtures/compiled_overlay_config.vml
+// vml: fixtures/compiled_overlay_scroll.vml
+// vml: fixtures/compiled_overlay_namespaces.vml
 
 @[heap]
 pub struct OverlayCompiledModel {
@@ -40,19 +46,19 @@ pub fn (mut app OverlayCompiledModel) show_tip() { app.tip_open = true }
 pub fn (mut app OverlayCompiledModel) hide_tip() { app.tip_open = false }
 
 fn overlay_compiled_surface(mut app OverlayCompiledModel) Element {
-	return $vml('fixtures/compiled_overlay_surface.vml', rect(0, 0, 500, 400))
+	return compiled_overlay_surface_vml_framed(mut app, rect(0, 0, 500, 400))
 }
 
 fn overlay_compiled_config(mut app OverlayCompiledModel) Element {
-	return $vml('fixtures/compiled_overlay_config.vml', rect(0, 0, 500, 400))
+	return compiled_overlay_config_vml_framed(mut app, rect(0, 0, 500, 400))
 }
 
 fn overlay_compiled_scroll(mut app OverlayCompiledModel) Element {
-	return $vml('fixtures/compiled_overlay_scroll.vml', rect(0, 0, 100, 80))
+	return compiled_overlay_scroll_vml_framed(mut app, rect(0, 0, 100, 80))
 }
 
 fn overlay_compiled_namespaces(mut app OverlayCompiledModel) Element {
-	return $vml('fixtures/compiled_overlay_namespaces.vml', rect(0, 0, 500, 480))
+	return compiled_overlay_namespaces_vml_framed(mut app, rect(0, 0, 500, 480))
 }
 
 fn overlay_compiled_find(element Element, id string) !Element {

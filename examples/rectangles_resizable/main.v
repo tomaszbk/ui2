@@ -1,5 +1,7 @@
 module main
 
+// vml: rectangles_resizable.vml
+
 import ui2
 
 const resizable_rectangles_width = 560
@@ -41,9 +43,9 @@ fn main() {
 }
 
 fn build_rectangles_resizable(mut app ResizableRectanglesDemo) ui2.Element {
-	return $vml('rectangles_resizable.vml')
+	return rectangles_resizable_vml(mut app)
 }
 
 fn rectangles_resizable_tree(mut app ResizableRectanglesDemo, frame ui2.Rect) ui2.Element {
-	return $vml('rectangles_resizable.vml', frame)
+	return rectangles_resizable_vml_framed(mut app, frame)
 }

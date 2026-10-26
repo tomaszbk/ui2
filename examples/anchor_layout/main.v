@@ -1,5 +1,7 @@
 module main
 
+// vml: anchor_layout.vml
+
 import ui2
 
 const anchor_width = 380
@@ -19,9 +21,9 @@ fn main() {
 }
 
 fn build_anchor_layout(mut app AnchorLayoutDemo) ui2.Element {
-	return $vml('anchor_layout.vml')
+	return anchor_layout_vml()
 }
 
 fn anchor_layout_tree(mut app AnchorLayoutDemo, frame ui2.Rect) ui2.Element {
-	return $vml('anchor_layout.vml', frame)
+	return anchor_layout_vml_framed(frame)
 }

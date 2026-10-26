@@ -1,5 +1,7 @@
 module main
 
+// vml: profile_dialog.vml
+
 import ui2
 
 const profile_dialog_width = 460
@@ -35,9 +37,9 @@ fn main() {
 }
 
 fn build_profile_dialog(mut app ProfileDialogDemo) ui2.Element {
-	return $vml('profile_dialog.vml')
+	return profile_dialog_vml(mut app)
 }
 
 fn profile_dialog_tree(mut app ProfileDialogDemo, frame ui2.Rect) ui2.Element {
-	return $vml('profile_dialog.vml', frame)
+	return profile_dialog_vml_framed(mut app, frame)
 }

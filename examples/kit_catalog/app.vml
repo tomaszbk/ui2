@@ -1,21 +1,18 @@
-import ButtonsPage
-import DisplayPage
-
 // A page is a component in its own file, shown while it is the app's page.
 // Add a page with a sidebar Button and a hidden-unless-current Column.
-Screen(id: "root", style: [background(color.surface)]) {
-    Row(id: "catalog") {
-        Column(id: "pages", width: 200, gap: 4, style: [padding(16), background(color.surface_muted)]) {
+Screen(id: root, style: [background(color.surface)]) {
+    Row(id: catalog) {
+        Column(id: pages, width: 200, gap: 4, style: [padding(16), background(color.surface_muted)]) {
             Label(text: "Kit catalog", style: [font_size(typography.title), weight(700), foreground(color.text)])
-            Button(id: "page_buttons", text: "Buttons", variant: ghost, selected: app.page == "buttons", on_click: app.show("buttons"))
-            Button(id: "page_display", text: "Display", variant: ghost, selected: app.page == "display", on_click: app.show("display"))
+            Button(id: page_buttons, text: "Buttons", variant: ghost, selected: app.page == "buttons", on_click: app.show("buttons"))
+            Button(id: page_display, text: "Display", variant: ghost, selected: app.page == "display", on_click: app.show("display"))
         }
-        Scroll(id: "page", flex_grow: 1) {
+        Scroll(id: page, flex_grow: 1) {
             Column(style: [padding(24)]) {
-                Column(id: "buttons", hidden: app.page != "buttons") {
+                Column(id: buttons, hidden: app.page != "buttons") {
                     ButtonsPage()
                 }
-                Column(id: "display", hidden: app.page != "display") {
+                Column(id: display, hidden: app.page != "display") {
                     DisplayPage()
                 }
             }

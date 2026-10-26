@@ -1,12 +1,12 @@
 Screen(
-    id: "root",
+    id: root,
     style: [background(#F1F5F9)],
 ) {
     Absolute(
         style: [transparent(true)],
     ) {
         View(
-            id: "card",
+            id: card,
             x: 16,
             y: 16,
             width: root.width - 32,
@@ -26,7 +26,7 @@ Screen(
                     style: [foreground(#64748B), font_size(11)],
                 )
                 Scroll(
-                    id: "font_list",
+                    id: font_list,
                     x: 18,
                     y: 74,
                     width: (240),
@@ -36,10 +36,7 @@ Screen(
                     Absolute(
                         style: [transparent(true)],
                     ) {
-                        Repeater(
-                            model: app.fonts,
-                            key: item.key,
-                        ) {
+                        for index, item in app.fonts key item.key {
                             Button(
                                 text: item.family,
                                 on_click: app.choose_font(item.id),
@@ -53,7 +50,7 @@ Screen(
                     }
                 }
                 Dropdown(
-                    id: "size_choice",
+                    id: size_choice,
                     bind.text: app.size_choice,
                     on_change: app.size_changed(),
                     x: 34 +(240),
@@ -70,7 +67,7 @@ Screen(
                     Option(text: "64")
                 }
                 Checkbox(
-                    id: "bold",
+                    id: bold,
                     text: "Bold",
                     bind.checked: app.bold,
                     on_click: app.emphasis_changed(),
@@ -81,7 +78,7 @@ Screen(
                     style: [foreground(#334155), font_size(12)],
                 )
                 Checkbox(
-                    id: "italic",
+                    id: italic,
                     text: "Italic",
                     bind.checked: app.italic,
                     on_click: app.emphasis_changed(),
@@ -92,7 +89,7 @@ Screen(
                     style: [foreground(#334155), font_size(12)],
                 )
                 TextInput(
-                    id: "sample_input",
+                    id: sample_input,
                     bind.text: app.sample,
                     x: 34 +(240),
                     y: 122,
@@ -101,7 +98,7 @@ Screen(
                     style: [background(#F8FAFC), radius(7)],
                 )
                 View(
-                    id: "preview",
+                    id: preview,
                     x: 34 +(240),
                     y: 172,
                     width: card.width -(240) - 52,
@@ -113,7 +110,7 @@ Screen(
                     ) {
                         View(x: 0, y: 0, width: card.width -(240) - 52, height: 2, style: [background(#E2E8F0)])
                         Label(
-                            id: "preview_text",
+                            id: preview_text,
                             text: app.sample,
                             x: 16,
                             y: 24,
@@ -148,7 +145,7 @@ Screen(
                     }
                 }
                 Label(
-                    id: "text_style_status",
+                    id: text_style_status,
                     text: app.status,
                     x: 34 +(240),
                     y: card.height - 42,

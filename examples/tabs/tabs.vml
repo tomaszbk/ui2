@@ -1,10 +1,10 @@
 // Settings pages in kit Tabs. The Tabs binds the selected page's value; the
 // other pages stay mounted while hidden, and a segmented Tabs bound to the
 // same value switches them too.
-Screen(id: "root", style: [background(color.surface)]) {
-    Column(id: "page", gap: 12, style: [padding(20)]) {
+Screen(id: root, style: [background(color.surface)]) {
+    Column(id: page, gap: 12, style: [padding(20)]) {
         Label(text: "Settings", style: [font_size(typography.title), weight(700), foreground(color.text)])
-        Tabs(id: "settings", bind.value: app.tab, flex_grow: 1) {
+        Tabs(id: settings, bind.value: app.tab, flex_grow: 1) {
             Tab(value: "account", text: "Account", icon: circle_user, gap: 8) {
                 Label(text: "Profile", style: [weight(600), foreground(color.text)])
                 Label(text: "Your name and photo are shown on your public page.", style: [foreground(color.muted)])
@@ -22,12 +22,12 @@ Screen(id: "root", style: [background(color.surface)]) {
             }
         }
         Row(gap: 12, align_items: center) {
-            Tabs(id: "compact", bind.value: app.tab, variant: segmented, size: small) {
+            Tabs(id: compact, bind.value: app.tab, variant: segmented, size: small) {
                 Tab(value: "account", text: "Account")
                 Tab(value: "password", text: "Password")
                 Tab(value: "notifications", text: "Notifications")
             }
-            Label(id: "status", text: "Showing ${app.tab}", style: [foreground(color.muted)])
+            Label(id: status, text: "Showing ${app.tab}", style: [foreground(color.muted)])
         }
     }
 }

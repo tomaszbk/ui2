@@ -1,5 +1,5 @@
 Screen(
-    id: "root",
+    id: root,
     style: [background(#F1F5F9)],
 ) {
     Absolute(
@@ -15,7 +15,7 @@ Screen(
         )
         Label(text: app.status, x: 20, y: 76, width: root.width - 40, height: 26, style: [text_align(center), foreground(#475569)])
         Button(
-            id: "open_confirmation",
+            id: open_confirmation,
             text: "Open confirmation",
             on_click: app.open_confirmation(),
             x: (root.width - 170) / 2,
@@ -25,7 +25,7 @@ Screen(
             style: [background(#2563EB), foreground(#FFFFFF), radius(8)],
         )
         Dialog(
-            id: "confirmation",
+            id: confirmation,
             width: 340,
             height: 190,
             open: app.confirming,
@@ -36,7 +36,7 @@ Screen(
                 style: [transparent(true)],
             ) {
                 Label(
-                    id: "confirmation_title",
+                    id: confirmation_title,
                     text: "Confirm action",
                     x: 24,
                     y: 24,
@@ -53,7 +53,7 @@ Screen(
                     style: [text_align(center), foreground(#64748B)],
                 )
                 Button(
-                    id: "cancel",
+                    id: cancel,
                     text: "Cancel",
                     on_click: app.close_confirmation(),
                     x: 46,
@@ -63,7 +63,7 @@ Screen(
                     style: [background(#E2E8F0), foreground(#334155), radius(8)],
                 )
                 Button(
-                    id: "confirm",
+                    id: confirm,
                     text: "Confirm",
                     on_click: app.confirm(),
                     x: 184,

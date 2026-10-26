@@ -1,12 +1,12 @@
 Screen(
-    id: "root",
+    id: root,
     style: [background(#F1F5F9)],
 ) {
     Absolute(
         style: [transparent(true)],
     ) {
         View(
-            id: "card",
+            id: card,
             x: 16,
             y: 16,
             width: root.width - 32,
@@ -17,7 +17,7 @@ Screen(
                 style: [transparent(true)],
             ) {
                 Label(
-                    id: "centered_label",
+                    id: centered_label,
                     text: "Centered text",
                     x: 24,
                     y: 24,

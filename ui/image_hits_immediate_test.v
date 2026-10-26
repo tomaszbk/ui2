@@ -1,7 +1,8 @@
+// vtest vflags: -d ui2_custom_rendering
 module ui2
 
 fn test_image_visible_quad_hits_share_fractional_scaled_coordinates_and_clip() {
-	$if (android || ios || linux || macos || windows) && !ui2_headless ? {
+	$if (android || linux || ((ios || macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
 		mut w := &Window{}
 		previous := w.ctx
 		previous_hits := w.hit_targets

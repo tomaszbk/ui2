@@ -1,3 +1,4 @@
+// vtest vflags: -d ui2_custom_rendering
 @[has_globals]
 module ui2
 
@@ -10,7 +11,7 @@ mut:
 	now f64
 }
 
-$if (linux || macos || windows) && !ui2_headless ? {
+$if (linux || ((macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? {
 	__global overlay_requests = []ElementEvent{}
 	__global overlay_clicks int
 

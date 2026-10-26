@@ -1,5 +1,7 @@
 module main
 
+// vml: app.vml
+
 import ui2
 
 pub struct MotionRow {
@@ -50,7 +52,7 @@ pub fn (mut app MotionApp) toggle_cards() {
 pub fn (mut app MotionApp) card_cleaned() { app.cleaned++ }
 
 fn build_motion(mut app MotionApp) ui2.Element {
-	return $vml('app.vml')
+	return app_vml(mut app)
 }
 
 fn main() {

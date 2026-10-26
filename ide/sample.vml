@@ -1,13 +1,13 @@
 Screen(
-    id: "WelcomeForm",
+    id: WelcomeForm,
     width: 760,
     height: 520,
     style: [background(#F8FAFC)],
 ) {
     Absolute {
-        Label(id: "heading", x: 48, y: 48, width: 420, height: 38, text: "Welcome to UI2", style: [foreground(#172033), font_size(26)])
+        Label(id: heading, x: 48, y: 48, width: 420, height: 38, text: "Welcome to UI2", style: [foreground(#172033), font_size(26)])
         Label(
-            id: "subtitle",
+            id: subtitle,
             x: 48,
             y: 94,
             width: 520,
@@ -16,7 +16,7 @@ Screen(
             style: [foreground(#64748B), font_size(14)],
         )
         TextInput(
-            id: "name_field",
+            id: name_field,
             x: 48,
             y: 158,
             width: 280,
@@ -26,7 +26,7 @@ Screen(
             style: [background(#FFFFFF), foreground(#172033), font_size(14), radius(5)],
         )
         Checkbox(
-            id: "remember",
+            id: remember,
             x: 48,
             y: 216,
             width: 210,
@@ -36,7 +36,7 @@ Screen(
             style: [foreground(#172033), font_size(14)],
         )
         Button(
-            id: "continue_button",
+            id: continue_button,
             x: 48,
             y: 270,
             width: 150,
@@ -45,6 +45,6 @@ Screen(
             on_click: callback_continue_clicked,
             style: [background(#2563EB), foreground(#FFFFFF), font_size(14), radius(6)],
         )
-        View(id: "accent_panel", x: 390, y: 150, width: 280, height: 210, style: [background(#DBEAFE), radius(4)])
+        View(id: accent_panel, x: 390, y: 150, width: 280, height: 210, style: [background(#DBEAFE), radius(4)])
     }
 }

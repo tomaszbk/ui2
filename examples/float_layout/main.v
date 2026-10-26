@@ -1,5 +1,7 @@
 module main
 
+// vml: float_layout.vml
+
 import ui2
 
 const float_width = 400
@@ -19,9 +21,9 @@ fn main() {
 }
 
 fn build_float_layout(mut app FloatLayoutDemo) ui2.Element {
-	return $vml('float_layout.vml')
+	return float_layout_vml()
 }
 
 fn float_layout_tree(mut app FloatLayoutDemo, frame ui2.Rect) ui2.Element {
-	return $vml('float_layout.vml', frame)
+	return float_layout_vml_framed(frame)
 }

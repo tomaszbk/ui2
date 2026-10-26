@@ -1,5 +1,7 @@
 module main
 
+// vml: spinner.vml
+
 import ui2
 
 // The loading Spinner: a turning three-quarter ring in three sizes, and the
@@ -36,9 +38,9 @@ fn main() {
 }
 
 fn build_spinner(mut app SpinnerDemo) ui2.Element {
-	return $vml('spinner.vml')
+	return spinner_vml(mut app)
 }
 
 fn spinner_tree(mut app SpinnerDemo, frame ui2.Rect) ui2.Element {
-	return $vml('spinner.vml', frame)
+	return spinner_vml_framed(mut app, frame)
 }

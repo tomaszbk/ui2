@@ -1,4 +1,4 @@
-// vtest vflags: -d ui2_embedder
+// vtest vflags: -d ui2_custom_rendering -d ui2_embedder
 module main
 
 import math
@@ -8,7 +8,7 @@ $if !gcboehm ? {
 	$compile_error('Logo drag fixtures require normal Boehm GC')
 }
 
-$if macos && ui2_embedder ?&& !ui2_headless ? {
+$if macos && ui2_custom_rendering ?&& ui2_embedder ?&& !ui2_headless ? {
 	#include "@VMODROOT/examples/canvas_layout_inside_row/drag_fixture_darwin.h"
 	fn C.ui2_inside_row_present(voidptr) bool
 	fn C.ui2_inside_row_pointer(voidptr, int, f64, f64)
@@ -116,7 +116,7 @@ $if macos && ui2_embedder ?&& !ui2_headless ? {
 }
 
 fn test_rotated_logo_callbacks_follow_window_pointer_using_retained_geometry() {
-	$if macos && ui2_embedder ?&& !ui2_headless ? {
+	$if macos && ui2_custom_rendering ?&& ui2_embedder ?&& !ui2_headless ? {
 		mut state := unsafe { inside_row_state }
 		previous_state := *state
 		mut fixture := unsafe { logo_drag_fixture }
@@ -179,7 +179,7 @@ fn test_rotated_logo_callbacks_follow_window_pointer_using_retained_geometry() {
 }
 
 fn test_logo_callback_clamps_to_presented_card_after_resize_and_missing_geometry_is_ignored() {
-	$if macos && ui2_embedder ?&& !ui2_headless ? {
+	$if macos && ui2_custom_rendering ?&& ui2_embedder ?&& !ui2_headless ? {
 		mut state := unsafe { inside_row_state }
 		previous_state := *state
 		mut fixture := unsafe { logo_drag_fixture }

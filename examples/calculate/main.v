@@ -1,5 +1,7 @@
 module main
 
+// vml: calculate.vml
+
 import math
 import ui2
 
@@ -156,9 +158,9 @@ fn main() {
 }
 
 fn build_calculate(mut app CalculateDemo) ui2.Element {
-	return $vml('calculate.vml')
+	return calculate_vml(mut app)
 }
 
 fn calculate_tree(mut app CalculateDemo, frame ui2.Rect) ui2.Element {
-	return $vml('calculate.vml', frame)
+	return calculate_vml_framed(mut app, frame)
 }

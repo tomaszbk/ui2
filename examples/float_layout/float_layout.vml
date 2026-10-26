@@ -1,5 +1,5 @@
 Screen(
-    id: "root",
+    id: root,
     style: [background(#F1F5F9)],
 ) {
     Absolute(
@@ -14,7 +14,7 @@ Screen(
             style: [foreground(#0F172A), font_size(20), weight(700)],
         )
         Absolute(
-            id: "canvas",
+            id: canvas,
             x: 20,
             y: 60,
             width: root.width - 40,
@@ -29,7 +29,7 @@ Screen(
                 style: [background(#DBEAFE), radius(12)],
             )
             Button(
-                id: "center_action",
+                id: center_action,
                 text: "Centered",
                 width: 120,
                 height: 42,

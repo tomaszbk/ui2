@@ -1,8 +1,8 @@
-// vtest vflags: -gc boehm -d no_gc_thread_local_alloc -d ui2_embedder
+// vtest vflags: -gc boehm -d no_gc_thread_local_alloc -d ui2_custom_rendering -d ui2_embedder
 @[has_globals]
 module ui2
 
-$if macos && ui2_embedder ?&& !ui2_headless ? {
+$if macos && ui2_custom_rendering ?&& ui2_embedder ?&& !ui2_headless ? {
 	import gg
 	import os
 	import sokol.gfx
@@ -34,7 +34,7 @@ fn test_grouped_retained_idle_hover_and_counter_tick_allocation_budgets() ! {
 }
 
 fn run_retained_allocation_fixture(grouped bool) ! {
-	$if macos && ui2_embedder ?&& !ui2_headless ? {
+	$if macos && ui2_custom_rendering ?&& ui2_embedder ?&& !ui2_headless ? {
 		mut ctx := new_surface_draw_context(gg.Config{ width: 1000, height: 700 }, allocation_fixture_environment())!
 		window := C.ui2_embedder_create(&C.ui2_embedder_config{ title: c'Allocation acceptance', width: 1000, height: 700, visible: false }, &C.ui2_embedder_callbacks{}, unsafe { nil })
 		assert window != unsafe { nil }

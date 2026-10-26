@@ -1,5 +1,7 @@
 module main
 
+// vml: filebrowser.vml
+
 import os
 import ui2
 
@@ -110,9 +112,9 @@ fn main() {
 }
 
 fn build_filebrowser(mut app FileBrowserDemo) ui2.Element {
-	return $vml('filebrowser.vml')
+	return filebrowser_vml(mut app)
 }
 
 fn filebrowser_tree(mut app FileBrowserDemo, frame ui2.Rect) ui2.Element {
-	return $vml('filebrowser.vml', frame)
+	return filebrowser_vml_framed(mut app, frame)
 }
