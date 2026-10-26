@@ -7,12 +7,9 @@ import gg
 import math
 import os
 import sokol.gfx
-import sokol.sgl
 
 $if macos && ui2_custom_rendering ? && ui2_embedder ? && !ui2_headless ? {
-	#include "@VMODROOT/tests/render_scheduler/draw_commands.h"
-	fn C.ui2_test_command_count(context sgl.Context) int
-	fn C.ui2_test_vertex_count(context sgl.Context) int
+	#include "@VMODROOT/tests/render_scheduler/drawable_hooks.h"
 	fn C.ui2_test_watch_drawable(window voidptr)
 	fn C.ui2_test_drawable_release_count() int
 	fn C.ui2_test_has_drawable(window voidptr) bool
@@ -111,7 +108,7 @@ $if macos && ui2_custom_rendering ? && ui2_embedder ? && !ui2_headless ? {
 		assert !after.in_flight && after.finished_generation >= before.generation
 		assert after.pending && after.generation > after.finished_generation, 'callback model work belongs to the next frame'
 		assert C.ui2_test_drawable_release_count() == 1 && !C.ui2_test_has_drawable(w.native_window)
-		assert C.ui2_test_command_count(ctx.gl_context) == 0 && C.ui2_test_vertex_count(ctx.gl_context) == 0
+		assert ctx.inner.r.num_commands() == 0 && ctx.inner.r.num_vertices() == 0
 		expected := if motion_followup_mode == 1 {
 			if motion_followup_progress < 0.5 { 20 + 200 * motion_followup_progress } else { 220 - 200 * motion_followup_progress }
 		} else { 20 + 100 * motion_followup_progress }
@@ -200,7 +197,7 @@ $if macos && ui2_custom_rendering ? && ui2_embedder ? && !ui2_headless ? {
 			if motion_followup_mode == 5 {
 				assert scheduler.stats().closed && ctx.destroyed && w.ctx == unsafe { nil }
 			} else {
-				assert C.ui2_test_command_count(ctx.gl_context) == 0
+				assert ctx.inner.r.num_commands() == 0
 				if motion_followup_mode == 3 { ctx.destroy() }
 				motion_followup_handle.cancel()
 				if motion_followup_mode == 6 { on_event(&gg.Event{typ: .resumed}, mut w) }

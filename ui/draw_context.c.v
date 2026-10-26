@@ -468,13 +468,11 @@ $if (android || linux || ((ios || macos || windows) && ui2_custom_rendering ?)) 
 	}
 
 	// begin records commands; the GPU pass starts only in end. An invalidated
-	// frame must discard those commands without submitting to its old surface:
-	// a commit without a pass submits nothing and rewinds every gg.render
-	// context, none of which is recording while this window paints.
+	// frame must discard those commands without submitting to its old surface.
 	fn (ctx &DrawContext) cancel() {
 		unsafe { ctx.painting = false }
 		if ctx.destroyed || !gfx.is_valid() { return }
-		gfx.commit()
+		ctx.inner.r.rewind()
 		unsafe { mut images := &ctx.images; images.cancel_frame() }
 	}
 

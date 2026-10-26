@@ -7,12 +7,8 @@ $if macos && ui2_custom_rendering ? && ui2_embedder ? && !ui2_headless ? {
 	import gg
 	import os
 	import sokol.gfx
-	import sokol.sgl
 
-	#include "@VMODROOT/tests/render_scheduler/draw_commands.h"
-	fn C.ui2_test_command_count(context sgl.Context) int
-	fn C.ui2_test_vertex_count(context sgl.Context) int
-	fn C.ui2_test_shared_sampler() gfx.Sampler
+	#include "@VMODROOT/tests/render_scheduler/drawable_hooks.h"
 	fn C.ui2_test_watch_drawable(window voidptr)
 	fn C.ui2_test_drawable_release_count() int
 	fn C.ui2_test_has_drawable(window voidptr) bool
@@ -34,11 +30,11 @@ $if macos && ui2_custom_rendering ? && ui2_embedder ? && !ui2_headless ? {
 		if event.kind != .scroll { return }
 		frame_cancel_events << event.value
 		if frame_cancel_phase != 1 { return }
-		eprintln('owned cancel notification mode=${frame_cancel_mode} value=${event.value} focused=${w.focused_id()} drawable=${C.ui2_test_has_drawable(w.native_window)} queued=${C.ui2_test_command_count(w.ctx.gl_context)}')
+		eprintln('owned cancel notification mode=${frame_cancel_mode} value=${event.value} focused=${w.focused_id()} drawable=${C.ui2_test_has_drawable(w.native_window)} queued=${w.ctx.inner.r.num_commands()}')
 		assert event.value == 196
 		assert C.ui2_test_has_drawable(w.native_window)
-		frame_cancel_queued = C.ui2_test_command_count(w.ctx.gl_context)
-		assert frame_cancel_queued > 0 && C.ui2_test_vertex_count(w.ctx.gl_context) > 0
+		frame_cancel_queued = w.ctx.inner.r.num_commands()
+		assert frame_cancel_queued > 0 && w.ctx.inner.r.num_vertices() > 0
 		frame_cancel_gpu_frame = gfx.query_frame_stats().frame_index
 		frame_cancel_phase = 2
 		match frame_cancel_mode {
@@ -84,7 +80,6 @@ $if macos && ui2_custom_rendering ? && ui2_embedder ? && !ui2_headless ? {
 		defer { guard.quit() }
 		assert C.ui2_test_pump(guard, embedder_pump) == -1
 		guard_images := guard.ctx.text_renderer.atlas_images()
-		shared_sampler := C.ui2_test_shared_sampler()
 		mut w := app.new_window(title: 'Canceled Metal paint callback', width: 320, height: 240, build: frame_cancel_root)!
 		defer { w.quit() }
 		assert C.ui2_test_pump(w, embedder_pump) == -1
@@ -117,7 +112,7 @@ $if macos && ui2_custom_rendering ? && ui2_embedder ? && !ui2_headless ? {
 		assert gfx.query_frame_stats().frame_index == frame_cancel_gpu_frame
 		assert C.ui2_test_drawable_release_count() == 1
 		assert !C.ui2_test_has_drawable(handle)
-		assert gfx.is_valid() && gfx.query_sampler_state(shared_sampler) == .valid
+		assert gfx.is_valid()
 		for image in guard_images {
 			assert gfx.query_image_state(image.simg) == .valid
 			assert gfx.query_sampler_state(image.ssmp) == .valid
@@ -135,8 +130,8 @@ $if macos && ui2_custom_rendering ? && ui2_embedder ? && !ui2_headless ? {
 			}
 		} else {
 			assert wake == 0 && scheduler.stats().pending
-			assert C.ui2_test_command_count(ctx.gl_context) == 0
-			assert C.ui2_test_vertex_count(ctx.gl_context) == 0
+			assert ctx.inner.r.num_commands() == 0
+			assert ctx.inner.r.num_vertices() == 0
 			assert w.composition == composition
 			if frame_cancel_mode == 3 { ctx.destroy() }
 			assert C.ui2_test_pump(w, embedder_pump) == -1

@@ -7,12 +7,8 @@ $if macos && ui2_custom_rendering ? && ui2_embedder ? && !ui2_headless ? {
 	import os
 	import gg
 	import sokol.gfx
-	import sokol.sgl
 
-	#include "@VMODROOT/tests/render_scheduler/draw_commands.h"
-	fn C.ui2_test_command_count(context sgl.Context) int
-	fn C.ui2_test_vertex_count(context sgl.Context) int
-	fn C.ui2_test_shared_sampler() gfx.Sampler
+	#include "@VMODROOT/tests/render_scheduler/drawable_hooks.h"
 	fn C.ui2_test_watch_drawable(window voidptr)
 	fn C.ui2_test_drawable_release_count() int
 	fn C.ui2_test_has_drawable(window voidptr) bool
@@ -46,8 +42,8 @@ $if macos && ui2_custom_rendering ? && ui2_embedder ? && !ui2_headless ? {
 		assert w.text('edit') == area_frame_local
 		assert w.text_area_caret('edit') == 3 && w.text_area_selection_length('edit') == 2
 		assert C.ui2_test_has_drawable(w.native_window)
-		area_frame_queued = C.ui2_test_command_count(w.ctx.gl_context)
-		assert area_frame_queued > 0 && C.ui2_test_vertex_count(w.ctx.gl_context) > 0
+		area_frame_queued = w.ctx.inner.r.num_commands()
+		assert area_frame_queued > 0 && w.ctx.inner.r.num_vertices() > 0
 		area_frame_gpu = gfx.query_frame_stats().frame_index
 		match area_frame_mode {
 			1 {
@@ -121,7 +117,6 @@ $if macos && ui2_custom_rendering ? && ui2_embedder ? && !ui2_headless ? {
 		guard_caret := guard.text_caret
 		guard_composition := guard.composition
 		guard_images := guard.ctx.text_renderer.atlas_images()
-		shared_sampler := C.ui2_test_shared_sampler()
 		mut w := app.new_window(title: 'Range callback ownership', width: 320, height: 300, build: area_frame_root)!
 		defer { w.quit() }
 		assert C.ui2_test_pump(w, embedder_pump) == -1
@@ -167,8 +162,8 @@ $if macos && ui2_custom_rendering ? && ui2_embedder ? && !ui2_headless ? {
 			if area_frame_mode == 6 {
 				assert ctx.destroyed && w.ctx != ctx
 			} else {
-				assert C.ui2_test_command_count(ctx.gl_context) == 0
-				assert C.ui2_test_vertex_count(ctx.gl_context) == 0
+				assert ctx.inner.r.num_commands() == 0
+				assert ctx.inner.r.num_vertices() == 0
 			}
 			assert w.composition == composition || area_frame_mode == 5
 			assert C.ui2_test_pump(w, embedder_pump) == -1
@@ -188,7 +183,7 @@ $if macos && ui2_custom_rendering ? && ui2_embedder ? && !ui2_headless ? {
 			assert replacement.tooltip_owners == 0
 			replacement.quit()
 		}
-		assert gfx.is_valid() && gfx.query_sampler_state(shared_sampler) == .valid
+		assert gfx.is_valid()
 		for image in guard_images {
 			assert gfx.query_image_state(image.simg) == .valid
 			assert gfx.query_sampler_state(image.ssmp) == .valid

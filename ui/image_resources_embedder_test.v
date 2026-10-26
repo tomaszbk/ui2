@@ -39,16 +39,16 @@ fn test_image_gpu_atlas_context_isolation_shared_release_resize_and_recreation()
 		mut second := new_surface_draw_context(gg.Config{ width: 320, height: 240 }, environment)!
 		defer { second.destroy() }
 		first.images.begin_frame()
-		red := first.images.acquire(image_gpu_path('red.png'), 0)!
-		shared_entry := first.images.acquire(image_gpu_path('red.png'), 0)!
-		green := first.images.acquire(image_gpu_path('green.png'), 0)!
-		alpha := first.images.acquire(image_gpu_path('alpha.png'), 0)!
+		red := first.images.acquire(first.inner.r, image_gpu_path('red.png'), 0)!
+		shared_entry := first.images.acquire(first.inner.r, image_gpu_path('red.png'), 0)!
+		green := first.images.acquire(first.inner.r, image_gpu_path('green.png'), 0)!
+		alpha := first.images.acquire(first.inner.r, image_gpu_path('alpha.png'), 0)!
 		assert red == shared_entry
 		assert red.page == green.page && green.page == alpha.page
 		assert first.images.stats().decodes == 3
 		assert first.images.stats().cache_hits == 1
 		second.images.begin_frame()
-		guard := second.images.acquire(image_gpu_path('red.png'), 0)!
+		guard := second.images.acquire(second.inner.r, image_gpu_path('red.png'), 0)!
 		page := first.images.pages[red.page] or { panic('page lost') }
 		guard_page := second.images.pages[guard.page] or { panic('guard page lost') }
 		assert page.image != guard_page.image && page.sampler != guard_page.sampler
@@ -74,7 +74,7 @@ fn test_image_gpu_atlas_context_isolation_shared_release_resize_and_recreation()
 		assert first.images.stats().uploads == 1
 		// Removing one of two consumers still marks the one shared entry.
 		first.images.begin_frame()
-		first.images.acquire(image_gpu_path('red.png'), 0)!
+		first.images.acquire(first.inner.r, image_gpu_path('red.png'), 0)!
 		image_gpu_surface(mut first, window, 1.5)
 		first.begin()
 		first.draw_asset_image(el, first.image_geometry_for(el, el.frame)!)
@@ -148,7 +148,7 @@ fn test_image_gpu_atlas_context_isolation_shared_release_resize_and_recreation()
 		assert gfx.query_image_state(guard_page.image) == .valid
 		mut recreated := new_surface_draw_context(gg.Config{ width: 320, height: 240 }, environment)!
 		recreated.images.begin_frame()
-		r := recreated.images.acquire(image_gpu_path('red.png'), 0)!
+		r := recreated.images.acquire(recreated.inner.r, image_gpu_path('red.png'), 0)!
 		rp := recreated.images.pages[r.page] or { panic('recreated page lost') }
 		for handle in handles {
 			assert rp.image != handle
