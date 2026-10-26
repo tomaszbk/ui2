@@ -99,8 +99,10 @@ fn (mut reader DesignerSource) value(property string) !string {
 	start := reader.pos
 	for reader.pos < reader.source.len && reader.source[reader.pos] !in [`,`, `)`] { reader.pos++ }
 	value := reader.source[start..reader.pos].trim_space()
-	if property.starts_with('on_') {
-		if !valid_identifier(value) {
+	if property == 'id' {
+		if !valid_identifier(value) { return error('`id` must be a name, such as `id: name_field`') }
+	} else if property.starts_with('on_') {
+		if !valid_identifier(value.trim_string_left('app.')) {
 			return error('`${property}` must reference a named callback in the visual designer')
 		}
 	} else if property in ['hidden', 'checked', 'clickable'] {

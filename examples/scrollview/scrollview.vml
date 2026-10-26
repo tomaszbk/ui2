@@ -1,12 +1,12 @@
 Screen(
-    id: "root",
+    id: root,
     style: [background(#F1F5F9)],
 ) {
     Absolute(
         style: [transparent(true)],
     ) {
         View(
-            id: "card",
+            id: card,
             x: 16,
             y: 16,
             width: root.width - 32,
@@ -41,7 +41,7 @@ Screen(
                     style: [foreground(#475569), font_size(12)],
                 )
                 TextArea(
-                    id: "info",
+                    id: info,
                     text: app.info,
                     readonly: true,
                     x: 16,
@@ -51,7 +51,7 @@ Screen(
                     style: [background(#F8FAFC), foreground(#334155), font_size(13), radius(7)],
                 )
                 TextArea(
-                    id: "text",
+                    id: text,
                     text: app.text,
                     readonly: true,
                     x: 32 +((root.width - 80) / 2),

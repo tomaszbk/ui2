@@ -1,8 +1,8 @@
-Column(id: "root", width: 300, height: 200) {
-    View(id: "card", width: 100, height: 40, motion: [fade(0.2), slide_y(8), easing(out_cubic), spring(170, 26), duration(app.duration)])
-    View(id: "single", width: 100, height: 40, motion: fade(0.3))
-    View(id: "entering", width: 100, height: 40, motion: [enter(app.entering), app.ready ? layout(position) : layout(box)])
-    View(id: "pulse", width: 100, height: 40) {
+Column(id: root, width: 300, height: 200) {
+    View(id: card, width: 100, height: 40, motion: [fade(0.2), slide_y(8), easing(out_cubic), spring(170, 26), duration(app.duration)])
+    View(id: single, width: 100, height: 40, motion: fade(0.3))
+    View(id: entering, width: 100, height: 40, motion: [enter(app.entering), app.ready ? layout(position) : layout(box)])
+    View(id: pulse, width: 100, height: 40) {
         Timeline(duration: 1.2, repeat: true) {
             Keyframe(at: 0.5, opacity: 0.4, scale: 1.1, easing: in_out_sine)
             Keyframe(at: 1, opacity: 1, scale: 1)

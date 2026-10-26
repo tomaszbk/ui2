@@ -1,12 +1,12 @@
 Screen(
-    id: "root",
+    id: root,
     style: [background(#F1F5F9)],
 ) {
     Absolute(
         style: [transparent(true)],
     ) {
         View(
-            id: "card",
+            id: card,
             x: 16,
             y: 16,
             width: root.width - 32,
@@ -18,7 +18,7 @@ Screen(
             ) {
                 Label(text: "Accent color", x: 18, y: 14, width: 260, height: 28, style: [foreground(#111827), font_size(18), weight(700)])
                 Button(
-                    id: "reset",
+                    id: reset,
                     text: "Reset",
                     on_click: callback_reset,
                     native: true,
@@ -37,7 +37,7 @@ Screen(
                 )
                 Label(text: "R ${app.red}", x: 18, y: 78, width: 54, height: 20, style: [foreground(#B91C1C), font_size(12), weight(700)])
                 View(
-                    id: "track_red",
+                    id: track_red,
                     on_pointer_down: callback_track_red,
                     on_pointer_drag: callback_track_red,
                     on_pointer_up: callback_track_red,
@@ -71,7 +71,7 @@ Screen(
                 }
                 Label(text: "G ${app.green}", x: 18, y: 114, width: 54, height: 20, style: [foreground(#15803D), font_size(12), weight(700)])
                 View(
-                    id: "track_green",
+                    id: track_green,
                     on_pointer_down: callback_track_green,
                     on_pointer_drag: callback_track_green,
                     on_pointer_up: callback_track_green,
@@ -105,7 +105,7 @@ Screen(
                 }
                 Label(text: "B ${app.blue}", x: 18, y: 150, width: 54, height: 20, style: [foreground(#1D4ED8), font_size(12), weight(700)])
                 View(
-                    id: "track_blue",
+                    id: track_blue,
                     on_pointer_down: callback_track_blue,
                     on_pointer_drag: callback_track_blue,
                     on_pointer_up: callback_track_blue,
@@ -138,7 +138,7 @@ Screen(
                     }
                 }
                 View(
-                    id: "accent_preview",
+                    id: accent_preview,
                     x: card.width - 122,
                     y: 76,
                     width: 104,
@@ -158,10 +158,7 @@ Screen(
                         )
                     }
                 }
-                Repeater(
-                    model: app.swatches,
-                    key: item.key,
-                ) {
+                for item in app.swatches key item.key {
                     View(
                         x: 18 + item.index *((card.width - 36) / 4),
                         y: 192,
@@ -184,7 +181,7 @@ Screen(
                     }
                 }
                 View(
-                    id: "demo_stack",
+                    id: demo_stack,
                     x: 18,
                     y: 272,
                     width: card.width - 36,
@@ -215,7 +212,7 @@ Screen(
                             }
                         }
                         Button(
-                            id: "accent_action",
+                            id: accent_action,
                             text: "Primary action",
                             x: 16,
                             y: 64,
@@ -224,7 +221,7 @@ Screen(
                             style: [background(app.accent), foreground(app.font_color), font_size(13), radius(8)],
                         )
                         Checkbox(
-                            id: "subscribe",
+                            id: subscribe,
                             text: "Subscribe",
                             checked: app.subscribed,
                             on_click: callback_subscribe,
@@ -235,7 +232,7 @@ Screen(
                             style: [foreground(app.shade), font_size(12)],
                         )
                         TextInput(
-                            id: "sample_input",
+                            id: sample_input,
                             text: app.sample,
                             on_change: callback_sample_input,
                             x: 16,
@@ -263,7 +260,7 @@ Screen(
                     }
                 }
                 Label(
-                    id: "accent_status",
+                    id: accent_status,
                     text: app.status,
                     x: 18,
                     y: card.height - 42,

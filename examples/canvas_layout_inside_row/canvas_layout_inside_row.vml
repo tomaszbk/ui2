@@ -1,12 +1,12 @@
 Screen(
-    id: "root",
+    id: root,
     style: [background(#F1F5F9)],
 ) {
     Absolute(
         style: [transparent(true)],
     ) {
         View(
-            id: "card",
+            id: card,
             x: 16,
             y: 16,
             width: root.width - 32,
@@ -25,7 +25,7 @@ Screen(
                     style: [foreground(#111827), font_size(18), weight(700)],
                 )
                 Button(
-                    id: "rotate",
+                    id: rotate,
                     text: "Rotate",
                     on_click: callback_rotate,
                     native: true,
@@ -35,7 +35,7 @@ Screen(
                     height: 34,
                 )
                 Button(
-                    id: "return",
+                    id: return,
                     text: "Return to tray",
                     on_click: callback_return,
                     native: true,
@@ -53,7 +53,7 @@ Screen(
                     style: [foreground(#64748B), font_size(11)],
                 )
                 View(
-                    id: "tray",
+                    id: tray,
                     x: 18,
                     y: 96,
                     width: 220,
@@ -88,7 +88,7 @@ Screen(
                     }
                 }
                 View(
-                    id: "canvas",
+                    id: canvas,
                     x: 250,
                     y: 96,
                     width: (root.width - 300),
@@ -139,7 +139,7 @@ Screen(
                     }
                 }
                 Image(
-                    id: "logo",
+                    id: logo,
                     source: app.logo_path,
                     on_pointer_down: callback_logo,
                     on_pointer_drag: callback_logo,
@@ -157,7 +157,7 @@ Screen(
                     height: 72,
                 )
                 Label(
-                    id: "inside_row_status",
+                    id: inside_row_status,
                     text: app.status,
                     x: 18,
                     y: card.height - 42,

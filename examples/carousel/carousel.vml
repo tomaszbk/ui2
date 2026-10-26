@@ -1,20 +1,20 @@
 // A photo gallery in a kit Carousel. The Carousel binds the shown slide's
 // index and loops; its buttons, dots and arrow keys move between the slides,
 // and each slide fades in from the side.
-Screen(id: "root", style: [background(color.surface)]) {
-    Column(id: "page", gap: 12, style: [padding(20)]) {
+Screen(id: root, style: [background(color.surface)]) {
+    Column(id: page, gap: 12, style: [padding(20)]) {
         Label(text: "Carousel", style: [font_size(typography.title), weight(700), foreground(color.text)])
-        Carousel(id: "gallery", bind.index: app.index, loop: true, flex_grow: 1) {
-            CarouselSlide(id: "ocean", accessibility_label: "Ocean", justify: center, align_items: center, style: [background(#DBEAFE), radius(10)]) {
+        Carousel(id: gallery, bind.index: app.index, loop: true, flex_grow: 1) {
+            CarouselSlide(id: ocean, accessibility_label: "Ocean", justify: center, align_items: center, style: [background(#DBEAFE), radius(10)]) {
                 Label(text: "Ocean", style: [font_size(30), weight(700), foreground(#1E3A8A)])
             }
-            CarouselSlide(id: "forest", accessibility_label: "Forest", justify: center, align_items: center, style: [background(#DCFCE7), radius(10)]) {
+            CarouselSlide(id: forest, accessibility_label: "Forest", justify: center, align_items: center, style: [background(#DCFCE7), radius(10)]) {
                 Label(text: "Forest", style: [font_size(30), weight(700), foreground(#14532D)])
             }
-            CarouselSlide(id: "sunset", accessibility_label: "Sunset", justify: center, align_items: center, style: [background(#FFEDD5), radius(10)]) {
+            CarouselSlide(id: sunset, accessibility_label: "Sunset", justify: center, align_items: center, style: [background(#FFEDD5), radius(10)]) {
                 Label(text: "Sunset", style: [font_size(30), weight(700), foreground(#7C2D12)])
             }
         }
-        Label(id: "status", text: "${app.index + 1} / 3", style: [foreground(color.muted)])
+        Label(id: status, text: "${app.index + 1} / 3", style: [foreground(color.muted)])
     }
 }

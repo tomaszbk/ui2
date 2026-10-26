@@ -1,12 +1,12 @@
 Screen(
-    id: "root",
+    id: root,
     style: [background(#F1F5F9)],
 ) {
     Absolute(
         style: [transparent(true)],
     ) {
         View(
-            id: "card",
+            id: card,
             x: 16,
             y: 16,
             width: root.width - 32,
@@ -19,7 +19,7 @@ Screen(
                 Label(text: "People", x: 16, y: 14, width: 210, height: 28, style: [foreground(#111827), font_size(17), weight(700)])
                 Label(text: "Filter prefix", x: 16, y: 48, width: 210, height: 20, style: [foreground(#475569), font_size(12)])
                 TextInput(
-                    id: "filter",
+                    id: filter,
                     bind.text: app.filter,
                     on_change: app.filter_changed(),
                     placeholder: "Surname prefix",
@@ -30,7 +30,7 @@ Screen(
                     style: [background(#F8FAFC), radius(7), font_size(13)],
                 )
                 Scroll(
-                    id: "people_list",
+                    id: people_list,
                     x: 16,
                     y: 112,
                     width: 210,
@@ -40,10 +40,7 @@ Screen(
                     Absolute(
                         style: [transparent(true)],
                     ) {
-                        Repeater(
-                            model: app.visible_people,
-                            key: item.id,
-                        ) {
+                        for index, item in app.visible_people key item.id {
                             Button(
                                 text: item.id == app.selected_id ? "✓ ${item.display}" : item.display,
                                 on_click: app.select_person(item.id),
@@ -67,7 +64,7 @@ Screen(
                 )
                 Label(text: "Name", x: 246, y: 48, width: card.width - 262, height: 20, style: [foreground(#475569), font_size(12)])
                 TextInput(
-                    id: "name",
+                    id: name,
                     bind.text: app.name,
                     placeholder: "Name",
                     x: 246,
@@ -78,7 +75,7 @@ Screen(
                 )
                 Label(text: "Surname", x: 246, y: 114, width: card.width - 262, height: 20, style: [foreground(#475569), font_size(12)])
                 TextInput(
-                    id: "surname",
+                    id: surname,
                     bind.text: app.surname,
                     placeholder: "Surname",
                     x: 246,
@@ -88,7 +85,7 @@ Screen(
                     style: [background(#F8FAFC), radius(7), font_size(13)],
                 )
                 Button(
-                    id: "create",
+                    id: create,
                     text: "Create",
                     on_click: app.create_person(),
                     native: true,
@@ -99,7 +96,7 @@ Screen(
                     style: [background(#3478D4), foreground(#FFFFFF), radius(7)],
                 )
                 Button(
-                    id: "update",
+                    id: update,
                     text: "Update",
                     on_click: app.update_person(),
                     native: true,
@@ -111,7 +108,7 @@ Screen(
                     style: [background(#E2E8F0), radius(7)],
                 )
                 Button(
-                    id: "delete",
+                    id: delete,
                     text: "Delete",
                     on_click: app.delete_person(),
                     native: true,
@@ -123,7 +120,7 @@ Screen(
                     style: [background(#FEE2E2), foreground(#991B1B), radius(7)],
                 )
                 Label(
-                    id: "message",
+                    id: message,
                     text: app.message,
                     x: 246,
                     y: 234,

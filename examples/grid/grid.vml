@@ -1,12 +1,12 @@
 Screen(
-    id: "root",
+    id: root,
     style: [background(#F1F5F9)],
 ) {
     Absolute(
         style: [transparent(true)],
     ) {
         View(
-            id: "card",
+            id: card,
             x: 16,
             y: 16,
             width: root.width - 32,
@@ -26,7 +26,7 @@ Screen(
                     style: [foreground(#64748B), font_size(12)],
                 )
                 View(
-                    id: "table",
+                    id: table,
                     x: 16,
                     y: 76,
                     width: card.width - 32,
@@ -36,10 +36,7 @@ Screen(
                     Absolute(
                         style: [transparent(true)],
                     ) {
-                        Repeater(
-                            model: app.cells,
-                            key: item.id,
-                        ) {
+                        for item in app.cells key item.id {
                             View(
                                 x: 1 + item.column *((table.width - 2) / 3),
                                 y: 1 + item.row * 43,

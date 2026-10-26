@@ -1,55 +1,55 @@
-Screen(id: "root", style: [background(#F1F5F9)]) {
-    Column(id: "main", gap: 6, line_gap: 2, justify: center, align_items: start, style: [padding(4), transparent(true)]) {
-        Row(id: "row", spacing: 3, height: 40, wrap: true, flex_grow: 1, justify: space_between) {
-            View(id: "a", width: 30, height: 20, flex_basis: 25, flex_shrink: 0, align_self: center)
-            View(id: "b", height: 20, flex_grow: 2, min_width: 10, max_width: 80, min_height: 5, max_height: 30)
+Screen(id: root, style: [background(#F1F5F9)]) {
+    Column(id: main, gap: 6, line_gap: 2, justify: center, align_items: start, style: [padding(4), transparent(true)]) {
+        Row(id: row, spacing: 3, height: 40, wrap: true, flex_grow: 1, justify: space_between) {
+            View(id: a, width: 30, height: 20, flex_basis: 25, flex_shrink: 0, align_self: center)
+            View(id: b, height: 20, flex_grow: 2, min_width: 10, max_width: 80, min_height: 5, max_height: 30)
             View(height: 12, width: 12, key: "plain", style: [background(#FF0000), radius(3)])
         }
-        Flex(id: "flex", orientation: vertical, gap: 2, spacing: 9, height: 60, align_items: center) {
+        Flex(id: flex, orientation: vertical, gap: 2, spacing: 9, height: 60, align_items: center) {
             Label(text: "one", height: 18)
             Label(text: 42, height: 18)
         }
-        Flex(id: "flex_spacing", spacing: 5, height: 30, line_gap: 4) {
+        Flex(id: flex_spacing, spacing: 5, height: 30, line_gap: 4) {
             View(width: 20, height: 10)
             View(width: 20, height: 10)
         }
-        Grid(id: "grid", columns: 3, spacing: 4, spacing_y: 6, height: 80, col_default_width: 30, row_default_height: 20, col_force_default: true, row_force_default: true, style: [padding(2)]) {
-            View(id: "g1", column_span: 2)
-            View(id: "g2", row_span: 2)
-            View(id: "g3")
-            View(id: "g4")
+        Grid(id: grid, columns: 3, spacing: 4, spacing_y: 6, height: 80, col_default_width: 30, row_default_height: 20, col_force_default: true, row_force_default: true, style: [padding(2)]) {
+            View(id: g1, column_span: 2)
+            View(id: g2, row_span: 2)
+            View(id: g3)
+            View(id: g4)
         }
-        Grid(id: "rows", rows: 2, orientation: top_to_bottom_left_to_right, spacing_x: 3, height: 40) {
-            View(id: "r1")
-            View(id: "r2")
-            View(id: "r3")
+        Grid(id: rows, rows: 2, orientation: top_to_bottom_left_to_right, spacing_x: 3, height: 40) {
+            View(id: r1)
+            View(id: r2)
+            View(id: r3)
         }
-        Grid(id: "auto", auto_columns_min_width: 40, max_columns: 3, height: 50) {
-            View(id: "h1", height: 10)
-            View(id: "h2", height: 10)
+        Grid(id: auto, auto_columns_min_width: 40, max_columns: 3, height: 50) {
+            View(id: h1, height: 10)
+            View(id: h2, height: 10)
         }
-        Grid(id: "cols", cols: 2, height: 30) {
+        Grid(id: cols, cols: 2, height: 30) {
             View(height: 10)
             View(height: 10)
         }
-        Stack(id: "stack", align_x: center, align_y: end, height: 50, style: [padding(3)]) {
-            View(id: "s1", width: 20, height: 10)
-            View(id: "s2", width: 10, height: 10, align_self_x: end, align_self_y: stretch)
+        Stack(id: stack, align_x: center, align_y: end, height: 50, style: [padding(3)]) {
+            View(id: s1, width: 20, height: 10)
+            View(id: s2, width: 10, height: 10, align_self_x: end, align_self_y: stretch)
         }
-        Scroll(id: "scroll", persistent: true, scroll_mode: both, height: 60) {
-            View(id: "sc", width: 500, height: 300)
+        Scroll(id: scroll, persistent: true, scroll_mode: both, height: 60) {
+            View(id: sc, width: 500, height: 300)
         }
         Scroll(height: 20) {
             Label(text: "default scroll")
         }
-        ScaledContent(id: "scaled", content_width: 200, content_height: 100, width: 300, height: 50) {
-            Absolute(id: "abs") {
-                View(id: "p1", x: 10, y: 5, width: 50, height: 20)
-                View(id: "p2", y: 40)
+        ScaledContent(id: scaled, content_width: 200, content_height: 100, width: 300, height: 50) {
+            Absolute(id: abs) {
+                View(id: p1, x: 10, y: 5, width: 50, height: 20)
+                View(id: p2, y: 40)
             }
         }
-        View(id: "plain_view", height: 30) {
-            View(id: "inner", width: 10)
+        View(id: plain_view, height: 30) {
+            View(id: inner, width: 10)
         }
     }
 }

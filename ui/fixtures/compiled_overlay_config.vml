@@ -1,4 +1,4 @@
-View(id: "typed", width: 220, height: 140, overlay: app.config, hidden: app.hidden,
+View(id: typed, width: 220, height: 140, overlay: app.config, hidden: app.hidden,
     on_dismiss: app.dismiss(event.dismiss_reason)) {
-    TextInput(id: "typed_draft", width: 180, height: 30, text: "Retained")
+    TextInput(id: typed_draft, width: 180, height: 30, text: "Retained")
 }

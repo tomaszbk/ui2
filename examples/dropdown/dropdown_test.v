@@ -30,7 +30,7 @@ fn test_dropdown_vml_contains_all_options() {
 	assert actions.menu[0].title == 'Delete all users'
 	assert actions.menu[2].title == 'Exit'
 	assert voidptr(actions.on_event) != unsafe { nil }
-	message := find_dropdown_element(root, 'selection-message') or {
+	message := find_dropdown_element(root, 'selection_message') or {
 		panic('missing selection message')
 	}
 	assert message.frame.y == 19

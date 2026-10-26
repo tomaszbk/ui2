@@ -1,5 +1,5 @@
 Screen(
-    id: "root",
+    id: root,
     style: [background(#F1F5F9)],
 ) {
     Absolute(
@@ -14,7 +14,7 @@ Screen(
             style: [foreground(#0F172A), font_size(22), weight(700)],
         )
         Stack(
-            id: "top_left",
+            id: top_left,
             x: 20,
             y: 60,
             width: 160,
@@ -28,7 +28,7 @@ Screen(
         Stack(
             align_x: center,
             align_y: center,
-            id: "centered",
+            id: centered,
             x: 200,
             y: 60,
             width: 160,
@@ -38,7 +38,7 @@ Screen(
             Button(text: "Centered", width: 88, height: 34, style: [background(#DCFCE7)])
         }
         Stack(
-            id: "bottom_right",
+            id: bottom_right,
             x: 20,
             y: 180,
             width: root.width - 40,

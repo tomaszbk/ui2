@@ -1,1 +1,1 @@
-TextInput(id: "name", placeholder: "Name", on_change: app.callback_changed, on_submit: app.callback_submit)
+TextInput(id: name, placeholder: "Name", on_change: app.callback_changed, on_submit: app.callback_submit)

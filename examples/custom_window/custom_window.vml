@@ -1,13 +1,13 @@
 Screen(
-    id: "root",
+    id: root,
     style: [background(app.screen_background), transparent(app.transparent_screen)],
 ) {
     Absolute(
         style: [transparent(true)],
     ) {
-        View(id: "card_shadow", x: 16, y: 14, width: root.width - 32, height: 122, style: [background(#020617), radius(22)])
+        View(id: card_shadow, x: 16, y: 14, width: root.width - 32, height: 122, style: [background(#020617), radius(22)])
         View(
-            id: "card",
+            id: card,
             x: 12,
             y: 10,
             width: root.width - 32,
@@ -18,7 +18,7 @@ Screen(
                 style: [transparent(true)],
             ) {
                 View(
-                    id: "window_drag",
+                    id: window_drag,
                     on_pointer_down: callback_window_drag,
                     clickable: true,
                     draggable: true,
@@ -51,7 +51,7 @@ Screen(
                     }
                 }
                 Button(
-                    id: "close",
+                    id: close,
                     text: "×",
                     on_click: callback_close,
                     x: card.width - 42,
@@ -72,9 +72,9 @@ Screen(
                 Label(text: app.platform_note, x: 20, y: 91, width: card.width - 40, height: 18, style: [foreground(#94A3B8), font_size(10)])
             }
         }
-        View(id: "action_shadow", x: root.width / 2 - 130, y: 152, width: 260, height: 48, style: [background(#020617), radius(24)])
+        View(id: action_shadow, x: root.width / 2 - 130, y: 152, width: 260, height: 48, style: [background(#020617), radius(24)])
         View(
-            id: "actions",
+            id: actions,
             x: root.width / 2 - 132,
             y: 148,
             width: 260,
@@ -85,7 +85,7 @@ Screen(
                 style: [transparent(true)],
             ) {
                 Button(
-                    id: "decrement",
+                    id: decrement,
                     text: "−",
                     on_click: callback_decrement,
                     enabled: app.completed > 0,
@@ -97,7 +97,7 @@ Screen(
                     style: [background(#334155), radius(17), foreground(#F8FAFC), font_size(18), weight(700)],
                 )
                 Button(
-                    id: "reset",
+                    id: reset,
                     text: app.completed,
                     x: 68,
                     y: 7,
@@ -108,7 +108,7 @@ Screen(
                     style: [background(#0F172A), radius(17), foreground(#A7F3D0), font_size(16), weight(700)],
                 )
                 Button(
-                    id: "increment",
+                    id: increment,
                     text: "+",
                     on_click: callback_increment,
                     x: 198,

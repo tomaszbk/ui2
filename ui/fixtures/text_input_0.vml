@@ -1,5 +1,5 @@
 TextArea(
-    id: "rich",
+    id: rich,
     readonly: true,
     disable_scroll: true,
     style: [font_size(18), foreground(#123456)],

@@ -1,12 +1,12 @@
 Screen(
-    id: "root",
+    id: root,
     style: [background(#F1F5F9)],
 ) {
     Absolute(
         style: [transparent(true)],
     ) {
         View(
-            id: "card",
+            id: card,
             x: 16,
             y: 16,
             width: root.width - 32,
@@ -25,7 +25,7 @@ Screen(
                     style: [foreground(#111827), font_size(18), weight(700)],
                 )
                 Label(
-                    id: "current_path",
+                    id: current_path,
                     text: app.path,
                     x: 18,
                     y: 44,
@@ -34,7 +34,7 @@ Screen(
                     style: [foreground(#64748B), font_size(11)],
                 )
                 Button(
-                    id: "parent",
+                    id: parent,
                     text: "Parent folder",
                     on_click: app.go_parent(),
                     native: true,
@@ -44,7 +44,7 @@ Screen(
                     height: 34,
                 )
                 Button(
-                    id: "choose",
+                    id: choose,
                     text: "Choose current",
                     on_click: app.choose_current(),
                     native: true,
@@ -54,7 +54,7 @@ Screen(
                     height: 34,
                 )
                 Scroll(
-                    id: "folder_list",
+                    id: folder_list,
                     x: 18,
                     y: 120,
                     width: card.width - 36,
@@ -64,10 +64,7 @@ Screen(
                     Absolute(
                         style: [transparent(true)],
                     ) {
-                        Repeater(
-                            model: app.entries,
-                            key: item.path,
-                        ) {
+                        for index, item in app.entries key item.path {
                             Button(
                                 text: "▸  ${item.name}",
                                 on_click: app.open_entry(item.id),
@@ -90,7 +87,7 @@ Screen(
                     }
                 }
                 Label(
-                    id: "browser_status",
+                    id: browser_status,
                     text: app.status,
                     x: 18,
                     y: card.height - 40,

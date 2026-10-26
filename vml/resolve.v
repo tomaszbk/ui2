@@ -72,6 +72,7 @@ pub fn resolve_library(library &Library) !&Program {
 		_ = def
 	} else {
 		r.ids << collect_ids(root)
+		program.refs = r.declare_refs(root, root, mut scope)!
 		program.root = r.node(root, '0', mut scope, false)!
 		r.ids.delete_last()
 	}
@@ -226,8 +227,8 @@ fn (mut r Resolver) node(n &Node, path string, mut scope Scope, relative bool) !
 	if n.tag == component_tag {
 		return node_loc(n).error('a component is declared at the top of a document')
 	}
-	if n.tag == 'Repeater' {
-		return node_loc(n).error('a Repeater must be the child of a container')
+	if is_structural(n.tag) {
+		return node_loc(n).error('`if` and `for` must be children of a container')
 	}
 	if n.tag == 'Slot' {
 		if r.def_stack.len == 0 {
@@ -290,7 +291,7 @@ fn (mut r Resolver) element(n &Node, path string, mut scope Scope, relative bool
 	add_tokens(scope, names)
 	for property in n.properties {
 		psrc := property_loc(n, property)
-		if property.name in ['id', 'ref'] {
+		if property.name == 'id' {
 			continue
 		}
 		if property.name == 'key' {
@@ -308,19 +309,170 @@ fn (mut r Resolver) element(n &Node, path string, mut scope Scope, relative bool
 		}
 		node.props << r.prop(property.name, property.expr, scope, psrc)!
 	}
-	if property := find_property(n, 'ref') {
-		node.ref = r.ref_target(n, property, scope)!
+	if n.id.len > 0 {
+		node.ref = r.ref_of(n.id, scope, src)
 	}
-	for index, child in n.children {
-		child_path := '${path}.${index}'
-		if child.tag == 'Repeater' {
-			node.children << r.repeater(child, '${generated_name(path)}.${index}', mut
-				scope, relative)!
+	node.children = r.children(n.children, path, mut scope, relative)!
+	return node
+}
+
+// children resolves the children of a container at `path`: elements,
+// invocations, `if` chains and `for` loops. A structural child is named by
+// the container's generated name and its index (`0_2.1`).
+fn (mut r Resolver) children(nodes []&Node, path string, mut scope Scope, relative bool) ![]&INode {
+	mut out := []&INode{cap: nodes.len}
+	for index, child in nodes {
+		out << match child.tag {
+			for_tag { r.repeater(child, '${generated_name(path)}.${index}', mut scope, relative)! }
+			if_tag { r.cond(child, '${generated_name(path)}.${index}', mut scope, relative)! }
+			else { r.node(child, '${path}.${index}', mut scope, relative)! }
+		}
+	}
+	return out
+}
+
+// ref_of is the ref of element id `id`, when the document calls its methods.
+fn (r &Resolver) ref_of(id string, scope &Scope, src Location) &IExpr {
+	binding, depth := scope.lookup('@ref:' + id) or { return unsafe { nil } }
+	return &IExpr{
+		kind:    .binding
+		binding: binding
+		depth:   depth
+		src:     src
+	}
+}
+
+// check_new_name rejects a local name (a `for` item, an unwrapped option, a
+// watch value) that shadows a name already visible, as V does.
+fn check_new_name(name string, scope &Scope, src Location) ! {
+	if name in reserved_roots {
+		return src.error('`${name}` is a reserved name')
+	}
+	if _, _ := scope.lookup(name) {
+		return src.error('`${name}` is already declared; choose another name')
+	}
+}
+
+// --------------------------------------------------------------------- refs
+
+// declare_refs declares, in `scope`, the refs of the element ids of the tree
+// at `root` whose methods `members` (the document, or the component with its
+// declarations) call: `name.focus()`. An id inside a `for` names one element
+// per item and has no ref.
+fn (mut r Resolver) declare_refs(root &Node, members &Node, mut scope Scope) ![]IRef {
+	mut uses := map[string]Location{}
+	mut methods := map[string][]IRefMethod{}
+	collect_ref_uses(members, mut uses, mut methods)
+	if uses.len == 0 {
+		return []IRef{}
+	}
+	mut targets := map[string]string{}
+	mut repeated := map[string]bool{}
+	r.collect_ref_targets(root, false, mut targets, mut repeated)
+	mut refs := []IRef{}
+	for name, location in uses {
+		tag := targets[name] or {
+			if name in repeated {
+				return location.error('`${name}` is an element inside a `for`, one per item: it has no ref')
+			}
 			continue
 		}
-		node.children << r.node(child, child_path, mut scope, relative)!
+		slot := scope.add('@ref:' + name, Binding{
+			kind:    .ref
+			ref_tag: tag
+		}).slot
+		refs << IRef{
+			name:    name
+			slot:    slot
+			tag:     tag
+			methods: methods[name] or { []IRefMethod{} }
+		}
 	}
-	return node
+	return refs
+}
+
+// collect_ref_uses records the ids `node` and its descendants use as refs:
+// `name.method(...)` calls of a ref method and ids passed by name to calls.
+fn collect_ref_uses(node &Node, mut uses map[string]Location, mut methods map[string][]IRefMethod) {
+	for property in node.properties { collect_expr_ref_uses(property.expr, mut uses, mut methods) }
+	for data in node.data { collect_expr_ref_uses(data.expr, mut uses, mut methods) }
+	for function in node.functions {
+		for statement in function.body { collect_expr_ref_uses(statement, mut uses, mut methods) }
+	}
+	for watch in node.watches {
+		collect_expr_ref_uses(watch.expr, mut uses, mut methods)
+		for statement in watch.body { collect_expr_ref_uses(statement, mut uses, mut methods) }
+	}
+	for statements in [node.mount, node.unmount, node.cleanup] {
+		for statement in statements { collect_expr_ref_uses(statement, mut uses, mut methods) }
+	}
+	for expr in [node.cond, node.key_expr] {
+		if !isnil(expr) { collect_expr_ref_uses(expr, mut uses, mut methods) }
+	}
+	for child in node.children {
+		if child.tag != component_tag { collect_ref_uses(child, mut uses, mut methods) }
+	}
+}
+
+fn collect_expr_ref_uses(e &Expr, mut uses map[string]Location, mut methods map[string][]IRefMethod) {
+	if e.kind == .call && e.value.count('.') == 1 && e.value.all_after('.') in ref_methods {
+		name := e.value.all_before('.')
+		method := e.value.all_after('.')
+		if name !in uses { uses[name] = expr_loc(e) }
+		mut called := methods[name] or { []IRefMethod{} }
+		if !called.any(it.name == method) {
+			called << IRefMethod{
+				name: method
+				src:  expr_loc(e)
+			}
+			methods[name] = called
+		}
+	}
+	if e.kind in [.call, .method] {
+		for arg in e.args {
+			if arg.kind == .path && !arg.value.contains('.') && arg.value !in uses {
+				uses[arg.value] = expr_loc(arg)
+			}
+		}
+	}
+	for child in [e.left, e.right, e.third] {
+		if !isnil(child) { collect_expr_ref_uses(child, mut uses, mut methods) }
+	}
+	for arg in e.args { collect_expr_ref_uses(arg, mut uses, mut methods) }
+	for part in e.parts {
+		if !isnil(part.expr) { collect_expr_ref_uses(part.expr, mut uses, mut methods) }
+	}
+}
+
+// collect_ref_targets maps the element ids of a tree to the tag of the
+// element they name (an invocation's id names its component's root element).
+fn (r &Resolver) collect_ref_targets(node &Node, repeated bool, mut targets map[string]string, mut repeated_ids map[string]bool) {
+	if node.id.len > 0 {
+		if repeated {
+			repeated_ids[node.id] = true
+		} else {
+			targets[node.id] = if node.component_ref.len > 0 { r.root_tag(node.component_ref) } else { node.tag }
+		}
+	}
+	for child in node.children {
+		if child.tag != component_tag {
+			r.collect_ref_targets(child, repeated || node.tag == for_tag, mut targets, mut repeated_ids)
+		}
+	}
+}
+
+// root_tag is the tag of the element a definition's root declares, through
+// definitions whose root is another component.
+fn (r &Resolver) root_tag(key string) string {
+	n := r.library.components[key] or { return '' }
+	if n.children.len == 0 {
+		return ''
+	}
+	root := n.children[0]
+	if root.component_ref.len > 0 {
+		return r.root_tag(root.component_ref)
+	}
+	return root.tag
 }
 
 // generated_name is the identifier form of a path: `0.1-a` is `0_1_a`.
@@ -333,6 +485,9 @@ pub fn generated_name(path string) string {
 fn (mut r Resolver) prop(name string, e &Expr, scope &Scope, src Location) !IProp {
 	helper := r.is_helper_value(e, scope)
 	expr := if helper { r.helper_value(e, scope)! } else { r.expr(e, scope, true)! }
+	if expr.kind == .binding && expr.binding.kind == .ref {
+		return src.error('`${e.value}` is an element: call its ref methods or pass it to a function, it is not a value of `${name}`')
+	}
 	return IProp{
 		name:     name
 		expr:     expr
@@ -344,7 +499,7 @@ fn (mut r Resolver) prop(name string, e &Expr, scope &Scope, src Location) !IPro
 }
 
 fn (mut r Resolver) bind(property Property, scope &Scope, src Location) !IBind {
-	if property.expr.kind != .path {
+	if property.expr.kind !in [.path, .index, .selector] {
 		return src.error('`${property.name}` must target a writable path')
 	}
 	return IBind{
@@ -371,51 +526,33 @@ fn (mut r Resolver) event(property Property, scope &Scope, src Location) !IEvent
 	}
 }
 
-fn (mut r Resolver) ref_target(n &Node, property Property, scope &Scope) !&IExpr {
-	src := property_loc(n, property)
-	if property.expr.kind != .path || property.expr.value.contains('.') {
-		return src.error('`ref` takes the name of a `ref` declaration')
-	}
-	binding, depth := scope.lookup(property.expr.value) or {
-		return src.error('unknown ref `${property.expr.value}`')
-	}
-	if binding.kind != .ref {
-		return src.error('`${property.expr.value}` is not a ref')
-	}
-	return &IExpr{
-		kind:    .binding
-		binding: binding
-		depth:   depth
-		src:     src
-	}
-}
-
 // ------------------------------------------------------------- repeaters
 
+// repeater resolves `for [index,] item in values key expression { ... }`.
 fn (mut r Resolver) repeater(n &Node, path string, mut scope Scope, relative bool) !&INode {
 	src := node_loc(n)
-	model_property := find_property(n, 'model') or {
-		return src.error('Repeater requires `model`')
-	}
-	key_property := find_property(n, 'key') or {
-		return src.error('Repeater requires a stable `key`')
-	}
-	for property in n.properties {
-		if property.name !in ['model', 'key'] {
-			return property_loc(n, property).error('unsupported `${property.name}` on Repeater')
+	check_new_name(n.bind_name, scope, src)!
+	if n.index_name.len > 0 {
+		check_new_name(n.index_name, scope, src)!
+		if n.index_name == n.bind_name {
+			return src.error('the index and the item of a `for` need different names')
 		}
 	}
-	model := r.expr(model_property.expr, scope, false)!
+	mut tokens := []string{}
+	expr_tokens(n.cond, mut tokens)
+	add_tokens(scope, tokens)
+	model := r.expr(n.cond, scope, false)!
 	mut key_scope := r.new_scope(.key, scope, unsafe { nil })
-	key_scope.add('item', Binding{
+	key_scope.add(n.bind_name, Binding{
 		kind: .item
 	})
-	key := r.expr(key_property.expr, key_scope, false)!
+	key := r.expr(n.key_expr, key_scope, false)!
 	mut item_scope := r.new_scope(.item, scope, unsafe { nil })
-	item_slot := item_scope.add('item', Binding{
+	item_slot := item_scope.add(n.bind_name, Binding{
 		kind: .item
 	}).slot
-	index_slot := item_scope.add('index', Binding{
+	index_slot := item_scope.add(if n.index_name.len > 0 { n.index_name } else { '@index' },
+		Binding{
 		kind: .index
 	}).slot
 	mut repeat := &IRepeater{
@@ -428,23 +565,66 @@ fn (mut r Resolver) repeater(n &Node, path string, mut scope Scope, relative boo
 		item_slot:      item_slot
 		index_slot:     index_slot
 		src:            src
-		model_src:      property_loc(n, model_property)
-		key_src:        property_loc(n, key_property)
+		model_src:      expr_loc(n.cond)
+		key_src:        expr_loc(n.key_expr)
 	}
-	for index, child in n.children {
-		child_path := '${path}.${index}'
-		if child.tag == 'Repeater' {
-			repeat.children << r.repeater(child, child_path, mut item_scope, relative)!
-		} else {
-			repeat.children << r.node(child, child_path, mut item_scope, relative)!
-		}
-	}
+	repeat.children = r.children(n.children, path, mut item_scope, relative)!
 	return &INode{
 		kind:     .repeater
-		tag:      'Repeater'
+		tag:      'for'
 		path:     path
 		src:      src
 		repeat:   repeat
+		relative: relative
+	}
+}
+
+// cond resolves an `if` chain. Each branch has a scope of its own: the
+// unwrapped value of `if name := option` and the branch's ids live there.
+fn (mut r Resolver) cond(n &Node, path string, mut scope Scope, relative bool) !&INode {
+	mut tokens := []string{}
+	for b in n.children {
+		if !isnil(b.cond) {
+			expr_tokens(b.cond, mut tokens)
+		}
+	}
+	add_tokens(scope, tokens)
+	mut branches := []&IBranch{}
+	mut uses_app := false
+	for index, b in n.children {
+		bsrc := node_loc(b)
+		mut bscope := r.new_scope(.branch, scope, unsafe { nil })
+		mut condition := &IExpr(unsafe { nil })
+		mut bind_slot := -1
+		if !isnil(b.cond) {
+			condition = r.expr(b.cond, scope, false)!
+			uses_app = uses_app || ir_uses_app(condition)
+			if b.bind_name.len > 0 {
+				check_new_name(b.bind_name, scope, bsrc)!
+				bind_slot = bscope.add(b.bind_name, Binding{
+					kind: .item
+				}).slot
+			}
+		}
+		mut branch := &IBranch{
+			cond:      condition
+			scope:     bscope
+			bind_slot: bind_slot
+			src:       bsrc
+		}
+		branch.children = r.children(b.children, '${path}.${index}', mut bscope, relative)!
+		branches << branch
+	}
+	return &INode{
+		kind:     .cond
+		tag:      'if'
+		path:     path
+		src:      node_loc(n)
+		cond:     &ICond{
+			name:          generated_name(path)
+			cond_uses_app: uses_app
+			branches:      branches
+		}
 		relative: relative
 	}
 }
@@ -480,6 +660,12 @@ fn (mut r Resolver) definition(key string) !&IComponentDef {
 	}
 	for function in n.functions {
 		for statement in function.body {
+			expr_tokens(statement, mut own_tokens)
+		}
+	}
+	for watch in n.watches {
+		expr_tokens(watch.expr, mut own_tokens)
+		for statement in watch.body {
 			expr_tokens(statement, mut own_tokens)
 		}
 	}
@@ -530,17 +716,7 @@ fn (mut r Resolver) definition(key string) !&IComponentDef {
 			src:            isrc
 		}
 	}
-	for reference in n.refs {
-		slot := scope.add(reference.name, Binding{
-			kind:    .ref
-			ref_tag: reference.typ
-		}).slot
-		def.refs << IRef{
-			name: reference.name
-			slot: slot
-			tag:  reference.typ
-		}
-	}
+	def.refs = r.declare_refs(n.children[0], n, mut scope)!
 	for data in n.data {
 		expr := r.expr(data.expr, scope, true)!
 		slot := scope.add(data.name, Binding{
@@ -583,6 +759,41 @@ fn (mut r Resolver) definition(key string) !&IComponentDef {
 		})
 		def.functions << fun
 	}
+	for watch in n.watches {
+		wsrc := loc(n.source, watch.line, watch.column)
+		expr := r.expr(watch.expr, scope, false)!
+		mut wscope := r.new_scope(.watch, scope, unsafe { nil })
+		for name in [watch.old, watch.now] {
+			if name.len > 0 {
+				check_new_name(name, scope, wsrc)!
+			}
+		}
+		if watch.old.len > 0 && watch.old == watch.now {
+			return wsrc.error('the old and new values of a `watch` need different names')
+		}
+		wscope.add(if watch.old.len > 0 { watch.old } else { '@old' }, Binding{
+			kind: .param
+		})
+		wscope.add(if watch.now.len > 0 { watch.now } else { '@now' }, Binding{
+			kind: .param
+		})
+		body := r.action(&Expr{
+			kind:   .block
+			args:   watch.body
+			source: n.source
+			line:   watch.line
+			column: watch.column
+		}, wscope)!
+		def.watches << IWatch{
+			expr:     expr
+			body:     body
+			scope:    wscope
+			old:      watch.old
+			now:      watch.now
+			uses_app: ir_uses_app(expr) || ir_uses_app(body)
+			src:      wsrc
+		}
+	}
 	if n.mount.len > 0 {
 		def.mount = r.action(&Expr{ kind: .block, args: n.mount, source: n.source }, scope)!
 	}
@@ -624,7 +835,7 @@ fn (mut r Resolver) invocation(n &Node, path string, mut caller Scope, relative 
 	add_tokens(caller, caller_tokens)
 	for property in n.properties {
 		psrc := property_loc(n, property)
-		if property.name in ['id', 'key', 'ref'] {
+		if property.name in ['id', 'key'] {
 			continue
 		}
 		name := property.name.all_after('bind.')
@@ -680,7 +891,7 @@ fn (mut r Resolver) invocation(n &Node, path string, mut caller Scope, relative 
 			if !decl.bindable {
 				return psrc.error('input `${decl.name}` is not declared bindable')
 			}
-			if property.expr.kind != .path {
+			if property.expr.kind !in [.path, .index, .selector] {
 				return psrc.error('`bind.${decl.name}` must target a writable path')
 			}
 			expr := r.expr(property.expr, caller, false)!
@@ -756,24 +967,14 @@ fn (mut r Resolver) invocation(n &Node, path string, mut caller Scope, relative 
 	for name, nodes in content {
 		slot_path := def.slots[name] or { continue }
 		mut slot_scope := r.new_scope(.slot, &caller, unsafe { nil })
-		mut resolved := []&INode{cap: nodes.len}
-		for index, child in nodes {
-			child_path := '${slot_path}.${index}'
-			if child.tag == 'Repeater' {
-				resolved << r.repeater(child, generated_name(child_path), mut slot_scope,
-					true)!
-			} else {
-				resolved << r.node(child, child_path, mut slot_scope, true)!
-			}
-		}
-		inv.slots[name] = resolved
+		inv.slots[name] = r.children(nodes, slot_path, mut slot_scope, true)!
 		inv.slot_scopes[name] = slot_scope
 	}
 	if property := find_property(n, 'key') {
 		inv.key = r.expr(property.expr, caller, true)!
 	}
-	if property := find_property(n, 'ref') {
-		inv.ref = r.ref_target(n, property, caller)!
+	if n.id.len > 0 {
+		inv.ref = r.ref_of(n.id, caller, src)
 	}
 	mut node := &INode{
 		kind:     .component
@@ -991,6 +1192,44 @@ fn (mut r Resolver) expr(e &Expr, scope &Scope, enums bool) !&IExpr {
 				src:  src
 			}
 		}
+		.index {
+			return &IExpr{
+				kind: .index
+				args: [r.expr(e.left, scope, false)!, r.expr(e.right, scope, true)!]
+				src:  src
+			}
+		}
+		.selector {
+			return members(r.expr(e.left, scope, false)!, e.value.split('.'), src)
+		}
+		.method {
+			receiver := r.expr(e.left, scope, false)!
+			if e.value == 'str' && e.args.len == 0 {
+				return &IExpr{
+					kind: .to_str
+					args: [receiver]
+					src:  src
+				}
+			}
+			mut args := [receiver]
+			for arg in e.args {
+				args << r.expr(arg, scope, true)!
+			}
+			return &IExpr{
+				kind:     .method_call
+				name:     e.value
+				args:     args
+				fallible: e.fallible
+				src:      src
+			}
+		}
+		.or_else {
+			return &IExpr{
+				kind: .or_else
+				args: [r.expr(e.left, scope, false)!, r.expr(e.right, scope, enums)!]
+				src:  src
+			}
+		}
 		.assignment {
 			return src.error('an assignment is only valid in an event handler')
 		}
@@ -1082,6 +1321,17 @@ fn (mut r Resolver) path(e &Expr, scope &Scope, enums bool) !&IExpr {
 			src:  src
 		}
 		return members(base, parts[2..], src)
+	}
+	if parts.len == 1 {
+		// An id passed by name is its ref: `app.remember(target)`.
+		if binding, depth := scope.lookup('@ref:' + root) {
+			return &IExpr{
+				kind:    .binding
+				binding: binding
+				depth:   depth
+				src:     src
+			}
+		}
 	}
 	found := if parts.len == 1 { scope.lookup_value(root) } else { scope.lookup(root) }
 	if binding, depth := found {
@@ -1177,27 +1427,28 @@ fn (mut r Resolver) call(e &Expr, scope &Scope) !&IExpr {
 		}
 	}
 	if parts.len == 2 {
-		if binding, depth := scope.lookup(parts[0]) {
-			if binding.kind == .ref {
-				for arg in e.args {
-					args << r.expr(arg, scope, false)!
-				}
-				method := parts[1]
-				arity := ref_methods[method] or {
-					return src.error('a ref has no method `${method}`; refs have is_available, focus, set_text, id and element')
-				}
-				if args.len != arity {
-					return src.error('`${value}` takes ${arity} argument(s), not ${args.len}')
-				}
-				return &IExpr{
-					kind:     .ref_call
-					name:     method
-					binding:  binding
-					depth:    depth
-					args:     args
-					fallible: e.fallible
-					src:      src
-				}
+		if binding, depth := scope.lookup('@ref:' + parts[0]) {
+			for arg in e.args {
+				args << r.expr(arg, scope, false)!
+			}
+			method := parts[1]
+			arity := ref_methods[method] or { 0 }
+			if args.len != arity {
+				return src.error('`${value}` takes ${arity} argument(s), not ${args.len}')
+			}
+			return &IExpr{
+				kind:     .ref_call
+				name:     method
+				binding:  binding
+				depth:    depth
+				args:     args
+				fallible: e.fallible
+				src:      src
+			}
+		}
+		if found, _ := scope.lookup(parts[0]) {
+			if found.kind == .id {
+				return src.error('an element id has the methods is_available, focus, set_text, id and element, not `${parts[1]}`')
 			}
 		}
 	}
@@ -1231,10 +1482,48 @@ fn (mut r Resolver) call(e &Expr, scope &Scope) !&IExpr {
 						src:     src
 					}
 				}
+				.input, .param, .state, .computed, .item {
+					// A value of a function type: `format(score)` of an input
+					// `format fn (int) string`.
+					base := &IExpr{
+						kind:    .binding
+						binding: binding
+						depth:   depth
+						src:     src
+					}
+					mut call_args := [base]
+					call_args << args
+					return &IExpr{
+						kind:     .method_call
+						args:     call_args
+						fallible: e.fallible
+						src:      src
+					}
+				}
 				else {
 					return src.error('`${value}` is not a function')
 				}
 			}
+		}
+	}
+	if parts.len >= 2 && r.is_value_root(parts[0], scope) {
+		// A method of a value: `app.deck.draw()`, `item.name.to_upper()`.
+		mut call_args := [
+			r.path(&Expr{
+				...e
+				kind:  .path
+				value: parts[..parts.len - 1].join('.')
+			}, scope, false)!,
+		]
+		for arg in e.args {
+			call_args << r.expr(arg, scope, true)!
+		}
+		return &IExpr{
+			kind:     .method_call
+			name:     parts.last()
+			args:     call_args
+			fallible: e.fallible
+			src:      src
 		}
 	}
 	for arg in e.args {
@@ -1252,6 +1541,16 @@ fn (mut r Resolver) call(e &Expr, scope &Scope) !&IExpr {
 		fallible: e.fallible
 		src:      src
 	}
+}
+
+// is_value_root reports whether the first name of a dotted path denotes a
+// value whose methods a call can name: the model or a scope value.
+fn (r &Resolver) is_value_root(root string, scope &Scope) bool {
+	if root == 'app' {
+		return true
+	}
+	binding, _ := scope.lookup_value(root) or { return false }
+	return binding.kind in [.state, .computed, .input, .item, .index, .param]
 }
 
 // ---------------------------------------------------------------- handlers
@@ -1335,9 +1634,12 @@ fn (mut r Resolver) action(e &Expr, scope &Scope) !&IExpr {
 		.assignment {
 			target := r.assignment_target(e.left, scope, src)!
 			value := r.expr(e.right, scope, true)!
+			mut args := target.args.clone()
+			args << value
 			return &IExpr{
 				...target
-				args: [value]
+				args: args
+				op:   e.value
 			}
 		}
 		else {
@@ -1347,34 +1649,63 @@ fn (mut r Resolver) action(e &Expr, scope &Scope) !&IExpr {
 }
 
 // assignment_target resolves a writable target: a top-level `app` field, a
-// component state or a bindable component input.
+// component state or a bindable component input, or a field or index path
+// below one of them (`app.players[i].trains`, `draft.cards`).
 fn (mut r Resolver) assignment_target(e &Expr, scope &Scope, src Location) !&IExpr {
-	if e.kind != .path {
-		return src.error('assignment target must be a name')
-	}
-	value := e.value
-	parts := value.split('.')
-	if parts.len == 2 && parts[0] == 'app' {
-		r.uses_app = true
-		return &IExpr{
-			kind: .assign_app
-			name: parts[1]
-			src:  src
+	if e.kind == .path {
+		parts := e.value.split('.')
+		if parts.len == 2 && parts[0] == 'app' {
+			r.uses_app = true
+			return &IExpr{
+				kind: .assign_app
+				name: parts[1]
+				src:  src
+			}
+		}
+		if parts.len == 1 {
+			if binding, depth := scope.lookup_value(e.value) {
+				if binding.kind == .state || (binding.kind == .input && binding.writable) {
+					return &IExpr{
+						kind:    .assign_binding
+						binding: binding
+						depth:   depth
+						src:     src
+					}
+				}
+			}
+			return src.error('VML target `${e.value}` is read-only or unknown; use state or an explicit bind connection')
 		}
 	}
-	if parts.len == 1 {
-		if binding, depth := scope.lookup_value(value) {
+	if e.kind in [.path, .index, .selector] {
+		place := r.expr(e, scope, false)!
+		mut base := unsafe { place }
+		for base.kind in [.member, .index] {
+			base = base.args[0]
+		}
+		if base.kind == .app_field {
+			return &IExpr{
+				kind: .assign_place
+				args: [place]
+				src:  src
+			}
+		}
+		if base.kind == .binding {
+			binding := base.binding
 			if binding.kind == .state || (binding.kind == .input && binding.writable) {
 				return &IExpr{
-					kind:    .assign_binding
+					kind:    .assign_place
 					binding: binding
-					depth:   depth
+					depth:   base.depth
+					args:    [place]
 					src:     src
 				}
 			}
+			if binding.kind == .item {
+				return src.error('`${binding.name}` is read-only; write the model value it comes from, such as `app.list[i].field`')
+			}
 		}
 	}
-	return src.error('VML target `${value}` is read-only or unknown; use state or an explicit bind connection')
+	return src.error('VML target `${expr_text(e)}` is read-only or unknown; use state or an explicit bind connection')
 }
 
 // ------------------------------------------------------------ static facts

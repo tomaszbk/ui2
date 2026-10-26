@@ -1,6 +1,6 @@
-Screen(id: "root") {
+Screen(id: root) {
     Absolute(style: [transparent(true)]) {
-        Label(id: "counter", text: "tick ${app.counter}", x: 8, y: 8, width: 200, height: 24)
-        Label(id: "static", text: "static", x: 8, y: 40, width: 200, height: 24)
+        Label(id: counter, text: "tick ${app.counter}", x: 8, y: 8, width: 200, height: 24)
+        Label(id: static, text: "static", x: 8, y: 40, width: 200, height: 24)
     }
 }

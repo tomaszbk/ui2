@@ -61,9 +61,9 @@ fn test_invocation_ids_alias_real_private_anonymous_and_nested_roots() ! {
 	children[5].on_event(ui2.ElementEvent{ kind: .click })
 	assert app.level == 301
 	mut owner := root.component
-	mut named := owner.ref[ui2.ViewProps]('named')!
-	mut anonymous := owner.ref[ui2.ViewProps]('anonymous')!
-	mut nested := owner.ref[ui2.ViewProps]('nested')!
+	mut named := owner.ref[ui2.ViewProps]('first')!
+	mut anonymous := owner.ref[ui2.ViewProps]('second')!
+	mut nested := owner.ref[ui2.ViewProps]('third')!
 	assert named.element()!.compiled_node == children[1].compiled_node
 	assert anonymous.element()!.compiled_node == children[2].compiled_node
 	assert nested.element()!.compiled_node == children[3].compiled_node

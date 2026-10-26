@@ -1,12 +1,12 @@
 Screen(
-    id: "root",
+    id: root,
     style: [background(#F1F5F9)],
 ) {
     Absolute(
         style: [transparent(true)],
     ) {
         View(
-            id: "card",
+            id: card,
             x: 16,
             y: 16,
             width: root.width - 32,
@@ -25,7 +25,7 @@ Screen(
                     style: [foreground(#111827), font_size(18), weight(700)],
                 )
                 Label(
-                    id: "backend_note",
+                    id: backend_note,
                     text: app.backend_note,
                     x: 18,
                     y: 44,
@@ -45,7 +45,7 @@ Screen(
                     ) {
                         Label(text: "Show Details", x: 12, y: 8, width: 126, height: 16, style: [foreground(#1D4ED8), font_size(11)])
                         Label(
-                            id: "details_state",
+                            id: details_state,
                             text: app.show_details ? "on" : "off",
                             x: 12,
                             y: 26,
@@ -67,7 +67,7 @@ Screen(
                     ) {
                         Label(text: "Word Wrap", x: 12, y: 8, width: 126, height: 16, style: [foreground(#1D4ED8), font_size(11)])
                         Label(
-                            id: "wrap_state",
+                            id: wrap_state,
                             text: app.word_wrap ? "on" : "off",
                             x: 12,
                             y: 26,
@@ -89,7 +89,7 @@ Screen(
                     ) {
                         Label(text: "Zoom", x: 12, y: 8, width: 126, height: 16, style: [foreground(#1D4ED8), font_size(11)])
                         Label(
-                            id: "zoom_state",
+                            id: zoom_state,
                             text: "${app.zoom}%",
                             x: 12,
                             y: 26,
@@ -110,7 +110,7 @@ Screen(
                         style: [transparent(true)],
                     ) {
                         Label(
-                            id: "last_action",
+                            id: last_action,
                             text: app.last_action,
                             x: 14,
                             y: 0,
@@ -122,7 +122,7 @@ Screen(
                 }
                 Label(text: "Chosen rows", x: 18, y: 202, width: card.width - 36, height: 18, style: [foreground(#64748B), font_size(12)])
                 TextArea(
-                    id: "menu_log",
+                    id: menu_log,
                     text: app.log,
                     readonly: true,
                     x: 18,
@@ -132,7 +132,7 @@ Screen(
                     style: [background(#F8FAFC), foreground(#334155), font_size(13), radius(7)],
                 )
                 Button(
-                    id: "reset",
+                    id: reset,
                     text: "Clear log",
                     on_click: callback_reset,
                     native: true,
@@ -143,7 +143,7 @@ Screen(
                     height: 34,
                 )
                 Label(
-                    id: "chosen_count",
+                    id: chosen_count,
                     text: "${app.chosen} chosen",
                     x: 140,
                     y: card.height - 46,

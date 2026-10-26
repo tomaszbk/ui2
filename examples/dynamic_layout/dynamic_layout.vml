@@ -1,12 +1,12 @@
 Screen(
-    id: "root",
+    id: root,
     style: [background(#F1F5F9)],
 ) {
     Absolute(
         style: [transparent(true)],
     ) {
         View(
-            id: "controls",
+            id: controls,
             x: 16,
             y: 16,
             width: (190),
@@ -25,7 +25,7 @@ Screen(
                     style: [foreground(#111827), font_size(18), weight(700)],
                 )
                 Button(
-                    id: "add_last",
+                    id: add_last,
                     text: "Add last",
                     on_click: app.add_last(),
                     native: true,
@@ -35,7 +35,7 @@ Screen(
                     height: 34,
                 )
                 Button(
-                    id: "add_two",
+                    id: add_two,
                     text: "Add two",
                     on_click: app.add_two(),
                     native: true,
@@ -45,7 +45,7 @@ Screen(
                     height: 34,
                 )
                 Button(
-                    id: "remove_last",
+                    id: remove_last,
                     text: "Remove last",
                     on_click: app.remove_last(),
                     native: true,
@@ -56,7 +56,7 @@ Screen(
                     height: 34,
                 )
                 Button(
-                    id: "remove_second",
+                    id: remove_second,
                     text: "Remove second",
                     on_click: app.remove_second(),
                     native: true,
@@ -67,7 +67,7 @@ Screen(
                     height: 34,
                 )
                 Button(
-                    id: "move_first",
+                    id: move_first,
                     text: "Move first to end",
                     on_click: app.move_first(),
                     native: true,
@@ -78,7 +78,7 @@ Screen(
                     height: 34,
                 )
                 Button(
-                    id: "toggle_items",
+                    id: toggle_items,
                     text: app.items_hidden ? "Show buttons" : "Hide buttons",
                     on_click: app.toggle_items(),
                     native: true,
@@ -98,7 +98,7 @@ Screen(
             }
         }
         View(
-            id: "stage",
+            id: stage,
             x: 222,
             y: 16,
             width: root.width - 238,
@@ -125,7 +125,7 @@ Screen(
                     style: [foreground(#64748B), font_size(12)],
                 )
                 Scroll(
-                    id: "item_list",
+                    id: item_list,
                     hidden: app.items_hidden,
                     x: 16,
                     y: 76,
@@ -136,10 +136,7 @@ Screen(
                     Absolute(
                         style: [transparent(true)],
                     ) {
-                        Repeater(
-                            model: app.items,
-                            key: item.id,
-                        ) {
+                        for index, item in app.items key item.id {
                             Button(
                                 text: item.label,
                                 on_click: app.rename(item.id),
@@ -153,7 +150,7 @@ Screen(
                     }
                 }
                 Label(
-                    id: "hidden_message",
+                    id: hidden_message,
                     hidden: ! app.items_hidden,
                     text: "Generated buttons are hidden",
                     x: 16,

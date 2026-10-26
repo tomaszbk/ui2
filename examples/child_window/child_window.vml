@@ -1,12 +1,12 @@
 Screen(
-    id: "root",
+    id: root,
     style: [background(#F1F5F9)],
 ) {
     Absolute(
         style: [transparent(true)],
     ) {
         View(
-            id: "card",
+            id: card,
             x: 16,
             y: 16,
             width: root.width - 32,
@@ -18,7 +18,7 @@ Screen(
             ) {
                 Label(text: "Child window", x: 18, y: 14, width: 240, height: 28, style: [foreground(#111827), font_size(18), weight(700)])
                 Button(
-                    id: "create",
+                    id: create,
                     text: "Create a window",
                     on_click: callback_create,
                     native: true,
@@ -28,7 +28,7 @@ Screen(
                     height: 34,
                 )
                 TextInput(
-                    id: "parent_input",
+                    id: parent_input,
                     placeholder: "Test textbox",
                     text: app.parent_text,
                     on_change: callback_parent_input,
@@ -47,7 +47,7 @@ Screen(
                     style: [foreground(#64748B), font_size(11)],
                 )
                 View(
-                    id: "child_panel",
+                    id: child_panel,
                     hidden: ! app.open,
                     x: app.panel_x,
                     y: app.panel_y,
@@ -59,7 +59,7 @@ Screen(
                         style: [transparent(true)],
                     ) {
                         View(
-                            id: "child_titlebar",
+                            id: child_titlebar,
                             on_pointer_down: callback_child_titlebar,
                             on_pointer_drag: callback_child_titlebar,
                             on_pointer_up: callback_child_titlebar,
@@ -86,7 +86,7 @@ Screen(
                             }
                         }
                         Button(
-                            id: "close",
+                            id: close,
                             text: "Close",
                             on_click: callback_close,
                             native: true,
@@ -96,7 +96,7 @@ Screen(
                             height: 30,
                         )
                         TextInput(
-                            id: "child_name",
+                            id: child_name,
                             placeholder: "Name",
                             text: app.name,
                             on_change: callback_child_name,
@@ -107,7 +107,7 @@ Screen(
                             style: [background(#FFFFFF), radius(7)],
                         )
                         Checkbox(
-                            id: "genre",
+                            id: genre,
                             text: "Check me if woman",
                             checked: app.woman,
                             on_click: callback_genre,
@@ -118,7 +118,7 @@ Screen(
                             style: [foreground(#334155), font_size(12)],
                         )
                         Button(
-                            id: "greet",
+                            id: greet,
                             text: "Greet me",
                             on_click: callback_greet,
                             native: true,
@@ -138,7 +138,7 @@ Screen(
                     }
                 }
                 Label(
-                    id: "child_status",
+                    id: child_status,
                     text: app.status,
                     x: 18,
                     y: card.height - 40,

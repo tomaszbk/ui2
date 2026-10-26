@@ -1,13 +1,10 @@
 Screen(
-    id: "root",
+    id: root,
 ) {
     Column(
         gap: 10,
     ) {
-        Repeater(
-            model: app.items,
-            key: item.id,
-        ) {
+        for index, item in app.items key item.id {
             Flex(
                 height: 100,
                 hidden: index == 1,

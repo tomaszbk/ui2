@@ -10,6 +10,7 @@ fn write_files(name string, files map[string]string) !string {
 	os.rmdir_all(dir) or {}
 	os.mkdir_all(dir)!
 	for path, content in files {
+		os.mkdir_all(os.dir(os.join_path(dir, path)))!
 		os.write_file(os.join_path(dir, path), content)!
 	}
 	return os.real_path(dir)
@@ -25,9 +26,11 @@ mut:
 	items []string
 }
 
-fn test_imports_resolve_next_to_the_importing_file() {
+fn test_components_of_the_folder_need_no_import() {
 	dir := write_files('resolve', {
-		'main.vml':      'import Card\nimport TodoItem\nColumn {\n    Card(title: "x") { Label(text: app.name) }\n    TodoItem\n}'
+		'main.vml':      'Column {\n    Card(title: "x") { Label(text: app.name) }\n    TodoItem\n}'
+		'grid.vml':      'Label'
+		'uses_grid.vml': 'Grid'
 		'Card.vml':      'component Card(title string, content slot) { View { Slot {} } }'
 		'todo_item.vml': 'component TodoItem() { Label(text: "t") }'
 	})!
@@ -54,7 +57,7 @@ fn test_imports_resolve_next_to_the_importing_file() {
 	// arguments and slot content keep their own locations.
 	assert invocation.source == card
 	assert invocation.line == 1 && invocation.column == 1
-	assert invocation.properties[0].line == 4 && invocation.properties[0].column == 10
+	assert invocation.properties[0].line == 2 && invocation.properties[0].column == 10
 	assert invocation.properties[0].expr.source == main
 	view := invocation.children[0]
 	assert view.source == card
@@ -63,29 +66,49 @@ fn test_imports_resolve_next_to_the_importing_file() {
 	assert slot_content.caller_content
 	assert slot_content.source == main
 	assert slot_content.properties[0].expr.source == main
-	assert slot_content.line == 4
+	assert slot_content.line == 2
 	assert root.children[1].component_name == 'TodoItem'
-	assert vml.import_candidates('import Card\nimport TodoItem\nLabel', dir)! == [
-		[os.join_path(dir, 'Card.vml'), os.join_path(dir, 'card.vml')],
-		[os.join_path(dir, 'TodoItem.vml'), os.join_path(dir, 'todo_item.vml')],
+	// A file of the folder that is not the component leaves the tag to the widget.
+	grid := vml.parse_file(os.join_path(dir, 'uses_grid.vml'))!
+	assert grid.tag == 'Grid'
+}
+
+fn test_module_imports_name_folders_of_the_project() {
+	dir := write_files('modules', {
+		'v.mod':                   "Module { name: 'app' }"
+		'screens/main.vml':        'import widgets { Badge }\nimport ui.kit\nColumn {\n    Badge(text: "a")\n    kit.Chip\n}'
+		'widgets/badge.vml':       'component Badge(text string) { Label(text: text) }'
+		'ui/kit/Chip.vml':         'component Chip() { Label(text: "chip") }'
+		'screens/unknown.vml':     'import widgets { Missing }\nLabel'
+		'screens/capitalized.vml': 'import Badge\nBadge'
+	})!
+	defer { os.rmdir_all(dir) or {} }
+	main := os.join_path(dir, 'screens', 'main.vml')
+	root := vml.parse_file(main)!
+	assert root.children.map(it.component_name) == ['Badge', 'Chip']
+	assert root.children[0].source == os.join_path(dir, 'widgets', 'badge.vml')
+	assert root.children[1].source == os.join_path(dir, 'ui', 'kit', 'Chip.vml')
+	assert vml.import_candidates('import ui.kit\nLabel', os.join_path(dir, 'screens'))! == [
+		[os.join_path(dir, 'ui', 'kit'), os.join_path(os.vmodules_dir(), 'ui', 'kit')],
 	]
+	unknown := os.join_path(dir, 'screens', 'unknown.vml')
+	assert file_error(unknown).starts_with('${unknown}:1:8: VML module `widgets` has no component `Missing`')
+	capitalized := os.join_path(dir, 'screens', 'capitalized.vml')
+	assert file_error(capitalized) == '${capitalized}:1:8: components of the same folder need no import; `import` names a module folder, as in `import widgets { Badge }`'
 }
 
 fn test_import_errors_point_at_the_importing_file() {
 	dir := write_files('errors', {
-		'absent.vml':     'import Missing\nLabel'
-		'mismatch.vml':   'import Other\nLabel'
-		'Other.vml':      'component Different() { Label }'
-		'cycle.vml':      'import A\nA'
-		'A.vml':          'import B\ncomponent A() { B }'
-		'B.vml':          'import A\ncomponent B() { A }'
+		'cycle.vml':      'A'
+		'A.vml':          'component A() { B }'
+		'B.vml':          'component B() { A }'
 		'module.vml':     'module screens\nLabel'
-		'duplicate.vml':  'import Other\nimport Other\nLabel'
+		'duplicate.vml':  'import widgets\nimport widgets\nLabel'
 		'invalid.vml':    'import a..b\nLabel'
 		'syntax.vml':     'Column {\n    Label(text: )\n}'
 		'lexer.vml':      'Column {\n    Label(text: "open)\n}'
 		'trailing.vml':   'Label Label'
-		'slotless.vml':   'import Plain\nPlain { Label }'
+		'slotless.vml':   'Plain { Label }'
 		'Plain.vml':      'component Plain() { Label }'
 		'components.vml': 'component A() { B }\ncomponent B() { A }\nA'
 	})!
@@ -93,12 +116,10 @@ fn test_import_errors_point_at_the_importing_file() {
 	p := fn [dir] (name string) string {
 		return os.join_path(dir, name)
 	}
-	assert file_error(p('absent.vml')) == '${p('absent.vml')}:1:8: could not find VML import `Missing`'
-	assert file_error(p('mismatch.vml')) == '${p('Other.vml')}:1:1: VML import `Other` requires `component Other(...)`'
 	assert file_error(p('cycle.vml')) == '${p('A.vml')}:1:1: cyclic VML import: ${p('cycle.vml')} -> ${p('A.vml')} -> ${p('B.vml')} -> ${p('A.vml')}'
 	assert file_error(p('module.vml')) == '${p('module.vml')}:1:1: module declarations were replaced by component signatures'
-	assert file_error(p('duplicate.vml')) == '${p('duplicate.vml')}:2:8: duplicate VML import `Other`'
-	assert file_error(p('invalid.vml')) == '${p('invalid.vml')}:1:8: invalid VML import `a..b`'
+	assert file_error(p('duplicate.vml')) == '${p('duplicate.vml')}:2:8: duplicate VML import `widgets`'
+	assert file_error(p('invalid.vml')) == '${p('invalid.vml')}:1:8: invalid VML module `a..b`'
 	assert file_error(p('syntax.vml')) == 'expected expression, got rpar (`)`) at line 2'
 	assert file_error(p('lexer.vml')) == '${p('lexer.vml')}: unterminated string at line 2'
 	assert file_error(p('trailing.vml')) == '${p('trailing.vml')}: ${p('trailing.vml')}:1:7: expected eof, got name (`Label`)'
@@ -110,7 +131,7 @@ fn test_import_errors_point_at_the_importing_file() {
 
 fn test_validate_document_errors_stop_parsing() {
 	dir := write_files('validate', {
-		'main.vml': 'import Card\nCard'
+		'main.vml': 'Card'
 		'card.vml': 'component Card() { TextField }'
 	})!
 	defer { os.rmdir_all(dir) or {} }
@@ -129,7 +150,7 @@ fn test_validate_document_errors_stop_parsing() {
 
 fn test_file_io_can_be_injected() {
 	files := {
-		'/virtual/screens/main.vml':      'import TodoItem\nstyle s = [padding(1)]\nTodoItem(style: [s])'
+		'/virtual/screens/main.vml':      'style s = [padding(1)]\nTodoItem(style: [s])'
 		'/virtual/screens/todo_item.vml': 'component TodoItem(style ui2.StylePatch = []) { Label(text: "t") }'
 	}
 	mut recorder := &Recorder{}
@@ -144,8 +165,9 @@ fn test_file_io_can_be_injected() {
 		}
 	}
 	root := vml.parse_file('/virtual/screens/main.vml', config)!
-	assert recorder.items == ['read /virtual/screens/main.vml', 'probe /virtual/screens/TodoItem.vml',
-		'probe /virtual/screens/todo_item.vml', 'read /virtual/screens/todo_item.vml']
+	assert recorder.items == ['read /virtual/screens/main.vml', 'probe /virtual/screens/todo_item.vml',
+		'read /virtual/screens/todo_item.vml', 'read /virtual/screens/todo_item.vml',
+		'probe /virtual/screens/label.vml', 'probe /virtual/screens/Label.vml']
 	assert root.component_name == 'TodoItem'
 	assert root.source == '/virtual/screens/todo_item.vml'
 	assert root.properties[0].expr.source == '/virtual/screens/main.vml'
@@ -203,14 +225,14 @@ fn test_bindings_refs_and_slots_example() {
 	assert first.component_name == 'Editor'
 	assert first.properties.map(it.name) == ['id', 'bind.name', 'on_changed']
 	assert first.inputs.map(it.bindable) == [true, false, false]
-	assert first.refs.map('${it.name} ${it.typ}') == ['field TextInput']
 	column := first.children[0]
 	assert column.children.map(it.tag) == ['TextInput', 'Button', 'Label']
 	assert column.children[2].caller_content && column.children[2].id == 'slot'
 	keyed := vml.parse_file(os.join_path(testdata, 'keyed.vml'))!
 	repeater := keyed.children[0].children[1]
-	assert repeater.tag == 'Repeater'
-	assert repeater.properties.map(vml.expr_text(it.expr)) == ['app.rows', 'item.id']
+	assert repeater.tag == vml.for_tag
+	assert repeater.bind_name == 'item' && vml.expr_text(repeater.cond) == 'app.rows'
+	assert vml.expr_text(repeater.key_expr) == 'item.id'
 	row := repeater.children[0]
 	assert row.component_name == 'RowItem'
 	assert row.data.map(vml.expr_text(it.expr)) == ['app.new_counter()']

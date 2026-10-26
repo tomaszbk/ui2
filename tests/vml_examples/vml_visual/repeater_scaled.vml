@@ -1,14 +1,14 @@
 ScaledContent(width: 400, height: 300, content_width: 800, content_height: 600) {
     View()
-    Repeater(model: app.rows, key: item.id) {
+    for item in app.rows key item.id {
         View()
     }
-    Repeater(model: app.groups, key: item.id) {
-        Repeater(model: item.rows, key: item.id) {
+    for group in app.groups key group.id {
+        for row in group.rows key row.id {
             View()
         }
     }
-    Repeater(model: app.rows, key: "zero-${item.id}") {
+    for item in app.rows key "zero-${item.id}" {
         View(width: 0, height: 0)
     }
 }

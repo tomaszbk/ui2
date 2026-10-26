@@ -8,7 +8,7 @@ Widths that exhaust the frame are proportionally clamped so the ring stays insid
 
 ```vml
 View(
-    id: "card",
+    id: card,
     button_behavior: true,
     on_click: app.open(),
     width: 200,

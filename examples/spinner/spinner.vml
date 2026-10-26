@@ -1,17 +1,17 @@
-Screen(id: "root", style: [background(color.surface)]) {
+Screen(id: root, style: [background(color.surface)]) {
     Column(gap: 16, align_items: center, style: [padding(24)]) {
         Label(text: "Loading", style: [font_size(typography.title), weight(700), foreground(color.text)])
         Row(gap: 16, align_items: center) {
-            Spinner(id: "small", size: small)
-            Spinner(id: "medium")
-            Spinner(id: "large", size: large)
-            Spinner(id: "accent", size: large, color: #2563EB)
+            Spinner(id: small, size: small)
+            Spinner(id: medium)
+            Spinner(id: large, size: large)
+            Spinner(id: accent, size: large, color: #2563EB)
         }
-        Button(id: "save", text: app.saving ? "Saving" : "Save", variant: primary, loading: app.saving, on_click: app.save())
-        Row(id: "progress", gap: 8, align_items: center, hidden: !app.saving) {
+        Button(id: save, text: app.saving ? "Saving" : "Save", variant: primary, loading: app.saving, on_click: app.save())
+        Row(id: progress, gap: 8, align_items: center, hidden: !app.saving) {
             Spinner(size: small)
-            Label(id: "status", text: app.status, style: [foreground(color.muted)])
+            Label(id: status, text: app.status, style: [foreground(color.muted)])
         }
-        Button(id: "done", text: "Finish", enabled: app.saving, on_click: app.finish())
+        Button(id: done, text: "Finish", enabled: app.saving, on_click: app.finish())
     }
 }

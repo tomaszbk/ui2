@@ -3,7 +3,7 @@ component AnimatedPanel() {
     state offset := 0.0
     state closed := false
     View(
-        id: "panel",
+        id: panel,
         motion: app.motion,
         opacity: alpha,
         translate_x: offset,

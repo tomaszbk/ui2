@@ -1,12 +1,12 @@
 Screen(
-    id: "root",
+    id: root,
     style: [background(#F1F5F9)],
 ) {
     Absolute(
         style: [transparent(true)],
     ) {
         View(
-            id: "card",
+            id: card,
             x: ((root.width -(root.width - 32 < 288 ? root.width - 32 : 288)) / 2),
             y: 16,
             width: (root.width - 32 < 288 ? root.width - 32 : 288),
@@ -17,7 +17,7 @@ Screen(
                 style: [transparent(true)],
             ) {
                 Label(
-                    id: "state",
+                    id: state,
                     text: app.enabled ? "Enabled" : "Disabled",
                     x: 16,
                     y: 14,
@@ -27,7 +27,7 @@ Screen(
                 )
                 Label(text: "Feature enabled", x: 16, y: 62, width: card.width - 96, height: 42, style: [foreground(#111827), font_size(15)])
                 Switch(
-                    id: "switch-control",
+                    id: switch_control,
                     bind.active: app.enabled,
                     x: card.width - 76,
                     y: 67,

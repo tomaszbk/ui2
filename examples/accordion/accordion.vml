@@ -1,12 +1,12 @@
 Screen(
-    id: "root",
+    id: root,
     style: [background(#F1F5F9)],
 ) {
     Absolute(
         style: [transparent(true)],
     ) {
         View(
-            id: "card",
+            id: card,
             x: 16,
             y: 16,
             width: root.width - 32,
@@ -33,7 +33,7 @@ Screen(
                     style: [foreground(#64748B), font_size(12)],
                 )
                 Scroll(
-                    id: "section_list",
+                    id: section_list,
                     x: 18,
                     y: 74,
                     width: card.width - 36,
@@ -43,10 +43,7 @@ Screen(
                     Absolute(
                         style: [transparent(true)],
                     ) {
-                        Repeater(
-                            model: app.sections,
-                            key: item.id,
-                        ) {
+                        for index, item in app.sections key item.id {
                             View(
                                 x: 8,
                                 y: 8 + index * 48 +(app.open_id > 0 && item.id > app.open_id ? 120 : 0),
@@ -101,7 +98,7 @@ Screen(
                     }
                 }
                 Label(
-                    id: "accordion_status",
+                    id: accordion_status,
                     text: app.status,
                     x: 18,
                     y: card.height - 40,

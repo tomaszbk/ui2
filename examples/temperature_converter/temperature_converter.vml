@@ -1,5 +1,5 @@
 Screen(
-    id: "root",
+    id: root,
     style: [background(#F1F5F9)],
 ) {
     Flex(
@@ -8,7 +8,7 @@ Screen(
         style: [padding(16), transparent(true)],
     ) {
         Column(
-            id: "card",
+            id: card,
             width: 568,
             max_width: 568,
             height: 136,
@@ -28,7 +28,7 @@ Screen(
                 ) {
                     Label(text: "Celsius", height: 18, style: [foreground(#475569), font_size(12)])
                     TextInput(
-                        id: "celsius",
+                        id: celsius,
                         bind.text: app.celsius,
                         on_change: app.update_from_celsius(),
                         placeholder: "0",
@@ -45,7 +45,7 @@ Screen(
                 ) {
                     Label(text: "Fahrenheit", height: 18, style: [foreground(#475569), font_size(12)])
                     TextInput(
-                        id: "fahrenheit",
+                        id: fahrenheit,
                         bind.text: app.fahrenheit,
                         on_change: app.update_from_fahrenheit(),
                         placeholder: "32",

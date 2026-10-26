@@ -22,11 +22,11 @@ leaves it open to veto the request. Outside presses are consumed even when
 closing is vetoed; they cannot activate a background control.
 
 ```vml
-Dialog(id: "settings", width: 360, height: 240,
+Dialog(id: settings, width: 360, height: 240,
     open: app.settings_open, initial_focus: "name",
     on_dismiss: app.close_settings(event.dismiss_reason)) {
     Column(gap: 12) {
-        TextInput(id: "name", text: "España, café y ñ", width: 300, height: 32)
+        TextInput(id: name, text: "España, café y ñ", width: 300, height: 32)
         Button(text: "Done", on_click: app.save(), width: 100, height: 32)
     }
 }
@@ -54,7 +54,7 @@ units). Oversized surfaces shrink to the available area and reflow their
 children. `gap` defaults to 6 logical units.
 
 ```vml
-Popover(id: "details", anchor: "details_button", placement: bottom_end,
+Popover(id: details, anchor: "details_button", placement: bottom_end,
     width: 240, height: 160, open: app.details_open,
     on_dismiss: app.hide_details()) {
     Label(text: "Retained content", width: 200, height: 30)

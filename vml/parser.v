@@ -72,9 +72,13 @@ pub fn (mut p Parser) take(kind TokenKind) !Token {
 }
 
 // parse_node parses one element: `Tag`, `Tag(name: value, ...)`, optionally followed
-// by `{ children }`. `id` must be a quoted name; `on_*` arguments are handlers.
+// by `{ children }`. `id` is a local name; `on_*` arguments are handlers.
+// Children can be elements and the structural `if` and `for` nodes.
 pub fn (mut p Parser) parse_node() !&Node {
 	tag := p.take(.name)!
+	if tag.text == 'Repeater' {
+		return error('${p.file}:${tag.line}:${tag.column}: `Repeater` was replaced by `for item in values key item.id { ... }`')
+	}
 	mut node := &Node{ tag: tag.text, line: tag.line, column: tag.column }
 	if p.at().kind == .lpar {
 		p.pos++
@@ -83,18 +87,21 @@ pub fn (mut p Parser) parse_node() !&Node {
 			if node.properties.any(it.name == name.text) {
 				return error('duplicate VML argument `${name.text}` at line ${name.line}:${name.column}')
 			}
+			if name.text == 'ref' {
+				return error('${p.file}:${name.line}:${name.column}: `ref:` was replaced by the element id: `id: name` makes `name.focus()` available')
+			}
 			p.take(.colon)!
 			expr := if name.text.starts_with('on_') {
 				p.parse_handler()!
 			} else {
 				p.parse_expression()!
 			}
-			if name.text.starts_with('on_') && expr.kind !in [.path, .call, .assignment, .block] {
+			if name.text.starts_with('on_') && expr.kind !in [.path, .call, .assignment, .block, .method] {
 				return error('callback `${name.text}` requires a typed function reference or an action at line ${name.line}:${name.column}')
 			}
 			if name.text == 'id' {
-				if expr.kind != .literal || !expr.quoted {
-					return error('id must be a quoted local name at line ${name.line}:${name.column}')
+				if expr.kind != .path || expr.value.contains('.') || expr.value.starts_with('#') {
+					return error('${p.file}:${name.line}:${name.column}: id must be a local name, such as `id: name_field`')
 				}
 				node.id = expr.value
 			}
@@ -105,15 +112,94 @@ pub fn (mut p Parser) parse_node() !&Node {
 		p.take(.rpar)!
 	}
 	if p.at().kind == .lbrace {
-		p.pos++
-		for p.at().kind !in [.rbrace, .eof] {
-			if p.at().text in ['property', 'computed', 'state', 'style'] || (p.pos + 1 < p.tokens.len && p.tokens[p.pos + 1].kind == .colon) {
-				return error('${p.file}:${p.at().line}:${p.at().column}: element arguments use `Name(name: value)`; state/computed belong to the component body')
-			}
-			node.children << p.parse_node()!
-		}
-		p.take(.rbrace)!
+		node.children = p.parse_children()!
 	}
+	return node
+}
+
+// parse_children parses a `{ ... }` block of child nodes.
+fn (mut p Parser) parse_children() ![]&Node {
+	p.take(.lbrace)!
+	mut children := []&Node{}
+	for p.at().kind !in [.rbrace, .eof] {
+		if p.at().text in ['property', 'computed', 'state', 'style', 'watch'] || (p.pos + 1 < p.tokens.len && p.tokens[p.pos + 1].kind == .colon) {
+			return error('${p.file}:${p.at().line}:${p.at().column}: element arguments use `Name(name: value)`; state, computed and watch belong to the component body')
+		}
+		children << p.parse_child()!
+	}
+	p.take(.rbrace)!
+	return children
+}
+
+// parse_child parses a child node: an element, an `if` chain or a `for` loop.
+pub fn (mut p Parser) parse_child() !&Node {
+	return match p.at().text {
+		'if' { p.parse_if()! }
+		'for' { p.parse_for()! }
+		'else' { error('${p.file}:${p.at().line}:${p.at().column}: `else` without `if`') }
+		else { p.parse_node()! }
+	}
+}
+
+// parse_if parses `if cond { ... } else if cond { ... } else { ... }`. A
+// condition `name := value` unwraps an option: the branch is shown while the
+// value is not `none`, with `name` bound to it.
+fn (mut p Parser) parse_if() !&Node {
+	token := p.at()
+	mut chain := &Node{ tag: if_tag, line: token.line, column: token.column }
+	for {
+		start := p.take(.name)! // `if`
+		mut branch := &Node{ tag: branch_tag, line: start.line, column: start.column }
+		if p.at().kind == .name && p.pos + 1 < p.tokens.len && p.tokens[p.pos + 1].kind == .declare {
+			name := p.take(.name)!
+			if name.text.contains('.') {
+				return error('${p.file}:${name.line}:${name.column}: `if name := value` binds a local name')
+			}
+			branch.bind_name = name.text
+			p.take(.declare)!
+		}
+		branch.cond = p.parse_expression()!
+		branch.children = p.parse_children()!
+		chain.children << branch
+		if p.at().text != 'else' { break }
+		else_token := p.take(.name)!
+		if p.at().text == 'if' { continue }
+		mut otherwise := &Node{ tag: branch_tag, line: else_token.line, column: else_token.column }
+		otherwise.children = p.parse_children()!
+		chain.children << otherwise
+		break
+	}
+	return chain
+}
+
+// parse_for parses `for [index,] item in values key expression { ... }`.
+fn (mut p Parser) parse_for() !&Node {
+	token := p.take(.name)!
+	mut node := &Node{ tag: for_tag, line: token.line, column: token.column }
+	first := p.take(.name)!
+	mut item := first
+	if p.at().kind == .comma {
+		p.pos++
+		node.index_name = first.text
+		item = p.take(.name)!
+	}
+	for name in [item, first] {
+		if name.text.contains('.') || name.text in ['in', 'key'] {
+			return error('${p.file}:${name.line}:${name.column}: `for` binds local names: `for item in values key item.id`')
+		}
+	}
+	node.bind_name = item.text
+	if p.at().text != 'in' {
+		return error('${p.file}:${p.at().line}:${p.at().column}: expected `in` after the loop names')
+	}
+	p.pos++
+	node.cond = p.parse_expression()!
+	if p.at().text != 'key' {
+		return error('${p.file}:${p.at().line}:${p.at().column}: a `for` requires a stable key: `for ${item.text} in values key ${item.text}.id { ... }`')
+	}
+	p.pos++
+	node.key_expr = p.parse_expression()!
+	node.children = p.parse_children()!
 	return node
 }
 
@@ -132,35 +218,36 @@ pub fn (mut p Parser) parse_handler() !&Expr {
 	return p.parse_assignment()
 }
 
+const assignment_operators = {
+	TokenKind.assign: '='
+	.plus_assign:     '+='
+	.minus_assign:    '-='
+	.mul_assign:      '*='
+	.div_assign:      '/='
+	.mod_assign:      '%='
+	.left_shift:      '<<'
+}
+
+// parse_assignment parses a statement: `target op value` (`=`, `+=`, `-=`,
+// `*=`, `/=`, `%=`, `<<`), `target++`, `target--` or an expression.
 fn (mut p Parser) parse_assignment() !&Expr {
 	left := p.parse_expression()!
-	if p.at().kind in [.assign, .increment, .decrement] && left.kind == .path && left.value.contains('.')
-		&& (!left.value.starts_with('app.') || left.value.count('.') != 1) {
-		return error('assignment target `${left.value}` is read-only at line ${left.line}, column ${left.column}')
-	}
 	if p.at().kind in [.increment, .decrement] {
 		op := p.at()
 		p.pos++
 		return &Expr{
 			kind:   .assignment
+			value:  if op.kind == .increment { '+=' } else { '-=' }
 			line:   op.line
 			column: op.column
 			left:   left
-			right:  &Expr{
-				kind:  .binary
-				value: if op.kind == .increment {
-					'+'
-				} else {
-					'-'
-				}
-				left:  left
-				right: &Expr{ kind: .literal, value: '1' }
-			}
+			right:  &Expr{ kind: .literal, value: '1', line: op.line, column: op.column }
 		}
 	}
-	if p.at().kind != .assign { return left }
-	op := p.take(.assign)!
-	return &Expr{ kind: .assignment, line: op.line, column: op.column, left: left, right: p.parse_expression()! }
+	operator := assignment_operators[p.at().kind] or { return left }
+	op := p.at()
+	p.pos++
+	return &Expr{ kind: .assignment, value: operator, line: op.line, column: op.column, left: left, right: p.parse_expression()! }
 }
 
 // parse_expression parses a full expression (conditional, logic, comparison,
@@ -294,7 +381,71 @@ fn (mut p Parser) parse_unary() !&Expr {
 		p.pos++
 		return &Expr{ kind: .unary, value: op.text, line: op.line, column: op.column, left: p.parse_unary()! }
 	}
-	return p.parse_primary()
+	return p.parse_postfix(p.parse_primary()!)
+}
+
+// same_line reports whether the current token starts on the line where the
+// previous one is, so that `[`, `.name` and `or` continue an expression
+// instead of starting another.
+fn (p &Parser) same_line() bool {
+	return p.pos > 0 && p.pos < p.tokens.len && p.tokens[p.pos - 1].line == p.tokens[p.pos].line
+}
+
+// parse_postfix parses what follows a primary expression: `[index]`,
+// `.field`, `.method(args)` (with `!`) and `or { fallback }`.
+fn (mut p Parser) parse_postfix(primary &Expr) !&Expr {
+	mut expr := unsafe { primary }
+	for {
+		token := p.at()
+		if token.kind == .lsbr && p.same_line() {
+			p.pos++
+			index := p.parse_expression()!
+			p.take(.rsbr)!
+			expr = &Expr{ kind: .index, line: token.line, column: token.column, left: expr, right: index }
+		} else if token.kind == .name && token.text.starts_with('.') && token.text.len > 1 && p.same_line() {
+			p.pos++
+			names := token.text[1..].split('.')
+			if names.any(it.len == 0) {
+				return error('${p.file}:${token.line}:${token.column}: invalid member `${token.text}`')
+			}
+			for index, name in names {
+				if index == names.len - 1 && p.at().kind == .lpar {
+					args := p.parse_arguments()!
+					fallible := p.at().kind == .not
+					if fallible { p.pos++ }
+					expr = &Expr{ kind: .method, value: name, line: token.line, column: token.column, left: expr, args: args, fallible: fallible }
+				} else {
+					expr = &Expr{ kind: .selector, value: name, line: token.line, column: token.column, left: expr }
+				}
+			}
+		} else if token.kind == .name && token.text == 'or' && p.pos + 1 < p.tokens.len
+			&& p.tokens[p.pos + 1].kind == .lbrace {
+			p.pos += 2
+			fallback := p.parse_expression()!
+			p.take(.rbrace)!
+			expr = &Expr{ kind: .or_else, line: token.line, column: token.column, left: expr, right: fallback }
+		} else {
+			return expr
+		}
+	}
+	return expr
+}
+
+// parse_arguments parses `(a, b, ...)`.
+fn (mut p Parser) parse_arguments() ![]&Expr {
+	p.take(.lpar)!
+	mut args := []&Expr{}
+	if p.at().kind != .rpar {
+		for {
+			args << p.parse_expression()!
+			if p.at().kind != .comma {
+				break
+			}
+			p.pos++
+		}
+	}
+	p.take(.rpar)!
+	return args
 }
 
 fn (mut p Parser) parse_primary() !&Expr {
@@ -309,18 +460,7 @@ fn (mut p Parser) parse_primary() !&Expr {
 		.name, .number {
 			p.pos++
 			if p.at().kind == .lpar {
-				p.pos++
-				mut args := []&Expr{}
-				if p.at().kind != .rpar {
-					for {
-						args << p.parse_expression()!
-						if p.at().kind != .comma {
-							break
-						}
-						p.pos++
-					}
-				}
-				p.take(.rpar)!
+				args := p.parse_arguments()!
 				fallible := p.at().kind == .not
 				if fallible { p.pos++ }
 				return &Expr{ fallible: fallible, kind: .call, value: token.text, line: token.line, column: token.column, args: args }

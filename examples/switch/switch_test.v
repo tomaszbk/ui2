@@ -18,7 +18,7 @@ fn test_switch_vml_reflects_both_states() {
 	mut app := SwitchDemo{}
 	enabled_root := switch_tree(mut app, ui2.rect(0, 0, switch_width, switch_height))
 	assert (find_switch_element(enabled_root, 'state') or { panic('missing state label') }).text == 'Enabled'
-	enabled_switch := find_switch_element(enabled_root, 'switch-control') or {
+	enabled_switch := find_switch_element(enabled_root, 'switch_control') or {
 		panic('missing switch control')
 	}
 	assert enabled_switch.kind == .switch_control
@@ -27,7 +27,7 @@ fn test_switch_vml_reflects_both_states() {
 	app.enabled = false
 	disabled_root := switch_tree(mut app, ui2.rect(0, 0, switch_width, switch_height))
 	assert (find_switch_element(disabled_root, 'state') or { panic('missing state label') }).text == 'Disabled'
-	disabled_switch := find_switch_element(disabled_root, 'switch-control') or {
+	disabled_switch := find_switch_element(disabled_root, 'switch_control') or {
 		panic('missing switch control')
 	}
 	assert disabled_switch.kind == .switch_control

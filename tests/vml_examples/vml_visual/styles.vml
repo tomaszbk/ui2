@@ -1,5 +1,5 @@
 Button(
-    id: "styled",
+    id: styled,
     text: "Tap",
     width: 120,
     height: 40,

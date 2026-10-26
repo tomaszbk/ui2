@@ -1,12 +1,12 @@
 Screen(
-    id: "root",
+    id: root,
     style: [background(#1F2937)],
 ) {
     Absolute(
         style: [transparent(true)],
     ) {
         View(
-            id: "display_panel",
+            id: display_panel,
             x: (root.width * 0.04),
             y: (root.width * 0.04),
             width: root.width -(root.width * 0.04) * 2,
@@ -17,7 +17,7 @@ Screen(
                 style: [transparent(true)],
             ) {
                 Label(
-                    id: "display",
+                    id: display,
                     text: app.display,
                     x: (root.width * 0.04),
                     y: 0,
@@ -27,10 +27,7 @@ Screen(
                 )
             }
         }
-        Repeater(
-            model: app.keys,
-            key: item.key,
-        ) {
+        for item in app.keys key item.key {
             Button(
                 text: item.text,
                 on_click: app.press(item.text),

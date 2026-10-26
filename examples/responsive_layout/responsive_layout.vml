@@ -1,16 +1,16 @@
 Screen(
-    id: "root",
+    id: root,
     style: [background(#F2F5FA)],
 ) {
     Scroll(
-        id: "viewport",
+        id: viewport,
         style: [background(#F2F5FA)],
     ) {
         Absolute(
             style: [transparent(true)],
         ) {
             Flex(
-                id: "page",
+                id: page,
                 width: root.width,
                 height: root.height < 740 ? 740 : root.height,
                 orientation: vertical,
@@ -18,7 +18,7 @@ Screen(
                 style: [padding(24), background(#F2F5FA)],
             ) {
                 Flex(
-                    id: "toolbar",
+                    id: toolbar,
                     gap: 12,
                     line_gap: 12,
                     wrap: true,
@@ -27,22 +27,22 @@ Screen(
                 ) {
                     Label(text: "UI2 Studio", flex_grow: 1, min_width: 170, style: [font_size(26), weight(700), foreground(#17243D)])
                     Button(
-                        id: "create",
+                        id: create,
                         text: "New project",
                         on_click: app.create_project(),
                         style: [background(#315EEB), foreground(#FFFFFF), radius(8)],
                     )
-                    Button(id: "settings", text: "Settings", style: [background(#FFFFFF), foreground(#17243D), radius(8)])
+                    Button(id: settings, text: "Settings", style: [background(#FFFFFF), foreground(#17243D), radius(8)])
                 }
                 Flex(
-                    id: "searchbar",
+                    id: searchbar,
                     gap: 12,
                     wrap: true,
                     align_items: center,
                     style: [transparent(true)],
                 ) {
                     TextInput(
-                        id: "search",
+                        id: search,
                         placeholder: "Search projects",
                         width: 220,
                         height: 38,
@@ -50,10 +50,10 @@ Screen(
                         min_width: 150,
                         style: [background(#FFFFFF), radius(8)],
                     )
-                    Label(id: "count", text: "Created: ${app.created}", style: [foreground(#52627D)])
+                    Label(id: count, text: "Created: ${app.created}", style: [foreground(#52627D)])
                 }
                 Grid(
-                    id: "projects",
+                    id: projects,
                     flex_grow: 1,
                     auto_columns_min_width: 240,
                     max_columns: 3,
@@ -61,7 +61,7 @@ Screen(
                     style: [transparent(true)],
                 ) {
                     Flex(
-                        id: "featured",
+                        id: featured,
                         column_span: 2,
                         orientation: vertical,
                         gap: 10,
@@ -81,10 +81,7 @@ Screen(
                             )
                         }
                     }
-                    Repeater(
-                        model: app.projects,
-                        key: item.id,
-                    ) {
+                    for item in app.projects key item.id {
                         Flex(
                             orientation: vertical,
                             gap: 10,

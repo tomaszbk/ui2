@@ -3,15 +3,12 @@ Flex(
     align_items: start,
 ) {
     Flex(
-        id: "row",
+        id: row,
         gap: 4,
         align_items: start,
         width: 300,
     ) {
-        Repeater(
-            model: app.items,
-            key: item.id,
-        ) {
+        for item in app.items key item.id {
             Flex(
                 orientation: vertical,
                 flex_basis: 0,

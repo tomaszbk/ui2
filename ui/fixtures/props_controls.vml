@@ -1,43 +1,43 @@
-Screen(id: "root") {
-    Column(id: "controls", gap: 4) {
-        Label(id: "plain_label", text: "Plain", height: 20)
-        Label(id: "number_label", text: app.count, height: 20, style: [foreground(#334155), font_size(15)])
-        Label(id: "rich", height: 40, style: [font_size(16), foreground(#111111)]) {
+Screen(id: root) {
+    Column(id: controls, gap: 4) {
+        Label(id: plain_label, text: "Plain", height: 20)
+        Label(id: number_label, text: app.count, height: 20, style: [foreground(#334155), font_size(15)])
+        Label(id: rich, height: 40, style: [font_size(16), foreground(#111111)]) {
             Run(text: "Bold ", style: [weight(700)])
             Run(text: app.name)
             Run(text: " end", style: [font_size(12), foreground(#FF0000)])
         }
-        TextInput(id: "name", bind.text: app.name, placeholder: "Name", height: 30, on_submit: app.hit("submit"))
-        TextInput(id: "secret", text: "pw", password: true, readonly: true, keyboard: decimal, enabled: false, autocorrect: false, height: 30, style: [background(#FFFFFF), foreground(#111111)])
-        TextArea(id: "notes", bind.text: app.notes, placeholder: "Notes", disable_scroll: true, height: 60)
-        TextArea(id: "rich_area", readonly: true, keyboard: decimal, height: 40, style: [font_size(13)]) {
+        TextInput(id: name, bind.text: app.name, placeholder: "Name", height: 30, on_submit: app.hit("submit"))
+        TextInput(id: secret, text: "pw", password: true, readonly: true, keyboard: decimal, enabled: false, autocorrect: false, height: 30, style: [background(#FFFFFF), foreground(#111111)])
+        TextArea(id: notes, bind.text: app.notes, placeholder: "Notes", disable_scroll: true, height: 60)
+        TextArea(id: rich_area, readonly: true, keyboard: decimal, height: 40, style: [font_size(13)]) {
             Run(text: "alpha ")
             Run(text: "beta", style: [italic(true)])
         }
-        Image(id: "logo", source: "assets/logo.png", width: 32, height: 32)
+        Image(id: logo, source: "assets/logo.png", width: 32, height: 32)
         Image(path: "assets/old.png", width: 16, height: 16)
-        Button(id: "go", text: "Go", height: 30, on_click: app.hit("go"), style: [background(#2563EB), foreground(#FFFFFF), radius(6)])
-        Button(id: "rich_button", height: 40) {
+        Button(id: go, text: "Go", height: 30, on_click: app.hit("go"), style: [background(#2563EB), foreground(#FFFFFF), radius(6)])
+        Button(id: rich_button, height: 40) {
             Label(text: "Inside", width: 60, height: 20)
         }
-        Checkbox(id: "agree", text: "Agree", bind.checked: app.agree, height: 24)
+        Checkbox(id: agree, text: "Agree", bind.checked: app.agree, height: 24)
         Checkbox(text: "Static", checked: true, height: 24)
-        Dropdown(id: "color_pick", bind.text: app.color, height: 30, on_change: app.hit("color")) {
+        Dropdown(id: color_pick, bind.text: app.color, height: 30, on_change: app.hit("color")) {
             Option(text: "Red")
             Option(text: "Green")
         }
-        Progress(id: "progress", value: 30, height: 10)
-        Progress(id: "styled_progress", value: app.level, max: 50, height: 10, tone: success, style: [background(#112233), radius(2)])
-        Slider(id: "level", bind.value: app.level, height: 30)
-        Slider(id: "custom_slider", value: 5, min: -10, max: 10, step: 0.5, orientation: vertical, track_inset: 8, value_track: true, value_track_color: #FF0000, thumb_color: #00FF00, track_width: 6, thumb_size: 14, width: 30, height: 120)
-        Switch(id: "dark", bind.active: app.dark, on_active: app.hit("active"), on_change: app.hit("change"))
-        Switch(id: "custom_switch", active: true, inactive_color: #111111, active_color: #222222, thumb_color: #333333, disabled_track_color: #444444, disabled_thumb_color: #555555, enabled: false)
-        ToggleButton(id: "bold", text: "Bold", bind.pressed: app.bold, group: "fmt", allow_no_selection: false, down_background: #1D4ED8, down_color: #FEFEFE, down_corner_radius: 3, height: 30)
+        Progress(id: progress, value: 30, height: 10)
+        Progress(id: styled_progress, value: app.level, max: 50, height: 10, tone: success, style: [background(#112233), radius(2)])
+        Slider(id: level, bind.value: app.level, height: 30)
+        Slider(id: custom_slider, value: 5, min: -10, max: 10, step: 0.5, orientation: vertical, track_inset: 8, value_track: true, value_track_color: #FF0000, thumb_color: #00FF00, track_width: 6, thumb_size: 14, width: 30, height: 120)
+        Switch(id: dark, bind.active: app.dark, on_active: app.hit("active"), on_change: app.hit("change"))
+        Switch(id: custom_switch, active: true, inactive_color: #111111, active_color: #222222, thumb_color: #333333, disabled_track_color: #444444, disabled_thumb_color: #555555, enabled: false)
+        ToggleButton(id: bold, text: "Bold", bind.pressed: app.bold, group: "fmt", allow_no_selection: false, down_background: #1D4ED8, down_color: #FEFEFE, down_corner_radius: 3, height: 30)
         ToggleButton(text: "Plain", height: 30)
-        MessageBox(id: "msg", title: "Hello", text: "World", dialog_width: 280, dialog_height: 140, hidden: app.msg_hidden, height: 200) {
-            Button(id: "ok", text: "OK", on_click: app.hit("ok"))
+        MessageBox(id: msg, title: "Hello", text: "World", dialog_width: 280, dialog_height: 140, hidden: app.msg_hidden, height: 200) {
+            Button(id: ok, text: "OK", on_click: app.hit("ok"))
             Button(text: "Cancel", on_click: app.hit("cancel"))
         }
-        MessageBox(id: "msg_default")
+        MessageBox(id: msg_default)
     }
 }

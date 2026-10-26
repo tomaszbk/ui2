@@ -41,7 +41,7 @@ fn validate_vml_document(root &Node, imported bool) ! {
 }
 
 // validate_vml_node checks the language rules V cannot check in the lowered
-// code: binding targets are paths, and a Repeater has a model and a key.
+// code: binding targets are paths, and enum values are bare names.
 fn validate_vml_node(node &Node) ! {
 	for property in node.properties {
 		// Event payloads keep V's `.name`; property values are typed by their field.
@@ -50,21 +50,8 @@ fn validate_vml_node(node &Node) ! {
 				return error('${property.expr.source}:${dotted.line}:${dotted.column}: VML enum values omit the dot: use `${dotted.value[1..]}`')
 			}
 		}
-		if property.name.starts_with('bind.') && property.expr.kind != .path {
+		if property.name.starts_with('bind.') && property.expr.kind !in [.path, .index, .selector] {
 			return error('${property.expr.source}:${property.expr.line}:${property.expr.column}: `${property.name}` must target a writable path')
-		}
-	}
-	if node.tag == 'Repeater' {
-		for property in node.properties {
-			if property.name !in ['model', 'key'] {
-				return error('${property.expr.source}:${property.expr.line}:${property.expr.column}: unsupported `${property.name}` on Repeater')
-			}
-		}
-		if find_property(node, 'model') == none {
-			return error('${node.source}:${node.line}:${node.column}: Repeater requires `model`')
-		}
-		if find_property(node, 'key') == none {
-			return error('${node.source}:${node.line}:${node.column}: Repeater requires a stable `key`')
 		}
 	}
 	for child in node.children {
@@ -96,6 +83,7 @@ fn vml_dotted_enum(expr &Expr) ?&Expr {
 // VmlGuard is a never-run generic function that makes V check a model path
 // or a repeater list for the types each caller passes.
 struct VmlGuard {
+	ref_method string // the ref method whose target support the guard checks
 	field_name string
 	model_path string
 	name       string

@@ -22,9 +22,9 @@ into. A document can also name the model's callbacks (`on_click: app.file_new`).
 ```vml
 MenuBar {
     Menu(title: "File") {
-        MenuItem(id: "new_row", text: "New", on_click: file_new, shortcut: "cmd+n")
+        MenuItem(id: new_row, text: "New", on_click: file_new, shortcut: "cmd+n")
         MenuSeparator {}
-        Menu(title: "Export") { MenuItem(id: "export_pdf", text: "PDF") }
+        Menu(title: "Export") { MenuItem(id: export_pdf, text: "PDF") }
     }
 }
 ```

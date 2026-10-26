@@ -48,10 +48,9 @@ component NameEditor(bind name string) {
 }
 ```
 
-Import that component from `name_editor.vml`:
+Use that component from `name_editor.vml` in the same folder:
 
 ```vml
-import NameEditor
 Screen {
     NameEditor(bind.name: app.name)
 }
@@ -83,7 +82,7 @@ runs `unmount` and then `mount` again. `cleanup { ... }` runs once, after
 scope. Removed keyed instances dispose their effects and cleanups. A callback
 retained after disposal cannot update the old instance.
 
-Repeater failures report the authored VML file, line and column during both the
+`for` failures report the authored VML file, line and column during both the
 initial calculation and later reactive updates. Duplicate or empty keys leave
 the existing list order and instances intact; a subsequent valid update can
 reconcile them. V code using `VmlKeyedList.bind` can pass optional
@@ -113,7 +112,6 @@ component Card(title string, content slot) {
 ```
 
 ```vml
-import Card
 Card(title: "Details") {
     Label(text: app.name)
 }
@@ -125,9 +123,8 @@ accepts the invocation's content block. Named slots use `Slot(name: "name")`.
 
 ```vml
 component Editor() {
-    ref name_field TextInput
     Column {
-        TextInput(id: "name_input", ref: name_field)
+        TextInput(id: name_field)
         Button(text: "Focus", on_click: name_field.focus()!)
     }
 }
@@ -137,8 +134,8 @@ Refs are typed handles, excluded from bindings and state snapshots. They become
 available after mount and unavailable after removal or disposal. Control marker
 types constrain supported operations: editable refs provide `set_text`, and
 focusable refs provide `focus`. `set_text` explicitly replaces the local edit
-buffer. Ref commands require an authored `id` on the target, as shown above;
-calling a command without one produces a diagnostic. An unchanged declared
+buffer. An element's `id` is its ref: calling a ref method on it, or passing
+it by name to a function, makes the ref; an id inside a `for` has none. An unchanged declared
 text value preserves local editing.
 
 `run_compiled_vml` closes the document and its scopes when the window closes.

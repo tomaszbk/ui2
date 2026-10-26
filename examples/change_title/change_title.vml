@@ -1,12 +1,12 @@
 Screen(
-    id: "root",
+    id: root,
     style: [background(#F1F5F9)],
 ) {
     Absolute(
         style: [transparent(true)],
     ) {
         View(
-            id: "card",
+            id: card,
             x: 16,
             y: 16,
             width: root.width - 32,
@@ -33,7 +33,7 @@ Screen(
                     style: [foreground(#64748B), font_size(12)],
                 )
                 TextInput(
-                    id: "title",
+                    id: title,
                     bind.text: app.title,
                     on_submit: app.apply_title(),
                     placeholder: "Please enter a new title",
@@ -44,7 +44,7 @@ Screen(
                     style: [background(app.valid ? #F8FAFC : #FEE2E2), radius(7), font_size(13)],
                 )
                 Button(
-                    id: "apply_title",
+                    id: apply_title,
                     text: "Change title",
                     on_click: app.apply_title(),
                     native: true,
@@ -64,7 +64,7 @@ Screen(
                         style: [transparent(true)],
                     ) {
                         Label(
-                            id: "title_status",
+                            id: title_status,
                             text: app.status,
                             x: 12,
                             y: 0,

@@ -7,11 +7,15 @@ pub enum ExprKind {
 	call          // `value` is the callee path, `args` the arguments; `fallible` marks `f()!`
 	unary         // `value` is `!` or `-`; the operand is `left`
 	binary        // `value` is the operator; operands are `left` and `right`
-	assignment    // `left = right`; `x++`/`x--` become `x = x + 1`/`x = x - 1`
+	assignment    // `left op right`; `value` is the operator (`=`, `+=`, `<<`, ...); `x++` is `x += 1`
 	block         // `{ a; b }` handler; the statements are `args`
 	array         // `[a, b]`; the elements are `args`
 	conditional   // `left ? right : third`
 	interpolation // a string literal containing `${...}`; see `parts`
+	index         // `left[right]`
+	selector      // `left.value`: a field path read after an index or a call
+	method        // `left.value(args)`: a method call after an index or a call; `fallible` marks `!`
+	or_else       // `left or { right }`
 }
 
 // InterpolationPart is one segment of an `.interpolation` expression: either
@@ -58,9 +62,10 @@ pub:
 	expr   &Expr
 }
 
-// Node is an element `Tag(name: value, ...) { children }` or, when `tag` is
-// `component_tag`, a component definition or invocation. Component members
-// (`inputs`, `data`, `functions`, `refs`, `mount`, `unmount`, `cleanup`) and
+// Node is an element `Tag(name: value, ...) { children }`, a structural node
+// (`if_tag`, `branch_tag` or `for_tag`) or, when `tag` is `component_tag`, a
+// component definition or invocation. Component members
+// (`inputs`, `data`, `functions`, `watches`, `mount`, `unmount`, `cleanup`) and
 // `component_name` are set only on component nodes; `styles` holds the named
 // styles visible to that document or component. Imports and local components
 // are expanded in place: an invocation becomes a copy of the definition (with
@@ -86,8 +91,15 @@ pub mut:
 	inputs         []Input
 	data           []Data
 	functions      []Function
-	refs           []Parameter
+	watches        []Watch
 	caller_content bool
+	// Structural nodes. A branch: its condition (nil for `else`) and, for
+	// `if name := option`, the name of the unwrapped value. A `for`: the
+	// iterated value, its item and index names and its key.
+	cond       &Expr = unsafe { nil }
+	bind_name  string
+	index_name string
+	key_expr   &Expr = unsafe { nil }
 	mount          []&Expr
 	unmount        []&Expr
 	cleanup        []&Expr
@@ -97,8 +109,21 @@ pub mut:
 // component_tag is the `Node.tag` of component definitions and expanded invocations.
 pub const component_tag = '__Component'
 
-// Parameter is a `name type` pair: a callback/event/function parameter or a
-// `ref name Type` declaration.
+// if_tag is the `Node.tag` of an `if` chain; its children are its branches.
+pub const if_tag = '__If'
+
+// branch_tag is the `Node.tag` of one branch of an `if` chain.
+pub const branch_tag = '__Branch'
+
+// for_tag is the `Node.tag` of a `for item in values key k { ... }` loop.
+pub const for_tag = '__For'
+
+// is_structural reports whether a tag is a structural node rather than an element.
+pub fn is_structural(tag string) bool {
+	return tag in [if_tag, branch_tag, for_tag]
+}
+
+// Parameter is a `name type` pair: a callback, event or function parameter.
 pub struct Parameter {
 pub:
 	name string
@@ -117,6 +142,19 @@ pub:
 	bindable      bool
 	parameters    []Parameter
 	default_value &Expr = unsafe { nil }
+}
+
+// Watch is a component `watch [old,] now := expr { body }` (or `watch expr
+// { body }`) declaration: `body` runs each time the value of `expr` changes.
+pub struct Watch {
+pub:
+	expr   &Expr
+	old    string
+	now    string
+	line   int
+	column int
+pub mut:
+	body []&Expr
 }
 
 // Data is a component `state name := expr` or `computed name := expr` declaration.
@@ -169,6 +207,13 @@ pub fn node_uses_path(node &Node, base string) bool {
 	for function in node.functions {
 		for statement in function.body { if expr_uses_path(statement, base) { return true } }
 	}
+	for watch in node.watches {
+		if expr_uses_path(watch.expr, base) { return true }
+		for statement in watch.body { if expr_uses_path(statement, base) { return true } }
+	}
+	for expr in [node.cond, node.key_expr] {
+		if !isnil(expr) && expr_uses_path(expr, base) { return true }
+	}
 	for statement in node.mount { if expr_uses_path(statement, base) { return true } }
 	for statement in node.cleanup { if expr_uses_path(statement, base) { return true } }
 	for statement in node.unmount { if expr_uses_path(statement, base) { return true } }
@@ -220,7 +265,11 @@ pub fn expr_text(expr &Expr) string {
 		.call { expr.value + '(' + expr.args.map(expr_text(it)).join(', ') + ')' }
 		.unary { expr.value + expr_text(expr.left) }
 		.binary { '${expr_text(expr.left)} ${expr.value} ${expr_text(expr.right)}' }
-		.assignment { '${expr_text(expr.left)} = ${expr_text(expr.right)}' }
+		.assignment { '${expr_text(expr.left)} ${expr.value} ${expr_text(expr.right)}' }
+		.index { '${expr_text(expr.left)}[${expr_text(expr.right)}]' }
+		.selector { '${expr_text(expr.left)}.${expr.value}' }
+		.method { '${expr_text(expr.left)}.${expr.value}(' + expr.args.map(expr_text(it)).join(', ') + ')' }
+		.or_else { '${expr_text(expr.left)} or { ${expr_text(expr.right)} }' }
 		.block { '{' + expr.args.map(expr_text(it)).join('; ') + '}' }
 		.array { '[' + expr.args.map(expr_text(it)).join(', ') + ']' }
 		.conditional {
@@ -252,6 +301,12 @@ pub fn set_source(mut node Node, path string) {
 	for mut function in node.functions {
 		for mut statement in function.body { set_expr_source(mut statement, path) }
 	}
+	for mut watch in node.watches {
+		set_expr_source(mut watch.expr, path)
+		for mut statement in watch.body { set_expr_source(mut statement, path) }
+	}
+	if !isnil(node.cond) { set_expr_source(mut node.cond, path) }
+	if !isnil(node.key_expr) { set_expr_source(mut node.key_expr, path) }
 	for mut statement in node.mount { set_expr_source(mut statement, path) }
 	for mut statement in node.unmount { set_expr_source(mut statement, path) }
 	for mut statement in node.cleanup { set_expr_source(mut statement, path) }

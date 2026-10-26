@@ -202,7 +202,7 @@ A `motion` property takes the same configuration from an application method:
 
 ```vml
 Column(gap: 12) {
-    Repeater(model: app.rows, key: item.id) {
+    for item in app.rows key item.id {
         Row(motion: app.card_motion(), opacity: app.card_opacity(item.id),
             translate_x: app.card_offset(item.id), height: 72, gap: 12) {
             Label(text: item.title)
@@ -226,8 +226,8 @@ under an element plays on that element; its keyframes animate the element
 itself, or the descendant their `target` names:
 
 ```vml
-View(id: "card", width: 240, height: 120) {
-    Image(id: "logo", width: 48, height: 48, source: "logo.png")
+View(id: card, width: 240, height: 120) {
+    Image(id: logo, width: 48, height: 48, source: "logo.png")
     Timeline(duration: 1.2, repeat: true) {
         Keyframe(target: "logo", at: 0.5, opacity: 0.4, scale: 1.1, easing: in_out_sine)
         Keyframe(target: "logo", at: 1, opacity: 1, scale: 1)

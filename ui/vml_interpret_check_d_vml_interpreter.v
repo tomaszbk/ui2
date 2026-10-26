@@ -41,15 +41,17 @@ enum VmlIKind {
 	style_call  // name: a style helper; args[0]
 	motion_call // name: a motion helper; args
 	style_state // name: hover, focus, pressed or disabled; args: patches
+	index       // args[0][args[1]]
+	or_else     // args[0] or { args[1] }
 	// Handler references: a callable value.
 	app_method // name: `on_x: app.method`
 	fn_ref     // depth, slot: `on_x: local_fn`
 	event_ref  // depth, slot: `on_x: component_event`
 	external   // name: a callback from VmlInterpretConfig.callbacks
-	// Statements.
-	assign_app   // name = args[0]
-	assign_state // depth, slot = args[0]
-	assign_input // depth, slot = args[0] (a bindable input)
+	// Statements; `op` is the assignment operator.
+	assign_app   // name op args[0]
+	assign_state // depth, slot op args[0]
+	assign_input // depth, slot op args[0] (a bindable input)
 	block        // args, in order
 }
 
@@ -63,6 +65,7 @@ struct VmlIExpr {
 	args  []&VmlIExpr
 	typ   &VmlModelType = unsafe { nil }
 	func  &VmlIFunction = unsafe { nil }
+	op    string
 	src   VmlSourceLocation
 }
 
@@ -88,8 +91,9 @@ mut:
 enum VmlINodeKind {
 	element
 	component
-	repeater
-	slot // a component's `Slot`: the invocation's content, in `slot_scope`
+	repeater // a `for`
+	cond     // an `if`
+	slot     // a component's `Slot`: the invocation's content, in `slot_scope`
 }
 
 struct VmlIProp {
@@ -155,6 +159,15 @@ struct VmlIRef {
 	tag  string
 }
 
+// VmlIWatch is a component `watch`: `body` runs in a frame of `scope`
+// (slot 0: the old value, slot 1: the new one) when `expr` changes.
+struct VmlIWatch {
+	expr     &VmlIExpr = unsafe { nil }
+	body     &VmlIExpr = unsafe { nil }
+	scope    &VmlScope = unsafe { nil }
+	uses_app bool
+}
+
 @[heap]
 struct VmlIComponent {
 	name       string
@@ -164,6 +177,7 @@ mut:
 	inputs  []VmlIInput
 	refs    []VmlIRef
 	data    []VmlIData
+	watches []VmlIWatch
 	mount   &VmlIExpr = unsafe { nil }
 	unmount &VmlIExpr = unsafe { nil }
 	cleanup &VmlIExpr = unsafe { nil }
@@ -192,6 +206,26 @@ mut:
 	children []&VmlINode
 }
 
+// VmlIBranch is one branch of an `if`: its condition (nil for `else`), the
+// slot of the unwrapped value of `if name := option` (-1 for none) and its
+// children, in a frame of `scope` with an owner of its own.
+@[heap]
+struct VmlIBranch {
+	cond      &VmlIExpr = unsafe { nil }
+	scope     &VmlScope = unsafe { nil }
+	bind_slot int       = -1
+mut:
+	children []&VmlINode
+}
+
+@[heap]
+struct VmlICond {
+	name          string
+	cond_uses_app bool
+mut:
+	branches []&VmlIBranch
+}
+
 @[heap]
 struct VmlINode {
 	kind VmlINodeKind
@@ -214,6 +248,7 @@ mut:
 	children []&VmlINode
 	comp     &VmlIComponent = unsafe { nil }
 	repeat   &VmlIRepeater  = unsafe { nil }
+	cond     &VmlICond      = unsafe { nil }
 }
 
 // VmlProgram is a loaded document: its IR and the scope of its root.
@@ -224,6 +259,8 @@ pub:
 mut:
 	root  &VmlINode = unsafe { nil }
 	scope &VmlScope = unsafe { nil }
+	// The refs of the document's own element ids.
+	refs  []VmlIRef
 	menus bool
 	// External callback names the document uses.
 	externals []string
@@ -398,6 +435,9 @@ fn vml_check(program &vml.Program, model &VmlModel, callbacks map[string]Element
 		menus: program.menus
 		files: program.files.clone()
 	}
+	for reference in program.refs {
+		out.refs << c.ref_decl(reference, vml_ir_src(program.root.src))!
+	}
 	out.root = c.node(program.root, '', none)!
 	out.externals = c.externals
 	return out
@@ -438,20 +478,55 @@ fn (mut c VmlLoader) node(n &vml.INode, base string, fill ?&VmlSlotFill) !&VmlIN
 		.element { c.element(n, base, fill)! }
 		.component { c.invocation(n, base, fill)! }
 		.slot { c.slot(n, base, fill)! }
-		.repeater { vml_ir_src(n.src).error('a Repeater must be the child of a container') }
+		.repeater, .cond { vml_ir_src(n.src).error('`if` and `for` must be children of a container') }
 	}
 }
 
 fn (mut c VmlLoader) children(nodes []&vml.INode, base string, fill ?&VmlSlotFill) ![]&VmlINode {
 	mut out := []&VmlINode{cap: nodes.len}
 	for child in nodes {
-		out << if child.kind == .repeater {
-			c.repeater(child, base, fill)!
-		} else {
-			c.node(child, base, fill)!
+		out << match child.kind {
+			.repeater { c.repeater(child, base, fill)! }
+			.cond { c.cond(child, base, fill)! }
+			else { c.node(child, base, fill)! }
 		}
 	}
 	return out
+}
+
+// cond checks an `if` chain: each branch's condition and children, and the
+// type of the value `if name := option` unwraps.
+fn (mut c VmlLoader) cond(n &vml.INode, base string, fill ?&VmlSlotFill) !&VmlINode {
+	mut cond := &VmlICond{
+		name:          n.cond.name
+		cond_uses_app: n.cond.cond_uses_app
+	}
+	for b in n.cond.branches {
+		mut condition := &VmlIExpr(unsafe { nil })
+		if !isnil(b.cond) {
+			condition = c.expr(b.cond, false)!
+			if b.bind_slot >= 0 && condition.typ != unsafe { nil } {
+				if condition.typ.kind !in [.optional, .dynamic] {
+					return vml_ir_src(b.src).error('`if name := value` unwraps an option, not ${condition.typ.describe()}')
+				}
+				c.types['${b.scope.id}:${b.bind_slot}'] = condition.typ.elem
+			}
+		}
+		mut branch := &VmlIBranch{
+			cond:      condition
+			scope:     c.scope(b.scope)
+			bind_slot: b.bind_slot
+		}
+		branch.children = c.children(b.children, base, fill)!
+		cond.branches << branch
+	}
+	return &VmlINode{
+		kind: .cond
+		tag:  'if'
+		path: vml_instance_path(base, n.path)
+		src:  vml_ir_src(n.src)
+		cond: cond
+	}
 }
 
 fn (mut c VmlLoader) element(n &vml.INode, base string, fill ?&VmlSlotFill) !&VmlINode {
@@ -620,11 +695,25 @@ fn (mut c VmlLoader) event(tag string, widget VmlWidgetType, e vml.IEvent) !VmlI
 	}
 }
 
+// ref_decl checks the ref of an element id: the control it names must
+// support ref commands.
+fn (mut c VmlLoader) ref_decl(reference vml.IRef, src VmlSourceLocation) !VmlIRef {
+	kind := vml_ref_kind_of(reference.tag) or {
+		return src.error('`${reference.name}` names a ${reference.tag}, which has no ref methods')
+	}
+	return VmlIRef{
+		name: reference.name
+		slot: reference.slot
+		kind: kind
+		tag:  reference.tag
+	}
+}
+
 fn (mut c VmlLoader) ref_target(tag string, x &vml.IExpr) !&VmlIExpr {
 	src := vml_ir_src(x.src)
 	kind := vml_ref_kind_of(tag) or { return src.error('`${tag}` cannot be the target of a ref') }
 	want := vml_ref_kind_of(x.binding.ref_tag) or {
-		return src.error('`ref ${x.binding.name} ${x.binding.ref_tag}`: ${x.binding.ref_tag} cannot be the target of a ref')
+		return src.error('`${x.binding.name}` names a ${x.binding.ref_tag}, which has no ref methods')
 	}
 	if kind != want {
 		return src.error('ref `${x.binding.name}` requires ${want}; received ${tag}')
@@ -645,7 +734,7 @@ fn (mut c VmlLoader) repeater(n &vml.INode, base string, fill ?&VmlSlotFill) !&V
 	mut item_type := &VmlModelType(unsafe { nil })
 	if model.typ != unsafe { nil } {
 		if model.typ.kind != .array && model.typ.kind != .dynamic {
-			return vml_ir_src(r.model_src).error('a Repeater model must be an array, not ${model.typ.describe()}')
+			return vml_ir_src(r.model_src).error('a `for` iterates an array, not ${model.typ.describe()}')
 		}
 		item_type = model.typ.elem
 	}
@@ -664,7 +753,7 @@ fn (mut c VmlLoader) repeater(n &vml.INode, base string, fill ?&VmlSlotFill) !&V
 	repeat.children = c.children(r.children, base, fill)!
 	return &VmlINode{
 		kind:   .repeater
-		tag:    'Repeater'
+		tag:    'for'
 		path:   vml_instance_path(base, n.path)
 		src:    vml_ir_src(n.src)
 		repeat: repeat
@@ -738,15 +827,7 @@ fn (mut c VmlLoader) invocation(n &vml.INode, base string, fill ?&VmlSlotFill) !
 		}
 	}
 	for reference in def.refs {
-		kind := vml_ref_kind_of(reference.tag) or {
-			return src.error('`ref ${reference.name} ${reference.tag}`: ${reference.tag} cannot be the target of a ref')
-		}
-		comp.refs << VmlIRef{
-			name: reference.name
-			slot: reference.slot
-			kind: kind
-			tag:  reference.tag
-		}
+		comp.refs << c.ref_decl(reference, src)!
 	}
 	for data in def.data {
 		expr := c.expr(data.expr, true)!
@@ -760,6 +841,16 @@ fn (mut c VmlLoader) invocation(n &vml.INode, base string, fill ?&VmlSlotFill) !
 	}
 	for fun in def.functions {
 		c.function(fun)!
+	}
+	for watch in def.watches {
+		expr := c.expr(watch.expr, false)!
+		body := c.action(watch.body)!
+		comp.watches << VmlIWatch{
+			expr:     expr
+			body:     body
+			scope:    c.scope(watch.scope)
+			uses_app: vml_ir_uses_app(expr) || vml_ir_uses_app(body)
+		}
 	}
 	if !isnil(def.mount) {
 		comp.mount = c.action(def.mount)!
@@ -1239,10 +1330,48 @@ fn (mut c VmlLoader) expr(x &vml.IExpr, enums bool) !&VmlIExpr {
 			}
 			return src.error('the interpreter does not support the call `${x.name}(...)`; it calls app methods, component functions and events, ref methods, style helpers and `.str()`; use compiled VML for other V calls')
 		}
+		.method_call {
+			if x.name.len == 0 {
+				return src.error('the interpreter does not call function values; use compiled VML for `fn` inputs')
+			}
+			return src.error('the interpreter does not call `.${x.name}(...)` on values; it calls app methods, component functions and events, ref methods, style helpers and `.str()`; use compiled VML for other V calls')
+		}
+		.index {
+			base := c.expr(x.args[0], false)!
+			index := c.expr(x.args[1], false)!
+			mut elem := &VmlModelType(unsafe { nil })
+			if base.typ != unsafe { nil } {
+				match base.typ.kind {
+					.array, .text { elem = base.typ.elem }
+					.dynamic {}
+					.unsupported { return src.error('the interpreter cannot index ${base.typ.describe()}; use compiled VML') }
+					else { return src.error('${base.typ.describe()} cannot be indexed') }
+				}
+			}
+			return &VmlIExpr{
+				kind: .index
+				args: [base, index]
+				typ:  elem
+				src:  src
+			}
+		}
+		.or_else {
+			left := c.expr(x.args[0], false)!
+			return &VmlIExpr{
+				kind: .or_else
+				args: [left, c.expr(x.args[1], enums)!]
+				typ:  if left.typ != unsafe { nil } && left.typ.kind == .optional {
+					left.typ.elem
+				} else {
+					left.typ
+				}
+				src:  src
+			}
+		}
 		.app_method, .fn_ref, .event_ref, .module_fn {
 			return c.handler(x, [])
 		}
-		.assign_app, .assign_binding, .block {
+		.assign_app, .assign_binding, .assign_place, .block {
 			return c.action(x)
 		}
 	}
@@ -1368,11 +1497,11 @@ fn (mut c VmlLoader) action(x &vml.IExpr) !&VmlIExpr {
 				src:  vml_ir_src(x.src)
 			}
 		}
-		.assign_app, .assign_binding {
+		.assign_app, .assign_binding, .assign_place {
 			target := c.write_target(x)!
 			return &VmlIExpr{
 				...target
-				args: [c.expr(x.args[0], true)!]
+				args: [c.expr(x.args.last(), true)!]
 			}
 		}
 		else {
@@ -1392,6 +1521,7 @@ fn (mut c VmlLoader) write_target(x &vml.IExpr) !&VmlIExpr {
 					return &VmlIExpr{
 						kind: .assign_app
 						name: x.name
+						op:   x.op
 						src:  src
 					}
 				}
@@ -1404,6 +1534,7 @@ fn (mut c VmlLoader) write_target(x &vml.IExpr) !&VmlIExpr {
 				kind: .assign_app
 				name: x.name
 				typ:  field.typ
+				op:   x.op
 				src:  src
 			}
 		}
@@ -1416,8 +1547,12 @@ fn (mut c VmlLoader) write_target(x &vml.IExpr) !&VmlIExpr {
 				}
 				depth: x.depth
 				slot:  x.binding.slot
+				op:    x.op
 				src:   src
 			}
+		}
+		.assign_place {
+			return src.error('the interpreter writes `app.field`, state and bound inputs; use compiled VML to write a field or an element of one')
 		}
 		else {
 			return src.error('VML target is read-only or unknown; use state or an explicit bind connection')

@@ -1,12 +1,12 @@
 Screen(
-    id: "root",
+    id: root,
     style: [background(#F1F5F9)],
 ) {
     Absolute(
         style: [transparent(true)],
     ) {
         View(
-            id: "card",
+            id: card,
             x: 16,
             y: 16,
             width: (root.width - 32),
@@ -25,7 +25,7 @@ Screen(
                     style: [foreground(#111827), font_size(18), weight(700)],
                 )
                 TextInput(
-                    id: "title",
+                    id: title,
                     bind.text: app.title,
                     placeholder: "Document title",
                     x: 16,
@@ -44,7 +44,7 @@ Screen(
                     style: [foreground(#475569)],
                 )
                 TextArea(
-                    id: "notes",
+                    id: notes,
                     bind.text: app.notes,
                     on_change: app.update_status(),
                     x: 16,
@@ -54,7 +54,7 @@ Screen(
                     style: [background(#FCF4E4), foreground(#111827), font_size(15), radius(7)],
                 )
                 TextArea(
-                    id: "preview",
+                    id: preview,
                     text: app.notes,
                     readonly: true,
                     hidden: ! app.show_preview,
@@ -65,7 +65,7 @@ Screen(
                     style: [background(#F8FAFC), foreground(#334155), font_size(15), radius(7)],
                 )
                 Checkbox(
-                    id: "show_preview",
+                    id: show_preview,
                     text: "Show preview",
                     bind.checked: app.show_preview,
                     x: 16,
@@ -74,7 +74,7 @@ Screen(
                     height: 24,
                 )
                 Label(
-                    id: "status",
+                    id: status,
                     text: app.status,
                     x: 174,
                     y: card.height - 45,
@@ -83,7 +83,7 @@ Screen(
                     style: [foreground(#64748B), font_size(13), text_align(center)],
                 )
                 Button(
-                    id: "clear",
+                    id: clear,
                     text: "Clear",
                     on_click: app.clear(),
                     native: true,

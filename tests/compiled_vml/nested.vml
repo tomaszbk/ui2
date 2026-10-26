@@ -1,12 +1,11 @@
-import RowItem
 Screen {
     Column(align_items: stretch) {
         Label(text: "Before")
-        Repeater(model: app.groups, key: item.id) {
-            Label(key: "header", text: item.id)
-            Repeater(model: item.rows, key: item.id) {
-                RowItem(title: item.title) {
-                    Label(text: "${item.title}/${app.suffix}")
+        for group in app.groups key group.id {
+            Label(key: "header", text: group.id)
+            for row in group.rows key row.id {
+                RowItem(title: row.title) {
+                    Label(text: "${row.title}/${app.suffix}")
                 }
             }
         }

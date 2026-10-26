@@ -78,7 +78,7 @@ the surface; ui2 resolves its global position, clipping, focus and dismissal.
 
 ```vml
 Dialog(
-    id: "confirmation",
+    id: confirmation,
     width: 320,
     height: 180,
     open: app.confirm_open,
@@ -248,7 +248,7 @@ geometry dependencies without recreating components.
 and the full `ui2.GridOrientation` enum. Padding uses the same style helpers.
 Children accept `column_span` and `row_span`.
 Props build through ui2's layout functions.
-Keyed Repeater groups flatten into the container alongside static siblings before
+Keyed `for` groups flatten into the container alongside static siblings before
 allocation, with each child retaining its typed layout constraints.
 
 ## Motion and presence

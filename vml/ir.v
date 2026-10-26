@@ -12,14 +12,16 @@ module vml
 
 // ScopeKind is what opened a lexical scope.
 pub enum ScopeKind {
-	document  // the document root
+	document  // the document root: its refs
 	component // a component instance: inputs, refs, state, functions
-	item      // one repeater item: `item` and `index`
-	key       // a repeater's key expression: `item`
+	item      // one `for` item: its item and index names
+	key       // a `for` key expression: the item name
+	branch    // one branch of an `if`: the unwrapped value of `if name := option`
 	slot      // slot content, resolved in its author's scope
 	function  // a component function: its parameters
 	listener  // a component event handler in the caller: the payload names
 	handler   // an element event handler: `event`
+	watch     // a `watch` body: its old and new values
 }
 
 // BindingKind is what a name in a scope denotes.
@@ -27,13 +29,13 @@ pub enum BindingKind {
 	state    // `state name := value`: writable
 	computed // `computed name := value`
 	input    // a component input; writable when bound
-	item     // the repeater item
-	index    // the repeater index
+	item     // a `for` item or the unwrapped value of `if name := option`: read-only
+	index    // the `for` index
 	func     // a component function
 	event    // a component event (callable to emit)
-	ref      // `ref name Type`
+	ref      // the ref of an element id whose methods are called (`name.focus()`)
 	id       // an element id (its geometry)
-	param    // a function, listener or handler parameter
+	param    // a function, listener, handler or watch parameter
 }
 
 pub struct Binding {
@@ -47,7 +49,7 @@ pub:
 	params []Parameter
 	func   &IFunction = unsafe { nil }
 	typ    string
-	// ref: the declared target tag.
+	// ref: the tag of the element it refers to.
 	ref_tag string
 }
 
@@ -110,7 +112,7 @@ pub fn (s &Scope) lookup_value(name string) ?(Binding, int) {
 // owner_scope is the nearest scope with its own component owner.
 pub fn (s &Scope) owner_scope() &Scope {
 	mut current := unsafe { s }
-	for current.kind in [.key, .function, .listener, .handler] && current.parent != unsafe { nil } {
+	for current.kind in [.key, .function, .listener, .handler, .watch] && current.parent != unsafe { nil } {
 		current = current.parent
 	}
 	return current
@@ -151,14 +153,19 @@ pub enum IKind {
 	ref_call    // binding: a ref; name: its method; args
 	module_call // name(args): a function of the module the code lives in
 	helper      // name(args): a helper of the value's namespace (`font_size(18)`)
+	index       // args[0][args[1]]
+	method_call // args[0].name(args[1..]); without a name, the call of the function value args[0]
+	or_else     // args[0] or { args[1] }
 	// Handler references: a callable value.
 	app_method // name: `on_x: app.method`
 	fn_ref     // binding: `on_x: local_fn`
 	event_ref  // binding: `on_x: component_event`
 	module_fn  // name: a function of the module, or an external callback
-	// Statements.
-	assign_app     // name = args[0]
-	assign_binding // binding = args[0]: a state or a bindable input
+	// Statements. `op` is the assignment operator: `=`, `+=`, `-=`, `*=`,
+	// `/=`, `%=` or `<<`.
+	assign_app     // app.name op args[0]
+	assign_binding // binding op args[0]: a state or a bindable input
+	assign_place   // place op args[1]; args[0] is the place, a field or index path
 	block          // args, in order
 }
 
@@ -177,6 +184,7 @@ pub:
 	args  []&IExpr
 	// helper: the call ends in `!` (a helper taking a list of entries).
 	fallible bool
+	op       string
 	src      Location
 }
 
@@ -267,11 +275,34 @@ pub:
 	src      Location
 }
 
+// IRef is the ref of an element id whose methods the document calls.
 pub struct IRef {
 pub:
+	name    string
+	slot    int
+	tag     string
+	methods []IRefMethod
+}
+
+// IRefMethod is the first call of one ref method, where V checks the target
+// supports it.
+pub struct IRefMethod {
+pub:
 	name string
-	slot int
-	tag  string
+	src  Location
+}
+
+// IWatch is a component `watch`: `body` runs in `scope`, whose slot 0 is the
+// old value and slot 1 the new one, each time the value of `expr` changes.
+pub struct IWatch {
+pub:
+	expr     &IExpr = unsafe { nil }
+	body     &IExpr = unsafe { nil }
+	scope    &Scope = unsafe { nil }
+	old      string
+	now      string
+	uses_app bool
+	src      Location
 }
 
 @[heap]
@@ -299,6 +330,7 @@ pub mut:
 	refs      []IRef
 	data      []IData
 	functions []&IFunction
+	watches   []IWatch
 	mount     &IExpr = unsafe { nil }
 	unmount   &IExpr = unsafe { nil }
 	cleanup   &IExpr = unsafe { nil }
@@ -350,11 +382,38 @@ pub mut:
 	children []&INode
 }
 
+// IBranch is one branch of an `if`: its condition (nil for `else`) and
+// children, in a scope with an owner of its own. `bind_slot` is the slot of
+// the unwrapped value of `if name := option` (-1 for none).
+@[heap]
+pub struct IBranch {
+pub:
+	cond      &IExpr = unsafe { nil }
+	scope     &Scope = unsafe { nil }
+	bind_slot int    = -1
+	src       Location
+pub mut:
+	children []&INode
+}
+
+// ICond is an `if` chain. It is a keyed list of at most one item, the index
+// of the branch whose condition holds: a change of branch removes the old
+// branch's nodes (with their exit motion) and builds the new one's.
+@[heap]
+pub struct ICond {
+pub:
+	name          string
+	cond_uses_app bool
+pub mut:
+	branches []&IBranch
+}
+
 pub enum INodeKind {
 	element
 	component // an invocation: `invoke` and the definition it names
-	repeater
-	slot // a `Slot` of a component definition: `tag` is the slot's name
+	repeater  // a `for`
+	cond      // an `if`
+	slot      // a `Slot` of a component definition: `tag` is the slot's name
 }
 
 @[heap]
@@ -381,6 +440,7 @@ pub mut:
 	children []&INode
 	invoke   &IInvocation = unsafe { nil }
 	repeat   &IRepeater   = unsafe { nil }
+	cond     &ICond       = unsafe { nil }
 }
 
 // Program is a resolved document: its root node and the scope it opens.
@@ -393,6 +453,8 @@ pub mut:
 	scope &Scope = unsafe { nil }
 	// The component definitions the document uses, by key.
 	components map[string]&IComponentDef
+	// The refs of the document's own element ids.
+	refs []IRef
 	// The root is a menu document (`Menu` or `MenuBar`).
 	menus bool
 	// Functions of the module that the document's handlers name or call.

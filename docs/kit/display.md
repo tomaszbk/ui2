@@ -13,7 +13,7 @@ one. The conventions they follow are in the [kit overview](README.md).
 Column(gap: 12) {
     Alert(title: "Saved", text: "Your changes are live.", tone: success)
     Progress(value: app.uploaded, max: app.total)
-    Tabs(id: "sections", bind.value: app.section) {
+    Tabs(id: sections, bind.value: app.section) {
         Tab(value: "overview", text: "Overview") {
             Label(text: "A summary of the project.")
         }

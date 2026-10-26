@@ -3,8 +3,8 @@ module ui2
 // Motion parts: Timeline and its Keyframe rows. A Timeline under an element
 // plays on that element, or on the descendants its keyframes name by target:
 //
-//     View(id: "card") {
-//         Image(id: "logo", ...)
+//     View(id: card) {
+//         Image(id: logo, ...)
 //         Timeline(duration: 1.2, repeat: true) {
 //             Keyframe(target: "logo", at: 0.5, opacity: 0.4, scale: 1.1, easing: in_out_sine)
 //             Keyframe(target: "logo", at: 1, opacity: 1, scale: 1)

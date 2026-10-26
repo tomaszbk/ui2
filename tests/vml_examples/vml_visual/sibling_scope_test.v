@@ -4,7 +4,7 @@ import os
 import ui2.vml
 
 fn test_checkbox_binding_uses_change_checked_payload_in_both_directions() {
-	run_bounded_layout_fixture('checkbox_binding', 'Checkbox(id: "consent", width: 100, height: 24, bind.checked: app.checked)', 'import ui2
+	run_bounded_layout_fixture('checkbox_binding', 'Checkbox(id: consent, width: 100, height: 24, bind.checked: app.checked)', 'import ui2
 @[heap]
 struct State {
 pub mut:
@@ -33,7 +33,7 @@ fn main() {
 fn test_checkbox_change_binds_before_action_and_keeps_tap_and_sibling_actions_separate() {
 	run_bounded_layout_fixture('checkbox_actions', 'Row(width: 200, height: 30, align_items: start) {
     View(width: 100, height: 24) {
-        Checkbox(id: "consent", width: 100, height: 24, bind.checked: app.checked, on_change: app.changed(app.note), on_click: app.tapped())
+        Checkbox(id: consent, width: 100, height: 24, bind.checked: app.checked, on_change: app.changed(app.note), on_click: app.tapped())
     }
     Absolute {
         Button(width: consent.width, height: 24, text: ("Consent ñ"), on_click: app.accept("Consent ñ"))
@@ -107,7 +107,7 @@ fn test_shared_builders_export_visible_children_to_parent_menu_declarations() {
 	run_bounded_layout_fixture('shared_menu_scope', 'Absolute(width: 100, height: 30) {
     Row(width: 100, height: 30, align_items: start) {
         MenuItem(text: ("Menu caption"))
-        Label(id: "item", width: 20, height: 20)
+        Label(id: item, width: 20, height: 20)
         MenuItem(text: "Width \${item.width}")
     }
 }', 'import ui2
@@ -123,7 +123,7 @@ fn main() {
 fn test_vertical_wrap_omitted_width_and_following_nested_sibling() {
 	run_bounded_layout_fixture('vertical_wrap', 'Absolute(width: 500, height: 200) {
     Row(width: 300, height: 80, align_items: start) {
-        Column(id: "wrapped", height: 40, wrap: true, gap: 5, align_items: start) {
+        Column(id: wrapped, height: 40, wrap: true, gap: 5, align_items: start) {
             Label(width: 30, height: 20, text: "a")
             Label(width: 30, height: 20, text: "b")
             Label(width: 30, height: 20, text: "c")
@@ -221,7 +221,7 @@ fn main() {
 fn test_shared_layout_builders_refresh_allocated_sibling_references() {
 	run_bounded_layout_fixture('shared_grid_scope', 'Absolute(width: 300, height: 120) {
     Grid(width: 200, height: 100, columns: 2, rows: 1) {
-        View(id: "seed", height: 20) {
+        View(id: seed, height: 20) {
             Label(width: 20, height: 20, text: "seed")
         }
         Row(align_items: start) {
@@ -251,7 +251,7 @@ fn test_shared_layout_build_work_with_input_dependent_properties() {
 		for _ in 1 .. depth { divisor *= 4 }
 		for index in 0 .. depth {
 			width := if index == depth - 1 { 512.0 } else { 1024.0 / divisor }
-			view = 'Row(id: "level_${index}", width: app.offered * ${width} / 1024, height: 20, align_items: start) { ${view} }'
+			view = 'Row(id: level_${index}, width: app.offered * ${width} / 1024, height: 20, align_items: start) { ${view} }'
 			divisor /= 4
 		}
 		view = 'Absolute(width: 1024, height: 60) { ${view} }'
@@ -327,14 +327,14 @@ fn main() {
 fn test_vertical_wrap_measured_and_inherited_container_widths() {
 	run_bounded_layout_fixture('inherited_vertical_wrap', 'Absolute(width: 500, height: 120) {
     View(width: 0, height: 40) {
-        Column(id: "natural", height: 40, wrap: true, gap: 5, align_items: start) {
+        Column(id: natural, height: 40, wrap: true, gap: 5, align_items: start) {
             Label(width: 30, height: 20, text: "a")
             Label(width: 30, height: 20, text: "b")
             Label(width: 30, height: 20, text: "c")
         }
     }
     View(width: 200, height: 40) {
-        Column(id: "inherited", height: 40, wrap: true, gap: 5, align_items: start) {
+        Column(id: inherited, height: 40, wrap: true, gap: 5, align_items: start) {
             Label(width: 30, height: 20, text: "a")
             Label(width: 30, height: 20, text: "b")
             Label(width: 30, height: 20, text: "c")
@@ -405,19 +405,19 @@ fn run_sibling_geometry(tag string, config string, expected string, inner_x int,
     computed ink := app.ink
     computed half := unit / 2
     Absolute(width: 400, height: 400) {
-        ${tag}(id: "layout", x: 10, y: 15, width: 200, height: 80, ${config}) {
-            Label(id: "first", width: unit, height: 20, text: caption, on_click: app.accept(app.argument), style: [weight(strong ? 700 : 400), foreground(ink)])
-            Absolute(id: "middle") {
+        ${tag}(id: layout, x: 10, y: 15, width: 200, height: 80, ${config}) {
+            Label(id: first, width: unit, height: 20, text: caption, on_click: app.accept(app.argument), style: [weight(strong ? 700 : 400), foreground(ink)])
+            Absolute(id: middle) {
                 Column(width: first.width, align_items: start) {
                     Absolute {
-                        Label(id: "inner", width: half, height: first.height, style: [font_size(18)]) {
+                        Label(id: inner, width: half, height: first.height, style: [font_size(18)]) {
                             Run(text: caption, style: [weight(strong ? 700 : 400), foreground(ink)])
                         }
                     }
                 }
             }
             Absolute {
-                TextInput(id: "input", width: half, height: inner.height, bind.text: app.name, on_submit: app.submit(app.name))
+                TextInput(id: input, width: half, height: inner.height, bind.text: app.name, on_submit: app.submit(app.name))
             }
         }
         Label(x: middle.x, y: inner.y, width: half, height: inner.height, text: caption)
@@ -510,11 +510,11 @@ fn test_width_measurement_skips_only_the_current_child_scope() {
 	}
 	os.write_file(os.join_path(root, 'view.vml'), 'Absolute(width: 300, height: 200) {
     Column(width: 300, height: 200, align_items: start) {
-        Row(id: "row", width: 300, gap: 5, align_items: start) {
-            Label(id: "fixed", width: 40, height: 20, text: "Fixed")
-            Absolute(id: "measured") {
+        Row(id: row, width: 300, gap: 5, align_items: start) {
+            Label(id: fixed, width: 40, height: 20, text: "Fixed")
+            Absolute(id: measured) {
                 Column(width: fixed.width, align_items: start) {
-                    Label(id: "descendant", width: 40, height: 20, text: "Nested")
+                    Label(id: descendant, width: 40, height: 20, text: "Nested")
                 }
             }
             Absolute {
@@ -558,15 +558,15 @@ fn test_invalid_sibling_references_keep_vml_positions() {
 	for index, entry in [
 		[
 			'Absolute() {
-    Label(id: "first", width: later.width, height: 20)
-    Label(id: "later", width: 40, height: 20)
+    Label(id: first, width: later.width, height: 20)
+    Label(id: later, width: 40, height: 20)
 }',
 			'2:24',
 			'element `later` is declared after this use',
 		],
 		[
 			'Absolute() {
-    Label(id: "first", width: 40, height: 20)
+    Label(id: first, width: 40, height: 20)
     Label(width: ("bad"), height: 20)
 }',
 			'3:11',
@@ -574,7 +574,7 @@ fn test_invalid_sibling_references_keep_vml_positions() {
 		],
 		[
 			'Absolute() {
-    Label(id: "first", width: 40, height: 20)
+    Label(id: first, width: 40, height: 20)
     Label(width: missing.width)
 }',
 			'3:11',
@@ -582,7 +582,7 @@ fn test_invalid_sibling_references_keep_vml_positions() {
 		],
 		[
 			'Absolute() {
-    Label(id: "first", width: 40, height: 20)
+    Label(id: first, width: 40, height: 20)
     Label(width: first.absent)
 }',
 			'3:11',
@@ -590,7 +590,7 @@ fn test_invalid_sibling_references_keep_vml_positions() {
 		],
 		[
 			'Absolute() {
-    Label(id: "first", width: 40, height: 20)
+    Label(id: first, width: 40, height: 20)
     Label(width: (true))
 }',
 			'3:11',
@@ -599,7 +599,7 @@ fn test_invalid_sibling_references_keep_vml_positions() {
 		[
 			'Absolute() {
     View() {
-        Label(id: "inner", text: "WWW")
+        Label(id: inner, text: "WWW")
     }
     Label(width: ("bad"), height: 20)
 }',
@@ -635,7 +635,7 @@ fn run_intrinsic_sibling_fixture(name string, view string, program string) {
 
 fn test_intrinsic_width_survives_explicit_height_skipped_sibling() {
 	run_intrinsic_sibling_fixture('intrinsic_skipped', 'Column(width: 300, height: 100, gap: 7, align_items: start) {
-    Label(id: "first", text: "WWW", height: 20)
+    Label(id: first, text: "WWW", height: 20)
     Absolute {
         Label(text: "Copy", width: first.width, height: 20)
     }
@@ -650,8 +650,8 @@ fn main() {
 
 fn test_intrinsic_leaf_and_unsized_nested_layout_expose_measured_geometry() {
 	run_intrinsic_sibling_fixture('intrinsic_nested', 'Absolute(width: 300, height: 300) {
-    Column(id: "block", gap: 7, align_items: start) {
-        Label(id: "first", text: "WWW")
+    Column(id: block, gap: 7, align_items: start) {
+        Label(id: first, text: "WWW")
         Absolute {
             Label(text: "Copy", width: first.width, height: first.height)
         }
@@ -672,9 +672,9 @@ fn main() {
 
 fn test_width_pass_sibling_height_uses_wrapped_leaf_measurement() {
 	run_intrinsic_sibling_fixture('intrinsic_width_pass', 'Row(width: 80, height: 200, align_items: start) {
-    Label(id: "first", text: "WW WW WW WW", flex_basis: 40, flex_shrink: 0, style: [lines(10)])
+    Label(id: first, text: "WW WW WW WW", flex_basis: 40, flex_shrink: 0, style: [lines(10)])
     Absolute(flex_basis: 40, flex_shrink: 0) {
-        Label(id: "second", width: first.width, text: "Copy", style: [line_height((first.height))])
+        Label(id: second, width: first.width, text: "Copy", style: [line_height((first.height))])
     }
 }', 'import ui2
 fn main() {
@@ -690,8 +690,8 @@ fn main() {
 
 fn test_intrinsic_sibling_sizes_determine_wrapped_flex_autoheight() {
 	run_intrinsic_sibling_fixture('intrinsic_wrap', 'Absolute(width: 300, height: 300) {
-    Flex(id: "flow", width: app.width, wrap: true, gap: 5, line_gap: 9, align_items: start) {
-        Label(id: "first", text: "WWW")
+    Flex(id: flow, width: app.width, wrap: true, gap: 5, line_gap: 9, align_items: start) {
+        Label(id: first, text: "WWW")
         Absolute {
             Label(text: "Copy", width: first.width, height: first.height)
         }
@@ -728,11 +728,11 @@ fn test_nested_grid_width_measurement_keeps_explicit_height_descendant_ids() {
 	}
 	os.write_file(os.join_path(root, 'view.vml'), 'Absolute(width: 300, height: 200) {
     Column(width: 200, height: 120, align_items: start) {
-        Grid(id: "grid", width: 200, columns: 2) {
-            View(id: "cell", width: 50, height: 20) {
-                Label(id: "seed", width: 50, height: 20, text: "Seed")
+        Grid(id: grid, width: 200, columns: 2) {
+            View(id: cell, width: 50, height: 20) {
+                Label(id: seed, width: 50, height: 20, text: "Seed")
             }
-            Absolute(id: "sized") {
+            Absolute(id: sized) {
                 Column(width: seed.width, align_items: start) {
                     Absolute {
                         Label(width: seed.width, height: cell.width, text: "Sized")
@@ -764,7 +764,7 @@ fn main() {
 fn test_auto_view_descendant_height_is_visible_to_following_sibling() {
 	run_intrinsic_sibling_fixture('descendant_auto', 'Row(width: 300, height: 80, align_items: start) {
     View {
-        Label(id: "inner", text: "WWW")
+        Label(id: inner, text: "WWW")
     }
     Absolute {
         Label(width: 40, height: inner.height, text: "Copy")
@@ -784,7 +784,7 @@ fn test_nested_view_autoheight_keeps_offered_width_for_wrapping() {
 	run_intrinsic_sibling_fixture('descendant_fixed_width', 'Row(width: 300, height: 200, align_items: start) {
     View(width: 120) {
         View {
-            Label(id: "inner", text: "WW WW WW WW WW WW", style: [lines(10)])
+            Label(id: inner, text: "WW WW WW WW WW WW", style: [lines(10)])
         }
     }
     Absolute {
@@ -808,7 +808,7 @@ fn test_nested_view_autowidth_keeps_inherited_fixed_height() {
 	run_intrinsic_sibling_fixture('descendant_fixed_height', 'Column(width: 300, height: 100, align_items: start) {
     View(height: 30) {
         View {
-            Label(id: "inner", text: "WWW")
+            Label(id: inner, text: "WWW")
         }
     }
     Absolute {
@@ -827,7 +827,7 @@ fn main() {
 fn test_view_measures_nested_layout_ids_with_inherited_width() {
 	run_intrinsic_sibling_fixture('descendant_layouts', 'Row(width: 300, height: 100, align_items: start) {
     View(width: 100) {
-        Row(id: "nested", gap: 7, align_items: start, style: [padding(5)]) {
+        Row(id: nested, gap: 7, align_items: start, style: [padding(5)]) {
             Label(width: 20, height: 10, text: "A")
             Label(width: 30, height: 15, text: "B")
         }
@@ -845,7 +845,7 @@ fn main() {
 }')
 	run_intrinsic_sibling_fixture('descendant_grid', 'Row(width: 300, height: 100, align_items: start) {
     View(width: 100) {
-        Grid(id: "nested", columns: 2) {
+        Grid(id: nested, columns: 2) {
             Label(width: 20, height: 10, text: "A")
             Label(width: 30, height: 15, text: "B")
         }
@@ -918,7 +918,7 @@ fn main() {
 fn test_measured_view_keeps_explicit_zero_and_live_bindings_callbacks() {
 	run_intrinsic_sibling_fixture('descendant_live', 'Row(width: 300, height: 80, align_items: start) {
     View(width: 80, height: 30) {
-        Label(id: "inner", width: 0, height: 0, hidden: false, on_click: app.accept(app.argument))
+        Label(id: inner, width: 0, height: 0, hidden: false, on_click: app.accept(app.argument))
         TextInput(width: 40, height: 20, bind.text: app.name, on_submit: app.submit(app.name))
     }
     Absolute {
@@ -962,12 +962,12 @@ fn main() {
 
 fn test_selected_auto_grid_width_remeasures_five_rows_and_exports_final_geometry() {
 	run_bounded_layout_fixture('selected_auto_grid_five', 'Absolute(width: 300, height: 300) {
-    Grid(id: "cells", auto_columns_min_width: 100) {
-        Label(id: "first", width: 20, height: 20)
+    Grid(id: cells, auto_columns_min_width: 100) {
+        Label(id: first, width: 20, height: 20)
         Label(width: 20, height: 20)
         Label(width: 20, height: 20)
         Label(width: 20, height: 20)
-        Label(id: "last", width: 20, height: 20)
+        Label(id: last, width: 20, height: 20)
     }
     Label(x: cells.width, y: cells.height, width: last.width, height: last.height, text: ("five rows ñ"))
 }', 'import ui2
@@ -1184,9 +1184,9 @@ fn main() {
 
 fn test_auto_grid_natural_padding_and_following_descendant_refs() {
 	run_bounded_layout_fixture('auto_grid_natural', 'Row(width: 300, height: 100, align_items: start) {
-    View(id: "shell") {
-        Grid(id: "cells", columns: 2, style: [padding(10)]) {
-            Label(id: "cell", width: 20, height: 20)
+    View(id: shell) {
+        Grid(id: cells, columns: 2, style: [padding(10)]) {
+            Label(id: cell, width: 20, height: 20)
         }
     }
     Absolute {
@@ -1209,7 +1209,7 @@ fn main() {
 fn test_auto_grid_constraint_axes_fractional_tracks_and_width_remeasurement() {
 	run_bounded_layout_fixture('auto_grid_constraints', 'Absolute(width: 300, height: 300) {
     View(width: 100, height: 60) {
-        Grid(id: "inherited", columns: 2, spacing_x: 2.5, style: [padding(1.25)]) {
+        Grid(id: inherited, columns: 2, spacing_x: 2.5, style: [padding(1.25)]) {
             Label(width: 20.5, height: 10)
         }
     }
@@ -1257,9 +1257,9 @@ fn test_auto_wrap_unoffered_main_axes_and_following_sibling_refs() {
 		'Column': '30, 45'
 	} {
 		run_bounded_layout_fixture('auto_wrap_${tag}', 'Absolute {
-    View(id: "shell") {
-        ${tag}(id: "flow", wrap: true, gap: 5, align_items: start) {
-            Label(id: "first", width: 30, height: 20)
+    View(id: shell) {
+        ${tag}(id: flow, wrap: true, gap: 5, align_items: start) {
+            Label(id: first, width: 30, height: 20)
             Absolute {
                 Label(width: first.width, height: first.height)
             }
@@ -1363,13 +1363,13 @@ fn main() {
 fn test_auto_wrap_and_grid_explicit_and_allocated_zero_are_not_natural_axes() {
 	run_bounded_layout_fixture('auto_axes_zero', 'Absolute() {
     View() {
-        Row(id: "row", width: 0, wrap: true, gap: 5, align_items: start) {
+        Row(id: row, width: 0, wrap: true, gap: 5, align_items: start) {
             Label(width: 30, height: 20)
             Label(width: 30, height: 20)
         }
     }
     View() {
-        Column(id: "column", height: 0, wrap: true, gap: 5, align_items: start) {
+        Column(id: column, height: 0, wrap: true, gap: 5, align_items: start) {
             Label(width: 30, height: 20)
             Label(width: 30, height: 20)
         }

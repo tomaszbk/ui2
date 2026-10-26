@@ -4,16 +4,16 @@ Grid(
     spacing: 10,
 ) {
     Flex(
-        id: "featured",
+        id: featured,
         column_span: 2,
         row_span: 2,
         gap: 10,
         width: 1,
         height: 1,
     ) {
-        Button(id: "left", text: "Left", width: 60, flex_grow: 1)
-        Button(id: "right", text: "Right", width: 60, flex_grow: 1)
+        Button(id: left, text: "Left", width: 60, flex_grow: 1)
+        Button(id: right, text: "Right", width: 60, flex_grow: 1)
     }
-    Button(id: "second", text: "Second", width: 1, height: 1)
-    Button(id: "third", text: "Third", width: 1, height: 1)
+    Button(id: second, text: "Second", width: 1, height: 1)
+    Button(id: third, text: "Third", width: 1, height: 1)
 }

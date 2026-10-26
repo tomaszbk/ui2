@@ -1,5 +1,5 @@
 Screen(
-    id: "root",
+    id: root,
     style: [background(#F1F5F9)],
 ) {
     Absolute(
@@ -14,7 +14,7 @@ Screen(
             style: [foreground(#0F172A), font_size(20), weight(700)],
         )
         Absolute(
-            id: "panel",
+            id: panel,
             x: 70,
             y: 64,
             width: 260,
@@ -23,7 +23,7 @@ Screen(
         ) {
             View(x: 16, y: 18, width: 88, height: 44, style: [background(#DBEAFE), radius(8)])
             Button(
-                id: "centered_action",
+                id: centered_action,
                 text: "Centered",
                 width: 110,
                 height: 38,

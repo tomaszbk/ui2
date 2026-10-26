@@ -1,5 +1,5 @@
 Screen(
-    id: "root",
+    id: root,
     style: [background(#F1F5F9)],
 ) {
     Absolute(
@@ -17,7 +17,7 @@ Screen(
             ) {
                 Label(text: "Formatting", x: 16, y: 14, width: 276, height: 28, style: [foreground(#111827), font_size(18), weight(700)])
                 ToggleButton(
-                    id: "bold",
+                    id: bold,
                     text: "Bold",
                     bind.pressed: app.bold,
                     group: "formatting",
@@ -31,7 +31,7 @@ Screen(
                     style: [background(#E2E8F0), foreground(#1E293B), radius(7)],
                 )
                 ToggleButton(
-                    id: "italic",
+                    id: italic,
                     text: "Italic",
                     bind.pressed: app.italic,
                     group: "formatting",
@@ -45,7 +45,7 @@ Screen(
                     style: [background(#E2E8F0), foreground(#1E293B), radius(7)],
                 )
                 Label(
-                    id: "state",
+                    id: state,
                     text: app.bold ? "Bold" : "Italic",
                     x: 200,
                     y: 54,

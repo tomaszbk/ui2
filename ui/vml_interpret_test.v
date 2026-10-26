@@ -84,8 +84,8 @@ fn interp_error(source string) string {
 fn test_interprets_a_document_and_follows_the_model() ! {
 	mut app := &InterpApp{}
 	mut root := interp_build('Column {
-	Label(id: "label", text: "Count \${app.count}")
-	Button(id: "add", text: "Add", on_click: app.increment)
+	Label(id: label, text: "Count \${app.count}")
+	Button(id: add, text: "Add", on_click: app.increment)
 }',
 		mut app)!
 	assert root.element().children.len == 2
@@ -103,14 +103,14 @@ fn test_interprets_a_document_and_follows_the_model() ! {
 fn test_expressions_follow_v_semantics() ! {
 	mut app := &InterpApp{}
 	mut root := interp_build('Column {
-	Label(id: "div", text: "\${app.count / 3} \${7 / 2} \${7.0 / 2} \${7 % 3} \${-app.count}")
-	Label(id: "mix", text: "\${app.count * app.ratio} \${app.ratio + 1} \${app.count + 1}")
-	Label(id: "logic", text: "\${!app.flag && app.count == 2} \${app.flag || app.name.len == 3}")
-	Label(id: "pick", text: app.count > 1 ? "big" : "small")
-	Label(id: "text", text: "\${app.name.len} \${app.count.str()} \${app.items.len}")
-	Label(id: "greet", text: app.greeting("Hi"))
-	Label(id: "number", text: app.count)
-	Label(id: "float", text: app.ratio)
+	Label(id: div, text: "\${app.count / 3} \${7 / 2} \${7.0 / 2} \${7 % 3} \${-app.count}")
+	Label(id: mix, text: "\${app.count * app.ratio} \${app.ratio + 1} \${app.count + 1}")
+	Label(id: logic, text: "\${!app.flag && app.count == 2} \${app.flag || app.name.len == 3}")
+	Label(id: pick, text: app.count > 1 ? "big" : "small")
+	Label(id: text, text: "\${app.name.len} \${app.count.str()} \${app.items.len}")
+	Label(id: greet, text: app.greeting("Hi"))
+	Label(id: number, text: app.count)
+	Label(id: float, text: app.ratio)
 }',
 		mut app)!
 	assert interp_text(root, 'div') == '0 3 3.5 1 -2'
@@ -130,12 +130,12 @@ fn test_expressions_follow_v_semantics() ! {
 fn test_handlers_write_the_model_and_call_methods() ! {
 	mut app := &InterpApp{}
 	mut root := interp_build('Column {
-	Button(id: "a", on_click: app.add(5))
-	Button(id: "b", on_click: { app.count++; app.name = "B\${app.count}" })
-	Button(id: "c", on_click: app.flag = !app.flag)
-	TextInput(id: "d", on_change: app.record)
-	TextInput(id: "e", bind.text: app.name)
-	Button(id: "f", on_click: app.note(event.text, event.x + 0.5))
+	Button(id: a, on_click: app.add(5))
+	Button(id: b, on_click: { app.count++; app.name = "B\${app.count}" })
+	Button(id: c, on_click: app.flag = !app.flag)
+	TextInput(id: d, on_change: app.record)
+	TextInput(id: e, bind.text: app.name)
+	Button(id: f, on_click: app.note(event.text, event.x + 0.5))
 }',
 		mut app)!
 	el := root.element()
@@ -161,14 +161,14 @@ fn test_components_state_slots_and_keyed_repeaters() ! {
 	state count := 0
 	computed doubled := count * 2
 	Column {
-		Button(id: "inc", text: title, on_click: count++)
-		Label(id: "count_label", text: "\${count}/\${doubled}")
+		Button(id: inc, text: title, on_click: count++)
+		Label(id: count_label, text: "\${count}/\${doubled}")
 		Slot(name: "content")
 	}
 }
-Column(id: "rows") {
-	Label(id: "before", text: "Before")
-	Repeater(model: app.items, key: item.id) {
+Column(id: rows) {
+	Label(id: before, text: "Before")
+	for index, item in app.items key item.id {
 		Row(title: item.title) {
 			Label(text: "\${item.title}:\${index}:\${app.name}")
 		}
@@ -198,16 +198,63 @@ Column(id: "rows") {
 	root.dispose_document()!
 }
 
+fn test_if_chains_indexing_compound_writes_and_watch() ! {
+	mut app := &InterpApp{}
+	mut root := interp_build('component Counter() {
+	state count := 0
+	watch old, now := count {
+		app.note("\${old}", now)
+	}
+	Button(id: bump, text: count, on_click: count += 3)
+}
+Column {
+	if app.count == 0 {
+		Label(text: "zero")
+	} else if app.flag {
+		Label(text: "flag")
+	} else {
+		Label(text: "other \${app.items[1].title}")
+	}
+	if point := app.point {
+		Label(text: "at \${point.x}")
+	}
+	Counter
+	Button(id: grow, on_click: { app.count *= 5; app.log << "grown" })
+}',
+		mut app)!
+	children := root.element().children
+	assert children.len == 3
+	assert children[0].text == 'other Two'
+	children[1].on_event(ElementEvent{ kind: .click })
+	assert app.log == ['0=3.0']
+	assert root.element().children[1].accessibility_label == '3'
+	children[2].on_event(ElementEvent{ kind: .click })
+	assert app.count == 10 && app.log == ['0=3.0', 'grown']
+	app.flag = true
+	app.point = OverlayPoint{
+		x: 4
+	}
+	root.component.invalidate_app()!
+	updated := root.element().children
+	assert updated.len == 4
+	assert updated[0].text == 'flag'
+	assert updated[1].text == 'at 4.0'
+	app.count = 0
+	app.point = none
+	root.component.invalidate_app()!
+	assert root.element().children.map(it.text)[0] == 'zero'
+	root.dispose_document()!
+}
+
 fn test_component_events_bound_inputs_refs_and_lifecycle() ! {
 	mut app := &InterpApp{}
 	mut root := interp_build('component Editor(bind name string, changed event(value string)) {
 	state edits := 0
-	ref field TextInput
 	mount { app.note("mount", field.is_available() ? 1 : 0) }
 	cleanup { app.note("cleanup", edits) }
 	Column {
-		TextInput(id: "input", ref: field, bind.text: name)
-		Button(id: "notify", text: edits, on_click: { edits++; changed(name) })
+		TextInput(id: field, bind.text: name)
+		Button(id: notify, text: edits, on_click: { edits++; changed(name) })
 	}
 }
 Column {
@@ -231,7 +278,7 @@ Column {
 fn test_references_run_as_handlers() ! {
 	mut app := &InterpApp{}
 	mut root := interp_build('component Inner(bumped event()) {
-	Button(id: "bump", on_click: bumped)
+	Button(id: bump, on_click: bumped)
 }
 component Stepper(stepped event(value int), relayed event()) {
 	state count := 0
@@ -243,7 +290,7 @@ component Stepper(stepped event(value int), relayed event()) {
 		count = count + 10
 	}
 	Column {
-		Button(id: "stepper", text: count, on_click: step)
+		Button(id: stepper, text: count, on_click: step)
 		Inner(on_bumped: relay)
 		Inner(on_bumped: relayed)
 	}
@@ -271,8 +318,8 @@ fn test_optional_struct_fields_reach_overlay_properties() ! {
 		}
 	}
 	mut root := interp_build('Column {
-	Button(id: "anchor", text: "Open")
-	ContextMenu(id: "menu", width: 120, height: 80, anchor: "anchor", open: app.flag, point: app.point) {
+	Button(id: anchor, text: "Open")
+	ContextMenu(id: menu, width: 120, height: 80, anchor: "anchor", open: app.flag, point: app.point) {
 		Label(text: "Item")
 	}
 }',
@@ -296,9 +343,9 @@ fn test_styles_and_theme_tokens() ! {
 	mut app := &InterpApp{}
 	mut root := interp_build('style card = [background(#102030), padding(spacing.medium)]
 Column {
-	View(id: "plain", style: card)
-	View(id: "mixed", style: [card, radius(radius.medium), app.flag ? background(#FFFFFF) : background(color.surface)])
-	Label(id: "text", text: "x", style: [foreground(#FF0000), font_size(typography.body)])
+	View(id: plain, style: card)
+	View(id: mixed, style: [card, radius(radius.medium), app.flag ? background(#FFFFFF) : background(color.surface)])
+	Label(id: text, text: "x", style: [foreground(#FF0000), font_size(typography.body)])
 }',
 		mut app)!
 	assert interp_find(root.element(), 'plain')?.box.bg == 0x102030
@@ -363,11 +410,11 @@ fn test_load_errors_name_the_construct() {
 	assert interp_error('Button(on_click: app.fixed = 1)').contains('app.fixed')
 	assert interp_error('Button(on_click: app.add())').contains('argument')
 	assert interp_error('Label(text: sqrt(2))').contains('sqrt')
-	assert interp_error('Label(id: "spacing", text: "x")').contains('spacing')
+	assert interp_error('Label(id: spacing, text: "x")').contains('spacing')
 	assert interp_error('Unknown(text: "x")').contains('Unknown')
 	assert interp_error('Label(colour: "x")').contains('colour')
 	assert interp_error('Button(on_click: callback_missing)').contains('callback_missing')
-	assert interp_error('Column { Repeater(model: app.count) { Label(text: "x") } }').len > 0
+	assert interp_error('Column { for item in app.count key item { Label(text: "x") } }').len > 0
 	assert interp_error('Label(text: ').len > 0
 }
 
@@ -381,11 +428,11 @@ fn test_external_callbacks_and_sample_models() ! {
 	})
 	mut closed := &InterpHits{}
 	element := vml_interpret_model('Column {
-	Label(id: "t", text: "\${app.title} \${app.count + 1}")
-	Button(id: "b", on_click: app.save(app.count))
-	Button(id: "c", on_click: callback_close)
-	Button(id: "d", on_click: app.count++)
-	Button(id: "e", on_click: callback_other)
+	Label(id: t, text: "\${app.title} \${app.count + 1}")
+	Button(id: b, on_click: app.save(app.count))
+	Button(id: c, on_click: callback_close)
+	Button(id: d, on_click: app.count++)
+	Button(id: e, on_click: callback_other)
 }', model,
 		frame:     rect(0, 0, 200, 100)
 		callbacks: {
@@ -414,11 +461,11 @@ fn test_reload_keeps_state_for_unchanged_paths_and_keys() ! {
 	mut app := &InterpApp{}
 	first := 'component Counter(title string) {
 	state count := 0
-	Button(id: "button", text: "\${title} \${count}", on_click: count++)
+	Button(id: button, text: "\${title} \${count}", on_click: count++)
 }
 Column {
 	Counter(title: "A")
-	Repeater(model: app.items, key: item.id) {
+	for item in app.items key item.id {
 		Counter(title: item.title)
 	}
 }'

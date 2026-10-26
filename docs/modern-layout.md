@@ -202,5 +202,5 @@ removed. Authored child `x`/`y`, including zero, require a direct Absolute paren
 Element geometry expressions such as `root.width - 32` in width/height require
 the same context, including preferred-size limits, basis, gap, padding and track
 dimensions. Viewport predicates can still select visibility or responsive modes.
-Repeaters inherit their containing layout. App and item data
+`for` items inherit their containing layout. App and item data
 remain valid size bindings. Layout-generated frames are already allocated.

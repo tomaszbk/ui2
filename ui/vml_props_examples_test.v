@@ -73,7 +73,7 @@ fn props_switch_tree(mut app PropsSwitchDemo, frame Rect) PNode {
 										on_change:    fn [mut app] (e ElementEvent) {
 											app.enabled = e.checked
 										}
-									}, id: 'switch-control', bind: true),
+									}, id: 'switch_control', bind: true),
 								]
 							),
 						]

@@ -1,12 +1,12 @@
 Screen(
-    id: "root",
+    id: root,
     style: [background(#F1F5F9)],
 ) {
     Column(
         style: [padding(16), transparent(true)],
     ) {
         Column(
-            id: "card",
+            id: card,
             flex_grow: 1,
             gap: 10,
             style: [padding(20), background(#FFFFFF), radius(10)],
@@ -26,7 +26,7 @@ Screen(
             }
             Label(text: "Elapsed time", height: 20, style: [foreground(#475569), font_size(12)])
             Progress(
-                id: "elapsed_progress",
+                id: elapsed_progress,
                 height: 28,
                 value: app.elapsed,
                 max: app.duration,
@@ -46,7 +46,7 @@ Screen(
             ) {
                 Slider(
                     track_inset: 11,
-                    id: "duration_slider",
+                    id: duration_slider,
                     on_change: callback_duration_slider,
                     height: 24,
                     min: 1,
@@ -74,9 +74,9 @@ Screen(
                 height: 34,
                 style: [transparent(true)],
             ) {
-                Button(id: "start", text: app.start_label, on_click: callback_start, native: true, width: 110, height: 34)
+                Button(id: start, text: app.start_label, on_click: callback_start, native: true, width: 110, height: 34)
                 Button(
-                    id: "pause",
+                    id: pause,
                     text: app.running ? "Pause" : "Resume",
                     on_click: callback_pause,
                     native: true,
@@ -86,7 +86,7 @@ Screen(
                 )
             }
             View(flex_grow: 1, style: [transparent(true)])
-            Label(id: "timer_status", text: app.status, height: 18, style: [text_align(center), foreground(#166534), font_size(11)])
+            Label(id: timer_status, text: app.status, height: 18, style: [text_align(center), foreground(#166534), font_size(11)])
         }
     }
 }

@@ -1,12 +1,12 @@
 Screen(
-    id: "root",
+    id: root,
     style: [background(#F1F5F9)],
 ) {
     Absolute(
         style: [transparent(true)],
     ) {
         View(
-            id: "card",
+            id: card,
             x: 16,
             y: 16,
             width: root.width - 32,
@@ -18,7 +18,7 @@ Screen(
             ) {
                 Label(text: "Event inspector", x: 18, y: 14, width: 180, height: 28, style: [foreground(#111827), font_size(18), weight(700)])
                 Button(
-                    id: "sample_button",
+                    id: sample_button,
                     text: "Native event",
                     on_click: callback_sample_button,
                     native: true,
@@ -28,7 +28,7 @@ Screen(
                     height: 34,
                 )
                 Button(
-                    id: "clear_events",
+                    id: clear_events,
                     text: "Clear",
                     on_click: callback_clear,
                     native: true,
@@ -38,7 +38,7 @@ Screen(
                     height: 34,
                 )
                 View(
-                    id: "event_surface",
+                    id: event_surface,
                     on_pointer_down: callback_event_surface,
                     on_pointer_drag: callback_event_surface,
                     on_pointer_up: callback_event_surface,
@@ -129,7 +129,7 @@ Screen(
                     }
                 }
                 Label(
-                    id: "last_event",
+                    id: last_event,
                     text: app.last_event,
                     x: 18,
                     y: 258,
@@ -138,7 +138,7 @@ Screen(
                     style: [text_align(center), foreground(#166534), font_size(12)],
                 )
                 TextArea(
-                    id: "event_history",
+                    id: event_history,
                     text: app.history,
                     readonly: true,
                     x: 18,

@@ -63,7 +63,7 @@ fn library_document(source string, file string, expected_module string, stack []
 	imports := parser.parse_directives()!
 	mut root := parser.parse_document()!
 	if expected_module != '' && root.component_name != expected_module {
-		return error('${file}:1:1: VML import `${expected_module}` requires `component ${expected_module}(...)`')
+		return error('${file}:1:1: `${expected_module}` requires `component ${expected_module}(...)`')
 	}
 	parser.take(.eof) or { return error('${file}: ${err}') }
 	set_source(mut root, file)
@@ -71,12 +71,12 @@ fn library_document(source string, file string, expected_module string, stack []
 	for name, _ in parser.local_definitions {
 		refs[name] = component_key(file, name)
 	}
-	for name in imports {
-		import_path := resolve_import(os.dir(file), name.text, config) or {
-			return error('${file}:${name.line}:${name.column}: ${err}')
-		}
-		imported := library_file(import_path, name.text, stack, config, mut library)!
-		refs[name.text] = component_key(os.real_path(import_path), imported.component_name)
+	mut nodes := [root]
+	for _, definition in parser.local_definitions { nodes << definition }
+	files := component_files(file, nodes, parser.local_definitions, imports, config)!
+	for tag, component in files {
+		imported := library_file(component.path, component.name, stack, config, mut library)!
+		refs[tag] = component_key(os.real_path(component.path), imported.component_name)
 	}
 	for name, definition in parser.local_definitions {
 		mut def := definition

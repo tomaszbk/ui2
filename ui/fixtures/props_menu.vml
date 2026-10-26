@@ -1,8 +1,8 @@
 Menu(text: "Solo") {
-    MenuItem(id: "one", text: "One", title: "Uno", shortcut: "cmd+1")
-    MenuItem(id: "named", text: app.name, checked: true, separator: false)
+    MenuItem(id: one, text: "One", title: "Uno", shortcut: "cmd+1")
+    MenuItem(id: named, text: app.name, checked: true, separator: false)
     MenuSeparator()
     Menu(text: "More") {
-        MenuItem(id: "deep", text: "Deep", enabled: false)
+        MenuItem(id: deep, text: "Deep", enabled: false)
     }
 }

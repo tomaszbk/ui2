@@ -1,5 +1,5 @@
 Label(
-    id: "paragraph",
+    id: paragraph,
     width: 240,
     height: 120,
     style: [

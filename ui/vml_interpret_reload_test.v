@@ -18,17 +18,16 @@ pub fn (mut a ReloadApp) click() {
 	a.clicks++
 }
 
-const reload_first = 'import Counter
-Column(id: "root") {
-	Label(id: "title", text: app.title)
-	TextInput(id: "name", text: "Ada")
+const reload_first = 'Column(id: root) {
+	Label(id: title, text: app.title)
+	TextInput(id: name, text: "Ada")
 	Counter(label: "Count")
-	Button(id: "click", text: "Click \${app.clicks}", on_click: app.click)
+	Button(id: click, text: "Click \${app.clicks}", on_click: app.click)
 }'
 
 const reload_counter = 'component Counter(label string) {
 	state count := 0
-	Button(id: "counter", text: "\${label} \${count}", on_click: count++)
+	Button(id: counter, text: "\${label} \${count}", on_click: count++)
 }'
 
 fn reload_find(el Element, id string) ?Element {
@@ -84,9 +83,9 @@ fn test_hot_reload_keeps_state_focus_and_edit_buffers() ! {
 	assert reload_texts(root.element()) == ['Notes', 'Ada', 'Count 2', 'Click 1']
 	// Edit both files: the document gains an element and a style, the
 	// imported component a new text.
-	os.write_file(document, reload_first.replace('Label(id: "title", text: app.title)',
-		'Label(id: "title", text: app.title, style: [foreground(#FF0000)])').replace('on_click: app.click)',
-		'on_click: app.click)\n\tLabel(id: "added", text: "Added")'))!
+	os.write_file(document, reload_first.replace('Label(id: title, text: app.title)',
+		'Label(id: title, text: app.title, style: [foreground(#FF0000)])').replace('on_click: app.click)',
+		'on_click: app.click)\n\tLabel(id: added, text: "Added")'))!
 	os.write_file(component, reload_counter.replace('"\${label} \${count}"', '"\${label}: \${count}"'))!
 	os_touch_later(document)
 	os_touch_later(component)
@@ -124,7 +123,7 @@ fn test_open_vml_runs_a_document_file() ! {
 	os.mkdir_all(directory)!
 	defer { os.rmdir_all(directory) or {} }
 	document := os.join_path(directory, 'app.vml')
-	os.write_file(document, 'Column(id: "root") { Label(id: "title", text: app.title) }')!
+	os.write_file(document, 'Column(id: root) { Label(id: title, text: app.title) }')!
 	mut app := &ReloadApp{}
 	mut ui_app := new_app()
 	mut w := open_vml[ReloadApp](mut ui_app,

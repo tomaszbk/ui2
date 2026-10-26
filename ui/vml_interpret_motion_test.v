@@ -28,8 +28,8 @@ fn interp_motion_build(source string) !(&CompiledVmlNode, Element) {
 }
 
 fn test_interpreted_timelines_animate_their_element_and_its_descendants() ! {
-	mut root, built := interp_motion_build('View(id: "card", width: 200, height: 100) {
-	View(id: "logo", width: 20, height: 20)
+	mut root, built := interp_motion_build('View(id: card, width: 200, height: 100) {
+	View(id: logo, width: 20, height: 20)
 	Timeline(duration: 1.2, repeat: true) {
 		Keyframe(target: "logo", at: 0.5, opacity: 0.4, scale: 1.1, easing: in_out_sine)
 		Keyframe(target: "logo", at: 1, opacity: 1, scale: 1)
@@ -76,12 +76,12 @@ fn test_interpreted_timelines_animate_their_element_and_its_descendants() ! {
 }
 
 fn test_interpreted_timelines_take_no_place_in_a_layout() ! {
-	mut root, built := interp_motion_build('Column(id: "list") {
-	Label(id: "first", text: "One")
+	mut root, built := interp_motion_build('Column(id: list) {
+	Label(id: first, text: "One")
 	Timeline(duration: 0.5) {
 		Keyframe(target: "second", at: 1, translate_x: 12)
 	}
-	Label(id: "second", text: "Two")
+	Label(id: second, text: "Two")
 }')!
 	list := interp_motion_find(built, 'list')?
 	assert list.children.map(it.id) == ['first', 'second']
@@ -92,7 +92,7 @@ fn test_interpreted_timelines_take_no_place_in_a_layout() ! {
 
 fn test_interpreted_keyframes_reject_invalid_values() {
 	mut app := &InterpMotionApp{}
-	vml_interpret('View(id: "card") {
+	vml_interpret('View(id: card) {
 	Timeline(duration: 1) {
 		Keyframe(at: 1.5, opacity: 1)
 	}

@@ -50,7 +50,7 @@ fn test_preview_reuses_owner_and_failed_compile_preserves_live_document() ! {
 		assert false
 	}
 	assert app.preview_element(frame)!.compiled_node == first.compiled_node
-	app.source_text = 'Screen { Absolute { Button(id: "replacement", text: "New") } }'
+	app.source_text = 'Screen { Absolute { Button(id: replacement, text: "New") } }'
 	app.compile_preview()!
 	assert first.compiled_node.component.is_disposed()
 	replacement := app.preview_element(frame)!
@@ -64,7 +64,7 @@ fn test_preview_compiles_relative_component_imports_and_reloads_dependencies() !
 	defer { os.rmdir_all(project) or {} }
 	component := os.join_path(project, 'badge.vml')
 	os.write_file(component, 'component Badge() { state count := 0 Column { Label(text: "First") Button(text: count, on_click: count++) } }')!
-	source := 'import Badge\nScreen { Badge() }'
+	source := 'Screen { Badge() }'
 	os.write_file(os.join_path(project, 'form.vml'), source)!
 	mut app := new_ide_app(project)
 	app.open_document('form.vml')!
@@ -123,7 +123,7 @@ fn test_live_preview_reloads_in_place_keeps_state_and_rereads_imports() ! {
 	defer { os.rmdir_all(project) or {} }
 	component := os.join_path(project, 'badge.vml')
 	os.write_file(component, 'component Badge() { state count := 0 Column { Label(text: "First") Button(text: count, on_click: count++) } }')!
-	source := 'import Badge\nScreen { Badge() }'
+	source := 'Screen { Badge() }'
 	os.write_file(os.join_path(project, 'form.vml'), source)!
 	mut app := new_ide_app(project)
 	app.open_document('form.vml')!
@@ -136,7 +136,7 @@ fn test_live_preview_reloads_in_place_keeps_state_and_rereads_imports() ! {
 	assert app.preview_element(frame)!.children[0].children[1].accessibility_label == '1'
 	// Running an edited source again keeps the state of unchanged
 	// declarations.
-	app.source_text = 'import Badge\nScreen { Badge() Label(text: "Added") }'
+	app.source_text = 'Screen { Badge() Label(text: "Added") }'
 	app.run_preview()!
 	assert first.compiled_node.component.is_disposed()
 	second := app.preview_element(frame)!

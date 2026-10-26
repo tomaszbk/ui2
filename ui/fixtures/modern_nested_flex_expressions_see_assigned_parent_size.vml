@@ -2,7 +2,7 @@ Flex(
     gap: 20,
 ) {
     Flex(
-        id: "content",
+        id: content,
         width: 100,
         flex_grow: 1,
         orientation: vertical,
@@ -10,7 +10,7 @@ Flex(
         Absolute(
             style: [transparent(true)],
         ) {
-            Label(id: "probe", text: "width=${content.width}", width: content.width, height: 20)
+            Label(id: probe, text: "width=${content.width}", width: content.width, height: 20)
         }
     }
     View(width: 80, flex_shrink: 0)

@@ -17,7 +17,7 @@ component DisplayPage() {
             Kbd(text: "Ctrl")
             Kbd(text: "K")
             Label(text: "to search, or", style: [foreground(color.text)])
-            Link(id: "docs_link", text: "read the docs", on_click: app.click())
+            Link(id: docs_link, text: "read the docs", on_click: app.click())
         }
         Alert(title: "Heads up", text: "Your trial ends in three days.")
         Alert(title: "Saved", text: "Your changes are live.", tone: success, icon: circle_check)
@@ -36,19 +36,19 @@ component DisplayPage() {
             ProgressCircle(value: app.progress)
             ProgressCircle(loading: true, tone: success)
             Spinner()
-            Button(id: "advance", text: "Advance", size: small, on_click: app.advance())
+            Button(id: advance, text: "Advance", size: small, on_click: app.advance())
         }
         Progress(loading: true, tone: info)
         Row(gap: 12, align_items: center) {
             Skeleton(circle: true, width: 40, height: 40)
             Shimmer(lines: 2, flex_grow: 1)
-            Clipboard(id: "copy_install", value: "v install ui2", text: "v install ui2")
+            Clipboard(id: copy_install, value: "v install ui2", text: "v install ui2")
         }
         Separator(text: "Disclosure")
-        Collapsible(id: "release_notes", text: "Release notes", icon: info, bind.open: app.notes_open) {
+        Collapsible(id: release_notes, text: "Release notes", icon: info, bind.open: app.notes_open) {
             Label(text: "Kit components draw with vector paths and animate with motion.", style: [foreground(color.text)])
         }
-        Accordion(id: "faq", bind.value: app.faq) {
+        Accordion(id: faq, bind.value: app.faq) {
             AccordionItem(value: "billing", title: "How does billing work?") {
                 Label(text: "You pay monthly and can cancel at any time.", style: [foreground(color.text)])
             }
@@ -57,12 +57,12 @@ component DisplayPage() {
             }
         }
         Separator(text: "Navigation")
-        Breadcrumb(id: "trail") {
+        Breadcrumb(id: trail) {
             BreadcrumbItem(text: "Home", icon: folder, on_click: app.click())
             BreadcrumbItem(text: "Projects", on_click: app.click())
             BreadcrumbItem(text: "ui2")
         }
-        Tabs(id: "sections", bind.value: app.section) {
+        Tabs(id: sections, bind.value: app.section) {
             Tab(value: "overview", text: "Overview") {
                 Label(text: "A summary of the project.", style: [foreground(color.text)])
             }
@@ -70,16 +70,16 @@ component DisplayPage() {
                 Label(text: "Recent commits and reviews.", style: [foreground(color.text)])
             }
         }
-        Pagination(id: "results", bind.page: app.results_page, total_pages: 12)
+        Pagination(id: results, bind.page: app.results_page, total_pages: 12)
         Row(gap: 16) {
-            Tree(id: "files", bind.value: app.file, flex_grow: 1) {
+            Tree(id: files, bind.value: app.file, flex_grow: 1) {
                 TreeItem(value: "src", text: "src", icon: folder, expanded: true) {
                     TreeItem(value: "main.v", text: "main.v")
                     TreeItem(value: "app.v", text: "app.v")
                 }
                 TreeItem(value: "readme", text: "README.md")
             }
-            Carousel(id: "slides", bind.index: app.slide, loop: true, height: 140, flex_grow: 1) {
+            Carousel(id: slides, bind.index: app.slide, loop: true, height: 140, flex_grow: 1) {
                 CarouselSlide(accessibility_label: "Draw", justify: center, align_items: center, style: [background(color.surface_muted), radius(8)]) {
                     Label(text: "Draw", style: [font_size(20), weight(700), foreground(color.text)])
                 }

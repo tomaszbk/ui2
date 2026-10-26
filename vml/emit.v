@@ -240,6 +240,16 @@ fn (mut e Emitter) node_needs_app(n &INode, stack []string) bool {
 		}
 		return false
 	}
+	if n.kind == .cond {
+		for branch in n.cond.branches {
+			for child in branch.children {
+				if e.node_needs_app(child, stack) {
+					return true
+				}
+			}
+		}
+		return false
+	}
 	for child in n.children {
 		if e.node_needs_app(child, stack) {
 			return true
@@ -264,6 +274,14 @@ fn (mut e Emitter) collect_slot_parents(key string, n &INode, parent string) {
 	if n.kind == .repeater {
 		for child in n.repeat.children {
 			e.collect_slot_parents(key, child, 'ui2.VmlSegment')
+		}
+		return
+	}
+	if n.kind == .cond {
+		for branch in n.cond.branches {
+			for child in branch.children {
+				e.collect_slot_parents(key, child, 'ui2.VmlSegment')
+			}
 		}
 		return
 	}
@@ -469,6 +487,7 @@ fn (mut e Emitter) document_builder() ! {
 	}
 	ctx.declare('vml_root_component', true)
 	e.prepare_tokens(program.scope, ctx.owner)
+	e.refs(program.refs, program.scope, mut ctx)
 	e.node(program.root, 'vml_doc', 'ui2.VmlDocument', mut ctx, RootHooks{})!
 	e.at(program.root.src)
 	e.writeln('\treturn vml_doc.finish() or { panic(err) }')
@@ -539,7 +558,7 @@ fn (mut e Emitter) args_type(def &IComponentDef) string {
 			out.writeln('\t${decl.name} fn (${signature}) = unsafe { nil }')
 			continue
 		}
-		out.writeln('\t${decl.name} fn () !${decl.typ} = unsafe { nil }')
+		out.writeln('\t${decl.name} fn () !${input_storage(decl.typ)} = unsafe { nil }')
 		if decl.bindable {
 			out.writeln('\t${decl.name}_write fn (${decl.typ}) ! = unsafe { nil }')
 		}
@@ -621,6 +640,7 @@ fn (mut e Emitter) def_inputs(def &IComponentDef, mut ctx Ctx) {
 			continue
 		}
 		variable := 'i_${decl.name}'
+		storage := input_storage(decl.typ)
 		mut fallback := '\'\''
 		mut default_body := ''
 		if !isnil(decl.default_value) {
@@ -630,8 +650,10 @@ fn (mut e Emitter) def_inputs(def &IComponentDef, mut ctx Ctx) {
 			} else {
 				e.expr(decl.default_value, ctx)
 			}
-			default_body = 'return ${value}'
+			default_body = 'return ${input_value(decl.typ, value)}'
 			fallback = value
+		} else if decl.typ.starts_with('?') {
+			default_body = 'return ${storage}{}'
 		} else {
 			default_body = "return error('component input `${decl.name}` is required')"
 		}
@@ -640,10 +662,10 @@ fn (mut e Emitter) def_inputs(def &IComponentDef, mut ctx Ctx) {
 		// from it and follows it, so the caller's expression is evaluated once.
 		memo := '${variable}_memo'
 		e.writeln('\tmut ${memo} := if args.${decl.name} != unsafe { nil } { owner.computed(' +
-			vml_quote('@input:' + decl.name) + ', args.${decl.name}) or { panic(err) } } else { &${runtime_module}.Memo[${decl.typ}](unsafe { nil }) }')
+			vml_quote('@input:' + decl.name) + ', args.${decl.name}) or { panic(err) } } else { &${runtime_module}.Memo[${storage}](unsafe { nil }) }')
 		ctx.declare(memo, true)
 		body := 'if args.${decl.name} != unsafe { nil } { return ${memo}.get()! } ${default_body}'
-		e.writeln('\tmut ${variable} := owner.state_factory(' + vml_quote(decl.name) + ', fn [${ctx.captures(body)}] () !${decl.typ} { ${body} }) or { panic(err) }')
+		e.writeln('\tmut ${variable} := owner.state_factory(' + vml_quote(decl.name) + ', fn [${ctx.captures(body)}] () !${storage} { ${body} }) or { panic(err) }')
 		e.writeln('\tif args.${decl.name} != unsafe { nil } {')
 		e.writeln('\t\towner.scope.effect(' + vml_quote('@input:' + decl.name) + ', fn [mut ${memo}, mut ${variable}] () ! { ${variable}.set(${memo}.get()!)! }) or { panic(err) }')
 		e.writeln('\t}')
@@ -653,22 +675,71 @@ fn (mut e Emitter) def_inputs(def &IComponentDef, mut ctx Ctx) {
 			e.writeln('\t${setter} := fn [args, mut ${variable}] (value ${decl.typ}) ! { if args.${decl.name}_write != unsafe { nil } { args.${decl.name}_write(value)! } ${variable}.set(value)! }')
 			ctx.declare(setter, false)
 		}
+		read := if decl.typ.starts_with('?') {
+			'(${variable}.get() or { panic(err) }).option()'
+		} else {
+			'${variable}.get() or { panic(err) }'
+		}
 		ctx.values[key] = Value{
-			read:   '${variable}.get() or { panic(err) }'
+			read:   read
 			signal: variable
 			setter: setter
 		}
 		ctx.declare(variable, true)
 	}
-	for reference in def.refs {
+	e.refs(def.refs, def.scope, mut ctx)
+}
+
+// input_storage is the type an input of type `typ` is kept as: an optional
+// `?T` is a `VmlOption[T]`, since V has no signals or results of options.
+fn input_storage(typ string) string {
+	if typ.starts_with('?') {
+		return '${runtime_module}.VmlOption[${typ[1..]}]'
+	}
+	return typ
+}
+
+// input_value converts `value`, of type `typ`, to its input storage.
+fn input_value(typ string, value string) string {
+	if typ.starts_with('?') {
+		return '${runtime_module}.vml_option[${typ[1..]}](${value})'
+	}
+	return value
+}
+
+// refs declares the refs of the element ids whose methods the code calls;
+// each element binds its ref when it is declared.
+fn (mut e Emitter) refs(refs []IRef, scope &Scope, mut ctx Ctx) {
+	for reference in refs {
 		variable := 'r_${reference.name}'
-		e.writeln('\tmut ${variable} := owner.ref[${props_type(reference.tag)}](' +
+		e.writeln('\tmut ${variable} := ${ctx.owner}.ref[${props_type(reference.tag)}](' +
 			vml_quote(reference.name) + ') or { panic(err) }')
-		ctx.values['${def.scope.id}:${reference.slot}'] = Value{
+		for method in reference.methods {
+			if method.name in ref_command_targets {
+				e.at(method.src)
+				name := '${e.guard_prefix}_ref_${e.guards.len}'
+				e.guards << VmlGuard{
+					name:       name
+					ref_method: method.name
+					location:   e.location
+				}
+				e.uses_unreachable = true
+				e.writeln('\tif ${e.guard_prefix}_unreachable() { ${name}(${variable}) }')
+			}
+		}
+		ctx.values['${scope.id}:${reference.slot}'] = Value{
 			read: variable
 		}
 		ctx.declare(variable, false)
 	}
+}
+
+// ref_command_targets are the props types whose elements take each ref command.
+const ref_command_targets = {
+	'focus':    ['ButtonProps', 'ViewProps', 'DialogProps', 'PopoverProps', 'MenuOverlayProps',
+		'ContextMenuProps', 'TooltipProps', 'TextInputProps', 'TextAreaProps', 'CheckboxProps',
+		'DropdownProps', 'SliderProps', 'SwitchProps', 'ToggleButtonProps']
+	'set_text': ['TextInputProps', 'TextAreaProps']
 }
 
 fn (mut e Emitter) def_members(def &IComponentDef, mut ctx Ctx) {
@@ -727,6 +798,30 @@ fn (mut e Emitter) def_members(def &IComponentDef, mut ctx Ctx) {
 			read: variable
 		}
 		ctx.declare(variable, false)
+	}
+	for index, watch in def.watches {
+		e.at(watch.src)
+		e.model_path_checks(watch.expr, ctx)
+		value := e.expr(watch.expr, ctx)
+		dependency := if ir_uses_app(watch.expr) { 'owner.watch_app()!; ' } else { '' }
+		read_body := '${dependency}return ${value}'
+		mut read_captures := ctx.captures(read_body)
+		if ir_uses_app(watch.expr) || ir_uses_theme(watch.expr) {
+			read_captures = add_capture(read_captures, 'mut owner')
+		}
+		old := if watch.old.len > 0 { watch.old } else { 'vml_old' }
+		now := if watch.now.len > 0 { watch.now } else { 'vml_now' }
+		mut wctx := ctx.clone()
+		wctx.values['${watch.scope.id}:0'] = Value{
+			read: old
+		}
+		wctx.values['${watch.scope.id}:1'] = Value{
+			read: now
+		}
+		e.app_action_checks(watch.body)
+		action := '_ = ${old}\n_ = ${now}\n' + e.action(watch.body, wctx)
+		e.writeln('\towner.watch(' + vml_quote('watch:${index}') +
+			', fn [${read_captures}] () !typeof(${value}) { ${read_body} }, fn [${wctx.captures(action)}] (${old} typeof(${value}), ${now} typeof(${value})) ! {\n${action}\n}) or { panic(err) }')
 	}
 	for kind in ['mount', 'unmount', 'cleanup'] {
 		body := match kind {
@@ -789,6 +884,10 @@ fn (mut e Emitter) node(n &INode, parent string, parent_props string, mut ctx Ct
 			e.repeater(n, parent, parent_props, mut ctx)!
 			return ''
 		}
+		.cond {
+			e.cond(n, parent, parent_props, mut ctx)!
+			return ''
+		}
 		.slot {
 			e.at(n.src)
 			e.writeln('\tif ${ctx.args}.slot_${n.tag} != unsafe { nil } { ${ctx.args}.slot_${n.tag}(mut ${ctx.owner}, mut ${parent}, ${ctx.base})! }')
@@ -813,9 +912,7 @@ fn (mut e Emitter) element(n &INode, parent string, parent_props string, mut ctx
 	}
 	for bind in n.binds {
 		e.at(bind.src)
-		if bind.write.kind == .assign_app {
-			e.mutable_check('app.' + bind.write.name)
-		}
+		e.write_checks(bind.write)
 		e.model_path_checks(bind.target, ctx)
 	}
 	for event in n.events {
@@ -1064,6 +1161,91 @@ fn (mut e Emitter) repeater(n &INode, parent string, parent_props string, mut ct
 	e.writeln('\t}, ' + source_location(repeat.src) + ') or { panic(err) }')
 }
 
+// cond emits an `if` chain: a keyed list of at most one item, the index of
+// the branch whose condition holds. A change of branch removes the old
+// branch's nodes, with their exit motion, and builds the new one's.
+fn (mut e Emitter) cond(n &INode, parent string, parent_props string, mut ctx Ctx) ! {
+	c := n.cond
+	suffix := c.name
+	e.at(n.src)
+	mut choices := []string{}
+	mut otherwise := false
+	mut reads_theme := false
+	for index, branch in c.branches {
+		if isnil(branch.cond) {
+			choices << 'return [${index}]'
+			otherwise = true
+			break
+		}
+		e.at(branch.src)
+		e.model_path_checks(branch.cond, ctx)
+		value := e.expr(branch.cond, ctx)
+		reads_theme = reads_theme || ir_uses_theme(branch.cond)
+		test := if branch.bind_slot >= 0 { '(${value}) != none' } else { vml_condition(value) }
+		choices << 'if ${test} { return [${index}] }'
+	}
+	if !otherwise {
+		choices << 'return []int{}'
+	}
+	dependency := if c.cond_uses_app { '${ctx.owner}.watch_app()!\n' } else { '' }
+	select_body := dependency + choices.join('\n')
+	mut select_captures := ctx.captures(select_body)
+	if c.cond_uses_app || reads_theme {
+		select_captures = add_capture(select_captures, 'mut ${ctx.owner}')
+	}
+	owner := 'vml_branch_component_' + suffix
+	segment := 'vml_branch_segment_' + suffix
+	signal := 'vml_branch_signal_' + suffix
+	// The branches are emitted into a buffer first: their captures are the
+	// outer values they read.
+	saved := e.out
+	saved_locations := e.locations
+	e.out = strings.new_builder(4096)
+	e.locations = []Location{}
+	// One `if` per branch: `#line` directives may not sit between match arms.
+	e.writeln('\tvml_branch_${suffix} := ${signal}.peek() or { -1 }')
+	for index, branch in c.branches {
+		e.at(branch.src)
+		e.writeln('\tif vml_branch_${suffix} == ${index} {')
+		mut bctx := ctx.clone()
+		bctx.owner = owner
+		bctx.declare(owner, true)
+		e.prepare_tokens(branch.scope, owner)
+		if branch.bind_slot >= 0 {
+			value := e.expr(branch.cond, ctx)
+			variable := 'vml_unwrapped_${suffix}'
+			dependency_read := if ir_uses_app(branch.cond) { '${owner}.watch_app() or {}\n' } else { '' }
+			read_body := '${dependency_read}return ${value}'
+			mut read_captures := bctx.captures(read_body)
+			if ir_uses_app(branch.cond) || ir_uses_theme(branch.cond) {
+				read_captures = add_capture(read_captures, 'mut ${owner}')
+			}
+			e.writeln('\tmut ${variable} := ui2.vml_unwrapped(mut ${owner}, ${value}, fn [${read_captures}] () typeof(${value}) {\n${read_body}\n})!')
+			bctx.values['${branch.scope.id}:${branch.bind_slot}'] = Value{
+				read:   '${variable}.get() or { panic(err) }'
+				signal: variable
+			}
+			bctx.declare(variable, true)
+		}
+		for child in branch.children {
+			e.node(child, segment, parent_props, mut bctx, RootHooks{})!
+		}
+		e.writeln('\t}')
+	}
+	body := e.out.str()
+	body_locations := e.locations.clone()
+	e.out = saved
+	e.locations = saved_locations
+	build_captures := ctx.captures(body)
+	e.at(n.src)
+	e.writeln('\tui2.vml_repeat(mut ${parent}, ' + vml_quote(suffix) +
+		', fn [${select_captures}] () ![]int {\n${select_body}\n}, fn (vml_branch int) string { return ${vml_quote(c.name + ':')} + vml_branch.str() }, fn [${build_captures}] (mut ${owner} ui2.CompiledVmlComponent, mut ${segment} ui2.VmlSegment, ${signal} &ui2.Signal[int]) ! {')
+	e.out.write_string(body)
+	e.locations << body_locations
+	e.at(n.src)
+	e.writeln('\t}, ' + source_location(n.src) + ') or { panic(err) }')
+}
+
 // ---------------------------------------------------------------- invocations
 
 // invocation emits a call of a definition's builder: its arguments, handlers,
@@ -1080,8 +1262,8 @@ fn (mut e Emitter) invocation(n &INode, parent string, parent_props string, mut 
 		if !isnil(arg.expr) {
 			e.at(arg.src)
 			e.model_path_checks(arg.expr, ctx)
-			if arg.kind == .bound && arg.write.kind == .assign_app {
-				e.mutable_check('app.' + arg.write.name)
+			if arg.kind == .bound {
+				e.write_checks(arg.write)
 			}
 		}
 		if !isnil(arg.handler) {
@@ -1110,12 +1292,12 @@ fn (mut e Emitter) invocation(n &INode, parent string, parent_props string, mut 
 					e.expr(arg.expr, ctx)
 				}
 				dependency := if arg.uses_app { '${ctx.owner}.watch_app()!; ' } else { '' }
-				body := '${dependency}return ${value}'
+				body := '${dependency}return ${input_value(arg.typ, value)}'
 				mut captures := ctx.captures(body)
 				if arg.uses_app || ir_uses_theme(arg.expr) {
 					captures = add_capture(captures, 'mut ${ctx.owner}')
 				}
-				fields << '${arg.name}: fn [${captures}] () !${arg.typ} { ${body} }'
+				fields << '${arg.name}: fn [${captures}] () !${input_storage(arg.typ)} { ${body} }'
 				if arg.kind == .bound {
 					write := e.write(arg.write, 'value', ctx)
 					fields << '${arg.name}_write: fn [${ctx.captures(write)}] (value ${arg.typ}) ! { ${write} }'
@@ -1388,6 +1570,19 @@ fn (mut e Emitter) expr(x &IExpr, ctx &Ctx) string {
 			// A helper outside a helper value: a module function of that name.
 			return '${x.name}(${e.args(x.args, ctx)})' + fallible(x)
 		}
+		.index {
+			return '${member_base(e.expr(x.args[0], ctx))}[${e.expr(x.args[1], ctx)}]'
+		}
+		.method_call {
+			if x.name.len == 0 {
+				return '${e.expr(x.args[0], ctx)}(${e.args(x.args[1..], ctx)})' + fallible(x)
+			}
+			return '${member_base(e.expr(x.args[0], ctx))}.${x.name}(${e.args(x.args[1..],
+				ctx)})' + fallible(x)
+		}
+		.or_else {
+			return '(${e.expr(x.args[0], ctx)} or { ${e.expr(x.args[1], ctx)} })'
+		}
 		.app_method {
 			return 'app.${x.name}'
 		}
@@ -1398,7 +1593,7 @@ fn (mut e Emitter) expr(x &IExpr, ctx &Ctx) string {
 		.module_fn {
 			return x.name
 		}
-		.assign_app, .assign_binding, .block {
+		.assign_app, .assign_binding, .assign_place, .block {
 			return e.action(x, ctx)
 		}
 	}
@@ -1505,6 +1700,9 @@ fn (mut e Emitter) action(x &IExpr, ctx &Ctx) string {
 		.assign_app, .assign_binding {
 			return e.write(x, e.expr(x.args[0], ctx), ctx)
 		}
+		.assign_place {
+			return e.write(x, e.expr(x.args[1], ctx), ctx)
+		}
 		.emit {
 			params := x.binding.params
 			mut statements := []string{}
@@ -1532,29 +1730,72 @@ fn (mut e Emitter) action(x &IExpr, ctx &Ctx) string {
 	}
 }
 
-// write assigns `value` to a writable target: a top-level `app` field, a
-// state or a bindable input (whose setter also writes the caller's target).
+// write assigns `value` to a writable target with the target's operator: a
+// top-level `app` field, a state or a bindable input (whose setter also
+// writes the caller's target), or a path below the model or below a state or
+// input, which is written by reading, changing and setting the whole value.
 fn (mut e Emitter) write(target &IExpr, value string, ctx &Ctx) string {
+	op := if target.op.len > 0 { target.op } else { '=' }
 	match target.kind {
 		.assign_app {
-			return 'app.${target.name} = ${value}'
+			return 'app.${target.name} ${op} ${value}'
 		}
 		.assign_binding {
 			slot := ctx.values[binding_key(target.binding)] or {
 				return '\$compile_error(' + vml_quote('VML target `${target.binding.name}` is not available here') + ')'
 			}
-			if slot.setter.len > 0 {
-				return '${slot.setter}(${value}) or { panic(err) }'
+			setter := value_setter(slot) or {
+				return '\$compile_error(' + vml_quote('VML target `${target.binding.name}` is read-only') + ')'
 			}
-			if slot.signal.len > 0 {
-				return '${slot.signal}.set(${value}) or { panic(err) }'
+			current := '${slot.signal}.peek() or { panic(err) }'
+			return match op {
+				'=' { '${setter}(${value}) or { panic(err) }' }
+				'<<' { '{\nmut vml_value := ${current}\nvml_value << ${value}\n${setter}(vml_value) or { panic(err) }\n}' }
+				else { '${setter}((${current}) ${op[..1]} (${value})) or { panic(err) }' }
 			}
-			return '\$compile_error(' + vml_quote('VML target `${target.binding.name}` is read-only') + ')'
+		}
+		.assign_place {
+			place := target.args[0]
+			if target.binding.name.len == 0 {
+				return '${e.expr(place, ctx)} ${op} ${value}'
+			}
+			slot := ctx.values[binding_key(target.binding)] or {
+				return '\$compile_error(' + vml_quote('VML target `${target.binding.name}` is not available here') + ')'
+			}
+			setter := value_setter(slot) or {
+				return '\$compile_error(' + vml_quote('VML target `${target.binding.name}` is read-only') + ')'
+			}
+			mut pctx := ctx.clone()
+			pctx.values[binding_key(target.binding)] = Value{
+				read: 'vml_value'
+			}
+			return '{\nmut vml_value := ${slot.signal}.peek() or { panic(err) }\n${e.expr(place,
+				pctx)} ${op} ${value}\n${setter}(vml_value) or { panic(err) }\n}'
 		}
 		else {
 			return '\$compile_error(' + vml_quote('VML target is read-only or unknown; use state or an explicit bind connection') + ')'
 		}
 	}
+}
+
+// value_setter is the function that writes a writable value.
+fn value_setter(slot Value) ?string {
+	if slot.setter.len > 0 {
+		return slot.setter
+	}
+	if slot.signal.len > 0 {
+		return '${slot.signal}.set'
+	}
+	return none
+}
+
+// place_root is the value a field or index path starts from.
+fn place_root(place &IExpr) &IExpr {
+	mut base := unsafe { place }
+	for base.kind in [.member, .index] {
+		base = base.args[0]
+	}
+	return base
 }
 
 // payload_value lowers an event payload: a bare enum value takes the declared
@@ -1592,12 +1833,23 @@ fn (mut e Emitter) mutable_check(target string) {
 	e.writeln('\t}')
 }
 
+// write_checks guards that a write to the model writes a public mutable
+// top-level field.
+fn (mut e Emitter) write_checks(target &IExpr) {
+	if target.kind == .assign_app {
+		e.mutable_check('app.' + target.name)
+	} else if target.kind == .assign_place && target.binding.name.len == 0 {
+		root := place_root(target.args[0])
+		if root.kind == .app_field {
+			e.mutable_check('app.' + root.name)
+		}
+	}
+}
+
 // app_action_checks guards that actions write public mutable `app` fields and
 // call public `app` methods with their declared arity.
 fn (mut e Emitter) app_action_checks(x &IExpr) {
-	if x.kind == .assign_app {
-		e.mutable_check('app.${x.name}')
-	}
+	e.write_checks(x)
 	if x.kind in [.app_call, .app_method] {
 		arity := if x.kind == .app_call { x.args.len.str() } else { '' }
 		if e.once('method:${x.name}:${arity}') {
@@ -1695,6 +1947,16 @@ fn (mut e Emitter) write_list_guards() {
 	}
 	for guard in e.guards {
 		e.location = guard.location
+		if guard.ref_method.len > 0 {
+			types := ref_command_targets[guard.ref_method] or { []string{} }
+			test := types.map('T is ${runtime_module}.${it}').join(' || ')
+			e.writeln('fn ${guard.name}[T](value &${runtime_module}.VmlRef[T]) {')
+			e.writeln('\t_ = value')
+			e.writeln('\t\$if ${test} {} \$else { \$compile_error(' +
+				vml_quote('this element does not support `${guard.ref_method}`') + ') }')
+			e.writeln('}')
+			continue
+		}
 		e.writeln('fn ${guard.name}[T](value T) {')
 		e.writeln('\t_ = value')
 		if guard.field_name.len > 0 {
@@ -1707,7 +1969,7 @@ fn (mut e Emitter) write_list_guards() {
 			e.writeln('\t\t}')
 			e.writeln('\t}')
 		} else if guard.array {
-			e.writeln("\t\$if T !is \$array { \$compile_error('Repeater model must be an array') }")
+			e.writeln("\t\$if T !is \$array { \$compile_error('a VML `for` iterates an array') }")
 		}
 		e.writeln('}')
 	}

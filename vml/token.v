@@ -51,6 +51,12 @@ pub enum TokenKind {
 	ge
 	and
 	or
+	plus_assign
+	minus_assign
+	mul_assign
+	div_assign
+	mod_assign
+	left_shift
 	eof
 }
 
@@ -199,6 +205,9 @@ pub fn tokenize(source string) ![]Token {
 				if lexer.pos + 1 < source.len && source[lexer.pos + 1] == `+` {
 					lexer.pos++
 					tokens << Token{ kind: .increment, text: '++', line: line, column: column }
+				} else if lexer.pos + 1 < source.len && source[lexer.pos + 1] == `=` {
+					lexer.pos++
+					tokens << Token{ kind: .plus_assign, text: '+=', line: line, column: column }
 				} else {
 					tokens << Token{ kind: .plus, text: '+', line: line, column: column }
 				}
@@ -207,13 +216,24 @@ pub fn tokenize(source string) ![]Token {
 				if lexer.pos + 1 < source.len && source[lexer.pos + 1] == `-` {
 					lexer.pos++
 					tokens << Token{ kind: .decrement, text: '--', line: line, column: column }
+				} else if lexer.pos + 1 < source.len && source[lexer.pos + 1] == `=` {
+					lexer.pos++
+					tokens << Token{ kind: .minus_assign, text: '-=', line: line, column: column }
 				} else {
 					tokens << Token{ kind: .minus, text: '-', line: line, column: column }
 				}
 			}
-			`*` { tokens << Token{ kind: .mul, text: '*', line: line, column: column } }
-			`/` { tokens << Token{ kind: .div, text: '/', line: line, column: column } }
-			`%` { tokens << Token{ kind: .mod, text: '%', line: line, column: column } }
+			`*`, `/`, `%` {
+				compound := lexer.pos + 1 < source.len && source[lexer.pos + 1] == `=`
+				kind := match c {
+					`*` { if compound { TokenKind.mul_assign } else { TokenKind.mul } }
+					`/` { if compound { TokenKind.div_assign } else { TokenKind.div } }
+					else { if compound { TokenKind.mod_assign } else { TokenKind.mod } }
+				}
+				text := if compound { [c, `=`].bytestr() } else { [c].bytestr() }
+				if compound { lexer.pos++ }
+				tokens << Token{ kind: kind, text: text, line: line, column: column }
+			}
 			`!` {
 				lexer.pos++
 				if lexer.pos < source.len && source[lexer.pos] == `=` {
@@ -235,6 +255,8 @@ pub fn tokenize(source string) ![]Token {
 				lexer.pos++
 				if lexer.pos < source.len && source[lexer.pos] == `=` {
 					tokens << Token{ kind: .le, text: '<=', line: line, column: column }
+				} else if lexer.pos < source.len && source[lexer.pos] == `<` {
+					tokens << Token{ kind: .left_shift, text: '<<', line: line, column: column }
 				} else {
 					tokens << Token{ kind: .lt, text: '<', line: line, column: column }
 					continue

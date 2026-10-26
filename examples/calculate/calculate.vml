@@ -1,12 +1,12 @@
 Screen(
-    id: "root",
+    id: root,
     style: [background(#F1F5F9)],
 ) {
     Column(
         style: [padding(16), transparent(true)],
     ) {
         Column(
-            id: "card",
+            id: card,
             flex_grow: 1,
             gap: 12,
             style: [padding(18), background(#FFFFFF), radius(10)],
@@ -20,14 +20,14 @@ Screen(
                 style: [transparent(true)],
             ) {
                 TextInput(
-                    id: "expression",
+                    id: expression,
                     bind.text: app.expression,
                     on_submit: app.evaluate(),
                     flex_grow: 1,
                     height: 40,
                     style: [background(#F8FAFC), radius(7), font_family("Courier New"), font_size(14)],
                 )
-                Button(id: "evaluate", text: "Evaluate", on_click: app.evaluate(), native: true, width: 100, height: 34)
+                Button(id: evaluate, text: "Evaluate", on_click: app.evaluate(), native: true, width: 100, height: 34)
             }
             Column(
                 height: 88,
@@ -36,7 +36,7 @@ Screen(
             ) {
                 Label(text: "Result", height: 18, style: [text_align(center), foreground(app.has_error ? #991B1B : #166534), font_size(11)])
                 Label(
-                    id: "result",
+                    id: result,
                     text: app.result,
                     height: 40,
                     style: [text_align(center), foreground(app.has_error ? #991B1B : #14532D), font_family("Courier New"), font_size(24), weight(700)],
@@ -55,7 +55,7 @@ Screen(
             }
             View(flex_grow: 1, style: [transparent(true)])
             Label(
-                id: "calculation_status",
+                id: calculation_status,
                 text: app.status,
                 height: 18,
                 style: [text_align(center), foreground(app.has_error ? #B91C1C : #166534), font_size(11)],

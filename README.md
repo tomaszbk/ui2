@@ -176,8 +176,8 @@ Keyframe timelines loop, sequence and run in parallel, on the element or on
 descendants named by id. In VML a `Timeline` part declares one:
 
 ```vml
-View(id: "card", motion: app.card_motion()) {
-    Image(id: "logo", width: 48, height: 48, source: "logo.png")
+View(id: card, motion: app.card_motion()) {
+    Image(id: logo, width: 48, height: 48, source: "logo.png")
     Timeline(duration: 1.2, repeat: true) {
         Keyframe(target: "logo", at: 0.5, opacity: 0.4, scale: 1.1, easing: in_out_sine)
         Keyframe(target: "logo", at: 1, opacity: 1, scale: 1)
@@ -284,13 +284,15 @@ from components carry their declared payload, accept a matching callback or a
 callback with no parameters, and are safe to emit without a listener.
 
 ```vml
-Repeater(model: app.users, key: item.id) {
+for item in app.users key item.id {
     Label(text: "${item.name}")
 }
 ```
 
-A repeater's key identifies siblings independently of position. `item` and `index`
-are scoped to each item, and callbacks retain the rendered item's identity.
+A `for` key identifies siblings independently of position. The loop names
+(`for index, user in app.users key user.id`) are scoped to each item, and
+callbacks retain the rendered item's identity. `if`, `else if` and `else`
+mount and unmount their branches; see [VML syntax](docs/vml-syntax.md).
 Application services and business logic can remain in `.v` files.
 
 Presentation uses typed style values:
@@ -349,7 +351,7 @@ Absolute(
     style: [transparent(true)],
 ) {
     Button(
-        id: "save",
+        id: save,
         text: "Save",
         on_click: app.save(),
         x: 20,
@@ -371,7 +373,7 @@ Absolute(
     style: [transparent(true)],
 ) {
     View(
-        id: "save_card",
+        id: save_card,
         button_behavior: true,
         on_click: app.save(),
         x: 20,
@@ -430,10 +432,10 @@ component Counter(title string = "Count", changed event(value int)) {
 }
 ```
 
-The application imports it from `counter.vml`:
+The application uses it from `counter.vml` in the same folder, with no import
+(components of other folders come from `import widgets { Counter }`):
 
 ```vml
-import Counter
 Screen {
     Counter(title: "First")
     Counter(title: "Second")
@@ -655,12 +657,12 @@ card's actions:
 
 ```vml
 MessageBox(
-    id: "overlay",
+    id: overlay,
     hidden: ! app.visible,
     title: "Hello World",
     text: "This message came from the ui example.",
 ) {
-    Button(id: "close_message", text: "OK", on_click: app.close_message())
+    Button(id: close_message, text: "OK", on_click: app.close_message())
 }
 ```
 
@@ -902,7 +904,7 @@ ui2.scroll_with_mode('columns', frame, 0xffffff, .horizontal_only, columns)
 ```
 
 ```vml
-Scroll(id: "columns", scroll_mode: horizontal_only) { ... }
+Scroll(id: columns, scroll_mode: horizontal_only) { ... }
 ```
 
 The horizontal scroller runs along the bottom edge. A trackpad or a tilt wheel
@@ -1227,7 +1229,7 @@ v -b c run examples/calculator/main.v
 ```
 
 It ports the `v-ui` calculator to typed VML: the display reads from the model,
-a keyed `Repeater` builds the keypad, and button actions call the calculator's
+a keyed `for` builds the keypad, and button actions call the calculator's
 business logic directly. It includes decimal input, sign and percentage
 controls, exponentiation, repeated equals, and division-by-zero recovery.
 

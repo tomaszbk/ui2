@@ -1,12 +1,12 @@
 Screen(
-    id: "root",
+    id: root,
     style: [background(#F1F5F9)],
 ) {
     Absolute(
         style: [transparent(true)],
     ) {
         View(
-            id: "card",
+            id: card,
             x: 16,
             y: 16,
             width: root.width - 32,
@@ -37,7 +37,7 @@ Screen(
                 Label(text: "Spacing", x: 258, y: 72, width: 100, height: 18, style: [foreground(#475569), font_size(11)])
                 Label(text: "Height", x: 370, y: 72, width: 100, height: 18, style: [foreground(#475569), font_size(11)])
                 Dropdown(
-                    id: "widths",
+                    id: widths,
                     bind.text: app.width_choice,
                     on_change: app.layout_changed(),
                     x: 18,
@@ -51,7 +51,7 @@ Screen(
                     Option(text: "70 / 30")
                 }
                 Dropdown(
-                    id: "margin",
+                    id: margin,
                     bind.text: app.margin_choice,
                     on_change: app.layout_changed(),
                     x: 146,
@@ -65,7 +65,7 @@ Screen(
                     Option(text: "40")
                 }
                 Dropdown(
-                    id: "spacing_choice",
+                    id: spacing_choice,
                     bind.text: app.spacing_choice,
                     on_change: app.layout_changed(),
                     x: 258,
@@ -79,7 +79,7 @@ Screen(
                     Option(text: "36")
                 }
                 Dropdown(
-                    id: "height",
+                    id: height,
                     bind.text: app.height_choice,
                     on_change: app.layout_changed(),
                     x: 370,
@@ -93,7 +93,7 @@ Screen(
                     Option(text: "60")
                 }
                 Button(
-                    id: "reset_layout",
+                    id: reset_layout,
                     text: "Reset",
                     on_click: app.reset_layout(),
                     native: true,
@@ -103,7 +103,7 @@ Screen(
                     height: 34,
                 )
                 View(
-                    id: "row_stage",
+                    id: row_stage,
                     x: 18,
                     y: 150,
                     width: card.width - 36,
@@ -114,7 +114,7 @@ Screen(
                         style: [transparent(true)],
                     ) {
                         Button(
-                            id: "first_button",
+                            id: first_button,
                             text: "Button 1",
                             native: true,
                             x: app.row_margin,
@@ -123,7 +123,7 @@ Screen(
                             height: app.button_height,
                         )
                         Button(
-                            id: "second_button",
+                            id: second_button,
                             text: "Button 2",
                             native: true,
                             x: app.row_margin +(card.width - 36 - app.row_margin * 2 - app.row_spacing) * app.first_ratio + app.row_spacing,
@@ -134,7 +134,7 @@ Screen(
                     }
                 }
                 Label(
-                    id: "row_status",
+                    id: row_status,
                     text: app.status,
                     x: 18,
                     y: card.height - 40,

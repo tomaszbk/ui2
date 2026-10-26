@@ -1,9 +1,9 @@
 // One preferences section open at a time: the Accordion binds the open
 // section's value, and the status line follows it.
-Screen(id: "root", style: [background(color.surface)]) {
-    Column(id: "page", gap: 12, style: [padding(20)]) {
+Screen(id: root, style: [background(color.surface)]) {
+    Column(id: page, gap: 12, style: [padding(20)]) {
         Label(text: "Preferences", style: [font_size(typography.title), weight(700), foreground(color.text)])
-        Accordion(id: "preferences", bind.value: app.section) {
+        Accordion(id: preferences, bind.value: app.section) {
             AccordionItem(value: "profile", title: "Profile", icon: circle_user) {
                 Label(text: "Update your public profile.", style: [foreground(color.text)])
             }
@@ -14,6 +14,6 @@ Screen(id: "root", style: [background(color.surface)]) {
                 Label(text: "Review passwords and active sessions.", style: [foreground(color.text)])
             }
         }
-        Label(id: "status", text: app.section == "" ? "All sections are closed." : "Open: ${app.section}", style: [foreground(color.muted)])
+        Label(id: status, text: app.section == "" ? "All sections are closed." : "Open: ${app.section}", style: [foreground(color.muted)])
     }
 }

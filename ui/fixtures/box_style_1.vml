@@ -1,5 +1,5 @@
 View(
-    id: "card",
+    id: card,
     width: 100,
     height: 60,
     style: [radius(12), border_width(2), border_color("#aabbcc"), border_left_color("#000000"), border_pattern(dashed), hover([background("#000000")]), focus([border_width(0)]), pressed([transparent(false)])],

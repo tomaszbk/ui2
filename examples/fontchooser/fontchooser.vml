@@ -1,12 +1,12 @@
 Screen(
-    id: "root",
+    id: root,
     style: [background(#F1F5F9)],
 ) {
     Absolute(
         style: [transparent(true)],
     ) {
         View(
-            id: "card",
+            id: card,
             x: 16,
             y: 16,
             width: root.width - 32,
@@ -33,7 +33,7 @@ Screen(
                     style: [foreground(#64748B), font_size(12)],
                 )
                 Dropdown(
-                    id: "font_family",
+                    id: font_family,
                     bind.text: app.font_choice,
                     on_change: app.style_changed(),
                     x: 18,
@@ -48,7 +48,7 @@ Screen(
                     Option(text: "Arial")
                 }
                 Dropdown(
-                    id: "font_size",
+                    id: font_size,
                     bind.text: app.size_choice,
                     on_change: app.style_changed(),
                     x: 220,
@@ -63,7 +63,7 @@ Screen(
                     Option(text: "36")
                 }
                 Dropdown(
-                    id: "text_color",
+                    id: text_color,
                     bind.text: app.color_choice,
                     on_change: app.style_changed(),
                     x: 332,
@@ -78,7 +78,7 @@ Screen(
                     Option(text: "Purple")
                 }
                 Button(
-                    id: "reset_style",
+                    id: reset_style,
                     text: "Reset",
                     on_click: app.reset_style(),
                     native: true,
@@ -88,7 +88,7 @@ Screen(
                     height: 34,
                 )
                 Checkbox(
-                    id: "bold",
+                    id: bold,
                     text: "Bold",
                     bind.checked: app.bold,
                     x: 18,
@@ -98,7 +98,7 @@ Screen(
                     style: [foreground(#334155), font_size(12)],
                 )
                 Checkbox(
-                    id: "italic",
+                    id: italic,
                     text: "Italic",
                     bind.checked: app.italic,
                     x: 126,
@@ -108,7 +108,7 @@ Screen(
                     style: [foreground(#334155), font_size(12)],
                 )
                 TextArea(
-                    id: "preview_editor",
+                    id: preview_editor,
                     bind.text: app.text,
                     x: 18,
                     y: 162,
@@ -117,7 +117,7 @@ Screen(
                     style: [background(#FEF3C7), foreground(app.text_color), font_size(app.font_size), font_family(app.font_family), weight(app.bold ? 700 : 400), italic(app.italic), radius(8)],
                 )
                 Label(
-                    id: "font_status",
+                    id: font_status,
                     text: app.status,
                     x: 18,
                     y: card.height - 40,

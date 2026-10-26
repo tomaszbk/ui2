@@ -1,12 +1,12 @@
 Screen(
-    id: "root",
+    id: root,
     style: [background(#F1F5F9)],
 ) {
     Absolute(
         style: [transparent(true)],
     ) {
         View(
-            id: "card",
+            id: card,
             x: 16,
             y: 16,
             width: root.width - 32,
@@ -18,7 +18,7 @@ Screen(
             ) {
                 Label(text: "Gradient texture", x: 18, y: 14, width: 220, height: 28, style: [foreground(#111827), font_size(18), weight(700)])
                 Button(
-                    id: "previous_hue",
+                    id: previous_hue,
                     text: "Previous",
                     on_click: app.previous_hue(),
                     native: true,
@@ -28,7 +28,7 @@ Screen(
                     height: 34,
                 )
                 Button(
-                    id: "next_hue",
+                    id: next_hue,
                     text: "Next",
                     on_click: app.next_hue(),
                     native: true,
@@ -38,7 +38,7 @@ Screen(
                     height: 34,
                 )
                 View(
-                    id: "gradient",
+                    id: gradient,
                     x: 18,
                     y: 64,
                     width: card.width - 36,
@@ -48,10 +48,7 @@ Screen(
                     Absolute(
                         style: [transparent(true)],
                     ) {
-                        Repeater(
-                            model: app.cells,
-                            key: item.id,
-                        ) {
+                        for item in app.cells key item.id {
                             View(
                                 x: item.column * gradient.width / 20,
                                 y: item.row * gradient.height / 14,

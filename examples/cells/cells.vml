@@ -1,12 +1,12 @@
 Screen(
-    id: "root",
+    id: root,
     style: [background(#F1F5F9)],
 ) {
     Absolute(
         style: [transparent(true)],
     ) {
         View(
-            id: "card",
+            id: card,
             x: 16,
             y: 16,
             width: root.width - 32,
@@ -26,7 +26,7 @@ Screen(
                     style: [foreground(#64748B), font_size(11)],
                 )
                 TextInput(
-                    id: "cell_input",
+                    id: cell_input,
                     bind.text: app.edit_value,
                     on_submit: app.apply_edit(),
                     placeholder: "value or =sum(A1:B2)",
@@ -37,7 +37,7 @@ Screen(
                     style: [background(#F8FAFC), radius(7), font_family("Courier New"), font_size(12)],
                 )
                 Button(
-                    id: "apply_cell",
+                    id: apply_cell,
                     text: "Apply",
                     on_click: app.apply_edit(),
                     native: true,
@@ -47,7 +47,7 @@ Screen(
                     height: 34,
                 )
                 View(
-                    id: "sheet",
+                    id: sheet,
                     x: 18,
                     y: 64,
                     width: card.width - 36,
@@ -58,10 +58,7 @@ Screen(
                         style: [transparent(true)],
                     ) {
                         View(x: 1, y: 1, width: 34, height: 32, style: [background(#334155)])
-                        Repeater(
-                            model: app.columns,
-                            key: item.label,
-                        ) {
+                        for item in app.columns key item.label {
                             View(
                                 x: 37 + item.column *(((root.width - 68) - 38) / 5),
                                 y: 1,
@@ -83,10 +80,7 @@ Screen(
                                 }
                             }
                         }
-                        Repeater(
-                            model: app.rows,
-                            key: item.id,
-                        ) {
+                        for item in app.rows key item.id {
                             View(
                                 x: 1,
                                 y: 35 + item.row * 40,
@@ -108,10 +102,7 @@ Screen(
                                 }
                             }
                         }
-                        Repeater(
-                            model: app.cells,
-                            key: item.address,
-                        ) {
+                        for item in app.cells key item.address {
                             Button(
                                 text: item.formula ? "${item.display} ƒ" : item.display,
                                 on_click: app.select_cell(item.id),
@@ -170,7 +161,7 @@ Screen(
                     }
                 }
                 Label(
-                    id: "cells_status",
+                    id: cells_status,
                     text: app.status,
                     x: 18,
                     y: card.height - 40,

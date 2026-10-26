@@ -1,12 +1,12 @@
 Screen(
-    id: "root",
+    id: root,
     style: [background(#F1F5F9)],
 ) {
     Absolute(
         style: [transparent(true)],
     ) {
         View(
-            id: "card",
+            id: card,
             x: 16,
             y: 16,
             width: root.width - 32,
@@ -25,7 +25,7 @@ Screen(
                     style: [foreground(#111827), font_size(18), weight(700)],
                 )
                 Label(
-                    id: "current_path",
+                    id: current_path,
                     text: app.path,
                     x: 18,
                     y: 42,
@@ -34,7 +34,7 @@ Screen(
                     style: [foreground(#64748B), font_size(11)],
                 )
                 Button(
-                    id: "parent",
+                    id: parent,
                     text: "Parent folder",
                     on_click: app.go_parent(),
                     native: true,
@@ -52,7 +52,7 @@ Screen(
                     style: [text_align(right), foreground(#475569), font_size(12)],
                 )
                 Scroll(
-                    id: "browser_list",
+                    id: browser_list,
                     x: 18,
                     y: 116,
                     width: card.width - 36,
@@ -62,10 +62,7 @@ Screen(
                     Absolute(
                         style: [transparent(true)],
                     ) {
-                        Repeater(
-                            model: app.entries,
-                            key: item.path,
-                        ) {
+                        for index, item in app.entries key item.path {
                             Button(
                                 text: item.directory ? "▸  ${item.name}" : "${item.name}",
                                 on_click: app.activate(item.id),
@@ -89,7 +86,7 @@ Screen(
                     }
                 }
                 Label(
-                    id: "browser_status",
+                    id: browser_status,
                     text: app.status,
                     x: 18,
                     y: card.height - 62,
@@ -98,7 +95,7 @@ Screen(
                     style: [foreground(#166534), font_size(11)],
                 )
                 Button(
-                    id: "cancel",
+                    id: cancel,
                     text: "Cancel",
                     on_click: app.cancel_selection(),
                     native: true,
@@ -108,7 +105,7 @@ Screen(
                     height: 34,
                 )
                 Button(
-                    id: "open",
+                    id: open,
                     text: "Open",
                     on_click: app.confirm_selection(),
                     native: true,

@@ -1,4 +1,3 @@
-import Card
 Card(title: "Receiver") {
     Slot(name: "header") {
         Label(text: app.name)

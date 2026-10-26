@@ -1,4 +1,4 @@
-Screen(id: "root", style: [background(#EDF2F8)]) {
+Screen(id: root, style: [background(#EDF2F8)]) {
     Column(gap: 16, style: [padding(28), transparent(true)]) {
         Label(text: "ui2 / OVERLAY LAB", height: 24,
             style: [transparent(true), foreground(#2563EB), font_size(13), weight(700), letter_spacing(1)])
@@ -10,47 +10,47 @@ Screen(id: "root", style: [background(#EDF2F8)]) {
             Column(gap: 8, flex_grow: 1, style: [padding(16), background(#FFFFFF), radius(12)]) {
                 Label(text: "Popover", height: 24, style: [transparent(true), foreground(#10233F), font_size(17), weight(700)])
                 Label(text: "Anchored information", height: 24, style: [transparent(true), foreground(#586B85), font_size(13)])
-                Button(id: "popover_trigger", text: "See details", height: 38,
+                Button(id: popover_trigger, text: "See details", height: 38,
                     on_click: app.toggle_popover(),
                     style: [background(#DBEAFE), foreground(#1D4ED8), radius(8)])
             }
             Column(gap: 8, flex_grow: 1, style: [padding(16), background(#FFFFFF), radius(12)]) {
                 Label(text: "Menu", height: 24, style: [transparent(true), foreground(#10233F), font_size(17), weight(700)])
                 Label(text: "Choose with keys or pointer", height: 24, style: [transparent(true), foreground(#586B85), font_size(13)])
-                Button(id: "menu_trigger", text: "Draft actions", height: 38,
+                Button(id: menu_trigger, text: "Draft actions", height: 38,
                     on_click: app.toggle_menu(),
                     style: [background(#EDE9FE), foreground(#6D28D9), radius(8)])
             }
             Column(gap: 8, flex_grow: 1, style: [padding(16), background(#FFFFFF), radius(12)]) {
                 Label(text: "Context menu", height: 24, style: [transparent(true), foreground(#10233F), font_size(17), weight(700)])
                 Label(text: "Click or right-click below", height: 24, style: [transparent(true), foreground(#586B85), font_size(13)])
-                Button(id: "context_trigger", text: "Quick actions", height: 38,
+                Button(id: context_trigger, text: "Quick actions", height: 38,
                     on_click: app.show_context(),
                     style: [background(#D1FAE5), foreground(#047857), radius(8)])
             }
             Column(gap: 8, flex_grow: 1, style: [padding(16), background(#FFFFFF), radius(12)]) {
                 Label(text: "Tooltip", height: 24, style: [transparent(true), foreground(#10233F), font_size(17), weight(700)])
                 Label(text: "Hover or focus; wait 0.45s", height: 24, style: [transparent(true), foreground(#586B85), font_size(13)])
-                Button(id: "tip_trigger", text: "A little help", height: 38,
+                Button(id: tip_trigger, text: "A little help", height: 38,
                     on_click: app.describe_tip(),
                     style: [background(#FEF3C7), foreground(#92400E), radius(8)])
             }
         }
         Row(gap: 12, height: 40, style: [transparent(true)]) {
-            Button(id: "dialog_trigger", text: "Edit draft", width: 148,
+            Button(id: dialog_trigger, text: "Edit draft", width: 148,
                 on_click: app.open_dialog(),
                 style: [background(#2563EB), foreground(#FFFFFF), radius(8)])
-            Button(id: "motion_toggle", text: app.reduced_motion ? "Enable motion" : "Reduce motion",
+            Button(id: motion_toggle, text: app.reduced_motion ? "Enable motion" : "Reduce motion",
                 width: 158, on_click: app.toggle_motion(),
                 style: [background(#E2E8F0), foreground(#334155), radius(8)])
         }
-        Label(id: "status", text: app.status, height: 52,
+        Label(id: status, text: app.status, height: 52,
             style: [transparent(true), foreground(#475569), font_size(14), lines(2)])
         Label(text: "Escape closes the top surface. Dialogs contain focus; menus support arrow keys.",
             height: 24, style: [transparent(true), foreground(#64748B), font_size(13)])
     }
 
-    Dialog(id: "editor", width: 456, height: 310, open: app.dialog_open,
+    Dialog(id: editor, width: 456, height: 310, open: app.dialog_open,
         initial_focus: "draft", on_dismiss: app.close_dialog(), motion: app.surface_motion(),
         style: [background(#FFFFFF), border_color(#D9E2EF), border_width(1), radius(16)]) {
         Column(gap: 14, style: [padding(24), transparent(true)]) {
@@ -58,21 +58,21 @@ Screen(id: "root", style: [background(#EDF2F8)]) {
                 style: [transparent(true), foreground(#10233F), font_size(22), weight(700)])
             Label(text: "Open the nested dialog, close it, then continue editing. Your ñ and accents stay here.",
                 height: 44, style: [transparent(true), foreground(#586B85), font_size(14), lines(2)])
-            TextInput(id: "draft", bind.text: app.draft, height: 42,
+            TextInput(id: draft, bind.text: app.draft, height: 42,
                 style: [background(#F1F5F9), foreground(#10233F), font_size(16), radius(8)])
             Row(gap: 12, height: 40, style: [transparent(true)]) {
-                Button(id: "nested_trigger", text: "Nested dialog", flex_grow: 1,
+                Button(id: nested_trigger, text: "Nested dialog", flex_grow: 1,
                     on_click: app.open_nested(),
                     style: [background(#EDE9FE), foreground(#6D28D9), radius(8)])
-                Button(id: "save_draft", text: "Save draft", flex_grow: 1,
+                Button(id: save_draft, text: "Save draft", flex_grow: 1,
                     on_click: app.save_draft(),
                     style: [background(#2563EB), foreground(#FFFFFF), radius(8)])
             }
-            Button(id: "editor_close", text: "Close without resetting", height: 32,
+            Button(id: editor_close, text: "Close without resetting", height: 32,
                 on_click: app.close_dialog(),
                 style: [background(#F1F5F9), foreground(#475569), radius(8)])
         }
-        Dialog(id: "nested_editor", width: 372, height: 222, open: app.nested_open,
+        Dialog(id: nested_editor, width: 372, height: 222, open: app.nested_open,
             owner: "editor", initial_focus: "nested_cancel", on_dismiss: app.close_nested(),
             motion: app.surface_motion(), backdrop_opacity: 0.2,
             style: [background(#FFFFFF), border_color(#DDD6FE), border_width(1), radius(14)]) {
@@ -82,10 +82,10 @@ Screen(id: "root", style: [background(#EDF2F8)]) {
                 Label(text: "Only this dialog receives focus. Closing it returns you to the draft below.",
                     height: 52, style: [transparent(true), foreground(#586B85), font_size(14), lines(2)])
                 Row(gap: 12, height: 40, style: [transparent(true)]) {
-                    Button(id: "nested_cancel", text: "Go back", flex_grow: 1,
+                    Button(id: nested_cancel, text: "Go back", flex_grow: 1,
                         on_click: app.close_nested(),
                         style: [background(#F1F5F9), foreground(#475569), radius(8)])
-                    Button(id: "nested_confirm", text: "Confirm", flex_grow: 1,
+                    Button(id: nested_confirm, text: "Confirm", flex_grow: 1,
                         on_click: app.confirm_nested(),
                         style: [background(#7C3AED), foreground(#FFFFFF), radius(8)])
                 }
@@ -93,7 +93,7 @@ Screen(id: "root", style: [background(#EDF2F8)]) {
         }
     }
 
-    Popover(id: "details", width: 284, height: 184, open: app.popover_open,
+    Popover(id: details, width: 284, height: 184, open: app.popover_open,
         anchor: "popover_trigger", placement: bottom_start, gap: 10,
         on_dismiss: app.close_popover(), motion: app.surface_motion(),
         style: [background(#FFFFFF), border_color(#BFDBFE), border_width(1), radius(12)]) {
@@ -102,48 +102,48 @@ Screen(id: "root", style: [background(#EDF2F8)]) {
                 style: [transparent(true), foreground(#1D4ED8), font_size(16), weight(700)])
             Label(text: "Placement flips at the window edge. The content remains mounted when closed.",
                 height: 54, style: [transparent(true), foreground(#586B85), font_size(14), lines(3)])
-            Button(id: "popover_close", text: "Got it", height: 34,
+            Button(id: popover_close, text: "Got it", height: 34,
                 on_click: app.close_popover(),
                 style: [background(#DBEAFE), foreground(#1D4ED8), radius(8)])
         }
     }
 
-    MenuOverlay(id: "draft_menu", width: 238, height: 158, open: app.menu_open,
+    MenuOverlay(id: draft_menu, width: 238, height: 158, open: app.menu_open,
         anchor: "menu_trigger", initial_focus: "menu_duplicate", placement: bottom_start, gap: 10,
         on_dismiss: app.close_menu(), motion: app.surface_motion(),
         style: [background(#FFFFFF), border_color(#DDD6FE), border_width(1), radius(12)]) {
         Column(gap: 8, style: [padding(12), transparent(true)]) {
-            Button(id: "menu_duplicate", text: "Duplicate draft", height: 36,
+            Button(id: menu_duplicate, text: "Duplicate draft", height: 36,
                 on_click: app.select_action("Duplicated"),
                 style: [background(#F5F3FF), foreground(#5B21B6), radius(7)])
-            Button(id: "menu_export", text: "Export draft", height: 36,
+            Button(id: menu_export, text: "Export draft", height: 36,
                 on_click: app.select_action("Exported"),
                 style: [background(#F5F3FF), foreground(#5B21B6), radius(7)])
-            Button(id: "menu_close", text: "Close menu", height: 34,
+            Button(id: menu_close, text: "Close menu", height: 34,
                 on_click: app.close_menu(),
                 style: [background(#F8FAFC), foreground(#64748B), radius(7)])
         }
     }
 
-    ContextMenu(id: "quick_menu", width: 238, height: 158, open: app.context_open,
+    ContextMenu(id: quick_menu, width: 238, height: 158, open: app.context_open,
         anchor: "context_trigger", point: app.context_point, initial_focus: "context_pin",
         on_open: app.open_context(event.x, event.y), on_dismiss: app.close_context(),
         motion: app.surface_motion(),
         style: [background(#FFFFFF), border_color(#A7F3D0), border_width(1), radius(12)]) {
         Column(gap: 8, style: [padding(12), transparent(true)]) {
-            Button(id: "context_pin", text: "Pin draft", height: 36,
+            Button(id: context_pin, text: "Pin draft", height: 36,
                 on_click: app.select_action("Pinned"),
                 style: [background(#ECFDF5), foreground(#047857), radius(7)])
-            Button(id: "context_copy", text: "Copy draft", height: 36,
+            Button(id: context_copy, text: "Copy draft", height: 36,
                 on_click: app.select_action("Copied"),
                 style: [background(#ECFDF5), foreground(#047857), radius(7)])
-            Button(id: "context_close", text: "Close menu", height: 34,
+            Button(id: context_close, text: "Close menu", height: 34,
                 on_click: app.close_context(),
                 style: [background(#F8FAFC), foreground(#64748B), radius(7)])
         }
     }
 
-    Tooltip(id: "help", width: 246, height: 60, open: app.tip_open,
+    Tooltip(id: help, width: 246, height: 60, open: app.tip_open,
         anchor: "tip_trigger", placement: bottom, gap: 10, tooltip_delay: 0.45,
         on_open: app.show_tip(), on_dismiss: app.hide_tip(), motion: app.surface_motion(),
         style: [background(#10233F), radius(10)]) {

@@ -1,5 +1,5 @@
 Flex(
-    id: "wrapping",
+    id: wrapping,
     orientation: horizontal,
     width: 180,
     height: 90,

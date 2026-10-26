@@ -25,7 +25,23 @@ fn tree(e &vml.Expr) string {
 			'(${tree(e.left)} ${e.value} ${tree(e.right)})'
 		}
 		.assignment {
-			'${tree(e.left)} = ${tree(e.right)}'
+			'${tree(e.left)} ${e.value} ${tree(e.right)}'
+		}
+		.index {
+			'${tree(e.left)}[${tree(e.right)}]'
+		}
+		.selector {
+			'${tree(e.left)}.${e.value}'
+		}
+		.method {
+			'${tree(e.left)}.${e.value}(' + e.args.map(tree(it)).join(', ') + ')' + if e.fallible {
+				'!'
+			} else {
+				''
+			}
+		}
+		.or_else {
+			'${tree(e.left)} or { ${tree(e.right)} }'
 		}
 		.block {
 			'{' + e.args.map(tree(it)).join('; ') + '}'
@@ -175,13 +191,13 @@ fn test_interpolation_parts_map_back_to_the_source() {
 }
 
 fn test_elements_properties_children_and_ids() {
-	root := vml.parse_source('Column(id: "col", spacing: 4, bind.value: app.level) {\n  Label(text: "a")\n  Row { Button }\n  MenuSeparator()\n}')!
+	root := vml.parse_source('Column(id: col, spacing: 4, bind.value: app.level) {\n  Label(text: "a")\n  Row { Button }\n  MenuSeparator()\n}')!
 	assert root.tag == 'Column'
 	assert root.id == 'col'
 	assert root.line == 1 && root.column == 1
 	assert root.properties.map(it.name) == ['id', 'spacing', 'bind.value']
-	assert root.properties[1].line == 1 && root.properties[1].column == 19
-	assert root.properties[1].expr.column == 28
+	assert root.properties[1].line == 1 && root.properties[1].column == 17
+	assert root.properties[1].expr.column == 26
 	spacing := vml.find_property(root, 'spacing') or { panic('missing spacing') }
 	assert spacing.expr.value == '4'
 	assert vml.find_property(root, 'width') == none
@@ -201,21 +217,21 @@ fn test_handlers_and_actions() {
 	assert tree(block) == '{count = 0; changed(count)}'
 	increment := root.children[1].properties[0].expr
 	assert increment.kind == .assignment
-	assert tree(increment) == 'count = (count + 1)'
+	assert tree(increment) == 'count += 1'
 	assert increment.column == 25
 	assert root.children[2].properties[0].expr.kind == .path
 	assert tree(root.children[3].properties[0].expr) == 'app.total = (app.total - 1)'
-	assert tree(handler('{ a--; b() }')!) == '{a = (a - 1); b()}'
+	assert tree(handler('{ a--; b() }')!) == '{a -= 1; b()}'
+	assert tree(handler('{ app.rows[0].done = true; app.board[r][c] *= 2; app.log << x }')!) == '{app.rows[0].done = true; app.board[r][c] *= 2; app.log << x}'
 	assert parse_error('Button(on_click: "x")') == 'callback `on_click` requires a typed function reference or an action at line 1:8'
-	assert parse_error('Button(on_click: item.count = 1)') == 'assignment target `item.count` is read-only at line 1, column 18'
-	assert parse_error('Button(on_click: app.a.b++)') == 'assignment target `app.a.b` is read-only at line 1, column 18'
 }
 
 fn test_element_errors() {
 	assert parse_error('Label(text: "a", text: "b")') == 'duplicate VML argument `text` at line 1:18'
-	assert parse_error('Label(id: name)') == 'id must be a quoted local name at line 1:7'
-	assert parse_error('Column { spacing: 4 }') == ':1:10: element arguments use `Name(name: value)`; state/computed belong to the component body'
-	assert parse_error('Column { state x := 1 }') == ':1:10: element arguments use `Name(name: value)`; state/computed belong to the component body'
+	assert parse_error('Label(id: "name")') == ':1:7: id must be a local name, such as `id: name_field`'
+	assert parse_error('Label(id: a.b)') == ':1:7: id must be a local name, such as `id: name_field`'
+	assert parse_error('Column { spacing: 4 }') == ':1:10: element arguments use `Name(name: value)`; state, computed and watch belong to the component body'
+	assert parse_error('Column { state x := 1 }') == ':1:10: element arguments use `Name(name: value)`; state, computed and watch belong to the component body'
 	assert parse_error('Label(text "a")') == ':1:12: expected colon, got string_ (`a`)'
 	assert parse_error('Label Label') == ':1:7: expected eof, got name (`Label`)'
 }
@@ -225,13 +241,12 @@ fn test_component_declarations() {
     changed event(value int, label string), content slot) {
     state count := 0
     computed doubled := count * 2
-    ref field TextInput
     style surface = [padding(4)]
     fn bump(step int) { count = count + step; changed(count, "x") }
     mount { app.mounted() }
     unmount { app.unmounted() }
     cleanup { app.cleaned() }
-    Column(id: "panel", style: [surface]) { Slot {} }
+    Column(id: panel, style: [surface]) { Slot {} }
 }')!
 	assert root.tag == vml.component_tag
 	assert root.component_name == 'Counter'
@@ -247,7 +262,6 @@ fn test_component_declarations() {
 	assert root.inputs[3].parameters.map('${it.name} ${it.typ}') == ['value int', 'label string']
 	assert root.data.map(it.name) == ['count', 'doubled']
 	assert root.data.map(it.computed) == [false, true]
-	assert root.refs.map('${it.name} ${it.typ}') == ['field TextInput']
 	assert root.styles.map(it.name) == ['surface']
 	assert root.functions.len == 1
 	assert root.functions[0].name == 'bump'
@@ -269,15 +283,15 @@ fn test_component_errors() {
 		'component A(x int, x string) { Label }':                           'duplicate/reserved component member `x`'
 		'component A(app int) { Label }':                                   'duplicate/reserved component member `app`'
 		'component A() { state color := 1 Label }':                         'duplicate/reserved component member `color`'
-		'component A() { state a := 1 ref a TextInput Label }':             'ref name collides with component member `a`'
+		'component A() { ref a TextInput Label }':                          ':1:17: `ref` declarations were replaced by element ids: `TextInput(id: name_field)` makes `name_field.focus()` available'
 		'component A(e event(v int)) { computed c := e(1) Label }':         'computed `c` cannot emit events'
 		'component A() { fn f() { app.x = 1 } computed c := f() Label }':   'computed `c` cannot call a handler'
 		'component A() { fn f(a int) { app.x = a } Label(on_click: f()) }': ':1:59: local function `f` requires 1 arguments, received 0'
 		'component A(e event(v int)) { Label(on_click: e()) }':             ':1:47: event `e` requires 1 payload arguments, received 0'
 		'component A(content slot = 1) { Label }':                          'slots cannot be bindable or have default values'
 		'component A(bind e event()) { Label }':                            'events cannot be bindable or have default values'
-		'component A() { Label(id: "a") { Label(id: "a") } }':              'element id `a` collides with a component member or id'
-		'component A(a int) { Label(id: "a") }':                            'element id `a` collides with a component member or id'
+		'component A() { Label(id: a) { Label(id: a) } }':              'element id `a` collides with a component member or id'
+		'component A(a int) { Label(id: a) }':                            'element id `a` collides with a component member or id'
 		'component A() { fn f(a int, a int) { app.x = a } Label }':         'duplicate callback parameter `a`'
 		'component A(x int) { fn f(x int) { app.y = x } Label }':           'local function parameter `x` collides with a component member or id'
 		'component A() { fn f() app.x Label }':                             'local functions require a body'
@@ -295,7 +309,7 @@ fn test_local_components_expand_with_slots() {
     Column { Label(text: title) Slot(name: "header") Slot {} }
 }
 Row {
-    Card(title: "A", id: "card") {
+    Card(title: "A", id: card) {
         Slot(name: "header") { Label(text: "H") }
         Slot(name: "content") { Button }
     }
@@ -362,8 +376,8 @@ Card')!
 		'style color = [] Label':                   ':1:7: style requires a nonreserved local name'
 		'style a.b = [] Label':                     ':1:7: style requires a nonreserved local name'
 		'style a = 1 Label':                        ':1:7: style declaration requires a list'
-		'style a = [] Label(id: "a")':              'element id `a` collides with a component member or id'
-		'Column { Label(id: "x") Label(id: "x") }': 'element id `x` collides with a component member or id'
+		'style a = [] Label(id: a)':              'element id `a` collides with a component member or id'
+		'Column { Label(id: x) Label(id: x) }': 'element id `x` collides with a component member or id'
 	} {
 		assert parse_error(source) == message, source
 	}
@@ -411,7 +425,7 @@ fn test_ast_helpers() {
 	assert !vml.node_uses_path(root, 'model')
 	assert vml.expr_uses_path(root.data[0].expr, 'item')
 	assert !vml.expr_uses_path(root.data[0].expr, 'ite')
-	assert vml.expr_text(vml.parse_source('Label(on_click: { a = b ? 1 : f(2, [x]); c++ })')!.properties[0].expr) == '{a = b ? 1 : f(2, [x]); c = c + 1}'
+	assert vml.expr_text(vml.parse_source('Label(on_click: { a = b ? 1 : f(2, [x]); c++ })')!.properties[0].expr) == '{a = b ? 1 : f(2, [x]); c += 1}'
 	mut copy := vml.clone_node(root)
 	copy.children = []
 	assert root.children.len == 1

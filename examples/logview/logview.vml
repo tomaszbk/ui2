@@ -1,12 +1,12 @@
 Screen(
-    id: "root",
+    id: root,
     style: [background(#F1F5F9)],
 ) {
     Absolute(
         style: [transparent(true)],
     ) {
         View(
-            id: "card",
+            id: card,
             x: 16,
             y: 16,
             width: root.width - 32,
@@ -25,7 +25,7 @@ Screen(
                     style: [foreground(#111827), font_size(18), weight(700)],
                 )
                 Label(
-                    id: "status",
+                    id: status,
                     text: app.status,
                     x: 16,
                     y: 42,
@@ -34,7 +34,7 @@ Screen(
                     style: [foreground(#64748B), font_size(12)],
                 )
                 TextArea(
-                    id: "log",
+                    id: log,
                     text: app.log,
                     readonly: true,
                     x: 16,
@@ -44,7 +44,7 @@ Screen(
                     style: [background(#FCF4E4), foreground(#334155), font_size(13), radius(7)],
                 )
                 Button(
-                    id: "start_scan",
+                    id: start_scan,
                     text: "Start scan",
                     on_click: app.start_scan(),
                     native: true,
@@ -54,7 +54,7 @@ Screen(
                     height: 34,
                 )
                 Button(
-                    id: "clear",
+                    id: clear,
                     text: "Clear",
                     on_click: app.clear(),
                     native: true,

@@ -87,7 +87,7 @@ fn test_generated_vml_round_trips_all_palette_components() {
 }
 
 fn test_source_loader_reports_unsupported_dynamic_layout() {
-	source := 'Screen(id: "Form1") { Absolute { Row(width: 300, height: 40) } }'
+	source := 'Screen(id: Form1) { Absolute { Row(width: 300, height: 40) } }'
 	if _ := document_from_vml(source) {
 		assert false, 'Row should require source editing rather than lossy visual loading'
 	} else {
@@ -96,7 +96,7 @@ fn test_source_loader_reports_unsupported_dynamic_layout() {
 }
 
 fn test_source_loader_rejects_nested_controls_instead_of_losing_them() {
-	source := 'Screen(id: "Form1") { Absolute { View(id: "card", width: 300, height: 200) { Button(id: "ok") } } }'
+	source := 'Screen(id: Form1) { Absolute { View(id: card, width: 300, height: 200) { Button(id: ok) } } }'
 	if _ := document_from_vml(source) {
 		assert false, 'nested controls must not be flattened or lost'
 	} else {
