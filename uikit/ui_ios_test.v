@@ -145,7 +145,7 @@ fn test_ios_scroll_delegate_uses_current_element_callback_and_fractional_logical
 	mut st := &Window{}
 	old_callbacks := st.scroll_callbacks.clone()
 	defer { st.scroll_callbacks = old_callbacks.clone() }
-	native := View(usize(0x4567))
+	native := View(uint(0x4567))
 	st.scroll_callbacks[u64(native)] = IosCallbackBinding{ id: 'list', on_event: capture_ios_control_a, kind: .scroll, event: .scroll }
 	ios_control_test_handlers = []string{}
 	ios_callback_test_events = []ElementEvent{}

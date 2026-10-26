@@ -2,7 +2,6 @@ module vglyph
 
 import gg
 import math
-import sokol.sgl
 
 $if profile ? {
 	import time
@@ -664,22 +663,22 @@ pub fn (mut renderer Renderer) draw_layout_placed(layout Layout,
 	}
 
 	// Setup projection for SGL quad rendering
-	sgl.matrix_mode_projection()
-	sgl.push_matrix()
-	sgl.load_identity()
+	renderer.ctx.r.matrix_mode_projection()
+	renderer.ctx.r.push_matrix()
+	renderer.ctx.r.load_identity()
 	ws := renderer.ctx.window_size()
-	sgl.ortho(0, f32(ws.width), f32(ws.height), 0, -1, 1)
+	renderer.ctx.r.ortho(0, f32(ws.width), f32(ws.height), 0, -1, 1)
 
-	sgl.matrix_mode_modelview()
-	sgl.push_matrix()
-	sgl.load_identity()
-	sgl.load_pipeline(renderer.ctx.pipeline.alpha)
+	renderer.ctx.r.matrix_mode_modelview()
+	renderer.ctx.r.push_matrix()
+	renderer.ctx.r.load_identity()
+	renderer.ctx.r.load_pipeline(renderer.ctx.pipeline.alpha)
 
 	// Pass 1: Stroke outlines
 	for page_idx, page in renderer.atlas.pages {
-		sgl.enable_texture()
-		sgl.texture(page.image.simg, page.image.ssmp)
-		sgl.begin_quads()
+		renderer.ctx.r.enable_texture()
+		renderer.ctx.r.texture(page.image.simg, page.image.ssmp)
+		renderer.ctx.r.begin_quads()
 
 		for item in layout.items {
 			if !item.has_stroke || item.use_original_color {
@@ -715,15 +714,15 @@ pub fn (mut renderer Renderer) draw_layout_placed(layout Layout,
 				}
 			}
 		}
-		sgl.end()
-		sgl.disable_texture()
+		renderer.ctx.r.end()
+		renderer.ctx.r.disable_texture()
 	}
 
 	// Pass 2: Fill glyphs
 	for page_idx, page in renderer.atlas.pages {
-		sgl.enable_texture()
-		sgl.texture(page.image.simg, page.image.ssmp)
-		sgl.begin_quads()
+		renderer.ctx.r.enable_texture()
+		renderer.ctx.r.texture(page.image.simg, page.image.ssmp)
+		renderer.ctx.r.begin_quads()
 
 		for item in layout.items {
 			if item.has_stroke && item.color.a == 0 {
@@ -771,14 +770,14 @@ pub fn (mut renderer Renderer) draw_layout_placed(layout Layout,
 				}
 			}
 		}
-		sgl.end()
-		sgl.disable_texture()
+		renderer.ctx.r.end()
+		renderer.ctx.r.disable_texture()
 	}
 
-	sgl.pop_matrix()
-	sgl.matrix_mode_projection()
-	sgl.pop_matrix()
-	sgl.matrix_mode_modelview()
+	renderer.ctx.r.pop_matrix()
+	renderer.ctx.r.matrix_mode_projection()
+	renderer.ctx.r.pop_matrix()
+	renderer.ctx.r.matrix_mode_modelview()
 }
 
 // emit_placed_quad draws a single textured glyph quad at the
@@ -847,11 +846,11 @@ fn (renderer &Renderer) emit_placed_quad(cg CachedGlyph,
 	x3 += placement.x
 	y3 += placement.y
 
-	sgl.c4b(color.r, color.g, color.b, color.a)
-	sgl.v2f_t2f(x0, y0, u0, v0)
-	sgl.v2f_t2f(x1, y1, u1, v0)
-	sgl.v2f_t2f(x2, y2, u1, v1)
-	sgl.v2f_t2f(x3, y3, u0, v1)
+	renderer.ctx.r.c4b(color.r, color.g, color.b, color.a)
+	renderer.ctx.r.v2f_t2f(x0, y0, u0, v0)
+	renderer.ctx.r.v2f_t2f(x1, y1, u1, v0)
+	renderer.ctx.r.v2f_t2f(x2, y2, u1, v1)
+	renderer.ctx.r.v2f_t2f(x3, y3, u0, v1)
 }
 
 // draw_layout_impl is the shared implementation for transformed/gradient rendering.
@@ -908,16 +907,16 @@ fn (mut renderer Renderer) draw_layout_impl(layout Layout, x f32, y f32,
 		}
 	}
 
-	sgl.matrix_mode_projection()
-	sgl.push_matrix()
-	sgl.load_identity()
+	renderer.ctx.r.matrix_mode_projection()
+	renderer.ctx.r.push_matrix()
+	renderer.ctx.r.load_identity()
 	ws := renderer.ctx.window_size()
-	sgl.ortho(0, f32(ws.width), f32(ws.height), 0, -1, 1)
+	renderer.ctx.r.ortho(0, f32(ws.width), f32(ws.height), 0, -1, 1)
 
-	sgl.matrix_mode_modelview()
-	sgl.push_matrix()
-	sgl.load_identity()
-	sgl.load_pipeline(renderer.ctx.pipeline.alpha)
+	renderer.ctx.r.matrix_mode_modelview()
+	renderer.ctx.r.push_matrix()
+	renderer.ctx.r.load_identity()
+	renderer.ctx.r.load_pipeline(renderer.ctx.pipeline.alpha)
 
 	// 1. Draw Backgrounds (Untextured)
 	renderer.begin_host_quads()
@@ -956,8 +955,8 @@ fn (mut renderer Renderer) draw_layout_impl(layout Layout, x f32, y f32,
 	// Pass 1: Stroke outlines (background layer)
 	for page_idx := 0; page_idx < renderer.atlas.pages.len; page_idx++ {
 		mut page := renderer.atlas.pages[page_idx]
-		sgl.enable_texture()
-		sgl.texture(page.image.simg, page.image.ssmp)
+		renderer.ctx.r.enable_texture()
+		renderer.ctx.r.texture(page.image.simg, page.image.ssmp)
 		renderer.begin_host_quads()
 
 		for item in layout.items {
@@ -1000,7 +999,7 @@ fn (mut renderer Renderer) draw_layout_impl(layout Layout, x f32, y f32,
 					live_page := renderer.atlas.pages[page_idx]
 					if live_page.image.simg != page.image.simg {
 						renderer.end_host_quads()
-						sgl.texture(live_page.image.simg, live_page.image.ssmp)
+						renderer.ctx.r.texture(live_page.image.simg, live_page.image.ssmp)
 						renderer.begin_host_quads()
 					}
 					page = live_page
@@ -1034,14 +1033,14 @@ fn (mut renderer Renderer) draw_layout_impl(layout Layout, x f32, y f32,
 			}
 		}
 		renderer.end_host_quads()
-		sgl.disable_texture()
+		renderer.ctx.r.disable_texture()
 	}
 
 	// Pass 2: Fill glyphs (foreground layer)
 	for page_idx := 0; page_idx < renderer.atlas.pages.len; page_idx++ {
 		mut page := renderer.atlas.pages[page_idx]
-		sgl.enable_texture()
-		sgl.texture(page.image.simg, page.image.ssmp)
+		renderer.ctx.r.enable_texture()
+		renderer.ctx.r.texture(page.image.simg, page.image.ssmp)
 		renderer.begin_host_quads()
 
 		for item in layout.items {
@@ -1089,7 +1088,7 @@ fn (mut renderer Renderer) draw_layout_impl(layout Layout, x f32, y f32,
 					live_page := renderer.atlas.pages[page_idx]
 					if live_page.image.simg != page.image.simg {
 						renderer.end_host_quads()
-						sgl.texture(live_page.image.simg, live_page.image.ssmp)
+						renderer.ctx.r.texture(live_page.image.simg, live_page.image.ssmp)
 						renderer.begin_host_quads()
 					}
 					page = live_page
@@ -1171,7 +1170,7 @@ fn (mut renderer Renderer) draw_layout_impl(layout Layout, x f32, y f32,
 			}
 		}
 		renderer.end_host_quads()
-		sgl.disable_texture()
+		renderer.ctx.r.disable_texture()
 	}
 
 	// 3. Draw Text Decorations (Untextured)
@@ -1208,11 +1207,11 @@ fn (mut renderer Renderer) draw_layout_impl(layout Layout, x f32, y f32,
 	}
 	renderer.end_host_quads()
 
-	sgl.pop_matrix() // Pop Modelview
+	renderer.ctx.r.pop_matrix() // Pop Modelview
 
-	sgl.matrix_mode_projection()
-	sgl.pop_matrix()
-	sgl.matrix_mode_modelview()
+	renderer.ctx.r.matrix_mode_projection()
+	renderer.ctx.r.pop_matrix()
+	renderer.ctx.r.matrix_mode_modelview()
 }
 
 // draw_composition renders IME preedit text with visual feedback.
@@ -1275,16 +1274,16 @@ pub fn (mut renderer Renderer) draw_layout_with_composition(layout Layout, x f32
 
 fn (mut renderer Renderer) begin_host_quads() {
 	renderer.quad_count = 0
-	if voidptr(renderer.quad_sink) == unsafe { nil } { sgl.begin_quads() }
+	if voidptr(renderer.quad_sink) == unsafe { nil } { renderer.ctx.r.begin_quads() }
 }
 
 fn (renderer &Renderer) end_host_quads() {
-	if voidptr(renderer.quad_sink) == unsafe { nil } { sgl.end() }
+	if voidptr(renderer.quad_sink) == unsafe { nil } { renderer.ctx.r.end() }
 }
 
 fn (mut renderer Renderer) quad_color_bytes(r u8, g u8, b u8, a u8) {
 	renderer.quad_color = gg.Color{r, g, b, a}
-	if voidptr(renderer.quad_sink) == unsafe { nil } { sgl.c4b(r, g, b, a) }
+	if voidptr(renderer.quad_sink) == unsafe { nil } { renderer.ctx.r.c4b(r, g, b, a) }
 }
 
 fn (mut renderer Renderer) quad_vertex(x f32, y f32) {
@@ -1293,7 +1292,7 @@ fn (mut renderer Renderer) quad_vertex(x f32, y f32) {
 
 fn (mut renderer Renderer) quad_textured_vertex(x f32, y f32, u f32, v f32) {
 	if voidptr(renderer.quad_sink) == unsafe { nil } {
-		sgl.v2f_t2f(x, y, u, v)
+		renderer.ctx.r.v2f_t2f(x, y, u, v)
 		return
 	}
 	renderer.quad_vertices[renderer.quad_count] = QuadVertex{ x: x, y: y, u: u, v: v, color: renderer.quad_color }

@@ -7,19 +7,16 @@ module ui2
 $if (android || linux || ((ios || macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? && !ui2_document_library ? {
 	import gg
 	import math
+	import fontstash
+	import gg.render
 	import sokol.gfx
 	import sokol.sfons
-	import sokol.sgl
 	$if android || ios {
-		import fontstash
 		import os
 		import os.font
 	} $else {
 		import ui2.thirdparty.vglyph
 	}
-
-	#include "@VMODROOT/ui/draw_commands.h"
-	fn C.ui2_sgl_discard_commands(context sgl.Context)
 
 	// Scope clips are immutable snapshots. A traversal slot replaces its
 	// snapshot on a miss, so hit/visual geometry retained from an older frame
@@ -74,7 +71,6 @@ $if (android || linux || ((ios || macos || windows) && ui2_custom_rendering ?)) 
 			font_family_files   map[string]string
 			font_family_metrics map[string]FontMetrics
 			owns_surface        bool
-			gl_context          sgl.Context
 			swapchain           gfx.Swapchain
 			images              ImageResources
 			destroying          bool
@@ -112,7 +108,6 @@ $if (android || linux || ((ios || macos || windows) && ui2_custom_rendering ?)) 
 			text_font_generation int                = -1
 			font_inited          bool
 			owns_surface         bool
-			gl_context           sgl.Context
 			swapchain            gfx.Swapchain
 			images               ImageResources
 			destroying           bool
@@ -120,8 +115,8 @@ $if (android || linux || ((ios || macos || windows) && ui2_custom_rendering ?)) 
 		}
 	}
 
-	// sokol_gfx and sokol_gl keep their device in process-global C state, set
-	// up once by gfx.setup and torn down once by gfx.shutdown. These count the
+	// sokol_gfx keeps its device in process-global C state, set up once by
+	// gfx.setup and torn down once by gfx.shutdown. These count the
 	// drawing contexts that share it and remember the environment it was set
 	// up with, so they are as process-wide as the device they track.
 	__global g_draw_device_users = 0
@@ -169,7 +164,7 @@ $if (android || linux || ((ios || macos || windows) && ui2_custom_rendering ?)) 
 			// text uses the per-context vglyph renderer from this point onward.
 			if gfx.is_valid() {
 				if ctx.inner.ft != unsafe { nil } && ctx.inner.ft.fons != unsafe { nil } {
-					sfons.destroy(ctx.inner.ft.fons)
+					fontstash.delete_internal(ctx.inner.ft.fons)
 					// gg's resize handler writes ft.scale unconditionally. Retain an
 					// inert FT shell, with no atlas or legacy font drawing enabled.
 					ctx.inner.ft = &gg.FT{scale: ctx.scale}
@@ -192,10 +187,10 @@ $if (android || linux || ((ios || macos || windows) && ui2_custom_rendering ?)) 
 			if gfx.is_valid() {
 				return error('the owned renderer cannot share a running gg/Sokol app device')
 			}
-			// Every SGL pipeline creates five GFX primitive pipelines. A window
-			// has a default pipeline and its own alpha/additive pipelines. Size
-			// the shared device for the SGL pools instead
-			// of GFX's single-window defaults, which failed on the third window.
+			// Every gg.render pipeline creates five GFX primitive pipelines. A
+			// window has a default pipeline, its own alpha/additive pipelines and
+			// an image pipeline. Size the shared device for that instead of GFX's
+			// single-window defaults, which failed on the third window.
 			gfx.setup(&gfx.Desc{
 				buffer_pool_size: draw_context_pool_size
 				image_pool_size: draw_context_pool_size * 16
@@ -205,13 +200,6 @@ $if (android || linux || ((ios || macos || windows) && ui2_custom_rendering ?)) 
 				environment: environment
 			})
 			if !gfx.is_valid() { return error('could not initialize the renderer device') }
-			sgl.setup(&sgl.Desc{
-				context_pool_size: draw_context_pool_size
-				pipeline_pool_size: draw_pipeline_pool_size
-				color_format: environment.defaults.color_format
-				depth_format: environment.defaults.depth_format
-				sample_count: environment.defaults.sample_count
-			})
 			g_draw_device_environment = environment
 		} else if environment.metal.device != g_draw_device_environment.metal.device
 			|| environment.d3d11.device != g_draw_device_environment.d3d11.device
@@ -223,16 +211,7 @@ $if (android || linux || ((ios || macos || windows) && ui2_custom_rendering ?)) 
 			return error('windows must share the renderer device and attachment formats')
 		}
 		g_draw_device_users++
-		gl_context := sgl.make_context(&sgl.ContextDesc{
-			color_format: environment.defaults.color_format
-			depth_format: environment.defaults.depth_format
-			sample_count: environment.defaults.sample_count
-		})
-		if gl_context.id == 0 {
-			release_draw_device()
-			return error('could not allocate a window drawing context')
-		}
-		sgl.set_context(gl_context)
+		r := render.new_context(render.Desc{})
 		mut inner := &gg.Context{
 			config: config
 			width: config.width
@@ -244,15 +223,15 @@ $if (android || linux || ((ios || macos || windows) && ui2_custom_rendering ?)) 
 				f32(config.bg_color.g) / 255, f32(config.bg_color.b) / 255,
 				f32(config.bg_color.a) / 255)
 			pipeline: &gg.PipelineContainer{}
+			r: r
 		}
-		inner.pipeline.alpha = draw_blend_pipeline(.one_minus_src_alpha)
-		inner.pipeline.add = draw_blend_pipeline(.one)
+		inner.pipeline.alpha = draw_blend_pipeline(r, .one_minus_src_alpha)
+		inner.pipeline.add = draw_blend_pipeline(r, .one)
 		mut ctx := &DrawContext{
 			inner: inner
 			width: config.width
 			height: config.height
 			owns_surface: true
-			gl_context: gl_context
 		}
 		$if android || ios {
 			ctx.ft = new_draw_fonts(config) or {
@@ -271,7 +250,7 @@ $if (android || linux || ((ios || macos || windows) && ui2_custom_rendering ?)) 
 		return ctx
 	}
 
-	fn draw_blend_pipeline(destination gfx.BlendFactor) sgl.Pipeline {
+	fn draw_blend_pipeline(r &render.Context, destination gfx.BlendFactor) render.Pipeline {
 		mut desc := gfx.PipelineDesc{}
 		desc.colors[0] = gfx.ColorTargetState{
 			blend: gfx.BlendState{
@@ -280,7 +259,7 @@ $if (android || linux || ((ios || macos || windows) && ui2_custom_rendering ?)) 
 				dst_factor_rgb: destination
 			}
 		}
-		return sgl.make_pipeline(&desc)
+		return r.make_pipeline(desc)
 	}
 
 	$if android || ios {
@@ -340,8 +319,7 @@ $if (android || linux || ((ios || macos || windows) && ui2_custom_rendering ?)) 
 		fn (mut ctx DrawContext) ensure_text_resources() ! {
 			if ctx.destroyed { return error('drawing context is closed') }
 			if ctx.text != unsafe { nil } && ctx.text.scale == ctx.scale { return }
-			ctx.activate()
-			if ctx.text_renderer != unsafe { nil } { ctx.text_renderer.free() }
+				if ctx.text_renderer != unsafe { nil } { ctx.text_renderer.free() }
 			if ctx.text != unsafe { nil } { ctx.text.free() }
 			ctx.text = unsafe { nil }
 			ctx.text_renderer = unsafe { nil }
@@ -425,8 +403,7 @@ $if (android || linux || ((ios || macos || windows) && ui2_custom_rendering ?)) 
 		}
 
 		fn (ctx &DrawContext) prepare_text_draw() {
-			ctx.activate()
-			if ctx.text_font_generation != ctx.text.font_generation {
+				if ctx.text_font_generation != ctx.text.font_generation {
 				// Pango may recycle FT face addresses after registering a new font.
 				// Discard identities, preserving atlas pixels referenced by quads.
 				mut renderer := ctx.text_renderer
@@ -434,10 +411,6 @@ $if (android || linux || ((ios || macos || windows) && ui2_custom_rendering ?)) 
 				unsafe { ctx.text_font_generation = ctx.text.font_generation }
 			}
 		}
-	}
-
-	fn (ctx &DrawContext) activate() {
-		if ctx.owns_surface && !ctx.destroyed { sgl.set_context(ctx.gl_context) }
 	}
 
 	fn (mut ctx DrawContext) set_surface(width int, height int, scale f32, swapchain gfx.Swapchain) {
@@ -453,7 +426,6 @@ $if (android || linux || ((ios || macos || windows) && ui2_custom_rendering ?)) 
 		} $else {
 			ctx.ensure_text_resources() or { panic('ui2: ${err}') }
 		}
-		ctx.activate()
 	}
 
 	fn (ctx &DrawContext) begin() {
@@ -462,13 +434,12 @@ $if (android || linux || ((ios || macos || windows) && ui2_custom_rendering ?)) 
 			ctx.inner.begin()
 			return
 		}
-		ctx.activate()
 		$if android || ios {
 			if ctx.font_inited { ctx.ft.flush() }
 		}
-		sgl.defaults()
-		sgl.matrix_mode_projection()
-		sgl.ortho(0, f32(ctx.swapchain.width), f32(ctx.swapchain.height), 0, -1, 1)
+		ctx.inner.r.defaults()
+		ctx.inner.r.matrix_mode_projection()
+		ctx.inner.r.ortho(0, f32(ctx.swapchain.width), f32(ctx.swapchain.height), 0, -1, 1)
 	}
 
 	fn (ctx &DrawContext) end() {
@@ -487,10 +458,9 @@ $if (android || linux || ((ios || macos || windows) && ui2_custom_rendering ?)) 
 			unsafe { mut images := &ctx.images; images.finish_frame() }
 			return
 		}
-		ctx.activate()
 		unsafe { ctx.surface_pass = gfx.Pass{ action: ctx.inner.clear_pass, swapchain: ctx.swapchain } }
 		gfx.begin_pass(&ctx.surface_pass)
-		sgl.draw()
+		ctx.inner.r.draw()
 		gfx.end_pass()
 		gfx.commit()
 		unsafe { ctx.inner.frame++
@@ -498,19 +468,19 @@ $if (android || linux || ((ios || macos || windows) && ui2_custom_rendering ?)) 
 	}
 
 	// begin records commands; the GPU pass starts only in end. An invalidated
-	// frame must discard those commands without submitting to its old surface.
+	// frame must discard those commands without submitting to its old surface:
+	// a commit without a pass submits nothing and rewinds every gg.render
+	// context, none of which is recording while this window paints.
 	fn (ctx &DrawContext) cancel() {
 		unsafe { ctx.painting = false }
 		if ctx.destroyed || !gfx.is_valid() { return }
-		context := if ctx.owns_surface { ctx.gl_context } else { sgl.default_context() }
-		C.ui2_sgl_discard_commands(context)
+		gfx.commit()
 		unsafe { mut images := &ctx.images; images.cancel_frame() }
 	}
 
 	fn release_draw_device() {
 		g_draw_device_users--
 		if g_draw_device_users == 0 {
-			sgl.shutdown()
 			gfx.shutdown()
 			g_draw_device_environment = gfx.Environment{}
 		}
@@ -519,7 +489,6 @@ $if (android || linux || ((ios || macos || windows) && ui2_custom_rendering ?)) 
 	fn (mut ctx DrawContext) destroy() {
 		if ctx.destroyed || ctx.destroying { return }
 		ctx.destroying=true
-		ctx.activate()
 		$if !(android || ios) {
 			if ctx.text_renderer != unsafe { nil } { ctx.text_renderer.free() }
 			if ctx.text != unsafe { nil } { ctx.text.free() }
@@ -527,7 +496,7 @@ $if (android || linux || ((ios || macos || windows) && ui2_custom_rendering ?)) 
 			ctx.text = unsafe { nil }
 		}
 		ctx.font_inited = false
-		ctx.images.destroy()
+		ctx.images.destroy(ctx.inner.r)
 		if !ctx.owns_surface {
 			ctx.destroyed = true
 			return
@@ -538,9 +507,9 @@ $if (android || linux || ((ios || macos || windows) && ui2_custom_rendering ?)) 
 		}
 		ctx.inner.ft = unsafe { nil }
 		ctx.inner.font_inited = false
-		sgl.destroy_pipeline(ctx.inner.pipeline.alpha)
-		sgl.destroy_pipeline(ctx.inner.pipeline.add)
-		sgl.destroy_context(ctx.gl_context)
+		ctx.inner.r.destroy_pipeline(ctx.inner.pipeline.alpha)
+		ctx.inner.r.destroy_pipeline(ctx.inner.pipeline.add)
+		ctx.inner.r.destroy()
 		ctx.destroyed = true
 		release_draw_device()
 	}
@@ -570,20 +539,19 @@ $if (android || linux || ((ios || macos || windows) && ui2_custom_rendering ?)) 
 				ctx.submitted_polygon(submitted)
 			}
 		}
-		sgl.begin_triangles()
+		ctx.inner.r.begin_triangles()
 		for i in 1 .. clipped.len - 1 {
 			for index in [0, i, i + 1]! {
 				v := clipped[index]
-				sgl.c4b(u8(math.clamp(v.r, 0.0, 255.0)), u8(math.clamp(v.g, 0.0, 255.0)), u8(math.clamp(v.b, 0.0, 255.0)), u8(math.clamp(v.a * ctx.opacity, 0.0, 255.0)))
-				sgl.v2f_t2f(f32(v.x * dpi), f32(v.y * dpi), f32(v.u), f32(v.v))
+				ctx.inner.r.c4b(u8(math.clamp(v.r, 0.0, 255.0)), u8(math.clamp(v.g, 0.0, 255.0)), u8(math.clamp(v.b, 0.0, 255.0)), u8(math.clamp(v.a * ctx.opacity, 0.0, 255.0)))
+				ctx.inner.r.v2f_t2f(f32(v.x * dpi), f32(v.y * dpi), f32(v.u), f32(v.v))
 			}
 		}
-		sgl.end()
+		ctx.inner.r.end()
 	}
 	fn (ctx &DrawContext) draw_local_polygon(points []Point, c gg.Color) {
-		ctx.activate()
-		sgl.load_pipeline(ctx.inner.pipeline.alpha)
-		sgl.disable_texture()
+		ctx.inner.r.load_pipeline(ctx.inner.pipeline.alpha)
+		ctx.inner.r.disable_texture()
 		mut vertices := unsafe { &ctx.paint_vertices }
 		vertices.clear()
 		for point in points { vertices << color_vertex(ctx.content_transform.point(point.x, point.y), c) }
@@ -593,9 +561,8 @@ $if (android || linux || ((ios || macos || windows) && ui2_custom_rendering ?)) 
 	// carry their own colors, which the GPU blends across it: a gradient cell.
 	fn (ctx &DrawContext) draw_local_colored_polygon(points []Point, colors []gg.Color) {
 		if points.len < 3 || colors.len != points.len { return }
-		ctx.activate()
-		sgl.load_pipeline(ctx.inner.pipeline.alpha)
-		sgl.disable_texture()
+		ctx.inner.r.load_pipeline(ctx.inner.pipeline.alpha)
+		ctx.inner.r.disable_texture()
 		mut vertices := unsafe { &ctx.paint_vertices }
 		vertices.clear()
 		for i, point in points { vertices << color_vertex(ctx.content_transform.point(point.x, point.y), colors[i]) }
@@ -696,31 +663,26 @@ $if (android || linux || ((ios || macos || windows) && ui2_custom_rendering ?)) 
 		// Restoring a paint scope must also restore this backend state, including
 		// an unbounded parent, before another primitive is submitted.
 		area := if ctx.clip_region.bounded { ctx.clip_region.bounds() } else { rect(0, 0, f64(ctx.width), f64(ctx.height)) }
-		ctx.activate()
 		left := math.floor(area.x * ctx.scale)
 		top := math.floor(area.y * ctx.scale)
 		right := math.ceil((area.x + area.width) * ctx.scale)
 		bottom := math.ceil((area.y + area.height) * ctx.scale)
-		sgl.scissor_rect(int(left), int(top), int(right - left), int(bottom - top), true)
+		ctx.inner.r.scissor_rect(int(left), int(top), int(right - left), int(bottom - top), true)
 	}
 
 	$if android || ios {
 		fn (ctx &DrawContext) set_text_cfg(config gg.TextCfg) {
-			ctx.activate()
-			ctx.inner.set_text_cfg(config)
+				ctx.inner.set_text_cfg(config)
 		}
 		fn (ctx &DrawContext) text_width(text string) int {
-			ctx.activate()
-			return ctx.inner.text_width(text)
+				return ctx.inner.text_width(text)
 		}
 		fn (ctx &DrawContext) text_width_f(text string) f32 {
-			ctx.activate()
-			return ctx.inner.text_width_f(text)
+				return ctx.inner.text_width_f(text)
 		}
 		fn (ctx &DrawContext) draw_text(x int, y int, text string, config gg.TextCfg) {
 			area := ctx.content_transform.project(rect(f64(x), f64(y), 0, 0))
-			ctx.activate()
-			ctx.inner.draw_text(int(area.x), int(area.y), text, gg.TextCfg{ ...config, size: int(f64(config.size) * ctx.content_transform.footprint_scale() + 0.5), max_width: int(f64(config.max_width) * ctx.content_transform.footprint_scale()) })
+				ctx.inner.draw_text(int(area.x), int(area.y), text, gg.TextCfg{ ...config, size: int(f64(config.size) * ctx.content_transform.footprint_scale() + 0.5), max_width: int(f64(config.max_width) * ctx.content_transform.footprint_scale()) })
 		}
 	}
 }

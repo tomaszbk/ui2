@@ -5,7 +5,6 @@ module ui2
 $if macos && ui2_custom_rendering ?&& ui2_embedder ?&& !ui2_headless ? {
 	import gg
 	import sokol.gfx
-	import sokol.sgl
 }
 
 fn test_open_dropdown_hover_reuses_targets_and_refreshes_scroll_and_selection() ! {
@@ -48,7 +47,7 @@ fn test_open_dropdown_hover_reuses_targets_and_refreshes_scroll_and_selection() 
 		delta := gc_allocation_snapshot()!.delta_since(before)
 		assert delta.allocated_bytes == 0
 		assert delta.collections == 0
-		assert sgl.error() == .no_error
+		assert ctx.inner.r.error() == .no_error
 		assert w.dropdown_hover == 1
 		assert w.hit_test(x, y).option_index == 0
 		on_event(&gg.Event{ typ: .mouse_scroll, mouse_x: f32(x), mouse_y: f32(y), scroll_y: -2 }, mut w)

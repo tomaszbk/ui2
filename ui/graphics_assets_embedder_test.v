@@ -8,7 +8,6 @@ $if macos && ui2_custom_rendering ? && ui2_embedder ? && ui2_geometry_capture ? 
 	import math
 	import os
 	import sokol.gfx
-	import sokol.sgl
 	__global graphics_seam_vertices = []PaintVertex{}
 	fn graphics_seam_observe(vertices []PaintVertex) { graphics_seam_vertices << vertices }
 	fn graphics_seam_env() gfx.Environment {
@@ -72,7 +71,7 @@ fn test_combined_vector_image_text_exact_clip_rotation_once_and_sibling_scope() 
 		ctx.content_transform=ContentTransform{}
 		ctx.end()
 		C.ui2_embedder_frame_done(window)
-		assert sgl.error()==.no_error
+		assert ctx.inner.r.error()==.no_error
 		assert ctx.images.stats().decodes==1 && ctx.images.stats().uploads==1
 		// Cancellation discards commands without retiring their prepared pages.
 		entry := ctx.images.entries[image_entry_key(path,0)] or { panic('image') }

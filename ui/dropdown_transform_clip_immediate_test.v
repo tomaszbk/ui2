@@ -11,7 +11,6 @@ $if macos && ui2_custom_rendering ?&& ui2_embedder ?&& ui2_geometry_capture ?&& 
 	import gg
 	import math
 	import sokol.gfx
-	import sokol.sgl
 	__global dropdown_clip_vertices = []PaintVertex{}
 
 	fn observe_dropdown_clip_polygon(vertices []PaintVertex) {
@@ -104,7 +103,7 @@ fn test_rotated_dropdown_popup_closes_when_exact_owner_clip_becomes_empty() {
 		on_frame(mut w)
 		assert w.dropdown_id == '' && w.text('owner') == 'Uno'
 		assert !w.hit_targets.any(it.dropdown_option)
-		assert sgl.error() == .no_error
+		assert ctx.inner.r.error() == .no_error
 	}
 }
 
@@ -178,6 +177,6 @@ fn test_partial_dropdown_clip_survives_nested_scaled_scroll_and_translated_desce
 		assert w.dropdown_id == 'translated' && w.dropdown_popup.mounted
 		assert math.abs(ctx.content_transform.xx - 1) < 1e-12
 		assert ctx.content_transform == ContentTransform{}
-		assert sgl.error() == .no_error
+		assert ctx.inner.r.error() == .no_error
 	}
 }

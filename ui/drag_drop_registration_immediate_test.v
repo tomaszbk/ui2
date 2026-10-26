@@ -9,7 +9,6 @@ $if macos && ui2_custom_rendering ? && ui2_embedder ? && !ui2_headless ? {
 	import gg
 	import os
 	import sokol.gfx
-	import sokol.sgl
 
 	__global registration_drag_events = []ElementEvent{}
 	fn registration_drag_record(event ElementEvent) { registration_drag_events << event }
@@ -66,9 +65,9 @@ $if macos && ui2_custom_rendering ? && ui2_embedder ? && !ui2_headless ? {
 		w.has_root = true
 		w.declaration_pending = true
 		assert w.sync_custom_input_geometry(w.custom_input_dispatch())
-		sgl.defaults()
+		ctx.inner.r.defaults()
 		w.render_element(ctx, root, 0, 0, rect(0, 0, 300, 100), '', 'root')
-		assert sgl.error() == .no_error
+		assert ctx.inner.r.error() == .no_error
 	}
 	// Each case mounts into a fresh window, which owns no touch, drag, tooltip,
 	// menu or scroll state yet.

@@ -265,7 +265,7 @@ pub fn (mut w Window) set_text(id string, t string) {
 		view := w.views[id] or { return }
 		kind := w.view_kinds[id] or { Kind.view }
 		if kind == .dropdown {
-			macos.msg_void2(view, 'setTitle:forState:', macos.nsstring(t), macos.Id(usize(0)))
+			macos.msg_void2(view, 'setTitle:forState:', macos.nsstring(t), macos.Id(uint(0)))
 		} else if kind == .label {
 			lbl := label_text_view(view)
 			macos.msg_void1(lbl, 'setText:', macos.nsstring(t))
@@ -627,7 +627,7 @@ fn set_box_borders(view View, box BoxStyle) {
 }
 
 fn add_button_target(btn View, target View) {
-	macos.msg_void3(btn, 'addTarget:action:forControlEvents:', target, macos.sel('handleTap:'), macos.Id(usize(64)))
+	macos.msg_void3(btn, 'addTarget:action:forControlEvents:', target, macos.sel('handleTap:'), macos.Id(uint(64)))
 }
 
 fn add_view_tap_target(view View, target View) {
@@ -640,11 +640,11 @@ fn add_view_tap_target(view View, target View) {
 }
 
 fn add_control_target_action(control View, target View, action string, event_mask u64) {
-	macos.msg_void3(control, 'addTarget:action:forControlEvents:', target, macos.sel(action), macos.Id(usize(event_mask)))
+	macos.msg_void3(control, 'addTarget:action:forControlEvents:', target, macos.sel(action), macos.Id(uint(event_mask)))
 }
 
 fn remove_control_target_action(control View, target View, action string, event_mask u64) {
-	macos.msg_void3(control, 'removeTarget:action:forControlEvents:', target, macos.sel(action), macos.Id(usize(event_mask)))
+	macos.msg_void3(control, 'removeTarget:action:forControlEvents:', target, macos.sel(action), macos.Id(uint(event_mask)))
 }
 
 fn add_long_press_target(view View, target View) {
@@ -944,7 +944,7 @@ fn new_dropdown_view(el Element) View {
 fn update_dropdown_view(view View, el Element, declared_text_changed bool) {
 	macos.msg_void_rect(view, 'setFrame:', native_rect(el.frame))
 	if declared_text_changed && macos.utf8_string(macos.msg_id(view, 'currentTitle')) != el.text {
-		macos.msg_void2(view, 'setTitle:forState:', macos.nsstring(el.text), macos.Id(usize(0)))
+		macos.msg_void2(view, 'setTitle:forState:', macos.nsstring(el.text), macos.Id(uint(0)))
 	}
 	set_box_background(view, el.box)
 	set_corner_radius(view, el.box.radius)
@@ -962,8 +962,8 @@ fn new_button_view(frame Rect, title string, box BoxStyle, text_hex u32, size f6
 
 fn update_button_view(btn View, frame Rect, title string, box BoxStyle, text_hex u32, size f64, weight int, lines int) {
 	macos.msg_void_rect(btn, 'setFrame:', native_rect(frame))
-	macos.msg_void2(btn, 'setTitle:forState:', macos.nsstring(title), macos.Id(usize(0)))
-	macos.msg_void2(btn, 'setTitleColor:forState:', ios.color(text_hex), macos.Id(usize(0)))
+	macos.msg_void2(btn, 'setTitle:forState:', macos.nsstring(title), macos.Id(uint(0)))
+	macos.msg_void2(btn, 'setTitleColor:forState:', ios.color(text_hex), macos.Id(uint(0)))
 	set_box_background(btn, box)
 	title_label := macos.msg_id(btn, 'titleLabel')
 	macos.msg_void1(title_label, 'setFont:', font(size, weight))
@@ -1803,7 +1803,7 @@ fn (mut w Window) commit_ios_button_activation(native View, kind Kind) {
 		macos.msg_void_bool(native, 'setSelected:', checked)
 		caption := objc_string(macos.msg_id(native, 'currentTitle')).all_after('  ')
 		title := '${if checked { '☑' } else { '☐' }}  ${caption}'
-		macos.msg_void2(native, 'setTitle:forState:', macos.nsstring(title), macos.Id(usize(0)))
+		macos.msg_void2(native, 'setTitle:forState:', macos.nsstring(title), macos.Id(uint(0)))
 	}
 }
 

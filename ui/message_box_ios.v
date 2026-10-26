@@ -3,9 +3,9 @@ module ui2
 
 import macos
 
-const ui_alert_controller_style_alert = macos.Id(usize(1))
-const ui_alert_action_style_default = macos.Id(usize(0))
-const ui_alert_action_style_cancel = macos.Id(usize(1))
+const ui_alert_controller_style_alert = macos.Id(uint(1))
+const ui_alert_action_style_default = macos.Id(uint(0))
+const ui_alert_action_style_cancel = macos.Id(uint(1))
 
 // void (^)(UIAlertAction *)
 const alert_action_signature = 'v16@?0@8'

@@ -4,7 +4,6 @@ module ui2
 $if macos && ui2_custom_rendering ? && ui2_embedder ? && !ui2_headless ? {
 	import gg
 	import sokol.gfx
-	import sokol.sgl
 }
 
 fn test_retained_glyph_clip_and_primitive_submission_allocate_nothing() {
@@ -33,7 +32,7 @@ fn test_retained_glyph_clip_and_primitive_submission_allocate_nothing() {
 			ctx.cancel()
 		}
 		after := gc_allocation_snapshot()!.delta_since(before)
-		assert sgl.error() == .no_error
+		assert ctx.inner.r.error() == .no_error
 		assert after.allocated_bytes == 0
 		assert after.collections == 0
 	}

@@ -8,7 +8,6 @@ $if macos && ui2_custom_rendering ?&& ui2_embedder ?&& ui2_geometry_capture ?&& 
 	import math
 	import os
 	import sokol.gfx
-	import sokol.sgl
 	#include "@VMODROOT/ui/visual_transform_fixture_darwin.h"
 	fn C.ui2_transform_ime_matches(voidptr, f64, f64, f64, f64, bool) bool
 	__global transform_gpu_vertices = []PaintVertex{}
@@ -149,7 +148,7 @@ fn test_full_affine_gpu_submission_clips_glyphs_images_selection_caret_and_sibli
 			assert transform_gpu_vertices.len == 4
 			assert math.abs(transform_gpu_vertices[0].x - math.round(350 * dpi) / dpi) < 0.0001
 			assert math.abs(transform_gpu_vertices[0].y - math.round(270 * dpi) / dpi) < 0.0001
-			assert sgl.error() == .no_error
+			assert ctx.inner.r.error() == .no_error
 			ctx.end()
 			C.ui2_embedder_frame_done(window)
 			w.composition = TextComposition{}

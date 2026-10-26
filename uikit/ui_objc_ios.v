@@ -210,7 +210,7 @@ fn vui_dropdown_selected(_self voidptr, _cmd voidptr, sender voidptr) {
 	current := w.action_callbacks[u64(button)] or { return }
 	binding := w.ios_control_action_binding(button, current) or { return }
 	w.control_captures.delete(u64(button))
-	macos.msg_void2(button, 'setTitle:forState:', macos.nsstring(title), macos.Id(usize(0)))
+	macos.msg_void2(button, 'setTitle:forState:', macos.nsstring(title), macos.Id(uint(0)))
 	w.ios_emit_callback(binding, ElementEvent{ kind: .change, text: title })
 }
 

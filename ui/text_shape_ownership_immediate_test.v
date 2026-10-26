@@ -6,15 +6,15 @@ $if ( linux || ( ( macos || windows ) && ui2_custom_rendering ?) ) && !ui2_headl
 	// Check every retained string before releasing the source. On a regression
 	// this fails while the source is still valid, without reading freed bytes.
 	fn assert_shape_excludes_source_storage(shaped ShapedText, source string) {
-		start := usize(source.str)
-		end := start + usize(source.len)
+		start := uint(source.str)
+		end := start + uint(source.len)
 		mut retained := [shaped.text, shaped.layout.text]
 		for line in shaped.lines { retained << line.text }
 		for item in shaped.layout.items {
 			if item.run_text.len > 0 { retained << item.run_text }
 		}
 		for text in retained {
-			address := usize(text.str)
+			address := uint(text.str)
 			assert address < start || address > end, 'shaped text must outlive the source allocation'
 		}
 	}

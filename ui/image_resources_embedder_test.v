@@ -5,7 +5,6 @@ $if macos && ui2_custom_rendering ?&& ui2_embedder ?&& !ui2_headless ? {
 	import gg
 	import os
 	import sokol.gfx
-	import sokol.sgl
 
 	fn image_gpu_environment() gfx.Environment {
 		return gfx.Environment{
@@ -71,7 +70,7 @@ fn test_image_gpu_atlas_context_isolation_shared_release_resize_and_recreation()
 		first.draw_asset_image(el, first.image_geometry_for(el, el.frame)!)
 		first.end()
 		C.ui2_embedder_frame_done(window)
-		assert sgl.error() == .no_error
+		assert first.inner.r.error() == .no_error
 		assert first.images.stats().uploads == 1
 		// Removing one of two consumers still marks the one shared entry.
 		first.images.begin_frame()

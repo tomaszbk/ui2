@@ -5,7 +5,6 @@ module ui2
 $if macos && ui2_custom_rendering ?&& ui2_embedder ?&& !ui2_headless ? {
 	import gg
 	import sokol.gfx
-	import sokol.sgl
 
 	fn affine_allocation_environment() gfx.Environment {
 		return gfx.Environment{
@@ -71,7 +70,7 @@ fn test_complete_affine_scaled_scroll_scene_hover_allocates_nothing() ! {
 		}
 		delta := gc_allocation_snapshot()!.delta_since(before)
 		assert w.scheduler.stats().draws - draws_before == 100
-		assert sgl.error() == .no_error
+		assert ctx.inner.r.error() == .no_error
 		assert delta.allocated_bytes == 0
 		assert delta.collections == 0
 		assert w.hit_test(point.x, point.y).id == 'hover'

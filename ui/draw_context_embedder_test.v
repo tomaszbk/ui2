@@ -4,7 +4,6 @@ $if macos && ui2_custom_rendering ?&& ui2_embedder ?&& !ui2_headless ? {
 	import gg
 	import os
 	import sokol.gfx
-	import sokol.sgl
 	import ui2.thirdparty.vglyph
 
 	#flag -DSOKOL_TRACE_HOOKS
@@ -12,7 +11,7 @@ $if macos && ui2_custom_rendering ?&& ui2_embedder ?&& !ui2_headless ? {
 
 	fn C.ui2_test_atlas_start()
 	fn C.ui2_test_atlas_stop()
-	fn C.ui2_test_atlas_watch(u32, u32, &u8, usize) bool
+	fn C.ui2_test_atlas_watch(u32, u32, &u8, uint) bool
 	fn C.ui2_test_atlas_passed() bool
 	fn C.ui2_test_atlas_drawn(u32) bool
 
@@ -87,10 +86,9 @@ fn test_owned_draw_resources_keep_other_window_text_and_device_alive() {
 		value := 'independent window'
 		first_width := first.shape_text(value, style, -1, 1, false)!.size.width
 		assert first_width > 0
-		first.activate()
-		sgl.defaults()
-		sgl.matrix_mode_projection()
-		sgl.ortho(0, 320, 240, 0, -1, 1)
+		first.inner.r.defaults()
+		first.inner.r.matrix_mode_projection()
+		first.inner.r.ortho(0, 320, 240, 0, -1, 1)
 		first.draw_shaped(first.shape_text(value, style, -1, 1, false)!, 5, 5)
 		generation := first.text_font_generation
 		// A CPU-only context can register a newly requested family after a
@@ -110,7 +108,7 @@ fn test_owned_draw_resources_keep_other_window_text_and_device_alive() {
 		assert first.text_font_generation == first.text.font_generation
 		assert first.text_renderer.atlas_images()[0].simg == first_images[0].simg
 		assert gfx.query_sampler_state(first_images[0].ssmp) == .valid
-		assert sgl.error() == .no_error
+		assert first.inner.r.error() == .no_error
 		second.set_surface(320, 240, 2, gfx.Swapchain{})
 		assert gfx.query_image_state(second_images[0].simg) != .valid
 		assert gfx.query_sampler_state(second_images[0].ssmp) != .valid
@@ -172,7 +170,7 @@ fn test_text_atlas_uploads_new_glyphs_before_on_demand_submission_and_releases_g
 		shaped := ctx.shape_text('ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz 0123456789', style, 310, 5, false)!
 		ctx.begin()
 		ctx.draw_shaped(shaped, 5, 5)
-		assert sgl.error() == .no_error
+		assert ctx.inner.r.error() == .no_error
 		assert ctx.text_renderer.get_atlas_height() > 32
 		assert gfx.query_image_info(small.simg).upd_frame_index > 0
 		grown := ctx.text_renderer.atlas_images()[0]
@@ -313,7 +311,7 @@ fn test_new_glyph_uploads_in_the_submission_frame_without_atlas_growth() {
 			assert gfx.query_image_info(image.simg).upd_frame_index == u32(i + 1)
 			assert ctx.inner.frame == u64(i + 1)
 			assert gfx.query_sampler_state(image.ssmp) == .valid
-			assert sgl.error() == .no_error
+			assert ctx.inner.r.error() == .no_error
 		}
 	}
 }
@@ -391,8 +389,8 @@ fn test_atlas_growth_submits_retired_and_live_pixels_and_releases_only_retired_i
 		mut live_pixels := retired_pixels.clone()
 		live_pixels << blue.data
 		C.ui2_test_atlas_start()
-		assert C.ui2_test_atlas_watch(retired.simg.id, 2, retired_pixels.data, usize(retired_pixels.len))
-		assert C.ui2_test_atlas_watch(live.simg.id, 2, live_pixels.data, usize(live_pixels.len))
+		assert C.ui2_test_atlas_watch(retired.simg.id, 2, retired_pixels.data, uint(retired_pixels.len))
+		assert C.ui2_test_atlas_watch(live.simg.id, 2, live_pixels.data, uint(live_pixels.len))
 		ctx.end()
 		assert C.ui2_test_atlas_passed()
 		assert C.ui2_test_atlas_drawn(retired.simg.id)
@@ -405,7 +403,7 @@ fn test_atlas_growth_submits_retired_and_live_pixels_and_releases_only_retired_i
 		assert gfx.query_image_state(retired.simg) == .valid
 		assert gfx.query_image_state(live.simg) == .valid
 		assert gfx.query_sampler_state(live.ssmp) == .valid
-		assert sgl.error() == .no_error
+		assert ctx.inner.r.error() == .no_error
 
 		// The next draw cleans up submitted generations without another
 		// render frame, and must leave the live image's shared sampler alive.
@@ -441,10 +439,9 @@ fn test_closing_with_deferred_atlas_images_keeps_another_context_alive() {
 		transient.text_renderer = vglyph.new_renderer_atlas_size(mut transient.inner, 64,
 			32, transient.scale)
 		first := transient.text_renderer.atlas_images()[0]
-		transient.activate()
-		sgl.defaults()
-		sgl.matrix_mode_projection()
-		sgl.ortho(0, 320, 240, 0, -1, 1)
+		transient.inner.r.defaults()
+		transient.inner.r.matrix_mode_projection()
+		transient.inner.r.ortho(0, 320, 240, 0, -1, 1)
 		style := TextStyle{
 			size:        16
 			font_family: os.join_path(@VMODROOT, 'assets', 'fonts', 'Roboto-Regular.ttf')
@@ -495,7 +492,7 @@ fn test_closing_with_deferred_atlas_images_keeps_another_context_alive() {
 		for id in first.id .. last_id + 1 {
 			allocated << *transient.inner.get_cached_image_by_idx(id)
 		}
-		assert sgl.error() == .no_error
+		assert transient.inner.r.error() == .no_error
 		transient.destroy()
 		assert gfx.is_valid()
 		for image in allocated {
@@ -504,13 +501,12 @@ fn test_closing_with_deferred_atlas_images_keeps_another_context_alive() {
 		}
 		assert gfx.query_image_state(guard_image.simg) == .valid
 		assert gfx.query_sampler_state(guard_image.ssmp) == .valid
-		guard.activate()
-		sgl.defaults()
-		sgl.matrix_mode_projection()
-		sgl.ortho(0, 320, 240, 0, -1, 1)
+		guard.inner.r.defaults()
+		guard.inner.r.matrix_mode_projection()
+		guard.inner.r.ortho(0, 320, 240, 0, -1, 1)
 		long_text := guard.shape_text_area('visible line\n'.repeat(3000), style, 310)!
 		guard.draw_shaped_clipped(long_text, 5, 5, rect(5, 5, 310, 200))
-		assert sgl.error() == .no_error
+		assert guard.inner.r.error() == .no_error
 		guard.destroy()
 		assert !gfx.is_valid()
 	}
@@ -553,7 +549,7 @@ fn test_scaled_composition_gpu_submission_keeps_caret_and_layout_on_resize() {
 				rich,
 				field,
 			]), 0, 0, viewport, '', 'root')
-			assert sgl.error() == .no_error
+			assert ctx.inner.r.error() == .no_error
 			assert ctx.content_transform == ContentTransform{}
 			assert ctx.shape_runs(rich.text_runs, rich.text_style, 400, 3, true)!.size == reference
 			caret := w.text_caret

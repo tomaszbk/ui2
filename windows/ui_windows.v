@@ -32,7 +32,7 @@ fn C.ui2_win_visual_styles_enabled() int
 
 fn C.ui2_win_create_main_window(title &u16, width int, height int) voidptr
 
-fn C.ui2_win_apply_min_size(hwnd voidptr, lparam isize, width int, height int)
+fn C.ui2_win_apply_min_size(hwnd voidptr, lparam int, width int, height int)
 
 fn C.ui2_win_set_window_title(hwnd voidptr, title &u16)
 
@@ -44,7 +44,7 @@ fn C.ui2_win_show_main_window(hwnd voidptr)
 
 fn C.ui2_win_message_loop() int
 
-fn C.ui2_win_default_proc(hwnd voidptr, message u32, wparam usize, lparam isize) isize
+fn C.ui2_win_default_proc(hwnd voidptr, message u32, wparam uint, lparam int) int
 
 fn C.ui2_win_post_quit(code int)
 
@@ -118,7 +118,7 @@ fn C.ui2_win_set_edit_options(hwnd voidptr, placeholder &u16, readonly int, padd
 
 fn C.ui2_win_placeholder_matches(hwnd voidptr, expected &u16) int
 
-fn C.ui2_win_widget_style(hwnd voidptr) usize
+fn C.ui2_win_widget_style(hwnd voidptr) uint
 
 fn C.ui2_win_click(hwnd voidptr)
 
@@ -159,7 +159,7 @@ fn C.ui2_win_create_brush(color u32) voidptr
 
 fn C.ui2_win_delete_object(object voidptr)
 
-fn C.ui2_win_apply_control_colors(dc voidptr, foreground u32, background u32, transparent int, brush voidptr) isize
+fn C.ui2_win_apply_control_colors(dc voidptr, foreground u32, background u32, transparent int, brush voidptr) int
 
 fn C.ui2_win_paint_background(hwnd voidptr, background u32, radius f64, transparent int, border_color u32, border_left f64, border_top f64, border_right f64, border_bottom f64)
 
@@ -252,15 +252,15 @@ fn C.ui2_win_set_scroll_both(hwnd voidptr, content_width int, content_height int
 
 fn C.ui2_win_scroll_position(hwnd voidptr, horizontal int) int
 
-fn C.ui2_win_scroll_message(hwnd voidptr, wparam usize, horizontal int) int
+fn C.ui2_win_scroll_message(hwnd voidptr, wparam uint, horizontal int) int
 
-fn C.ui2_win_wheel_distance(wparam usize, tilt int, horizontal int) int
+fn C.ui2_win_wheel_distance(wparam uint, tilt int, horizontal int) int
 
 fn C.ui2_win_scroll_by(hwnd voidptr, distance int, horizontal int) int
 
 fn C.ui2_win_scroll_parent(hwnd voidptr, horizontal int) voidptr
 
-fn C.ui2_win_wheel_is_shifted(wparam usize) int
+fn C.ui2_win_wheel_is_shifted(wparam uint) int
 
 fn C.ui2_win_scroll_to_rect(hwnd voidptr, start int, end int, horizontal int) int
 fn C.ui2_win_set_scroll_position(hwnd voidptr, position int, horizontal int) int
@@ -1668,7 +1668,7 @@ fn (mut w Window) windows_reposition_scroll_children(scroll_key string) {
 // custom renderer walks its scroll chain. A pane ten pixels from its end takes those
 // ten and the pane around it the rest of the step, so nested panes scroll through a
 // boundary instead of stopping short at it.
-fn (mut w Window) windows_handle_wheel(hwnd voidptr, message u32, wparam usize) {
+fn (mut w Window) windows_handle_wheel(hwnd voidptr, message u32, wparam uint) {
 	tilt := message == win_wm_mouse_hwheel
 	// Shift turns a plain wheel sideways.
 	horizontal := tilt || C.ui2_win_wheel_is_shifted(wparam) != 0
@@ -1703,7 +1703,7 @@ fn (mut w Window) windows_scroll_by(hwnd voidptr, distance int, horizontal bool)
 }
 
 // windows_handle_scroll follows one of a Scroll element's own bars.
-fn (mut w Window) windows_handle_scroll(hwnd voidptr, wparam usize, horizontal bool) {
+fn (mut w Window) windows_handle_scroll(hwnd voidptr, wparam uint, horizontal bool) {
 	key := w.windows_scroll_key(hwnd, horizontal) or { return }
 	w.windows_record_scroll(hwnd, key, C.ui2_win_scroll_message(hwnd, wparam, windows_bool(horizontal)),
 		horizontal)
@@ -2100,7 +2100,7 @@ fn (mut w Window) windows_handle_drop(drop voidptr) {
 }
 
 @[export: 'ui2_windows_window_proc']
-fn ui2_windows_window_proc(hwnd voidptr, message u32, wparam usize, lparam isize) isize {
+fn ui2_windows_window_proc(hwnd voidptr, message u32, wparam uint, lparam int) int {
 	mut w := windows_window_for(hwnd) or { return C.ui2_win_default_proc(hwnd, message, wparam, lparam) }
 	match message {
 		win_wm_getminmaxinfo {
@@ -2109,7 +2109,7 @@ fn ui2_windows_window_proc(hwnd voidptr, message u32, wparam usize, lparam isize
 			return 0
 		}
 		win_wm_command {
-			child := voidptr(usize(lparam))
+			child := voidptr(uint(lparam))
 			if child == unsafe { nil } {
 				// The host's menu subclass takes the menu bar's rows first
 				// (menu_host_windows.h); nothing else sends one.
@@ -2142,7 +2142,7 @@ fn ui2_windows_window_proc(hwnd voidptr, message u32, wparam usize, lparam isize
 			}
 		}
 		win_wm_ctlcolor_edit, win_wm_ctlcolor_listbox, win_wm_ctlcolor_button, win_wm_ctlcolor_static {
-			child := voidptr(usize(lparam))
+			child := voidptr(uint(lparam))
 			key := w.handle_keys[windows_handle_id(child)] or {
 				return C.ui2_win_default_proc(hwnd, message, wparam, lparam)
 			}
@@ -2203,7 +2203,7 @@ fn ui2_windows_window_proc(hwnd voidptr, message u32, wparam usize, lparam isize
 			}
 		}
 		win_wm_hscroll, win_wm_vscroll {
-			child := voidptr(usize(lparam))
+			child := voidptr(uint(lparam))
 			if child != unsafe { nil } {
 				handle := windows_handle_id(child)
 				if spec := w.slider_specs[handle] {
@@ -2225,12 +2225,12 @@ fn ui2_windows_window_proc(hwnd voidptr, message u32, wparam usize, lparam isize
 			return 0
 		}
 		win_wm_key_down {
-			if ui2_windows_control_key(hwnd, u32(wparam), windows_bool((usize(lparam) & (usize(1) << 30)) != 0), u32((usize(lparam) >> 16) & 0x1ff)) != 0 {
+			if ui2_windows_control_key(hwnd, u32(wparam), windows_bool((uint(lparam) & (uint(1) << 30)) != 0), u32((uint(lparam) >> 16) & 0x1ff)) != 0 {
 				return 0
 			}
 		}
-		win_wm_key_up { if ui2_windows_control_key_up(u32(wparam), u32((usize(lparam) >> 16) & 0x1ff)) != 0 { return 0 } }
-		win_wm_char { if ui2_windows_control_char(u32(wparam), u32((usize(lparam) >> 16) & 0x1ff)) != 0 { return 0 } }
+		win_wm_key_up { if ui2_windows_control_key_up(u32(wparam), u32((uint(lparam) >> 16) & 0x1ff)) != 0 { return 0 } }
+		win_wm_char { if ui2_windows_control_char(u32(wparam), u32((uint(lparam) >> 16) & 0x1ff)) != 0 { return 0 } }
 		win_wm_activate_app {
 			if wparam == 0 {
 				w.suppressed_keys.clear()
@@ -2392,7 +2392,7 @@ fn ui2_windows_control_pointer(hwnd voidptr, message u32, local_x int, local_y i
 	mut y := local_y
 	C.ui2_win_point_to_root(hwnd, w.root, &x, &y)
 	if message == win_wm_lbutton_down {
-		mut target := voidptr(usize(hwnd))
+		mut target := voidptr(uint(hwnd))
 		mut binding := WindowsPointerBinding{}
 		for target != unsafe { nil } {
 			handle := windows_handle_id(target)

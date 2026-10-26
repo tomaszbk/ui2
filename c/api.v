@@ -535,19 +535,19 @@ pub fn bounds(width &f64, height &f64) {
 }
 
 @[export: 'ui2_get_text']
-pub fn get_text(id &char, buffer &char, capacity usize) usize {
+pub fn get_text(id &char, buffer &char, capacity uint) uint {
 	mut value := ''
 	if mut w := live_window() {
 		value = w.text(input(id))
 	}
 	if buffer != unsafe { nil } && capacity > 0 {
-		count := if usize(value.len) < capacity - 1 { usize(value.len) } else { capacity - 1 }
+		count := if uint(value.len) < capacity - 1 { uint(value.len) } else { capacity - 1 }
 		unsafe {
 			C.memcpy(buffer, value.str, count)
 			buffer[count] = 0
 		}
 	}
-	return usize(value.len) + 1
+	return uint(value.len) + 1
 }
 
 @[export: 'ui2_update_text']

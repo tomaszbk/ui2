@@ -180,7 +180,7 @@ fn (mut b DarwinAccessibilityBackend) update_text_field(node_id int, value strin
 
 		// Set Number of Characters
 		C.v_msgSend_void_id(elem, sel_register_name('setAccessibilityNumberOfCharacters:'),
-			voidptr(usize(value.len)))
+			voidptr(uint(value.len)))
 	}
 }
 
