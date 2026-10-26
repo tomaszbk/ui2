@@ -7,7 +7,6 @@ $if macos && ui2_custom_rendering ?&& ui2_embedder ?&& ui2_geometry_capture ?&& 
 	import math
 	import os
 	import sokol.gfx
-	import sokol.sgl
 
 	@[heap]
 	struct EmbedderMotionFixture {
@@ -155,7 +154,7 @@ fn test_actual_motion_frame_fades_text_images_vectors_retargets_without_build_an
 		for _ in 0 .. 4 { on_frame(mut w) }
 		assert !completed.motion_active && !completed.pending
 		assert w.scheduler.stats().draws == completed.draws && fixture.builds == 1
-		assert sgl.error() == .no_error
+		assert ctx.inner.r.error() == .no_error
 		println('owned Metal: nested fade submitted for glyphs/images/vectors; transforms preserved edits/IME and avoided builds/relayout; enter/exit returned idle')
 	}
 }

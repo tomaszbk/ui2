@@ -2,7 +2,6 @@
 module ui2
 
 $if (android || linux || ((ios || macos || windows) && ui2_custom_rendering ?)) && !ui2_headless ? && !ui2_document_library ? {
-	import sokol.sgl
 
 	fn draw_vector_shapes(ctx &DrawContext, shapes []VectorShape, x f64, y f64) {
 		for shape in shapes {
@@ -13,7 +12,7 @@ $if (android || linux || ((ios || macos || windows) && ui2_custom_rendering ?)) 
 				for triangle in shape.stroke_triangles { draw_vector_triangle(ctx, triangle, x, y, color) }
 			}
 		}
-		if sgl.error() != .no_error { panic('ui2: vector canvas exceeded the shared renderer command/vertex capacity: ${sgl.error()}') }
+		if ctx.inner.r.error() != .no_error { panic('ui2: vector canvas exceeded the shared renderer command/vertex capacity: ${ctx.inner.r.error()}') }
 	}
 
 	fn draw_vector_triangle(ctx &DrawContext, triangle VectorTriangle, x f64, y f64, color u32) {

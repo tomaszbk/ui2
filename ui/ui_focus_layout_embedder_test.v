@@ -5,9 +5,8 @@ module ui2
 
 $if macos && ui2_custom_rendering ? && ui2_embedder ? && !ui2_headless ? {
 	import sokol.gfx
-	import sokol.sgl as _
 
-	#include "@VMODROOT/tests/render_scheduler/draw_commands.h"
+	#include "@VMODROOT/tests/render_scheduler/drawable_hooks.h"
 	fn C.ui2_test_pump(data voidptr, pump fn (voidptr) i64) i64
 
 	__global focus_layout_before Rect

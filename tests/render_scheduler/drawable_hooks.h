@@ -1,22 +1,7 @@
-#ifndef UI2_TEST_DRAW_COMMANDS_H
-#define UI2_TEST_DRAW_COMMANDS_H
+#ifndef UI2_TEST_DRAWABLE_HOOKS_H
+#define UI2_TEST_DRAWABLE_HOOKS_H
 
-/* Test observations of the real SGL queue and Cocoa drawable ownership. */
-#ifndef SOKOL_GL_IMPL_INCLUDED
-#error "draw command fixture requires the SGL owner"
-#endif
-
-static int ui2_test_command_count(sgl_context context) {
-    _sgl_context_t* ctx = _sgl_lookup_context(context.id);
-    return ctx ? ctx->commands.next : -1;
-}
-
-static int ui2_test_vertex_count(sgl_context context) {
-    _sgl_context_t* ctx = _sgl_lookup_context(context.id);
-    return ctx ? ctx->vertices.next : -1;
-}
-
-static sg_sampler ui2_test_shared_sampler(void) { return _sgl.def_smp; }
+/* Test observations of Cocoa drawable ownership. */
 
 #include "../../ui/embedder_macos.h"
 #include <objc/message.h>

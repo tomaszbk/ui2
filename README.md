@@ -77,9 +77,10 @@ idle. Enable it with `-d ui2_custom_rendering -d ui2_embedder`. An `App` runs an
 
 ## Requirements
 
-`ui2` needs the `tomaszbk/v` compiler revision pinned in
-[`scripts/v-pin.env`](scripts/v-pin.env); the V release binaries do not compile
-it yet. Build that compiler with:
+`ui2` needs the V compiler revision pinned in
+[`scripts/v-pin.env`](scripts/v-pin.env): vlang/v master plus `gg.render` rewind
+(vlang/v#31218), so V release binaries do not compile it yet. Build
+that compiler with:
 
 ```sh
 scripts/setup-v.sh            # installs into ~/.local/share/ui2-v

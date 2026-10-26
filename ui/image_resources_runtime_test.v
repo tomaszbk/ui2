@@ -75,7 +75,7 @@ $if ( linux || macos || windows ) && !ui2_headless ?&& ( linux || ui2_custom_ren
 		// A second owner on the active graphics device cannot share handles.
 		mut isolated := &DrawContext{ inner: ctx.inner, scale: ctx.scale }
 		isolated.images.begin_frame()
-		other := isolated.images.acquire(image_probe_path(), 0)!
+		other := isolated.images.acquire(isolated.inner.r, image_probe_path(), 0)!
 		other_page := isolated.images.pages[other.page] or { panic('missing isolated page') }
 		assert other_page.image != page.image && other_page.sampler != page.sampler
 		bad_consumer := Element{ ...image('bad', image_probe_path(), rect(0, 0, 32, 32)), image_asset: ImageAsset{ logical_size: LayoutSize{ width: 2, height: 2 } } }
@@ -91,20 +91,20 @@ $if ( linux || macos || windows ) && !ui2_headless ?&& ( linux || ui2_custom_ren
 		temp_path := os.join_path(os.temp_dir(), 'ui2-image-replacement-${os.getpid()}.png')
 		defer { os.rm(temp_path) or {} }
 		os.write_file_array(temp_path, os.read_bytes(image_probe_path())!)!
-		original := isolated.images.acquire(temp_path, 0)!
+		original := isolated.images.acquire(isolated.inner.r, temp_path, 0)!
 		os.write_file_array(temp_path, os.read_bytes(os.join_path(@VMODROOT, 'examples', 'image_assets', 'assets', 'green.png'))!)!
-		replacement := isolated.images.acquire(temp_path, 1)!
+		replacement := isolated.images.acquire(isolated.inner.r, temp_path, 1)!
 		assert original.pixels != replacement.pixels
 		replacement_page := isolated.images.pages[replacement.page] or { panic('replacement page missing') }
 		offset := (int(replacement.pixels.y) * replacement_page.width + int(replacement.pixels.x)) * 4
 		assert replacement_page.pixels[offset..offset + 4] == [u8(0), 255, 0, 255]
 		os.write_file(temp_path, 'invalid image')!
 		mut failed := false
-		isolated.images.acquire(temp_path, 1) or { failed = true }
+		isolated.images.acquire(isolated.inner.r, temp_path, 1) or { failed = true }
 		assert failed
 		assert image_entry_key(temp_path, 1) !in isolated.images.entries
 		os.rm(temp_path)!
-		isolated.images.acquire(temp_path, 0) or {}
+		isolated.images.acquire(isolated.inner.r, temp_path, 0) or {}
 		assert image_entry_key(temp_path, 0) !in isolated.images.entries
 		assert gfx.query_image_state(other_page.image) == .valid
 		isolated.destroy()

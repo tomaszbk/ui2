@@ -2904,7 +2904,7 @@ fn (mut w Window) fire_pointer_event(native NativeView, phase ElementEventKind, 
 		w.pointer_button_moved = false
 		w.pointer_button_binding = AppkitCallbackBinding{}
 	}
-	mut target := NativeView(usize(native))
+	mut target := NativeView(uint(native))
 	mut binding := AppkitCallbackBinding{}
 	if phase == .pointer_down {
 		// Non-interactive labels/images forward to their enclosing pointer surface.
@@ -2917,7 +2917,7 @@ fn (mut w Window) fire_pointer_event(native NativeView, phase ElementEventKind, 
 	} else {
 		// Release uses the pressed callback, provided that surface is still available.
 		if pressed == 0 || !appkit_callback_present(pressed_binding) { return }
-		target = NativeView(voidptr(usize(pressed)))
+		target = NativeView(voidptr(uint(pressed)))
 		current := w.pointer_callbacks[pressed] or { return }
 		binding = appkit_pointer_release_binding(pressed_binding, current) or { return }
 	}

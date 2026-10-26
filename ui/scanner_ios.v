@@ -272,13 +272,13 @@ fn build_scanner_chrome(scanner macos.Id, view macos.Id) {
 	g_scanner_hint = hint
 
 	cancel := macos.msg_id_u64(macos.get_class('UIButton'), 'buttonWithType:', u64(0))
-	macos.msg_void2(cancel, 'setTitle:forState:', macos.nsstring('Cancel'), macos.Id(usize(0)))
-	macos.msg_void2(cancel, 'setTitleColor:forState:', white, macos.Id(usize(0)))
+	macos.msg_void2(cancel, 'setTitle:forState:', macos.nsstring('Cancel'), macos.Id(uint(0)))
+	macos.msg_void2(cancel, 'setTitleColor:forState:', white, macos.Id(uint(0)))
 	macos.msg_void1(macos.msg_id(cancel, 'titleLabel'), 'setFont:', scanner_font(16))
 	macos.msg_void1(cancel, 'setBackgroundColor:', scanner_overlay_color())
 	scanner_round_corners(cancel)
 	macos.msg_void3(cancel, 'addTarget:action:forControlEvents:', scanner, macos.Id(macos.sel('vuiCancelTap')),
-		macos.Id(usize(ui_control_event_touch_up_inside)))
+		macos.Id(uint(ui_control_event_touch_up_inside)))
 	macos.msg_void1(view, 'addSubview:', cancel)
 	// buttonWithType: hands back an autoreleased button, so it needs the same
 	// ownership as the label allocated above.

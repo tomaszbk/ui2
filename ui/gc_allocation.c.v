@@ -2,12 +2,12 @@ module ui2
 
 $if gcboehm ? {
 	struct C.GC_prof_stats_s {
-		bytes_allocd_since_gc  usize
-		allocd_bytes_before_gc usize
-		gc_no                  usize
+		bytes_allocd_since_gc  uint
+		allocd_bytes_before_gc uint
+		gc_no                  uint
 	}
 
-	fn C.GC_get_prof_stats(&C.GC_prof_stats_s, usize) usize
+	fn C.GC_get_prof_stats(&C.GC_prof_stats_s, uint) uint
 }
 
 // GcAllocationSnapshot contains cumulative Boehm allocation and collection

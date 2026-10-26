@@ -159,7 +159,7 @@ $if !ui2_custom_rendering ? {
 		C.ui2_win_configure_accessible_button(button, caption, 1)
 		unsafe { free(caption) }
 		assert C.ui2_win_is_accessible_button(button) != 0
-		assert C.ui2_win_widget_style(button) & usize(0x00010000) != 0
+		assert C.ui2_win_widget_style(button) & uint(0x00010000) != 0
 
 		expected_name := label.to_wide()
 		info := C.ui2_win_accessible_button_info(button, expected_name)
@@ -222,7 +222,7 @@ $if !ui2_custom_rendering ? {
 		C.ui2_win_configure_accessible_button(button, empty_caption, 0)
 		unsafe { free(empty_caption) }
 		assert C.ui2_win_is_accessible_button(button) == 0
-		assert C.ui2_win_widget_style(button) & usize(0x00010000) == 0
+		assert C.ui2_win_widget_style(button) & uint(0x00010000) == 0
 	}
 
 	fn test_windows_transparent_push_buttons_use_custom_painting() {
@@ -374,8 +374,8 @@ $if !ui2_custom_rendering ? {
 		switch_view := C.ui2_win_create_widget(windows_widget_kind(.switch_control), root, 0, 120, 60, 32, empty, 0, 0, 0, 0, 0)
 		// A label is placed by measuring it now, so it no longer asks the control to
 		// centre a line on its behalf: SS_CENTERIMAGE is gone and SS_NOTIFY remains.
-		assert C.ui2_win_widget_style(label) & usize(0x0200) == 0
-		assert C.ui2_win_widget_style(label) & usize(0x0100) != 0
+		assert C.ui2_win_widget_style(label) & uint(0x0200) == 0
+		assert C.ui2_win_widget_style(label) & uint(0x0100) != 0
 		measured_text := 'measured label'.to_wide()
 		measured := C.ui2_win_create_widget(windows_widget_kind(.label), root, 0, 160,
 			200, 32, measured_text, 0, 0, 0, 0, 0)
@@ -388,8 +388,8 @@ $if !ui2_custom_rendering ? {
 		assert single > 0
 		assert C.ui2_win_label_content_height(measured, 40, 3) <= single * 3
 		assert C.ui2_win_label_content_height(measured, 40, 3) >= single
-		assert C.ui2_win_widget_style(checkbox) & usize(0x2000) == 0
-		assert C.ui2_win_widget_style(switch_view) & usize(0x1000) != 0
+		assert C.ui2_win_widget_style(checkbox) & uint(0x2000) == 0
+		assert C.ui2_win_widget_style(switch_view) & uint(0x1000) != 0
 		C.ui2_win_set_checked(switch_view, 1)
 		assert C.ui2_win_get_checked(switch_view) != 0
 
@@ -453,7 +453,7 @@ $if !ui2_custom_rendering ? {
 
 	fn test_windows_control_destruction_releases_capture_and_nested_keyboard_transport_state() {
 		mut st := &Window{}
-		hwnd := voidptr(usize(0x1234))
+		hwnd := voidptr(uint(0x1234))
 		handle := windows_handle_id(hwnd)
 		// The tracking callback finds its window by handle; this one stands in
 		// for a control of st.
@@ -477,7 +477,7 @@ $if !ui2_custom_rendering ? {
 
 	fn test_windows_scroll_notification_uses_current_element_callback_and_logical_offset() {
 		mut st := &Window{}
-		hwnd := voidptr(usize(0x4567))
+		hwnd := voidptr(uint(0x4567))
 		handle := windows_handle_id(hwnd)
 		st.scroll_callbacks[handle] = WindowsCallbackBinding{ id: 'list', on_event: capture_windows_control_a, kind: .scroll, event: .scroll }
 		windows_control_test_handlers = []string{}

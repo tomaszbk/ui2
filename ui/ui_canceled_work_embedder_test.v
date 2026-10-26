@@ -6,12 +6,9 @@ module ui2
 $if macos && ui2_custom_rendering ? && ui2_embedder ? && !ui2_headless ? {
 	import os
 	import sokol.gfx
-	import sokol.sgl
 
-	#include "@VMODROOT/tests/render_scheduler/draw_commands.h"
+	#include "@VMODROOT/tests/render_scheduler/drawable_hooks.h"
 	fn C.ui2_test_pump(data voidptr, pump fn (voidptr) i64) i64
-	fn C.ui2_test_command_count(context sgl.Context) int
-	fn C.ui2_test_vertex_count(context sgl.Context) int
 	fn C.ui2_test_watch_drawable(window voidptr)
 	fn C.ui2_test_drawable_release_count() int
 	fn C.ui2_test_has_drawable(window voidptr) bool
@@ -80,7 +77,7 @@ $if macos && ui2_custom_rendering ? && ui2_embedder ? && !ui2_headless ? {
 		assert !scheduler.stats().in_flight
 		assert C.ui2_test_drawable_release_count() == 0 && !C.ui2_test_has_drawable(w.native_window)
 		if !ctx.destroyed {
-			assert C.ui2_test_command_count(ctx.gl_context) == 0 && C.ui2_test_vertex_count(ctx.gl_context) == 0
+			assert ctx.inner.r.num_commands() == 0 && ctx.inner.r.num_vertices() == 0
 		}
 		assert other.scheduler.stats().draws == other_draws
 		assert other.scheduler.stats().pending

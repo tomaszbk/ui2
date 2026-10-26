@@ -964,7 +964,7 @@ fn copy_bitmap_to_page(mut page AtlasPage, bmp Bitmap, x int, y int) ! {
 		return
 	}
 
-	row_bytes := usize(bmp.width * 4)
+	row_bytes := bmp.width * 4
 	for row in 0 .. bmp.height {
 		unsafe {
 			src_ptr := &u8(bmp.data.data) + (row * bmp.width * 4)

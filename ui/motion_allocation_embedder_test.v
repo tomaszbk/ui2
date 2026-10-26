@@ -5,7 +5,6 @@ module ui2
 $if macos && ui2_custom_rendering ?&& ui2_embedder ?&& !ui2_headless ? {
 	import gg
 	import sokol.gfx
-	import sokol.sgl
 
 	__global motion_allocation_now = f64(0)
 
@@ -136,7 +135,7 @@ fn motion_allocation_acceptance(rotating bool) ! {
 		assert after_layout.measure_visits == before_layout.measure_visits
 		assert after_layout.layout_visits == before_layout.layout_visits
 		assert ctx.text.shape_builds == before_shapes
-		assert sgl.error() == .no_error
+		assert ctx.inner.r.error() == .no_error
 		assert delta.allocated_bytes == 0
 		assert delta.collections == 0
 		motion_allocation_now = 30

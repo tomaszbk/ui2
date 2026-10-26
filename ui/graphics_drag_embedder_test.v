@@ -7,7 +7,6 @@ $if macos && ui2_custom_rendering ? && ui2_embedder ? && ui2_geometry_capture ? 
 	import gg
 	import os
 	import sokol.gfx
-	import sokol.sgl
 	__global drag_seam_vertices = []PaintVertex{}
 	__global drag_seam_events = []ElementEventKind{}
 	__global drag_seam_teardown = false
@@ -99,7 +98,7 @@ $if macos && ui2_custom_rendering ? && ui2_embedder ? && ui2_geometry_capture ? 
 		for vertex in drag_seam_vertices { assert clip.contains(vertex.x,vertex.y) }
 		ctx.content_transform=ContentTransform{}; ctx.clip_base=ClipRegion{}; ctx.clip_region=ClipRegion{}
 		ctx.end(); C.ui2_embedder_frame_done(window)
-		assert sgl.error()==.no_error && ctx.images.stats().uploads==1
+		assert ctx.inner.r.error()==.no_error && ctx.images.stats().uploads==1
 		// Source remains mounted offscreen. Remove its content image: preview is
 		// now the last image consumer and still marks the same resource owner.
 		w.scroll_offsets[named_scroll_state_id('source-pane')]=100

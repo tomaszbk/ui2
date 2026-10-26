@@ -6,7 +6,7 @@ $if (android || linux || ((ios || macos || windows) && ui2_custom_rendering ?)) 
 	import math
 	import stbi
 	import sokol.gfx
-	import sokol.sgl
+	import gg.render
 
 	const image_atlas_extent = 512
 	const image_atlas_padding = 2
@@ -46,7 +46,7 @@ $if (android || linux || ((ios || macos || windows) && ui2_custom_rendering ?)) 
 		frame u64
 		in_frame bool
 		closed bool
-		pipeline sgl.Pipeline
+		pipeline render.Pipeline
 		decodes u64
 		cache_hits u64
 		uploads u64
@@ -72,12 +72,12 @@ $if (android || linux || ((ios || macos || windows) && ui2_custom_rendering ?)) 
 		return '${os.abs_path(path)}:${revision}'
 	}
 
-	fn (mut resources ImageResources) acquire(path string, revision u64) !ImageEntry {
+	fn (mut resources ImageResources) acquire(r &render.Context, path string, revision u64) !ImageEntry {
 		if resources.closed || !gfx.is_valid() { return error('image context is closed or GPU is unavailable') }
 		if resources.pipeline.id == 0 {
 			mut desc := gfx.PipelineDesc{}
 			desc.colors[0] = gfx.ColorTargetState{blend:gfx.BlendState{enabled:true,src_factor_rgb:.src_alpha,dst_factor_rgb:.one_minus_src_alpha,src_factor_alpha:.one,dst_factor_alpha:.one_minus_src_alpha}}
-			resources.pipeline = sgl.make_pipeline(&desc)
+			resources.pipeline = r.make_pipeline(desc)
 			if resources.pipeline.id == 0 { return error('could not allocate image blend pipeline') }
 		}
 		key := image_entry_key(path, revision)
@@ -165,7 +165,7 @@ $if (android || linux || ((ios || macos || windows) && ui2_custom_rendering ?)) 
 		for _, mut page in resources.pages {
 			if !page.dirty { continue }
 			mut data := gfx.ImageData{}
-			data.subimage[0][0] = gfx.Range{ptr:page.pixels.data,size:usize(page.pixels.len)}
+			data.subimage[0][0] = gfx.Range{ptr:page.pixels.data,size:uint(page.pixels.len)}
 			gfx.update_image(page.image,&data)
 			page.dirty = false
 			resources.uploads++
@@ -194,14 +194,14 @@ $if (android || linux || ((ios || macos || windows) && ui2_custom_rendering ?)) 
 		resources.in_frame = false
 	}
 
-	fn (mut resources ImageResources) destroy() {
+	fn (mut resources ImageResources) destroy(r &render.Context) {
 		if resources.closed { return }
 		for _, page in resources.pages {
 			gfx.destroy_image(page.image); gfx.destroy_sampler(page.sampler)
 			resources.destroyed++
 		}
 		resources.entries.clear(); resources.pages.clear()
-		if resources.pipeline.id != 0 { sgl.destroy_pipeline(resources.pipeline); resources.pipeline = sgl.Pipeline{} }
+		if resources.pipeline.id != 0 { r.destroy_pipeline(resources.pipeline); resources.pipeline = render.Pipeline{} }
 		resources.in_frame = false; resources.closed = true
 	}
 
@@ -216,7 +216,6 @@ $if (android || linux || ((ios || macos || windows) && ui2_custom_rendering ?)) 
 
 	fn (mut ctx DrawContext) prepare_image(el Element, quality_scale f64) !ImageEntry {
 		if ctx.destroyed || ctx.destroying { return error('image context is closing') }
-		ctx.activate()
 		mut required := quality_scale
 		if el.image_asset.logical_size.width > 0 && el.frame.width > 0 && el.frame.height > 0 {
 			geometry := image_geometry(el.frame,el.image_asset.logical_size,el.image_style)!
@@ -225,7 +224,7 @@ $if (android || linux || ((ios || macos || windows) && ui2_custom_rendering ?)) 
 		variant := select_image_variant(el.image_path,el.image_asset,required)!
 		key := image_entry_key(variant.path,el.image_asset.revision)
 		previous_seen := (ctx.images.entries[key] or { ImageEntry{} }).seen
-		entry := ctx.images.acquire(variant.path,el.image_asset.revision)!
+		entry := ctx.images.acquire(ctx.inner.r, variant.path,el.image_asset.revision)!
 		validate_image_variant(entry,el.image_asset,variant) or {
 			// A malformed consumer must not invalidate another consumer's valid
 			// decoded resource. Restore its previous mark; unclaimed new entries
@@ -262,9 +261,8 @@ $if (android || linux || ((ios || macos || windows) && ui2_custom_rendering ?)) 
 		u0, v0 := (entry.pixels.x + geometry.source.x * entry.size.width) / page.width,
 			(entry.pixels.y + geometry.source.y * entry.size.height) / page.height
 		u1, v1 := u0 + geometry.source.width * entry.size.width / page.width, v0 + geometry.source.height * entry.size.height / page.height
-		ctx.activate()
-		sgl.load_pipeline(ctx.images.pipeline)
-		sgl.enable_texture(); sgl.texture(page.image,page.sampler)
+		ctx.inner.r.load_pipeline(ctx.images.pipeline)
+		ctx.inner.r.enable_texture(); ctx.inner.r.texture(page.image,page.sampler)
 		tint := el.image_style.tint
 		uvs := [ImagePoint{u0,v0},ImagePoint{u1,v0},ImagePoint{u1,v1},ImagePoint{u0,v1}]!
 		mut vertices := unsafe { &ctx.paint_vertices }
@@ -275,7 +273,7 @@ $if (android || linux || ((ios || macos || windows) && ui2_custom_rendering ?)) 
 				r:f64(tint.r),g:f64(tint.g),b:f64(tint.b),a:f64(tint.a)}
 		}
 		ctx.emit_window_polygon(unsafe { *vertices },f64(ctx.scale))
-		sgl.disable_texture()
+		ctx.inner.r.disable_texture()
 		return true
 	}
 
