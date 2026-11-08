@@ -10,10 +10,10 @@ $if (android || linux || ((ios || macos || windows) && ui2_custom_rendering ?)) 
 	import fontstash
 	import gg.render
 	import sokol.gfx
-	import sokol.sfons
 	$if android || ios {
 		import os
 		import os.font
+		import sokol.sfons
 	} $else {
 		import ui2.thirdparty.vglyph
 	}

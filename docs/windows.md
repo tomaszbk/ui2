@@ -76,9 +76,8 @@ v test ui/ui_custom_runtime_test.v
 `make check-custom-windows` typechecks the renderer's library, runtime
 fixtures and the example for Windows. CI runs the same typechecks on
 `windows-latest`, and the desktop test suite on its custom-renderer row; each
-PowerShell invocation checks its exit status. The shared compiler setup accepts `v-repository` and downloads the
-pin from `tomaszbk/v`, so fork-only VML compiler revisions can be selected by
-updating the single `v-revision` pin. Its generated-C bootstrap snapshot is
+PowerShell invocation checks its exit status. The shared compiler setup downloads the V repository and revision pinned in
+`scripts/v-pin.env` (vlang/v master). Its generated-C bootstrap snapshot is
 pinned separately; verify both pins together when changing the compiler.
 
 Neither cross-target typechecks nor a successful Windows CI job establish
