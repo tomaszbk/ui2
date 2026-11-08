@@ -23,6 +23,7 @@ $if (android || linux || ((ios || macos || windows) && ui2_custom_rendering ?)) 
 		rows      []DropdownMenuItem
 		state     DropdownMenuState
 		anchor    Rect
+		tokens    KitTokens
 		on_result PopupMenuCallback = unsafe { nil }
 		// The overlay laid out for state and viewport, while laid_out holds.
 		layer    Element
@@ -80,6 +81,7 @@ $if (android || linux || ((ios || macos || windows) && ui2_custom_rendering ?)) 
 			}
 			anchor:    rect(cfg.anchor.x, cfg.anchor.y - w.menu_bar_height(), cfg.anchor.width,
 				cfg.anchor.height)
+			tokens:    cfg.tokens
 			on_result: on_result
 		}
 		w.scheduler.invalidate(.layout)
@@ -208,6 +210,7 @@ $if (android || linux || ((ios || macos || windows) && ui2_custom_rendering ?)) 
 			items:     menu.rows
 			anchor:    menu.anchor
 			window:    viewport
+			tokens:    menu.tokens
 			offset:    if menu.anchor.width > 0 || menu.anchor.height > 0 { 4.0 } else { 0.0 }
 			min_width: if menu.anchor.width > 128 { menu.anchor.width } else { 128.0 }
 			on_step:   fn [mut w, serial] (step DropdownMenuStep) {
@@ -307,6 +310,7 @@ $if (android || linux || ((ios || macos || windows) && ui2_custom_rendering ?)) 
 			items:  items
 			anchor: rect(x, y, 0, 0)
 			scale:  w.popup_menu_scale()
+			tokens: element_kit_tokens(owner.el)
 		}, fn [mut w] (result PopupMenuResult) {
 			w.context_menu_result(result)
 		})
@@ -378,6 +382,7 @@ $if (android || linux || ((ios || macos || windows) && ui2_custom_rendering ?)) 
 			anchor:   node.frame
 			selected: target.options.index(selected)
 			scale:    w.popup_menu_scale()
+			tokens:   element_kit_tokens(node.el)
 		}, fn [mut w, id] (result PopupMenuResult) {
 			w.dropdown_popup_menu_result(id, result)
 		})

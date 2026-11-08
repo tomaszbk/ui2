@@ -76,6 +76,9 @@ struct PopupMenuConfig {
 	// scale is how many device pixels a logical unit covers, for a host that
 	// places the menu in pixels.
 	scale f64 = 1
+	// tokens paint a drawn menu: those of the component the menu's owner was
+	// built in.
+	tokens KitTokens = kit_default_tokens
 }
 
 // PopupMenuResult is how a popup menu closed: on the row chosen, or

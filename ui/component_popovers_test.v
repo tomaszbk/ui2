@@ -375,11 +375,11 @@ fn test_popover_open_with_backdrop_and_surface() {
 	assert surface.accessibility_label == 'Details'
 	assert surface.frame == rect(0, 0, 200, 100)
 	// A rounded border: a border-colored panel with the fill inset over it.
-	assert surface.box.bg == ComponentTheme{}.border
+	assert surface.box.bg == kit_default_tokens.border
 	assert surface.box.radius == 6
 	fill := popover_test_part(surface, 'fill')
 	assert fill.frame == rect(1, 1, 198, 98)
-	assert fill.box.bg == ComponentTheme{}.background
+	assert fill.box.bg == kit_default_tokens.popover
 	assert fill.box.radius == 5
 	body := surface.children.last()
 	assert body.frame == rect(12, 12, 176, 76)
@@ -425,8 +425,8 @@ fn test_popover_arrow_joins_the_surface() {
 		}
 	}
 	assert surface_index > 0
-	assert chrome.children[0].box.bg == ComponentTheme{}.border
-	assert chrome.children.last().box.bg == ComponentTheme{}.background
+	assert chrome.children[0].box.bg == kit_default_tokens.border
+	assert chrome.children.last().box.bg == kit_default_tokens.popover
 	assert chrome.children[surface_index].frame.y == 6
 }
 
@@ -897,8 +897,8 @@ fn test_dropdown_menu_element() {
 	assert surface.frame.x == 40
 	assert surface.frame.y == 76
 	assert surface.frame.width >= 128
-	assert surface.box.bg == ComponentTheme{}.border
-	assert popover_test_part(surface, 'fill').box.bg == ComponentTheme{}.background
+	assert surface.box.bg == kit_default_tokens.border
+	assert popover_test_part(surface, 'fill').box.bg == kit_default_tokens.popover
 	rows := menu_test_rows(surface)
 	// The trailing separator is not drawn.
 	assert rows.len == 6
@@ -914,7 +914,7 @@ fn test_dropdown_menu_element() {
 	assert cut.button_behavior
 	assert cut.hoverable
 	assert cut.accessibility_role == 'menuitem'
-	assert cut.box.bg == ComponentTheme{}.muted
+	assert cut.box.bg == kit_default_tokens.hover
 	assert !cut.box.transparent
 	assert cut.children.any(it.image_path == 'symbol:scissors')
 	assert cut.children.any(it.text == menu_shortcut_label('cmd+x'))
@@ -947,7 +947,7 @@ fn test_dropdown_menu_opens_submenus_beside_their_row() {
 	assert sub.frame.y + sub_rows[0].frame.y == parent.frame.y + parent_rows[5].frame.y
 	assert sub_rows[0].accessibility_role == 'menuitemradio'
 	assert sub_rows[0].children.any(it.text == '●')
-	assert sub_rows[2].box.bg == ComponentTheme{}.muted
+	assert sub_rows[2].box.bg == kit_default_tokens.hover
 	// Near the right edge the submenu flips to the left of its menu.
 	flipped := dropdown_menu(DropdownMenuConfig{
 		...menu_test_config([5])
@@ -1097,7 +1097,7 @@ fn test_split_dropdown_button() {
 	) or { panic(err) }
 	assert el.accessibility_role == 'group'
 	// A filled button needs no separate border, so it has no inset fill.
-	assert el.box.bg == ComponentTheme{}.primary
+	assert el.box.bg == kit_default_tokens.accent
 	assert !el.children.any(it.key == 'fill')
 	main := popover_test_part(el, 'action')
 	trigger := popover_test_part(el, 'trigger')
@@ -1119,7 +1119,7 @@ fn test_split_dropdown_button() {
 	assert !popover_test_has_callback(popover_test_part(custom, 'action'))
 	assert !popover_test_part(custom, 'action').enabled
 	assert popover_test_part(custom, 'trigger').accessibility_label == 'More save options'
-	assert popover_test_part(custom, 'fill').box.bg == ComponentTheme{}.muted
+	assert popover_test_part(custom, 'fill').box.bg == kit_default_tokens.surface_muted
 	assert dropdown_button_width('Save', '', true, .medium) > dropdown_button_width('Save',
 		'', false, .medium)
 	assert dropdown_button_width('Save as', 'plus', false, .medium) > dropdown_button_width('Save',

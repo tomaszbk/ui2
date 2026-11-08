@@ -469,7 +469,7 @@ pub:
 	close_on_outside_click bool = true
 	label                  string // Accessibility label of the menu.
 	size                   ComponentSize = .medium
-	theme                  ComponentTheme
+	tokens                 KitTokens     = kit_default_tokens
 	// on_step receives each change its rows and backdrop ask for: a row chosen
 	// (the menu closes then), a submenu opened, the highlight following the
 	// pointer, and a press outside closing it. Store its state and rebuild.
@@ -678,7 +678,7 @@ fn dropdown_menu_levels(config DropdownMenuConfig) ![]DropdownMenuLevel {
 
 fn dropdown_menu_row(config DropdownMenuConfig, level DropdownMenuLevel, index int, highlighted bool) Element {
 	m := dropdown_menu_metrics(config.size)
-	theme := config.theme
+	t := config.tokens
 	item := level.items[index]
 	frame := level.rows[index]
 	mut path := level.path.clone()
@@ -692,7 +692,7 @@ fn dropdown_menu_row(config DropdownMenuConfig, level DropdownMenuLevel, index i
 			...view('', rect(0, frame.y, level.frame.width, frame.height), BoxStyle{
 				transparent: true
 			}, [
-				view('', rect(0, rule, level.frame.width, 1), BoxStyle{ bg: theme.border }, []Element{}),
+				view('', rect(0, rule, level.frame.width, 1), BoxStyle{ bg: t.border }, []Element{}),
 			])
 			key:                key
 			on_event:           row_callback
@@ -706,7 +706,7 @@ fn dropdown_menu_row(config DropdownMenuConfig, level DropdownMenuLevel, index i
 	if item.kind == .label {
 		children << label('', item.label, rect(x, 0, frame.width - x - m.inner, frame.height),
 			TextStyle{
-				color: theme.muted_foreground
+				color: t.muted
 				size:  m.hint_size
 				bold:  true
 			})
@@ -721,9 +721,9 @@ fn dropdown_menu_row(config DropdownMenuConfig, level DropdownMenuLevel, index i
 	}
 	enabled := item.enabled
 	foreground := if !enabled {
-		theme.muted_foreground
+		t.muted
 	} else {
-		theme.foreground
+		t.text
 	}
 	if icon_column {
 		icon_y := (frame.height - m.icon) / 2
@@ -766,14 +766,14 @@ fn dropdown_menu_row(config DropdownMenuConfig, level DropdownMenuLevel, index i
 	if item.kind == .submenu {
 		children << label('', '›', rect(frame.width - m.inner - right, 0, right, frame.height),
 			TextStyle{
-				color: theme.muted_foreground
+				color: t.muted
 				size:  m.font_size + 2
 				align: .right
 			})
 	} else if hint.len > 0 {
 		children << label('', hint, rect(frame.width - m.inner - right, 0, right, frame.height),
 			TextStyle{
-				color: theme.muted_foreground
+				color: t.muted
 				size:  m.hint_size
 				align: .right
 			})
@@ -782,7 +782,7 @@ fn dropdown_menu_row(config DropdownMenuConfig, level DropdownMenuLevel, index i
 	return Element{
 		...button_view(row_id, frame, if highlighted && enabled {
 			BoxStyle{
-				bg:     theme.muted
+				bg:     t.hover
 				radius: m.row_radius
 			}
 		} else {
@@ -826,11 +826,11 @@ fn dropdown_menu_surface(config DropdownMenuConfig, level DropdownMenuLevel, dep
 	} else {
 		(dropdown_menu_at(config.items, level.path) or { DropdownMenuItem{} }).label
 	}
-	box, mut children := popover_panel(level.frame, config.theme.background, config.theme.border,
+	box, mut children := popover_panel(level.frame, config.tokens.popover, config.tokens.border,
 		m.surface_rad, true)
 	if level.scroll {
 		children << scroll(component_part_id(config.id, 'scroll:${depth}'), rect(1, m.padding,
-			level.frame.width - 2, level.frame.height - m.padding * 2), config.theme.background,
+			level.frame.width - 2, level.frame.height - m.padding * 2), config.tokens.popover,
 			rows)
 	} else {
 		children << rows
@@ -886,7 +886,7 @@ pub:
 	tone       ComponentTone = .neutral
 	outline    bool
 	size       ComponentSize = .medium
-	theme      ComponentTheme
+	tokens     KitTokens     = kit_default_tokens
 	// on_toggle receives the open state a press on the trigger asks for: the
 	// opposite of open. Apply it with DropdownMenuState.opened or closed.
 	on_toggle fn (bool) = unsafe { nil }
@@ -922,20 +922,20 @@ pub fn dropdown_button_width(caption string, icon string, split bool, size Compo
 }
 
 fn dropdown_button_colors(config DropdownButtonConfig) (u32, u32, u32) {
-	theme := config.theme
-	tone_bg, tone_fg := theme.colors(config.tone)
+	t := config.tokens
+	tone_bg, tone_fg := component_tone_colors(t, config.tone)
 	neutral := config.tone == .neutral
-	bg := if config.outline { theme.background } else { tone_bg }
+	bg := if config.outline { t.surface } else { tone_bg }
 	mut fg := if !config.outline {
 		tone_fg
 	} else if neutral {
-		theme.foreground
+		t.text
 	} else {
 		tone_bg
 	}
-	border := if neutral { theme.border } else { tone_bg }
+	border := if neutral { t.border } else { tone_bg }
 	if !config.enabled {
-		fg = theme.muted_foreground
+		fg = t.muted
 	}
 	return bg, fg, border
 }

@@ -34,54 +34,15 @@ pub enum ComponentTone {
 	danger
 }
 
-// ComponentTheme is a value, not global state. Pass the same theme to related
-// components and rebuild with a different value to change their appearance.
-pub struct ComponentTheme {
-pub:
-	background         u32 = 0xffffff
-	foreground         u32 = 0x172033
-	muted              u32 = 0xf1f5f9
-	muted_foreground   u32 = 0x64748b
-	border             u32 = 0xcbd5e1
-	primary            u32 = 0x2563eb
-	primary_foreground u32 = 0xffffff
-	success            u32 = 0x15803d
-	success_foreground u32 = 0xffffff
-	warning            u32 = 0xfbbf24
-	warning_foreground u32 = 0x172033
-	danger             u32 = 0xb91c1c
-	danger_foreground  u32 = 0xffffff
-}
-
-pub fn component_theme(dark bool) ComponentTheme {
-	if !dark {
-		return ComponentTheme{}
-	}
-	return ComponentTheme{
-		background:         0x172033
-		foreground:         0xf8fafc
-		muted:              0x263449
-		muted_foreground:   0xb4c0d0
-		border:             0x475569
-		primary:            0x93c5fd
-		primary_foreground: 0x172033
-		success:            0x86efac
-		success_foreground: 0x172033
-		warning:            0xfbbf24
-		warning_foreground: 0x172033
-		danger:             0xfca5a5
-		danger_foreground:  0x172033
-	}
-}
-
-// colors returns background and foreground colors for a semantic tone.
-pub fn (theme ComponentTheme) colors(tone ComponentTone) (u32, u32) {
+// component_tone_colors are the background and text colors of a semantic
+// tone, from the kit tokens.
+fn component_tone_colors(t KitTokens, tone ComponentTone) (u32, u32) {
 	match tone {
-		.neutral { return theme.muted, theme.foreground }
-		.primary { return theme.primary, theme.primary_foreground }
-		.success { return theme.success, theme.success_foreground }
-		.warning { return theme.warning, theme.warning_foreground }
-		.danger { return theme.danger, theme.danger_foreground }
+		.neutral { return t.surface_muted, t.text }
+		.primary { return t.accent, t.on_accent }
+		.success { return t.success, t.on_success }
+		.warning { return t.warning, t.on_warning }
+		.danger { return t.danger, t.on_danger }
 	}
 }
 

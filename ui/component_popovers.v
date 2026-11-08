@@ -51,7 +51,7 @@ fn popover_translate(frame Rect, dx f64, dy f64) Rect {
 // a transparent container framed in window coordinates as well. The arrow is a
 // border-colored triangle under a background-colored one; the second is drawn
 // after the surface so that it opens the surface's border where they join.
-fn popover_chrome(placement PopoverPlacement, surface Element, depth f64, theme ComponentTheme) Element {
+fn popover_chrome(placement PopoverPlacement, surface Element, depth f64, t KitTokens) Element {
 	frame := placement.frame
 	mut outline := []Rect{}
 	mut fill := []Rect{}
@@ -72,7 +72,7 @@ fn popover_chrome(placement PopoverPlacement, surface Element, depth f64, theme 
 	mut children := []Element{cap: outline.len + fill.len + 1}
 	for strip in outline {
 		children << view('', popover_translate(strip, -outer.x, -outer.y), BoxStyle{
-			bg: theme.border
+			bg: t.border
 		}, []Element{})
 	}
 	children << Element{
@@ -81,7 +81,7 @@ fn popover_chrome(placement PopoverPlacement, surface Element, depth f64, theme 
 	}
 	for strip in fill {
 		children << view('', popover_translate(strip, -outer.x, -outer.y), BoxStyle{
-			bg: theme.background
+			bg: t.popover
 		}, []Element{})
 	}
 	return view('', outer, BoxStyle{ transparent: true }, children)
@@ -167,9 +167,9 @@ fn popover_panel(size Rect, fill u32, border u32, radius f64, floating bool) (Bo
 // popover_surface is the bordered panel holding application content. It reports
 // pointer presses as a clickable surface does, so a press on its blank space
 // stays with it instead of falling through to the dismiss backdrop below.
-fn popover_surface(id string, size Rect, padding f64, content []Element, role string, accessibility_label string, metrics ComponentMetrics, theme ComponentTheme) !Element {
+fn popover_surface(id string, size Rect, padding f64, content []Element, role string, accessibility_label string, metrics ComponentMetrics, t KitTokens) !Element {
 	body := component_inset(rect(0, 0, size.width, size.height), padding)!
-	box, mut children := popover_panel(size, theme.background, theme.border, metrics.radius,
+	box, mut children := popover_panel(size, t.popover, t.border, metrics.radius,
 		true)
 	children << view('', body, BoxStyle{ transparent: true }, content)
 	return Element{
@@ -212,7 +212,7 @@ pub:
 	label                  string    // Accessibility label of the surface.
 	children               []Element // Positioned relative to the padded body.
 	size                   ComponentSize = .medium
-	theme                  ComponentTheme
+	tokens                 KitTokens     = kit_default_tokens
 }
 
 // popover_placement_config is the geometry part of a popover's configuration.
@@ -247,12 +247,12 @@ pub fn popover(config PopoverConfig) !Element {
 		return component_finish(popover_closed(config.id))
 	}
 	surface := popover_surface(component_part_id(config.id, 'surface'), placement.frame,
-		padding, config.children, 'dialog', config.label, metrics, config.theme)!
+		padding, config.children, 'dialog', config.label, metrics, config.tokens)!
 	chrome := popover_chrome(placement, surface, if config.arrow {
 		popover_arrow_depth(config.size)
 	} else {
 		0
-	}, config.theme)
+	}, config.tokens)
 	return component_finish(popover_layer(config.id, config.window, component_part_id(config.id,
 		'backdrop'), config.close_on_outside_click, config.on_dismiss, [chrome]))
 }
@@ -508,7 +508,7 @@ pub:
 	label    string
 	children []Element // Positioned relative to the padded body.
 	size     ComponentSize = .medium
-	theme    ComponentTheme
+	tokens   KitTokens     = kit_default_tokens
 	// on_step receives each transition the pointer entering or leaving the
 	// trigger or the card asks for; store its state and run its timer work.
 	on_step fn (HoverCardStep) = unsafe { nil }
@@ -539,8 +539,8 @@ pub fn hover_card(config HoverCardConfig) !Element {
 		return component_finish(popover_closed(config.id))
 	}
 	surface := popover_surface(component_part_id(config.id, 'surface'), placement.frame,
-		padding, config.children, 'group', config.label, metrics, config.theme)!
-	chrome := popover_chrome(placement, surface, depth, config.theme)
+		padding, config.children, 'group', config.label, metrics, config.tokens)!
+	chrome := popover_chrome(placement, surface, depth, config.tokens)
 	return component_finish(Element{
 		...chrome
 		id:        config.id

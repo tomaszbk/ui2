@@ -104,6 +104,16 @@ pub fn (ctx VmlBuildContext) tokens() KitTokens {
 	return owner.kit_tokens()
 }
 
+// element_kit_tokens are the kit tokens of the component an element was built
+// in, or the defaults for an element built outside VML.
+fn element_kit_tokens(el Element) KitTokens {
+	if el.compiled_node == unsafe { nil } {
+		return kit_default_tokens
+	}
+	mut component := el.compiled_node.component
+	return component.kit_tokens()
+}
+
 // kit_tokens resolves a theme's kit tokens; a token the theme leaves out has
 // its default_theme value.
 pub fn kit_tokens(theme Theme) KitTokens {
